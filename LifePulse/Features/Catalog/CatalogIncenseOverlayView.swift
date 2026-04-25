@@ -48,6 +48,7 @@ struct CatalogIncenseOverlayView: View {
 
                 IncenseSprite()
                     .frame(width: 60, height: 165)
+                    .clipped() // confine smoke to the 60×165 box, like HTML SVG's overflow:hidden
                     .padding(.bottom, 20)
 
                 bgmBlock
@@ -220,7 +221,9 @@ private struct GlowingTip: View {
                     .opacity(pulse ? 1.0 : 0.3)
             }
             .onAppear {
-                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+                // 0.8s half-cycle × autoreverse → 1.6s full cycle, matching the
+                // HTML @keyframes tipGlow (0% → 50% → 100% in 1.6s).
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
                     pulse = true
                 }
             }
@@ -235,7 +238,10 @@ private struct GlowingTip: View {
 /// `TimelineView` so all particles share one clock — the offsets fall out of
 /// the modulo math instead of needing per-particle state.
 private struct SmokeStream: View {
-    /// Each tuple: (origin x, origin y, radius, max-opacity, delay-seconds).
+    /// (origin x, origin y, radius, base alpha, delay-seconds).
+    /// Base alpha mirrors the SVG's per-particle `rgba(...,a)` literal; the
+    /// envelope below applies the keyframe opacity multiplicatively, just like
+    /// CSS does (final alpha = base × envelope).
     private static let particles: [(CGFloat, CGFloat, CGFloat, Double, Double)] = [
         (30, 18, 2.5, 0.7, 0.0),
         (27, 16, 3.5, 0.5, 0.9),
@@ -244,6 +250,7 @@ private struct SmokeStream: View {
     ]
 
     private static let cycle: Double = 3.0
+    private static let smokeColor = Color(red: 200/255, green: 175/255, blue: 130/255)
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30)) { ctx in
@@ -253,13 +260,13 @@ private struct SmokeStream: View {
                 let now = ctx.date.timeIntervalSinceReferenceDate
                 ZStack {
                     ForEach(0..<Self.particles.count, id: \.self) { i in
-                        let (x, y, r, maxA, delay) = Self.particles[i]
+                        let (x, y, r, base, delay) = Self.particles[i]
                         let t = ((now - delay).truncatingRemainder(dividingBy: Self.cycle) + Self.cycle)
                             .truncatingRemainder(dividingBy: Self.cycle) / Self.cycle
                         let dy = -65.0 * t
                         let dx = drift(at: t)
                         Circle()
-                            .fill(Color(red: 200/255, green: 175/255, blue: 130/255).opacity(maxA * fade(at: t)))
+                            .fill(Self.smokeColor.opacity(base * envelope(at: t)))
                             .frame(width: r * 2 * ux, height: r * 2 * uy)
                             .position(x: x * ux + CGFloat(dx) * ux,
                                       y: y * uy + CGFloat(dy) * uy)
@@ -270,26 +277,29 @@ private struct SmokeStream: View {
         .accessibilityHidden(true)
     }
 
-    /// Lateral wobble that mirrors the keyframes in the HTML prototype:
-    /// drifts +4px around 30%, then -3px around 65%, lands near origin.
+    /// Lateral wobble matching the HTML keyframes: +4px around 30%, then -3px
+    /// around 65%, lands near origin.
     private func drift(at t: Double) -> Double {
         switch t {
-        case 0..<0.3:  return 4 * (t / 0.3)
+        case 0..<0.3:    return 4 * (t / 0.3)
         case 0.3..<0.65: return 4 - 7 * ((t - 0.3) / 0.35)
         case 0.65..<1.0: return -3 + 4 * ((t - 0.65) / 0.35)
         default: return 0
         }
     }
 
-    /// Opacity envelope: 0.8 → 0.5 → 0.2 → 0 — same shape as the HTML keyframes.
-    private func fade(at t: Double) -> Double {
+    /// Multiplicative opacity envelope from the HTML @keyframes:
+    /// 0% → 0.8, 30% → 0.5, 65% → 0.2, 100% → 0.
+    private func envelope(at t: Double) -> Double {
         switch t {
-        case 0..<0.3:    return 1.0 - (1.0 - 0.625) * (t / 0.3)        // 0.8 → 0.5
-        case 0.3..<0.65: return 0.625 - (0.625 - 0.25) * ((t - 0.3) / 0.35) // 0.5 → 0.2
-        case 0.65..<1.0: return 0.25 * (1 - (t - 0.65) / 0.35)         // 0.2 → 0
+        case 0..<0.3:    return lerp(0.8, 0.5, t / 0.3)
+        case 0.3..<0.65: return lerp(0.5, 0.2, (t - 0.3) / 0.35)
+        case 0.65..<1.0: return lerp(0.2, 0.0, (t - 0.65) / 0.35)
         default: return 0
         }
     }
+
+    private func lerp(_ a: Double, _ b: Double, _ t: Double) -> Double { a + (b - a) * t }
 }
 
 #Preview {

@@ -84,7 +84,6 @@ struct CatalogPetDetailView: View {
         }
         .fullScreenCover(isPresented: $showingIncense) {
             CatalogIncenseOverlayView(pet: pet)
-                .presentationBackground(.clear)
         }
         .onChange(of: memorialPlaying) { _, on in
             memorialTask?.cancel()
@@ -400,7 +399,7 @@ struct CatalogPetDetailView: View {
 
     private var incenseCTA: some View {
         VStack(spacing: 5) {
-            LPDashedRule(dash: [4, 3])
+            LPDashedRule(color: Color(hex: 0xC8A860), dash: [4, 3])
                 .padding(.bottom, 4)
 
             Button {
@@ -413,20 +412,8 @@ struct CatalogPetDetailView: View {
                     .foregroundStyle(Color(hex: 0xF0D8A0))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 9)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(hex: 0x4A3820))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(Color(hex: 0x3A2810), lineWidth: 1.5)
-                    )
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color(hex: 0x3A2810))
-                            .offset(x: 2, y: 2)
-                    )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(IncenseButtonStyle())
 
             Text("点燃一炷香 · 聆听 TA 的 15 秒纪念曲")
                 .lpText(LP.Typography.monoTiny)
@@ -441,6 +428,36 @@ struct CatalogPetDetailView: View {
             Label("分享", systemImage: "square.and.arrow.up")
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - 上香 button style
+
+/// Stamped dark-brown button with press-collapse: on tap, the label slides 2pt
+/// down-right and the offset shadow disappears, mirroring the prototype's
+/// `:active { transform: translate(2px, 2px); box-shadow: 0 0 0; }`. Kept
+/// private — `LPButton` itself doesn't animate press, so this is one-off.
+private struct IncenseButtonStyle: ButtonStyle {
+    private static let face   = Color(hex: 0x4A3820)
+    private static let shadow = Color(hex: 0x3A2810)
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        return configuration.label
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Self.face)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Self.shadow, lineWidth: 1.5)
+            )
+            .offset(x: pressed ? 2 : 0, y: pressed ? 2 : 0)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Self.shadow)
+                    .offset(x: pressed ? 0 : 2, y: pressed ? 0 : 2)
+            )
+            .animation(.easeOut(duration: 0.08), value: pressed)
     }
 }
 
