@@ -120,8 +120,14 @@ private struct StepCardView: View {
                 .foregroundStyle(LP.Colors.faint)
         case .suggest:
             HStack(spacing: 5) {
-                MiniButton(symbol: "✅", fill: Color(hex: 0xD3EBD5), action: onDone)
-                MiniButton(symbol: "❌", fill: Color(hex: 0xEBEBEB), action: onQuit)
+                MiniButton(symbol: "✅", fill: Color(hex: 0xD3EBD5)) {
+                    LPHaptics.success()
+                    onDone()
+                }
+                MiniButton(symbol: "❌", fill: Color(hex: 0xEBEBEB)) {
+                    LPHaptics.decline()
+                    onQuit()
+                }
             }
         }
     }

@@ -62,7 +62,7 @@ struct CatalogPetDetailView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: { dismiss() }) {
+                Button(action: { LPHaptics.tap(); dismiss() }) {
                     HStack(spacing: 2) {
                         Text("‹")
                             .font(.system(size: 22, weight: .bold, design: .rounded))
@@ -341,6 +341,7 @@ struct CatalogPetDetailView: View {
 
             HStack(spacing: 8) {
                 Button {
+                    LPHaptics.tap()
                     memorialPlaying.toggle()
                 } label: {
                     ZStack {
@@ -403,6 +404,7 @@ struct CatalogPetDetailView: View {
                 .padding(.bottom, 4)
 
             Button {
+                LPHaptics.confirm()
                 memorialPlaying = false
                 showingIncense = true
             } label: {

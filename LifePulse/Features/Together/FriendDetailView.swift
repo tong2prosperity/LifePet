@@ -74,7 +74,7 @@ struct FriendDetailView: View {
     // MARK: - Back row
 
     private var backRow: some View {
-        Button { dismiss() } label: {
+        Button { LPHaptics.tap(); dismiss() } label: {
             HStack(spacing: 4) {
                 Text("‹")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
@@ -309,6 +309,7 @@ struct FriendDetailView: View {
                     )
                     .onSubmit(send)
                 Button {
+                    LPHaptics.tap()
                     send()
                 } label: {
                     Text("送出")
@@ -345,6 +346,7 @@ struct FriendDetailView: View {
             HStack(spacing: 6) {
                 ForEach(chips, id: \.self) { chip in
                     Button {
+                        LPHaptics.tap()
                         draft = chip
                         send()
                     } label: {
@@ -370,7 +372,7 @@ struct FriendDetailView: View {
 
     private var actionRow: some View {
         HStack(spacing: 8) {
-            Button(action: poke) {
+            Button(action: { LPHaptics.confirm(); poke() }) {
                 Text("戳一下 \(friend.petName)")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.paperCard)
@@ -386,7 +388,7 @@ struct FriendDetailView: View {
                     )
             }
             .buttonStyle(.plain)
-            Button(action: cheer) {
+            Button(action: { LPHaptics.confirm(); cheer() }) {
                 Text("给 TA 加油")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)

@@ -155,4 +155,3 @@ xcodebuild -project LifePulse.xcodeproj -scheme LifePulse clean
 - [ ] 续命奖励簿记
 - [ ] AI 建议卡排序（目前是静态卡）
 
-更细的产品规则以 `../lifepulse_md/运动健康的拓麻歌子.md` 为准 —— 跟本 README / `CLAUDE.md` 冲突时**以 PRD 为准**。

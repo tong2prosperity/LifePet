@@ -63,6 +63,7 @@ struct TogetherView: View {
     private func tabButton(title: String, value: Section) -> some View {
         let active = section == value
         return Button {
+            if !active { LPHaptics.tap() }
             withAnimation(.easeInOut(duration: 0.18)) { section = value }
         } label: {
             VStack(spacing: 4) {

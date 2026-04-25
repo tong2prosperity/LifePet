@@ -13,6 +13,7 @@ struct CatalogIncenseOverlayView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var elapsed: Int = 0
     @State private var timerTask: Task<Void, Never>?
+    @State private var audio = MemorialAudioPlayer()
 
     private static let total = 15
 
@@ -72,8 +73,14 @@ struct CatalogIncenseOverlayView: View {
                 Spacer(minLength: 0)
             }
         }
-        .onAppear(perform: startTimer)
-        .onDisappear(perform: stopTimer)
+        .onAppear {
+            startTimer()
+            audio.startRandom()
+        }
+        .onDisappear {
+            stopTimer()
+            audio.stop()
+        }
     }
 
     // MARK: - BGM block
@@ -143,7 +150,9 @@ struct CatalogIncenseOverlayView: View {
     }
 
     private func close() {
+        LPHaptics.tap()
         stopTimer()
+        audio.stop()
         dismiss()
     }
 }

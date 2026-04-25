@@ -199,6 +199,7 @@ struct HomeView: View {
     /// dev/recovery affordance, not a primary action.
     private var resetButton: some View {
         Button {
+            LPHaptics.tap()
             showResetConfirm = true
         } label: {
             Image(systemName: "arrow.counterclockwise")
@@ -228,7 +229,7 @@ struct HomeView: View {
     /// user shuffle states before hatch finishes is a layering bug, not a
     /// feature.
     private var demoCycleButton: some View {
-        Button(action: cycleDemoState) {
+        Button(action: { LPHaptics.tap(); cycleDemoState() }) {
             HStack(spacing: 6) {
                 Image(systemName: "shuffle")
                     .font(.system(size: 11, weight: .semibold))

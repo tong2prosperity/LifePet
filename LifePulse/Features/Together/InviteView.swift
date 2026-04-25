@@ -59,7 +59,7 @@ struct InviteView: View {
     // MARK: - Back row
 
     private var backRow: some View {
-        Button { dismiss() } label: {
+        Button { LPHaptics.tap(); dismiss() } label: {
             HStack(spacing: 4) {
                 Text("‹")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
@@ -174,6 +174,7 @@ struct InviteView: View {
     private func relationChip(_ name: String) -> some View {
         let isActive = selectedRelation == name
         return Button {
+            LPHaptics.tap()
             selectedRelation = isActive ? nil : name
         } label: {
             Text(name)
@@ -198,7 +199,7 @@ struct InviteView: View {
     /// flips to ink-fill; `fullWidth` lets the scan row stretch each option
     /// to fill its line, matching the prototype's stacked layout.
     private func inviteAction(_ title: String, primary: Bool, fullWidth: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button(action: { LPHaptics.tap(); action() }) {
             Text(title)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(primary ? LP.Colors.paperCard : LP.Colors.ink)

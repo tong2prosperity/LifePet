@@ -35,7 +35,7 @@ struct LPButton<Label: View>: View {
     }
 
     var body: some View {
-        Button(action: action) {
+        Button(action: { LPHaptics.tap(); action() }) {
             label()
                 .lpText(LP.Typography.monoLabel)
                 .foregroundStyle(foreground)
