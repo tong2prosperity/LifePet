@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "LifePet"
+    },
+    {
+      "name": "module_desc",
+      "value": "LifePet entry module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "LifePet"
+    }
+  ]
+}
