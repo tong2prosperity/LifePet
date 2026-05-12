@@ -6,11 +6,14 @@ import SwiftUI
 /// uses for every card on this screen.
 struct StatsTriadView: View {
     let stats: [Stat]
+    /// 调试按钮回调 —— 点击 gauge 左侧的 `−` 时调到 store 的
+    /// `debugDecrement`。`nil` 时（如 #Preview）按钮仍渲染但不连任何 store。
+    var onDecrement: ((StatKind) -> Void)? = nil
 
     var body: some View {
         VStack(spacing: LP.Spacing.s3) {
             ForEach(stats) { stat in
-                StatRow(stat: stat)
+                StatRow(stat: stat, onDecrement: onDecrement)
             }
         }
     }
@@ -18,6 +21,7 @@ struct StatsTriadView: View {
 
 private struct StatRow: View {
     let stat: Stat
+    let onDecrement: ((StatKind) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -25,6 +29,10 @@ private struct StatRow: View {
                 Text(stat.kind.label)
                     .font(.system(size: 16, weight: .regular, design: .rounded))
                     .frame(width: 60, alignment: .leading)
+                DecrementButton {
+                    LPHaptics.tap()
+                    onDecrement?(stat.kind)
+                }
                 ProgressTrack(progress: Double(stat.value) / 100, accent: stat.kind == .mood)
                     .frame(height: 12)
                 ValueReadout(value: stat.value)
@@ -41,6 +49,28 @@ private struct StatRow: View {
             .padding(.leading, 2)
         }
         .lpStampedCard()
+    }
+}
+
+// MARK: - Debug decrement
+
+/// 调试用：gauge 左侧的小号 `−` 按钮，点一下扣当前 stat 5 点。视觉刻意做
+/// 得很轻 —— 跟顶部的重置按钮同档（22pt 圆 + muted 描边），不抢主视觉。
+private struct DecrementButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "minus")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(LP.Colors.muted)
+                .frame(width: 18, height: 18)
+                .overlay(
+                    Circle().strokeBorder(LP.Colors.muted.opacity(0.5), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("调试 · 当前 stat 减 5")
     }
 }
 

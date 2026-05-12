@@ -75,8 +75,11 @@ struct HomeView: View {
                             .padding(.bottom, 14)
                     }
 
-                    StatsTriadView(stats: store.stats)
-                        .padding(.bottom, 14)
+                    StatsTriadView(
+                        stats: store.stats,
+                        onDecrement: { kind in store.debugDecrement(kind) }
+                    )
+                    .padding(.bottom, 14)
 
                     StepsSectionView(store: store)
                         .padding(.bottom, 24)

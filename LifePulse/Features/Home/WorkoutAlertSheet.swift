@@ -109,8 +109,8 @@ struct WorkoutAlertSheet: View {
     private var gainCells: some View {
         HStack(spacing: LP.Spacing.s2) {
             GainCell(label: "体力", value: "+\(workout.gainVitality)", unit: "PTS", isPositive: true)
-            GainCell(label: "精力", value: "—", unit: "", isPositive: nil)
-            GainCell(label: "心情", value: "—", unit: "", isPositive: nil)
+            GainCell(label: "精力", value: "+\(workout.gainVitality)", unit: "PTS", isPositive: true)
+            GainCell(label: "心情", value: "+\(workout.gainVitality)", unit: "PTS", isPositive: true)
         }
     }
 

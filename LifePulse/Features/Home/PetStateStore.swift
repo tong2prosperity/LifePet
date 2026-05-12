@@ -455,6 +455,17 @@ final class PetStateStore {
         regenerateSuggestions()
     }
 
+    /// 调试用：把某个 stat 当前值往下扣 `amount` 点（默认 5），并且在非
+    /// demo 模式里同步把扣减累计进 `decayPending`，避免下一次 HK ingest 触
+    /// 发的 `recompute()` 又把数据按公式拉回去。Demo 模式直接改 `stats`
+    /// 即可（demo 不走 ingest 路径）。
+    func debugDecrement(_ kind: StatKind, by amount: Int = 5) {
+        applyGain(to: kind, by: -amount, reason: "调试")
+        if !demoMode {
+            decayPending[kind, default: 0] += amount
+        }
+    }
+
     func quit(_ id: StepItem.ID) {
         guard let i = steps.firstIndex(where: { $0.id == id }), steps[i].status == .suggest else { return }
         let kind = steps[i].kind
