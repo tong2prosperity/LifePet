@@ -77,13 +77,13 @@ extension WorkoutSessionManager: HKWorkoutSessionDelegate {
         from fromState: HKWorkoutSessionState,
         date: Date
     ) {
-        print("[LifePulse watch] workout state: \(fromState.rawValue) -> \(toState.rawValue)")
+        print("[Pibo watch] workout state: \(fromState.rawValue) -> \(toState.rawValue)")
     }
 
     nonisolated func workoutSession(
         _ workoutSession: HKWorkoutSession,
         didFailWithError error: Error
     ) {
-        print("[LifePulse watch] workout error: \(error)")
+        print("[Pibo watch] workout error: \(error)")
     }
 }

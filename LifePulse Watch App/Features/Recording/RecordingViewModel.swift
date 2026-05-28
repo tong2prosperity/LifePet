@@ -42,7 +42,7 @@ final class RecordingViewModel {
             }
         } catch {
             errorMessage = String(describing: error)
-            print("[LifePulse watch] start failed: \(error)")
+            print("[Pibo watch] start failed: \(error)")
         }
     }
 
@@ -58,7 +58,7 @@ final class RecordingViewModel {
             }
         } catch {
             errorMessage = String(describing: error)
-            print("[LifePulse watch] stop failed: \(error)")
+            print("[Pibo watch] stop failed: \(error)")
         }
     }
 

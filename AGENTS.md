@@ -10,6 +10,7 @@
 - `Shared/DesignSystem/`: LP tokens, reusable components, and modifiers. Use these before adding one-off UI styles.
 - `Shared/Models/` and `Shared/Connectivity/`: older watch-streaming models; avoid extending them for new iOS work.
 - `LifePulse/Assets.xcassets/` and `LifePulse/Resources/`: sprites, app assets, and audio.
+- `docs/`: product and submission docs. Current public docs should use the `pibo` name/prefix, for example `docs/pibo-mvp-user-journey.md` and `docs/pibo_manual_build/`.
 - `mocks/`: JSONL sample streams from the earlier watch workflow.
 
 The project uses file-system synchronized Xcode groups. Adding Swift or asset files under target folders is usually enough; do not edit `project.pbxproj` just to register files.
@@ -43,4 +44,10 @@ PRs should include a behavior summary, screenshots or recordings for UI changes,
 
 ## Product & Architecture Notes
 
-User-facing copy should say `LifePet`; bundle, scheme, and folder names remain `LifePulse`. New feature work should read from iOS HealthKit and `PetStateStore`, not WatchConnectivity. Keep the LP light-only design system intact unless dark-mode tokens are added intentionally.
+The app name is `Pibo`. All user-facing copy, App display names, share-card branding, onboarding copy, screenshots, manuals, and public docs should say `Pibo`/`PIBO`, not `LifePet` or `LifePulse`.
+
+Keep historical engineering identifiers stable unless the task is explicitly a bundle/project migration: `LifePulse.xcodeproj`, the `LifePulse` scheme, target names, Swift app types such as `LifePulseApp`, bundle identifiers, entitlements paths, and source folder names remain `LifePulse`. Existing persistence keys such as `lifepet.*` should also remain stable unless a migration plan is added, because renaming them can reset old user state.
+
+The active product surface is the iOS app in `LifePulse/`. New feature work should read from iOS HealthKit and `PetStateStore`, not WatchConnectivity. The watch target and older connectivity/playback/session code are legacy unless doing cleanup.
+
+Keep the LP light-only design system intact unless dark-mode tokens are added intentionally. For Pibo narrative/UI work, prefer the current contract-life and star-light framing: exercise maps to `活力星光`, sleep maps to `静息星光`, and decline states should stay low-pressure rather than punitive.

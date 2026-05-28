@@ -1,7 +1,7 @@
 import Foundation
 import HealthKit
 
-/// The metrics LifePet reads from HealthKit. Each metric maps to one of the
+/// The metrics Pibo reads from HealthKit. Each metric maps to one of the
 /// three PRD stats — see the table in `CLAUDE.md` for the formulas.
 enum HealthMetric: String, CaseIterable, Sendable {
     case steps             // 体力

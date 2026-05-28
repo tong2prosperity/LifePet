@@ -32,24 +32,24 @@ enum StatKind: Hashable {
 
     var label: String {
         switch self {
-        case .vitality: return "💪 体力"
-        case .energy:   return "⚡ 精力"
-        case .mood:     return "❤️ 心情"
+        case .vitality: return "✦ 活力星光"
+        case .energy:   return "☾ 静息星光"
+        case .mood:     return "❤️ 心绪回声"
         }
     }
 
     var sourceCopy: String {
         switch self {
         case .vitality: return "步数 · 运动分钟 · 活动卡路里"
-        case .energy:   return "总睡眠 · 深睡 · REM"
+        case .energy:   return "睡眠 · 深睡 · REM"
         case .mood:     return "HRV · 心率稳定度"
         }
     }
 
     var supplementCopy: String {
         switch self {
-        case .vitality: return "走 1000 步 +4 / 运动 10 分钟 +10"
-        case .energy:   return "每睡 1 小时 +6 / 深睡多 30 分钟 +15"
+        case .vitality: return "走 1000 步 +4 星光 / 运动 10 分钟 +10"
+        case .energy:   return "每睡 1 小时 +6 星光 / 深睡多 30 分钟 +15"
         case .mood:     return "冥想 5 分钟 +15 / 深呼吸 1 次 +3"
         }
     }
@@ -250,6 +250,10 @@ final class PetStateStore {
 
     // — Transient feedback —
     var toast: String? = nil
+    /// Rotates Pibo's front-page line when the user taps the pet. Kept as a
+    /// simple counter instead of random state so the same day/stat combination
+    /// renders predictably until the user explicitly interacts.
+    var speechCursor: Int = 0
     /// The latest stat change. Set on every recompute / `markDone` /
     /// `applyGain`. The home view watches this with `.onChange` to fire a
     /// sparkle burst on the pet stage.
@@ -450,9 +454,14 @@ final class PetStateStore {
         let kind = steps[i].kind
         LPLog.petState.notice("user markDone kind=\(kind.rawValue, privacy: .public) +\(gain, privacy: .public) → \(stat.label, privacy: .public)")
         applyGain(to: stat, by: gain, reason: steps[i].actionLabel)
-        showToast("完成！+\(gain) 已到账")
+        showToast("完成！+\(gain) 星光落下")
         lastInteractionAt[kind] = Date()
         regenerateSuggestions()
+    }
+
+    func nudgePibo() {
+        speechCursor += 1
+        showToast("Pibo 抬头看了你一眼")
     }
 
     /// 调试用：把某个 stat 当前值往下扣 `amount` 点（默认 5），并且在非
@@ -511,6 +520,7 @@ final class PetStateStore {
         lastDelta = nil
         lastWorkoutEndedAt = nil
         toast = nil
+        speechCursor = 0
         pendingWorkout = nil
         feedToken = nil
         // New pet UUID + name + birth=today. Hackathon semantics: reset means
@@ -971,7 +981,7 @@ final class PetStateStore {
         pendingWorkout = nil
         insertDoneCard(for: pw, time: "刚刚")
         applyGain(to: .vitality, by: pw.gainVitality, reason: pw.label)
-        showToast("\(petName) 吃饱了！+\(pw.gainVitality) 体力")
+        showToast("\(petName) 醒过来一点！+\(pw.gainVitality) 活力星光")
         feedToken = UUID()
     }
 
@@ -1099,7 +1109,7 @@ final class PetStateStore {
         let deepH  = raw.sleepDeep / 3600
         let remH   = raw.sleepREM / 3600
         let base = totalH/8*50 + deepH/2*30 + remH/1.5*20
-        // PRD §3 公式只看时长加权；这里再叠一层 LifePet 内部 sleep score 的修正
+        // PRD §3 公式只看时长加权；这里再叠一层 Pibo 内部 sleep score 的修正
         // (-21…+9)，让"评分高"用户得到额外奖励、"评分差"获得轻微惩罚。
         // Apple iOS 26 的 Sleep Score 没有公开 HealthKit type 可读，所以
         // score 由 `computeSleepScore()` 自行从 stages 重算。
@@ -1107,7 +1117,7 @@ final class PetStateStore {
         return clamp(Int(base + modifier))
     }
 
-    /// LifePet 内部的睡眠评分 [0, 100]。仅基于已读到的 sleep stages —
+    /// Pibo 内部的睡眠评分 [0, 100]。仅基于已读到的 sleep stages —
     /// duration / deep / REM / 连续性近似，**不**等同 Apple Health 的 Sleep
     /// Score（那个分数 watchOS 26 起在系统里展示但 HealthKit 不暴露）。
     private func computeSleepScore() -> Int {

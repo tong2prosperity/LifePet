@@ -354,9 +354,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "LifePulse-Watch-App-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = LifePulse;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "LifePulse reads your heart rate, SpO₂, and heart-rate variability during a session to turn your vitals into music.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "LifePulse uses a workout session to keep sensors active while recording.";
+				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo reads your heart rate, SpO₂, and heart-rate variability to reflect them in your digital pet.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pibo uses workout sessions to keep sensors active during recording.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = fun.tiebao.co.LifePulse;
@@ -392,9 +392,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "LifePulse-Watch-App-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = LifePulse;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "LifePulse reads your heart rate, SpO₂, and heart-rate variability during a session to turn your vitals into music.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "LifePulse uses a workout session to keep sensors active while recording.";
+				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo reads your heart rate, SpO₂, and heart-rate variability to reflect them in your digital pet.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pibo uses workout sessions to keep sensors active during recording.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = fun.tiebao.co.LifePulse;
@@ -430,8 +430,8 @@
 				DEVELOPMENT_TEAM = XD36G5SYYU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = LifePet;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "LifePet 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
+				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -467,8 +467,8 @@
 				DEVELOPMENT_TEAM = XD36G5SYYU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = LifePet;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "LifePet 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
+				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

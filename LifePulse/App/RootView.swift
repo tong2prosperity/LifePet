@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// LifePet shell. On first launch we show `HealthAuthView`; once the user
+/// Pibo shell. On first launch we show `HealthAuthView`; once the user
 /// connects (or explicitly opts into demo / "later"), we flip to the tabs.
 /// The "have we asked" flag is stored in `UserDefaults` so we don't re-prompt.
 struct RootView: View {

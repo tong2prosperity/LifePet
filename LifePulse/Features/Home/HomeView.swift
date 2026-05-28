@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// LifePet home — translates `原型-01-主页.html` into SwiftUI on top of the
+/// Pibo home — translates `原型-01-主页.html` into SwiftUI on top of the
 /// `LP` design system. State lives in `PetStateStore`, fed by HealthKit
 /// events; this view is mostly presentation + the "incoming sample"
 /// animation glue.
@@ -64,10 +64,18 @@ struct HomeView: View {
                         bursting: isBursting,
                         vibrateToken: vibrateToken,
                         isHatching: !hatched,
-                        onHatchCompleted: { hatched = true }
+                        onHatchCompleted: { hatched = true },
+                        onPetTapped: {
+                            LPHaptics.tap()
+                            store.nudgePibo()
+                        }
                     )
                     .padding(.top, 12)
-                    .padding(.bottom, store.demoMode ? 8 : 14)
+                    .padding(.bottom, 10)
+
+                    LPSpeechBubble(store.piboSpeech.text, tone: store.piboSpeech.tone)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.bottom, store.demoMode ? 8 : 14)
 
                     if store.demoMode {
                         demoCycleButton
@@ -75,9 +83,14 @@ struct HomeView: View {
                             .padding(.bottom, 14)
                     }
 
-                    StatsTriadView(
-                        stats: store.stats,
-                        onDecrement: { kind in store.debugDecrement(kind) }
+                    StarlightStatusView(summaries: store.starlightSummaries)
+                        .padding(.bottom, 14)
+
+                    JourneyFragmentsView(
+                        ritual: store.journeyRitual,
+                        fragments: store.memoryFragments,
+                        accessories: store.journeyAccessories,
+                        nudge: store.journeyNudge
                     )
                     .padding(.bottom, 14)
 
@@ -214,7 +227,7 @@ struct HomeView: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("重置 LifePet 流程")
+        .accessibilityLabel("重置 Pibo 流程")
     }
 
     private func performReset() {
@@ -291,7 +304,7 @@ struct HomeView: View {
     }
 
     private var statePill: some View {
-        Text(store.state.tag)
+        Text(store.state.journeyLabel)
             .font(.system(size: 10, design: .monospaced))
             .foregroundStyle(.white)
             .tracking(0.5)

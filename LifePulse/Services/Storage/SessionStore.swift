@@ -85,9 +85,9 @@ final class SessionStore {
             let p = try decoder.decode(Persisted.self, from: data)
             self.sessions = p.sessions
             self.snapshotsBySession = p.snapshotsBySession
-            print("[LifePulse] SessionStore loaded \(p.sessions.count) sessions from \(fileURL.path)")
+            print("[Pibo] SessionStore loaded \(p.sessions.count) sessions from \(fileURL.path)")
         } catch {
-            print("[LifePulse] SessionStore decode failed: \(error)")
+            print("[Pibo] SessionStore decode failed: \(error)")
         }
     }
 
@@ -97,7 +97,7 @@ final class SessionStore {
             let data = try encoder.encode(snapshot)
             try data.write(to: fileURL, options: .atomic)
         } catch {
-            print("[LifePulse] SessionStore persist failed: \(error)")
+            print("[Pibo] SessionStore persist failed: \(error)")
         }
     }
 }

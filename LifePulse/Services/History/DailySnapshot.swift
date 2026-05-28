@@ -1,9 +1,9 @@
 import Foundation
 
-/// One day's "what did LifePet make of this pet's life" record. Persisted by
+/// One day's "what did Pibo make of this pet's life" record. Persisted by
 /// `DailySnapshotStore`. One row per `(petId, date)`.
 ///
-/// **What it stores** — the LifePet-derived view of a day:
+/// **What it stores** — the Pibo-derived view of a day:
 /// - The three end-of-day stats (`vitality / energy / mood`) and the resolved
 ///   `stateTag` — these are what the home screen would render at that point.
 /// - The raw HK aggregates that fed the formulas — `steps`, `sleepTotal`,

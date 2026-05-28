@@ -13,7 +13,7 @@ final class PhoneConnectivityReceiver: NSObject, WCSessionDelegate {
         self.continuation = cont
         super.init()
         guard WCSession.isSupported() else {
-            print("[LifePulse] WCSession not supported")
+            print("[Pibo] WCSession not supported")
             return
         }
         WCSession.default.delegate = self
@@ -23,10 +23,10 @@ final class PhoneConnectivityReceiver: NSObject, WCSessionDelegate {
     nonisolated private func dispatch(_ dict: [String: Any]) {
         do {
             let message = try ConnectivityCodec.decode(dict)
-            print("[LifePulse] received: \(Self.summarize(message))")
+            print("[Pibo] received: \(Self.summarize(message))")
             continuation.yield(message)
         } catch {
-            print("[LifePulse] decode failed: \(error)")
+            print("[Pibo] decode failed: \(error)")
         }
     }
 
@@ -45,15 +45,15 @@ final class PhoneConnectivityReceiver: NSObject, WCSessionDelegate {
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
-        print("[LifePulse] WCSession activated: state=\(activationState.rawValue) err=\(String(describing: error))")
+        print("[Pibo] WCSession activated: state=\(activationState.rawValue) err=\(String(describing: error))")
     }
 
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {
-        print("[LifePulse] WCSession inactive")
+        print("[Pibo] WCSession inactive")
     }
 
     nonisolated func sessionDidDeactivate(_ session: WCSession) {
-        print("[LifePulse] WCSession deactivated, reactivating")
+        print("[Pibo] WCSession deactivated, reactivating")
         WCSession.default.activate()
     }
 

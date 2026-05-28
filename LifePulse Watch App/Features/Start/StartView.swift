@@ -5,7 +5,7 @@ struct StartView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("LifePulse")
+            Text("Pibo")
                 .font(.headline)
             Button("Start", action: onStart)
                 .buttonStyle(.borderedProminent)

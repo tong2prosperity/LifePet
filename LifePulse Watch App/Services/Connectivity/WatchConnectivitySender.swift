@@ -7,7 +7,7 @@ final class WatchConnectivitySender: NSObject, WCSessionDelegate {
     private override init() {
         super.init()
         guard WCSession.isSupported() else {
-            print("[LifePulse watch] WCSession not supported")
+            print("[Pibo watch] WCSession not supported")
             return
         }
         WCSession.default.delegate = self
@@ -21,15 +21,15 @@ final class WatchConnectivitySender: NSObject, WCSessionDelegate {
             let payload = try ConnectivityCodec.encode(message)
             if session.isReachable {
                 session.sendMessage(payload, replyHandler: nil) { error in
-                    print("[LifePulse watch] sendMessage error: \(error)")
+                    print("[Pibo watch] sendMessage error: \(error)")
                 }
-                print("[LifePulse watch] sent via sendMessage: \(Self.summarize(message))")
+                print("[Pibo watch] sent via sendMessage: \(Self.summarize(message))")
             } else {
                 session.transferUserInfo(payload)
-                print("[LifePulse watch] queued via transferUserInfo: \(Self.summarize(message))")
+                print("[Pibo watch] queued via transferUserInfo: \(Self.summarize(message))")
             }
         } catch {
-            print("[LifePulse watch] encode failed: \(error)")
+            print("[Pibo watch] encode failed: \(error)")
         }
     }
 
@@ -48,7 +48,7 @@ final class WatchConnectivitySender: NSObject, WCSessionDelegate {
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
-        print("[LifePulse watch] WCSession activated: state=\(activationState.rawValue) err=\(String(describing: error))")
+        print("[Pibo watch] WCSession activated: state=\(activationState.rawValue) err=\(String(describing: error))")
     }
 
     // Required when the compiler sees the iOS SDK's WCSessionDelegate.

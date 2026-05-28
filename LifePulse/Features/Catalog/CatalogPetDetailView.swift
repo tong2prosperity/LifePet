@@ -297,7 +297,7 @@ struct CatalogPetDetailView: View {
                 .font(.system(size: 15, design: .rounded))
                 .foregroundStyle(LP.Colors.stickyInk)
                 .lineSpacing(2)
-            Text("— via LifePet")
+            Text("— via Pibo")
                 .lpText(LP.Typography.monoTiny)
                 .foregroundStyle(LP.Colors.stickyInk.opacity(0.6))
                 .frame(maxWidth: .infinity, alignment: .trailing)

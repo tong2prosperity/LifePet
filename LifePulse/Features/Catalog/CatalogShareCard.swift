@@ -5,7 +5,7 @@ import SwiftUI
 /// to install the app. Save / 小红书 buttons live below the card.
 ///
 /// The faux QR is a deterministic dot pattern — good enough for the hackathon
-/// demo. Wiring a real `lifepet.app/p/<petId>` URL through CoreImage's
+/// demo. Wiring a real `pibo.app/p/<petId>` URL through CoreImage's
 /// `CIQRCodeGenerator` is V1 work.
 struct CatalogShareCard: View {
     let pet: CatalogPet
@@ -29,7 +29,7 @@ struct CatalogShareCard: View {
 
     private var shareCard: some View {
         VStack(spacing: 6) {
-            Text("· LIFEPET ·")
+            Text("· PIBO ·")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .tracking(3)
                 .foregroundStyle(LP.Colors.coral)
@@ -141,7 +141,7 @@ struct CatalogShareCard: View {
 
     private var qrBlock: some View {
         VStack(spacing: 6) {
-            FauxQRCode(seed: "lifepet-\(pet.id)")
+            FauxQRCode(seed: "pibo-\(pet.id)")
                 .frame(width: 86, height: 86)
                 .padding(4)
                 .background(
@@ -154,14 +154,14 @@ struct CatalogShareCard: View {
             VStack(spacing: 2) {
                 HStack(spacing: 4) {
                     Text("扫码注册")
-                    Text("LifePet").foregroundStyle(LP.Colors.coral).fontWeight(.bold)
+                    Text("Pibo").foregroundStyle(LP.Colors.coral).fontWeight(.bold)
                 }
                 Text("养一只属于你自己的")
             }
             .font(.system(size: 13, design: .rounded))
             .foregroundStyle(LP.Colors.ink)
 
-            Text("lifepet.app · via FISH")
+            Text("pibo.app · via FISH")
                 .font(.system(size: 8, design: .monospaced))
                 .tracking(1)
                 .foregroundStyle(LP.Colors.faint)

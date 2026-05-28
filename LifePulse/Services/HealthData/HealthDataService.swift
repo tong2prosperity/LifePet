@@ -2,7 +2,7 @@ import Foundation
 import HealthKit
 import os
 
-/// LifePet's read-only HealthKit pipeline.
+/// Pibo's read-only HealthKit pipeline.
 ///
 /// Ownership: one instance per app launch, vended via SwiftUI environment.
 ///

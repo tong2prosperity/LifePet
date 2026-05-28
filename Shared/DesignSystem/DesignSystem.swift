@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// LifePet Design System v1.0 — shared between iOS and watchOS.
+/// Pibo Design System v1.0 — shared between iOS and watchOS.
 ///
 /// Call sites read as `LP.Colors.coral`, `LP.Spacing.s4`, `LP.Radius.card`,
 /// `LP.Typography.serifH2`, etc. Components live as top-level `LPButton`,
@@ -25,7 +25,7 @@ enum LP {}
 #Preview("LP · Kitchen sink") {
     ScrollView {
         VStack(alignment: .leading, spacing: LP.Spacing.s5) {
-            Text("LifePet").lpText(LP.Typography.display)
+            Text("Pibo").lpText(LP.Typography.display)
             Text("DESIGN · SYSTEM · v1.0")
                 .lpText(LP.Typography.monoLabel).foregroundStyle(LP.Colors.muted)
 

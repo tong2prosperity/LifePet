@@ -1,10 +1,10 @@
-# LifePet
+# Pibo
 
 > 你不是喂宠物，你的身体就是宠物的食物。养得好它陪你更久，养不好它早早走掉。
 
 一个 iOS-only 的 hackathon 项目，把 HealthKit 里的日常健康数据变成一只拓麻歌子（Tamagotchi）：步数、睡眠、心率变异 …… 都直接喂给你的小宠物，决定它今天的状态、寿命、命运。
 
-> Bundle / scheme 名字仍然是 `LifePulse`（仓库历史遗留），但产品名是 **LifePet**。
+> Bundle / scheme 名字仍然是 `LifePulse`（仓库历史遗留），但产品名是 **Pibo**。
 
 ---
 

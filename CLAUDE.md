@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Goal
 
-The product is **LifePet · Life is Vibe** (codebase still named "LifePulse" — bundle / scheme names are `LifePulse`, but every user-facing string says "LifePet"). It is an **iOS-only hackathon project** that turns the wearer's daily health data into a tamagotchi:
+The product is **Pibo · Life is Vibe** (codebase still named "LifePulse" — bundle / scheme names are `LifePulse`, but every user-facing string says "Pibo"). It is an **iOS-only hackathon project** that turns the wearer's daily health data into a tamagotchi:
 
 > 你不是喂宠物，你的身体就是宠物的食物。养得好它陪你更久，养不好它早早走掉。
 

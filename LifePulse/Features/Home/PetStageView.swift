@@ -39,6 +39,7 @@ struct PetStageView: View {
     /// `onHatchCompleted`.
     var isHatching: Bool = false
     var onHatchCompleted: (() -> Void)? = nil
+    var onPetTapped: (() -> Void)? = nil
 
     /// Local two-stage gate inside the hatch path. `false` = static egg +
     /// tap hint; `true` = `egg_hatch` animation playing. Defaults to `false`
@@ -91,6 +92,11 @@ struct PetStageView: View {
                 }
             }
             .frame(width: 160, height: 160)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard !isHatching else { return }
+                onPetTapped?()
+            }
             .modifier(ShakeOnFeed(phase: shakePhase))
             // Publish the sprite's center as a preference so HomeView can aim
             // energy particles at it. `.center` resolves to the midpoint of the

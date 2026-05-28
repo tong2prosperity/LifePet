@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// LifePet button. One primary per screen, Mono 11pt / uppercase / tracking 0.2em,
+/// Pibo button. One primary per screen, Mono 11pt / uppercase / tracking 0.2em,
 /// radius 2pt, 1.5pt border.
 ///
 /// Variants:

@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-/// Unified logging entry point for LifePet. Wraps `os.Logger` with one
+/// Unified logging entry point for Pibo. Wraps `os.Logger` with one
 /// category per subsystem so live-device logs in Console.app can be filtered
 /// by area (e.g., `subsystem:fun.tiebao.LifePulse category:HealthKit.Sleep`).
 ///
