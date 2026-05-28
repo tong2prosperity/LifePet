@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct LifePulse_Watch_AppApp: App {
+struct PiboWatchApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()

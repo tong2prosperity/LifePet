@@ -4,7 +4,7 @@ import SwiftUI
 /// connects (or explicitly opts into demo / "later"), we flip to the tabs.
 /// The "have we asked" flag is stored in `UserDefaults` so we don't re-prompt.
 struct RootView: View {
-    @AppStorage("lifepet.onboardingDone") private var onboardingDone: Bool = false
+    @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
 
     var body: some View {
         Group {

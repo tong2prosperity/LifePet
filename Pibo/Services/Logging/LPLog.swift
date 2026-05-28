@@ -3,7 +3,7 @@ import os
 
 /// Unified logging entry point for Pibo. Wraps `os.Logger` with one
 /// category per subsystem so live-device logs in Console.app can be filtered
-/// by area (e.g., `subsystem:fun.tiebao.LifePulse category:HealthKit.Sleep`).
+/// by area (e.g., `subsystem:fun.tiebao.co.Pibo category:HealthKit.Sleep`).
 ///
 /// Why `os.Logger` instead of `print`:
 /// - Categorized + filterable in Console.app and Xcode's filter bar.
@@ -33,7 +33,7 @@ import os
 /// `os.Logger` is thread-safe, and callers like `PetIdentityStore`
 /// (nonisolated) need to log without hopping actors.
 nonisolated enum LPLog {
-    private static let subsystem = Bundle.main.bundleIdentifier ?? "fun.tiebao.LifePulse"
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "fun.tiebao.co.Pibo"
 
     static let app          = Logger(subsystem: subsystem, category: "App")
     static let onboarding   = Logger(subsystem: subsystem, category: "Onboarding")

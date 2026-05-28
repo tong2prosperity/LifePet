@@ -2,7 +2,7 @@ import SwiftUI
 import os
 
 @main
-struct LifePulseApp: App {
+struct PiboApp: App {
     /// Persisted pet identity (UUID, name, birthDate). Lives for the lifetime
     /// of the process so day-count derivations stay stable across views.
     @State private var identity: PetIdentityStore
@@ -20,6 +20,7 @@ struct LifePulseApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        PiboPersistenceMigrator.runIfNeeded()
         LPLog.app.notice("App launched")
         let id = PetIdentityStore()
         let snaps = DailySnapshotStore()

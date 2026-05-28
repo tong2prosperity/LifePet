@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Goal
 
-The product is **Pibo · Life is Vibe** (codebase still named "LifePulse" — bundle / scheme names are `LifePulse`, but every user-facing string says "Pibo"). It is an **iOS-only hackathon project** that turns the wearer's daily health data into a tamagotchi:
+The product is **Pibo · Life is Vibe**. The project, schemes, bundle identifiers, and user-facing strings have been migrated to Pibo; old LifePulse names should only appear in historical notes or compatibility migration code. It is an **iOS-only hackathon project** that turns the wearer's daily health data into a tamagotchi:
 
 > 你不是喂宠物，你的身体就是宠物的食物。养得好它陪你更久，养不好它早早走掉。
 
 - **iOS** is the only active surface. It owns the pet UI / step loop / 图鉴 / share, and reads health data **passively** from HealthKit on-device.
 - **Apple Watch** has no custom app in this project. The watch the user already wears writes 步数 / HR / HRV / 睡眠 / workouts into HealthKit on its own; iOS reads those samples after the fact.
 
-The original plan had an active watch app streaming live samples over `WCSession`. **That is cut.** No watch session, no `WCSession.sendMessage`, no on-watch UI. New code should treat HealthKit as the sole input. There is dead code from the previous direction (`Shared/Connectivity/`, `LifePulse/Services/Connectivity/`, the entire `LifePulse Watch App/` target, the `Generation` / `Playback` / `Session` features, `SessionStore`); it can be removed in a cleanup pass and should not be extended.
+The original plan had an active watch app streaming live samples over `WCSession`. **That is cut.** No watch session, no `WCSession.sendMessage`, no on-watch UI. New code should treat HealthKit as the sole input. There is dead code from the previous direction (`Shared/Connectivity/`, `Pibo/Services/Connectivity/`, the entire `Pibo Watch App/` target, the `Generation` / `Playback` / `Session` features, `SessionStore`); it can be removed in a cleanup pass and should not be extended.
 
 ## Core Product Logic (PRD v0.7 — source of truth)
 
@@ -98,10 +98,10 @@ For demo / preview, hard-code: pet name **BEAN**, day **D07**, stats **体力 88
 
 ## Project Layout
 
-Two Xcode targets inside a single project (`LifePulse.xcodeproj`):
+Two Xcode targets inside a single project (`Pibo.xcodeproj`):
 
-- `LifePulse/` — iOS app (bundle `fun.tiebao.LifePulse`, SDK `iphoneos`, deployment iOS 26.2). The pet UI / step loop / HealthKit observer pipeline / 图鉴 / share lives here.
-- `LifePulse Watch App/` — watchOS app target. **Now vestigial.** The pivot to passive HealthKit reads makes the watch app unnecessary. It still builds (the iOS scheme embeds it), but no new feature work should land here. Plan: drop the target in a cleanup pass once the iOS HealthKit story is wired up.
+- `Pibo/` — iOS app (bundle `fun.tiebao.co.Pibo`, SDK `iphoneos`, deployment iOS 26.2). The pet UI / step loop / HealthKit observer pipeline / 图鉴 / share lives here.
+- `Pibo Watch App/` — watchOS app target. **Now vestigial.** The pivot to passive HealthKit reads makes the watch app unnecessary. It still builds (the iOS scheme embeds it), but no new feature work should land here. Plan: drop the target in a cleanup pass once the iOS HealthKit story is wired up.
 
 Shared code sits in `Shared/`:
 
@@ -109,7 +109,7 @@ Shared code sits in `Shared/`:
 - `Shared/Connectivity/` — *dead*. Holdover from the WatchConnectivity direction; remove in cleanup.
 - `Shared/Models/` — `VitalSession`, `VitalSnapshot`, `VitalSample`, `VitalKind`. Were the wire-format for the watch link; will likely be replaced by a leaner local-only state model once the HealthKit layer lands.
 
-Both targets use `PBXFileSystemSynchronizedRootGroup`, so **any `.swift` / asset file dropped into `LifePulse/`, `LifePulse Watch App/`, or `Shared/` is picked up automatically** — do not hand-edit `project.pbxproj` to register new source files. Only edit the pbxproj when adding frameworks, capabilities, Info.plist keys, or build-phase steps.
+Both targets use `PBXFileSystemSynchronizedRootGroup`, so **any `.swift` / asset file dropped into `Pibo/`, `Pibo Watch App/`, or `Shared/` is picked up automatically** — do not hand-edit `project.pbxproj` to register new source files. Only edit the pbxproj when adding frameworks, capabilities, Info.plist keys, or build-phase steps.
 
 ## Build Configuration Notes
 
@@ -122,7 +122,7 @@ Both targets use `PBXFileSystemSynchronizedRootGroup`, so **any `.swift` / asset
 
 ## Frameworks This Project Will Need
 
-- **HealthKit** (iOS, read-only): 步数, 运动分钟, kcal, 站立, 睡眠 stages, HRV (SDNN), RHR, 冥想 events, 已完成 workouts. The pipeline is **observer query + anchored object query + background delivery** — see "HealthKit observer architecture (planned)" below for the design. Request `HKHealthStore.requestAuthorization` once at first launch; only the *read* half is needed (we don't write samples). Add `NSHealthShareUsageDescription` to `LifePulse/Info.plist` and turn on the HealthKit capability on the iOS target.
+- **HealthKit** (iOS, read-only): 步数, 运动分钟, kcal, 站立, 睡眠 stages, HRV (SDNN), RHR, 冥想 events, 已完成 workouts. The pipeline is **observer query + anchored object query + background delivery** — see "HealthKit observer architecture (planned)" below for the design. Request `HKHealthStore.requestAuthorization` once at first launch; only the *read* half is needed (we don't write samples). Add `NSHealthShareUsageDescription` to `Pibo/Info.plist` and turn on the HealthKit capability on the iOS target.
 - **WatchConnectivity**: ❌ not used. The pivot to HealthKit observers makes WCSession unnecessary.
 - **SwiftUI Canvas / SpriteKit / Lottie (TBD)**: pixel pet animation + stat bar transitions. The pet stage animates with bounce + sparkle particles via `TimelineView` + animated transforms; reach for SpriteKit only if particle counts blow up.
 - **AVFoundation** (later): only for the *纪念曲* feature in 图鉴 详情 — generate a waveform from a dead pet's lifetime data. **Do not** rebuild a music-generation pipeline; that direction was cut.
@@ -132,7 +132,7 @@ Both targets use `PBXFileSystemSynchronizedRootGroup`, so **any `.swift` / asset
 The home page currently runs off a hard-coded `HomeModel` with sample stats. The plan to wire it to real HealthKit data:
 
 1. **Onboarding** — first-launch screen requests HealthKit read auth for: `HKQuantityType` (stepCount, activeEnergyBurned, appleExerciseTime, appleStandTime, heartRate, heartRateVariabilitySDNN, restingHeartRate), `HKCategoryType` (sleepAnalysis, mindfulSession), `HKWorkoutType.workoutType()`. Store granted-set status in `UserDefaults` so we don't re-prompt.
-2. **`HealthDataService`** (new, `LifePulse/Services/HealthData/`) — owns one `HKHealthStore`, exposes async streams of typed samples. Each watched type registers two queries:
+2. **`HealthDataService`** (new, `Pibo/Services/HealthData/`) — owns one `HKHealthStore`, exposes async streams of typed samples. Each watched type registers two queries:
    - `HKObserverQuery` for *notification only*. The handler fires `HKAnchoredObjectQuery` with the saved anchor to read the delta, then persists the new anchor.
    - `HKHealthStore.enableBackgroundDelivery(for:frequency:)` so iOS wakes the app briefly when the watch syncs new samples — even if the user isn't holding the phone.
 3. **`PetStateStore`** (new, replaces hand-set `HomeModel`) — `@Observable @MainActor`. Subscribes to `HealthDataService` streams, maps incoming samples to PRD §3 formulas, mutates the three stats, derives `PetState` per §5 priority order. Owns the `[StepItem]` derivation (auto-tick suggest cards when a matching workout/sleep/mindful session arrives).
@@ -144,20 +144,20 @@ Out of scope for now: the AI-recommended suggestion ranking (currently static ca
 
 ## Common Commands
 
-Build / run is normally Xcode (⌘R with the `LifePulse` scheme for the phone+watch pair). Command-line equivalents:
+Build / run is normally Xcode (⌘R with the `Pibo` scheme for the phone+watch pair). Command-line equivalents:
 
 ```bash
 # Build the iOS app (also builds the embedded watch app).
-xcodebuild -project LifePulse.xcodeproj -scheme LifePulse -configuration Debug build
+xcodebuild -project Pibo.xcodeproj -scheme Pibo -configuration Debug build
 
 # Build only the watch app.
-xcodebuild -project LifePulse.xcodeproj -scheme "LifePulse Watch App" -configuration Debug build
+xcodebuild -project Pibo.xcodeproj -scheme "Pibo Watch App" -configuration Debug build
 
 # List schemes / targets.
-xcodebuild -project LifePulse.xcodeproj -list
+xcodebuild -project Pibo.xcodeproj -list
 
 # Clean.
-xcodebuild -project LifePulse.xcodeproj -scheme LifePulse clean
+xcodebuild -project Pibo.xcodeproj -scheme Pibo clean
 ```
 
 There is no test target yet; add one via Xcode before trying `xcodebuild test`.

@@ -319,9 +319,9 @@ final class PetStateStore {
     /// the store stays unaware of HK plumbing.
     var onDayRollover: (() -> Void)?
 
-    private static let lastSeenDateKey = "lifepet.dayRollover.lastSeenDate.v1"
-    private static let lastDecayAtKey  = "lifepet.decay.lastDecayAt.v1"
-    private static let pendingWorkoutKey = "lifepet.pendingWorkout.v1"
+    private static let lastSeenDateKey = PiboPersistenceKeys.Defaults.lastSeenDate
+    private static let lastDecayAtKey = PiboPersistenceKeys.Defaults.lastDecayAt
+    private static let pendingWorkoutKey = PiboPersistenceKeys.Defaults.pendingWorkout
     /// 持久化恢复 pendingWorkout 时的最大保鲜期。超过这个窗口的运动通知
     /// 即使 UserDefaults 里有，也丢弃 —— 用户夜里关 app 第二天打开看到的
     /// 不应该是昨天的 sheet。
@@ -342,7 +342,7 @@ final class PetStateStore {
     /// `identity` and `snapshots` default to freshly-constructed instances so
     /// SwiftUI `#Preview` blocks can keep calling `PetStateStore()` without
     /// every caller threading them through. Production / app launch always
-    /// passes the App-owned instances explicitly (see `LifePulseApp.init`).
+    /// passes the App-owned instances explicitly (see `PiboApp.init`).
     init(identity: PetIdentityStore = PetIdentityStore(),
          snapshots: DailySnapshotStore = DailySnapshotStore(),
          events: AsyncStream<HealthEvent>? = nil,
@@ -357,12 +357,12 @@ final class PetStateStore {
 
         // Cold-launch rollover catch-up. If the app was killed across one or
         // more midnights, this clears yesterday's in-memory state before the
-        // first reconcile fires from `LifePulseApp`'s scenePhase handler.
+        // first reconcile fires from `PiboApp`'s scenePhase handler.
         checkDayRollover()
 
         // In-foreground midnight crossings. Fires while the app is active —
         // background-only crossings are caught by the `scenePhase == .active`
-        // path in `LifePulseApp`, and cold-launch is caught above.
+        // path in `PiboApp`, and cold-launch is caught above.
         NotificationCenter.default.addObserver(
             forName: .NSCalendarDayChanged,
             object: nil,
@@ -413,7 +413,7 @@ final class PetStateStore {
             }
         }
     }
-    // No `deinit` cleanup — the store is owned by `LifePulseApp` and lives
+    // No `deinit` cleanup — the store is owned by `PiboApp` and lives
     // for the lifetime of the process. The Task auto-cancels when the
     // continuation finishes (which happens never, in practice). The
     // NSCalendarDayChanged observer leaks too, for the same reason.
@@ -496,7 +496,7 @@ final class PetStateStore {
 
     /// Wipe in-memory state back to first-launch defaults. Called from the
     /// home screen's "重置" button after the user confirms. UserDefaults
-    /// flags (`lifepet.hatched`, `lifepet.onboardingDone`) are the caller's
+    /// flags (`pibo.hatched`, `pibo.onboardingDone`) are the caller's
     /// responsibility — this method only touches store state.
     ///
     /// `hasIngestedAny` flips back to `false` so the demo-floor stats show
@@ -552,7 +552,7 @@ final class PetStateStore {
     ///
     /// Triggered from three places to cover every overnight scenario:
     /// 1. `init` — cold launch after the app was killed across midnight.
-    /// 2. `LifePulseApp`'s `scenePhase == .active` — backgrounded across
+    /// 2. `PiboApp`'s `scenePhase == .active` — backgrounded across
     ///    midnight.
     /// 3. `.NSCalendarDayChanged` — app held in foreground across midnight.
     ///

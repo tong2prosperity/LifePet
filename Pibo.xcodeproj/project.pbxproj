@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A7F3FD592F9B1F0200EA90A6 /* LifePulse Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = A7F3FD582F9B1F0200EA90A6 /* LifePulse Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A7F3FD592F9B1F0200EA90A6 /* Pibo Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = A7F3FD582F9B1F0200EA90A6 /* Pibo Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -16,7 +16,7 @@
 			containerPortal = A7F3FD432F9B1F0100EA90A6 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = A7F3FD572F9B1F0200EA90A6;
-			remoteInfo = "LifePulse Watch App";
+			remoteInfo = "Pibo Watch App";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -27,7 +27,7 @@
 			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
 			dstSubfolderSpec = 16;
 			files = (
-				A7F3FD592F9B1F0200EA90A6 /* LifePulse Watch App.app in Embed Watch Content */,
+				A7F3FD592F9B1F0200EA90A6 /* Pibo Watch App.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -35,19 +35,19 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A7F3FD4B2F9B1F0100EA90A6 /* LifePulse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LifePulse.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A7F3FD582F9B1F0200EA90A6 /* LifePulse Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "LifePulse Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A7F3FD4B2F9B1F0100EA90A6 /* Pibo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pibo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A7F3FD582F9B1F0200EA90A6 /* Pibo Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pibo Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A7F3FD4D2F9B1F0100EA90A6 /* LifePulse */ = {
+		A7F3FD4D2F9B1F0100EA90A6 /* Pibo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = LifePulse;
+			path = Pibo;
 			sourceTree = "<group>";
 		};
-		A7F3FD5C2F9B1F0200EA90A6 /* LifePulse Watch App */ = {
+		A7F3FD5C2F9B1F0200EA90A6 /* Pibo Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "LifePulse Watch App";
+			path = "Pibo Watch App";
 			sourceTree = "<group>";
 		};
 		A7F3FDAA2F9B1F0200EA90A6 /* Shared */ = {
@@ -78,8 +78,8 @@
 		A7F3FD422F9B1F0100EA90A6 = {
 			isa = PBXGroup;
 			children = (
-				A7F3FD4D2F9B1F0100EA90A6 /* LifePulse */,
-				A7F3FD5C2F9B1F0200EA90A6 /* LifePulse Watch App */,
+				A7F3FD4D2F9B1F0100EA90A6 /* Pibo */,
+				A7F3FD5C2F9B1F0200EA90A6 /* Pibo Watch App */,
 				A7F3FDAA2F9B1F0200EA90A6 /* Shared */,
 				A7F3FD4C2F9B1F0100EA90A6 /* Products */,
 			);
@@ -88,8 +88,8 @@
 		A7F3FD4C2F9B1F0100EA90A6 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A7F3FD4B2F9B1F0100EA90A6 /* LifePulse.app */,
-				A7F3FD582F9B1F0200EA90A6 /* LifePulse Watch App.app */,
+				A7F3FD4B2F9B1F0100EA90A6 /* Pibo.app */,
+				A7F3FD582F9B1F0200EA90A6 /* Pibo Watch App.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -97,9 +97,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A7F3FD4A2F9B1F0100EA90A6 /* LifePulse */ = {
+		A7F3FD4A2F9B1F0100EA90A6 /* Pibo */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A7F3FD692F9B1F0300EA90A6 /* Build configuration list for PBXNativeTarget "LifePulse" */;
+			buildConfigurationList = A7F3FD692F9B1F0300EA90A6 /* Build configuration list for PBXNativeTarget "Pibo" */;
 			buildPhases = (
 				A7F3FD472F9B1F0100EA90A6 /* Sources */,
 				A7F3FD482F9B1F0100EA90A6 /* Frameworks */,
@@ -112,19 +112,19 @@
 				A7F3FD5B2F9B1F0200EA90A6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				A7F3FD4D2F9B1F0100EA90A6 /* LifePulse */,
+				A7F3FD4D2F9B1F0100EA90A6 /* Pibo */,
 				A7F3FDAA2F9B1F0200EA90A6 /* Shared */,
 			);
-			name = LifePulse;
+			name = Pibo;
 			packageProductDependencies = (
 			);
-			productName = LifePulse;
-			productReference = A7F3FD4B2F9B1F0100EA90A6 /* LifePulse.app */;
+			productName = Pibo;
+			productReference = A7F3FD4B2F9B1F0100EA90A6 /* Pibo.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A7F3FD572F9B1F0200EA90A6 /* LifePulse Watch App */ = {
+		A7F3FD572F9B1F0200EA90A6 /* Pibo Watch App */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A7F3FD652F9B1F0300EA90A6 /* Build configuration list for PBXNativeTarget "LifePulse Watch App" */;
+			buildConfigurationList = A7F3FD652F9B1F0300EA90A6 /* Build configuration list for PBXNativeTarget "Pibo Watch App" */;
 			buildPhases = (
 				A7F3FD542F9B1F0200EA90A6 /* Sources */,
 				A7F3FD552F9B1F0200EA90A6 /* Frameworks */,
@@ -135,14 +135,14 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				A7F3FD5C2F9B1F0200EA90A6 /* LifePulse Watch App */,
+				A7F3FD5C2F9B1F0200EA90A6 /* Pibo Watch App */,
 				A7F3FDAA2F9B1F0200EA90A6 /* Shared */,
 			);
-			name = "LifePulse Watch App";
+			name = "Pibo Watch App";
 			packageProductDependencies = (
 			);
-			productName = "LifePulse Watch App";
-			productReference = A7F3FD582F9B1F0200EA90A6 /* LifePulse Watch App.app */;
+			productName = "Pibo Watch App";
+			productReference = A7F3FD582F9B1F0200EA90A6 /* Pibo Watch App.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -163,7 +163,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A7F3FD462F9B1F0100EA90A6 /* Build configuration list for PBXProject "LifePulse" */;
+			buildConfigurationList = A7F3FD462F9B1F0100EA90A6 /* Build configuration list for PBXProject "Pibo" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -177,8 +177,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A7F3FD4A2F9B1F0100EA90A6 /* LifePulse */,
-				A7F3FD572F9B1F0200EA90A6 /* LifePulse Watch App */,
+				A7F3FD4A2F9B1F0100EA90A6 /* Pibo */,
+				A7F3FD572F9B1F0200EA90A6 /* Pibo Watch App */,
 			);
 		};
 /* End PBXProject section */
@@ -220,7 +220,7 @@
 /* Begin PBXTargetDependency section */
 		A7F3FD5B2F9B1F0200EA90A6 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = A7F3FD572F9B1F0200EA90A6 /* LifePulse Watch App */;
+			target = A7F3FD572F9B1F0200EA90A6 /* Pibo Watch App */;
 			targetProxy = A7F3FD5A2F9B1F0200EA90A6 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -347,25 +347,25 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "LifePulse Watch App/Supporting/LifePulse_Watch_App.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Pibo Watch App/Supporting/Pibo_Watch_App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XD36G5SYYU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "LifePulse-Watch-App-Info.plist";
+				INFOPLIST_FILE = "Pibo-Watch-App-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo reads your heart rate, SpO₂, and heart-rate variability to reflect them in your digital pet.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pibo uses workout sessions to keep sensors active during recording.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = fun.tiebao.co.LifePulse;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = fun.tiebao.co.Pibo;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.LifePulse.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -385,25 +385,25 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "LifePulse Watch App/Supporting/LifePulse_Watch_App.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Pibo Watch App/Supporting/Pibo_Watch_App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XD36G5SYYU;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "LifePulse-Watch-App-Info.plist";
+				INFOPLIST_FILE = "Pibo-Watch-App-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo reads your heart rate, SpO₂, and heart-rate variability to reflect them in your digital pet.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pibo uses workout sessions to keep sensors active during recording.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = fun.tiebao.co.LifePulse;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = fun.tiebao.co.Pibo;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.LifePulse.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -424,7 +424,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = LifePulse/Supporting/LifePulse.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Pibo/Supporting/Pibo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XD36G5SYYU;
@@ -443,7 +443,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.LifePulse;
+				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -461,7 +461,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = LifePulse/Supporting/LifePulse.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Pibo/Supporting/Pibo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XD36G5SYYU;
@@ -480,7 +480,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.LifePulse;
+				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -497,7 +497,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A7F3FD462F9B1F0100EA90A6 /* Build configuration list for PBXProject "LifePulse" */ = {
+		A7F3FD462F9B1F0100EA90A6 /* Build configuration list for PBXProject "Pibo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A7F3FD632F9B1F0300EA90A6 /* Debug */,
@@ -506,7 +506,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A7F3FD652F9B1F0300EA90A6 /* Build configuration list for PBXNativeTarget "LifePulse Watch App" */ = {
+		A7F3FD652F9B1F0300EA90A6 /* Build configuration list for PBXNativeTarget "Pibo Watch App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A7F3FD662F9B1F0300EA90A6 /* Debug */,
@@ -515,7 +515,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A7F3FD692F9B1F0300EA90A6 /* Build configuration list for PBXNativeTarget "LifePulse" */ = {
+		A7F3FD692F9B1F0300EA90A6 /* Build configuration list for PBXNativeTarget "Pibo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A7F3FD6A2F9B1F0300EA90A6 /* Debug */,

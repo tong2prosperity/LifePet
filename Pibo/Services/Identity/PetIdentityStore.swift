@@ -22,7 +22,7 @@ import os
 /// reads / writes `UserDefaults` (already thread-safe) and exposes value-typed
 /// fields. Keeping it actor-free lets `PetStateStore.init`'s default argument
 /// (`identity: PetIdentityStore = PetIdentityStore()`) compile from the
-/// synthesized nonisolated default-arg getter, and lets `LifePulseApp.init`
+/// synthesized nonisolated default-arg getter, and lets `PiboApp.init`
 /// (also nonisolated) construct it directly. SwiftUI's `@Observable` does not
 /// require MainActor — the observation tracking machinery is thread-safe.
 @Observable
@@ -30,10 +30,10 @@ nonisolated final class PetIdentityStore {
 
     // MARK: - Persistence keys
 
-    private static let petIdKey     = "lifepet.identity.currentPetId.v1"
-    private static let petNameKey   = "lifepet.identity.petName.v1"
-    private static let ownerNameKey = "lifepet.identity.ownerName.v1"
-    private static let birthDateKey = "lifepet.identity.birthDate.v1"
+    private static let petIdKey = PiboPersistenceKeys.Defaults.identityCurrentPetId
+    private static let petNameKey = PiboPersistenceKeys.Defaults.identityPetName
+    private static let ownerNameKey = PiboPersistenceKeys.Defaults.identityOwnerName
+    private static let birthDateKey = PiboPersistenceKeys.Defaults.identityBirthDate
 
     // MARK: - Identity (each `didSet` writes through to UserDefaults)
 

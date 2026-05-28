@@ -4,7 +4,7 @@
 
 一个 iOS-only 的 hackathon 项目，把 HealthKit 里的日常健康数据变成一只拓麻歌子（Tamagotchi）：步数、睡眠、心率变异 …… 都直接喂给你的小宠物，决定它今天的状态、寿命、命运。
 
-> Bundle / scheme 名字仍然是 `LifePulse`（仓库历史遗留），但产品名是 **Pibo**。
+> Bundle / scheme / 工程入口现在都已迁到 **Pibo**；旧 LifePulse 名称只应出现在历史说明或兼容迁移代码里。
 
 ---
 
@@ -31,8 +31,8 @@
 ## 项目结构
 
 ```
-LifePulse.xcodeproj         # 单工程，两个 target
-├── LifePulse/              # iOS 应用（唯一活跃 target）
+Pibo.xcodeproj         # 单工程，两个 target
+├── Pibo/              # iOS 应用（唯一活跃 target）
 │   ├── App/                # @main · RootView · Tab 容器
 │   ├── Features/
 │   │   ├── Home/           # 主页：宠物舞台 / 三状态条 / 今日步骤
@@ -48,7 +48,7 @@ LifePulse.xcodeproj         # 单工程，两个 target
 │   │   ├── Logging/        # os.Logger 包装
 │   │   └── ⚠️ LiveCoding / MusicGeneration / Visualization / Playback / Connectivity — 旧方向死代码
 │   └── Assets.xcassets/sprites/   # 像素宠物动画帧
-├── LifePulse Watch App/    # ⚠️ vestigial，新功能不要往这里加
+├── Pibo Watch App/    # ⚠️ vestigial，新功能不要往这里加
 ├── Shared/
 │   ├── DesignSystem/       # LP.* tokens + 组件 + 修饰器
 │   ├── Models/             # ⚠️ Vital* 系列旧 wire-format，待替换
@@ -61,7 +61,7 @@ LifePulse.xcodeproj         # 单工程，两个 target
 ### Pivot 说明
 
 最初的设计是 Apple Watch app + `WCSession` 实时推流。**这条线已经砍掉。**
-现在 watch 不写自定义 app —— 用户原本佩戴的 Apple Watch 把步数 / 心率 / 睡眠写进 HealthKit，iOS 端通过 `HKObserverQuery` + 后台投递被动读取就够了。所有 `Connectivity/` / `Generation/` / `Playback/` / `Session*` / `LifePulse Watch App/` 都是上一阶段的尸体，不要继续在上面加功能。
+现在 watch 不写自定义 app —— 用户原本佩戴的 Apple Watch 把步数 / 心率 / 睡眠写进 HealthKit，iOS 端通过 `HKObserverQuery` + 后台投递被动读取就够了。所有 `Connectivity/` / `Generation/` / `Playback/` / `Session*` / `Pibo Watch App/` 都是上一阶段的尸体，不要继续在上面加功能。
 
 ---
 
@@ -107,20 +107,20 @@ HKObserverQuery ── 通知 ──► HKAnchoredObjectQuery ── 增量样�
 
 要求：**Xcode 26.2 / Swift 5.0 / iOS 26.2**，`DEVELOPMENT_TEAM = 4626WN8J3B`，自动签名。
 
-日常用 Xcode 选 `LifePulse` scheme + ⌘R 即可。命令行：
+日常用 Xcode 选 `Pibo` scheme + ⌘R 即可。命令行：
 
 ```bash
 # 构建 iOS 应用（也会顺带编译 watch target）
-xcodebuild -project LifePulse.xcodeproj -scheme LifePulse -configuration Debug build
+xcodebuild -project Pibo.xcodeproj -scheme Pibo -configuration Debug build
 
 # 仅构建 watch
-xcodebuild -project LifePulse.xcodeproj -scheme "LifePulse Watch App" -configuration Debug build
+xcodebuild -project Pibo.xcodeproj -scheme "Pibo Watch App" -configuration Debug build
 
 # 列出 schemes / targets
-xcodebuild -project LifePulse.xcodeproj -list
+xcodebuild -project Pibo.xcodeproj -list
 
 # 清理
-xcodebuild -project LifePulse.xcodeproj -scheme LifePulse clean
+xcodebuild -project Pibo.xcodeproj -scheme Pibo clean
 ```
 
 依赖管理：没有 `Package.swift` / CocoaPods / Carthage —— 要加包请用 Xcode 内置 SwiftPM。
@@ -129,7 +129,7 @@ xcodebuild -project LifePulse.xcodeproj -scheme LifePulse clean
 
 ### Demo Mode
 
-设备上没真实 HealthKit 数据时，`PetStateStore.demoMode` 会用硬编码值兜底：宠物名 **BEAN** / **D07** / 体力 88 · 精力 74 · 心情 82 / 状态 `EXCITED`。Demo 也会走孵蛋动画（`UserDefaults` 的 `lifepet.hatched`）。
+设备上没真实 HealthKit 数据时，`PetStateStore.demoMode` 会用硬编码值兜底：宠物名 **BEAN** / **D07** / 体力 88 · 精力 74 · 心情 82 / 状态 `EXCITED`。Demo 也会走孵蛋动画（`UserDefaults` 的 `pibo.hatched.v1`）。
 
 ---
 
@@ -154,4 +154,3 @@ xcodebuild -project LifePulse.xcodeproj -scheme LifePulse clean
 - [ ] 死亡触发评估循环
 - [ ] 续命奖励簿记
 - [ ] AI 建议卡排序（目前是静态卡）
-

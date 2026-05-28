@@ -102,7 +102,7 @@ final class HealthDataService {
             self.authState = .granted
             LPLog.healthKit.notice("Restored auth from UserDefaults — registering observers on init")
             startObservers()
-            // Don't call `reconcile()` here — `LifePulseApp` triggers it on
+            // Don't call `reconcile()` here — `PiboApp` triggers it on
             // the first scenePhase=.active right after this init returns.
         } else {
             self.authState = .unknown
@@ -515,7 +515,7 @@ final class HealthDataService {
     /// `HKQueryAnchor` is `NSSecureCoding`. We archive into UserDefaults so
     /// every cold launch resumes from the last delivered sample instead of
     /// replaying the 36h first-run window over and over.
-    private static let anchorKey = "lifepet.healthkit.workoutAnchor.v1"
+    private static let anchorKey = PiboPersistenceKeys.Defaults.workoutAnchor
 
     private static func loadAnchor() -> HKQueryAnchor? {
         guard let data = UserDefaults.standard.data(forKey: anchorKey) else {
@@ -543,7 +543,7 @@ final class HealthDataService {
     /// `demoStats` floor. Cleared implicitly: if the user revoked permission
     /// in Settings, snapshot queries simply return no data on next reconcile,
     /// so we degrade visibly rather than silently — that's the right read.
-    private static let authorizedKey = "lifepet.healthkit.authorized.v1"
+    private static let authorizedKey = PiboPersistenceKeys.Defaults.healthKitAuthorized
 
     private static func loadAuthorizedFlag() -> Bool {
         UserDefaults.standard.bool(forKey: authorizedKey)

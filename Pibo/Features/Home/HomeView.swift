@@ -27,11 +27,11 @@ struct HomeView: View {
     /// `PetStageView` itself splits hatch into two stages (waiting-for-tap →
     /// playing) so the 1.25s animation isn't missed during the auth-dialog
     /// dismissal.
-    @AppStorage("lifepet.hatched") private var hatched: Bool = false
+    @AppStorage(PiboPersistenceKeys.Defaults.hatched) private var hatched: Bool = false
     /// Mirrored from `RootView` so the reset button can flip it back to
     /// `false` and bounce the app to `HealthAuthView`. SwiftUI's @AppStorage
     /// shares UserDefaults, so this stays in sync with the source of truth.
-    @AppStorage("lifepet.onboardingDone") private var onboardingDone: Bool = false
+    @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
     @State private var showResetConfirm = false
 
     /// Index into `Self.demoCycleStates`. Only used when `store.demoMode` is

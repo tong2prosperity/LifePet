@@ -13,7 +13,7 @@ final class MemorialAudioPlayer {
     private var stopTask: Task<Void, Never>?
 
     /// Bundled mp3 names (without extension). Source files live in
-    /// `LifePulse/Resources/`; the synchronized group bundles them.
+    /// `Pibo/Resources/`; the synchronized group bundles them.
     private static let trackNames: [String] = [
         "memorial_meme_anime_game_farewell",
         "memorial_meme_kawaii_pet_heaven",

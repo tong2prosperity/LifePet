@@ -2,7 +2,7 @@ import Foundation
 import os
 
 /// On-disk persistence for `DailySnapshot`. Files live under
-/// `~/Library/Application Support/lifepet/history/<petId>/<yyyy-MM-dd>.json`,
+/// `~/Library/Application Support/pibo/history/<petId>/<yyyy-MM-dd>.json`,
 /// one file per (pet, day).
 ///
 /// Why per-day files instead of one JSONL per pet:
@@ -35,7 +35,7 @@ actor DailySnapshotStore {
             let support = FileManager.default
                 .urls(for: .applicationSupportDirectory, in: .userDomainMask)
                 .first!
-            self.rootURL = support.appendingPathComponent("lifepet/history", isDirectory: true)
+            self.rootURL = support.appendingPathComponent(PiboPersistenceKeys.Paths.historyDirectory, isDirectory: true)
         }
 
         let enc = JSONEncoder()
