@@ -68,7 +68,7 @@ struct TogetherView: View {
         } label: {
             VStack(spacing: 4) {
                 Spacer(minLength: 0)
-                Text(title)
+                Text(AppLocalization.text(title))
                     .font(.system(size: 17, weight: active ? .bold : .regular, design: .rounded))
                     .foregroundStyle(active ? LP.Colors.ink : LP.Colors.muted)
                 Rectangle()
@@ -105,7 +105,7 @@ private struct FriendsListView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             HStack(spacing: 0) {
-                Text("身边的朋友")
+                Text(lp: "身边的朋友")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
                 Text(".")
@@ -114,7 +114,7 @@ private struct FriendsListView: View {
             }
             Spacer()
             NavigationLink(value: InviteRoute()) {
-                Text("+ 添加")
+                Text(lp: "+ 添加")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.paperCard)
                     .padding(.horizontal, 12)
@@ -180,14 +180,14 @@ private struct FriendCell: View {
                     .strokeBorder(LCD.dash, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
             )
 
-            Text(friend.displayName)
+            Text(AppLocalization.text(friend.displayName))
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(LP.Colors.ink)
-            Text("已陪伴 \(friend.daysTogether) 天")
+            Text(AppLocalization.format("已陪伴 %d 天", friend.daysTogether))
                 .font(.system(size: 9, design: .monospaced))
                 .tracking(0.3)
                 .foregroundStyle(LP.Colors.muted)
-            Text(friend.otherStatus)
+            Text(AppLocalization.text(friend.otherStatus))
                 .font(.system(size: 8, design: .monospaced))
                 .tracking(0.3)
                 .foregroundStyle(LP.Colors.coral)

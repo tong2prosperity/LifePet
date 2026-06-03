@@ -79,7 +79,7 @@ struct FriendDetailView: View {
                 Text("‹")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.coral)
-                Text("返回")
+                Text(lp: "返回")
                     .font(.system(size: 16, weight: .regular, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
             }
@@ -95,14 +95,14 @@ struct FriendDetailView: View {
                 Text("\(friend.daysTogether)")
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
-                Text("天 · 一起")
+                Text(lp: "天 · 一起")
                     .font(.system(size: 9, design: .monospaced))
                     .tracking(0.5)
                     .textCase(.uppercase)
                     .foregroundStyle(LP.Colors.muted)
             }
             Spacer()
-            Text(friend.relation)
+            Text(AppLocalization.text(friend.relation))
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .tracking(0.5)
                 .foregroundStyle(LP.Colors.paperCard)
@@ -192,7 +192,7 @@ struct FriendDetailView: View {
             Text(name)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(LP.Colors.ink)
-            Text(status)
+            Text(AppLocalization.text(status))
                 .font(.system(size: 9, design: .monospaced))
                 .tracking(0.5)
                 .textCase(.uppercase)
@@ -208,9 +208,9 @@ struct FriendDetailView: View {
     private var healthCompare: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                Text("今日健康").compareHead(width: .leading)
-                Text("你").compareHead(color: LP.Colors.coral)
-                Text(friend.displayName).compareHead()
+                Text(AppLocalization.text("今日健康")).compareHead(width: .leading)
+                Text(AppLocalization.text("你")).compareHead(color: LP.Colors.coral)
+                Text(AppLocalization.text(friend.displayName)).compareHead()
             }
             .padding(.vertical, 6)
             .overlay(LPDashedRule(dash: [3, 2]), alignment: .bottom)
@@ -239,7 +239,7 @@ struct FriendDetailView: View {
 
     private func compareRow(_ label: String, me: String, other: String, last: Bool = false) -> some View {
         HStack(spacing: 0) {
-            Text(label)
+            Text(AppLocalization.text(label))
                 .font(.system(size: 13, design: .rounded))
                 .foregroundStyle(LP.Colors.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -266,11 +266,11 @@ struct FriendDetailView: View {
     private var messageThread: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("给 \(friend.displayName) 留言")
+                Text(AppLocalization.format("给 %@ 留言", AppLocalization.text(friend.displayName)))
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
                 Spacer()
-                Text(messages.last.map { "最近 · \($0.time)" } ?? "")
+                Text(messages.last.map { AppLocalization.format("最近 · %@", AppLocalization.text($0.time)) } ?? "")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(LP.Colors.muted)
             }
@@ -295,7 +295,7 @@ struct FriendDetailView: View {
             }
 
             HStack(spacing: 6) {
-                TextField("说点什么…", text: $draft)
+                TextField(AppLocalization.text("说点什么…"), text: $draft)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13, design: .rounded))
                     .padding(.horizontal, 10)
@@ -312,7 +312,7 @@ struct FriendDetailView: View {
                     LPHaptics.tap()
                     send()
                 } label: {
-                    Text("送出")
+                    Text(lp: "送出")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(LP.Colors.paperCard)
                         .padding(.horizontal, 14)
@@ -350,7 +350,7 @@ struct FriendDetailView: View {
                         draft = chip
                         send()
                     } label: {
-                        Text(chip)
+                        Text(AppLocalization.text(chip))
                             .font(.system(size: 12, design: .rounded))
                             .foregroundStyle(LP.Colors.muted)
                             .padding(.horizontal, 10)
@@ -373,7 +373,7 @@ struct FriendDetailView: View {
     private var actionRow: some View {
         HStack(spacing: 8) {
             Button(action: { LPHaptics.confirm(); poke() }) {
-                Text("戳一下 \(friend.petName)")
+                Text(AppLocalization.format("戳一下 %@", friend.petName))
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.paperCard)
                     .frame(maxWidth: .infinity)
@@ -389,7 +389,7 @@ struct FriendDetailView: View {
             }
             .buttonStyle(.plain)
             Button(action: { LPHaptics.confirm(); cheer() }) {
-                Text("给 TA 加油")
+                Text(lp: "给 TA 加油")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
                     .frame(maxWidth: .infinity)
@@ -416,22 +416,22 @@ struct FriendDetailView: View {
     private func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        let msg = TogetherMessage(who: .me, text: text, time: "刚刚")
+        let msg = TogetherMessage(who: .me, text: text, time: AppLocalization.text("刚刚"))
         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
             messages.append(msg)
         }
         draft = ""
-        showToast("已送达 \(friend.petName)")
+        showToast(AppLocalization.format("已送达 %@", friend.petName))
     }
 
     private func poke() {
         pokeNonce += 1
-        showToast("戳了 \(friend.petName) 一下 👋")
+        showToast(AppLocalization.format("戳了 %@ 一下 👋", friend.petName))
     }
 
     private func cheer() {
         cheerNonce += 1
-        showToast("已为 \(friend.petName) 加油 ✨")
+        showToast(AppLocalization.format("已为 %@ 加油 ✨", friend.petName))
     }
 
     private func showToast(_ text: String) {
@@ -622,10 +622,10 @@ private struct MessageBubble: View {
 
     var body: some View {
         VStack(alignment: isMe ? .trailing : .leading, spacing: 2) {
-            Text(message.text)
+            Text(AppLocalization.text(message.text))
                 .font(.system(size: 13, design: .rounded))
                 .foregroundStyle(isMe ? LP.Colors.paperCard : LP.Colors.ink)
-            Text(message.time)
+            Text(AppLocalization.text(message.time))
                 .font(.system(size: 8, design: .monospaced))
                 .opacity(0.65)
                 .foregroundStyle(isMe ? LP.Colors.paperCard : LP.Colors.muted)

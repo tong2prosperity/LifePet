@@ -130,7 +130,7 @@ struct CatalogTrajectoryChart: View {
             let center = CGPoint(x: xEnd, y: vy(last))
             ctx.stroke(Path(ellipseIn: CGRect(x: center.x - 3, y: center.y - 3, width: 6, height: 6)),
                        with: .color(LP.Colors.coral), lineWidth: 1)
-            let label = Text("· 今天 ·").font(.system(size: 7, design: .monospaced))
+            let label = Text(AppLocalization.text("· 今天 ·")).font(.system(size: 7, design: .monospaced))
                 .foregroundStyle(LP.Colors.coral)
             ctx.draw(label, at: CGPoint(x: xEnd - 4, y: pad.top - 5), anchor: .trailing)
         } else {
@@ -140,7 +140,7 @@ struct CatalogTrajectoryChart: View {
             p.addLine(to: CGPoint(x: xEnd, y: viewBox.height - pad.bottom))
             ctx.stroke(p, with: .color(LP.Colors.muted),
                        style: StrokeStyle(lineWidth: 0.6, dash: [2, 2]))
-            let label = Text("✦ 升天").font(.system(size: 7, design: .monospaced))
+            let label = Text(AppLocalization.text("✦ 升天")).font(.system(size: 7, design: .monospaced))
                 .foregroundStyle(LP.Colors.muted)
             ctx.draw(label, at: CGPoint(x: xEnd - 4, y: pad.top - 5), anchor: .trailing)
         }
@@ -166,9 +166,9 @@ struct CatalogTrajectoryChart: View {
 struct CatalogTrajectoryLegend: View {
     var body: some View {
         HStack(spacing: 10) {
-            chip(color: LP.Colors.coral, label: "心情", thick: true)
-            chip(color: LP.Colors.muted, label: "精力", thick: false)
-            chip(color: LP.Colors.ink,   label: "体力", thick: false)
+            chip(color: LP.Colors.coral, label: AppLocalization.text("心情"), thick: true)
+            chip(color: LP.Colors.muted, label: AppLocalization.text("精力"), thick: false)
+            chip(color: LP.Colors.ink,   label: AppLocalization.text("体力"), thick: false)
         }
         .lpText(LP.Typography.monoTiny)
         .foregroundStyle(LP.Colors.muted)

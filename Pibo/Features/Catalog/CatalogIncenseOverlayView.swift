@@ -34,14 +34,14 @@ struct CatalogIncenseOverlayView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
 
-                Text("— 上 香 —")
+                Text(lp: "— 上 香 —")
                     .font(.system(size: 10, weight: .regular, design: .monospaced))
                     .tracking(4)
                     .textCase(.uppercase)
                     .foregroundStyle(Self.label)
                     .padding(.bottom, 6)
 
-                Text("为 \(pet.name)")
+                Text(AppLocalization.format("为 %@", pet.name))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .tracking(2)
                     .foregroundStyle(Self.accent)
@@ -57,7 +57,7 @@ struct CatalogIncenseOverlayView: View {
                     .padding(.bottom, 22)
 
                 Button(action: close) {
-                    Text("收香")
+                    Text(lp: "收香")
                         .font(.system(size: 16, weight: .regular, design: .rounded))
                         .tracking(3)
                         .foregroundStyle(Self.frame)
@@ -87,7 +87,7 @@ struct CatalogIncenseOverlayView: View {
 
     private var bgmBlock: some View {
         VStack(spacing: 8) {
-            Text(pet.memorialTitle ?? "《纪念曲》")
+            Text(AppLocalization.text(pet.memorialTitle ?? "《纪念曲》"))
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(Self.frame.opacity(0.95))
 
@@ -124,7 +124,7 @@ struct CatalogIncenseOverlayView: View {
     }
 
     private var elapsedLabel: String {
-        if elapsed >= Self.total { return "✦ 完成" }
+        if elapsed >= Self.total { return AppLocalization.text("✦ 完成") }
         let m = elapsed / 60
         let s = elapsed % 60
         return String(format: "%d:%02d", m, s)

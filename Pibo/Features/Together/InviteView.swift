@@ -64,7 +64,7 @@ struct InviteView: View {
                 Text("‹")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.coral)
-                Text("返回")
+                Text(lp: "返回")
                     .font(.system(size: 16, weight: .regular, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
             }
@@ -80,10 +80,10 @@ struct InviteView: View {
     private var heroCard: some View {
         VStack(spacing: 14) {
             VStack(spacing: 4) {
-                Text("邀请 TA 加入")
+                Text(lp: "邀请 TA 加入")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
-                Text("— 创建你们的双人空间 —")
+                Text(lp: "— 创建你们的双人空间 —")
                     .font(.system(size: 9, design: .monospaced))
                     .tracking(1)
                     .textCase(.uppercase)
@@ -131,7 +131,7 @@ struct InviteView: View {
     private var orDivider: some View {
         HStack(spacing: 10) {
             Rectangle().fill(LP.Colors.muted.opacity(0.5)).frame(height: 1)
-            Text("或")
+            Text(lp: "或")
                 .font(.system(size: 9, design: .monospaced))
                 .tracking(2)
                 .foregroundStyle(LP.Colors.muted)
@@ -145,10 +145,10 @@ struct InviteView: View {
     private var scanRow: some View {
         VStack(spacing: 8) {
             inviteAction("扫码加入对方", primary: false, fullWidth: true) {
-                showToast("扫码功能即将上线")
+                showToast(AppLocalization.text("扫码功能即将上线"))
             }
             inviteAction("输入对方邀请码", primary: false, fullWidth: true) {
-                showToast("输入对方邀请码 · 即将上线")
+                showToast(AppLocalization.text("输入对方邀请码 · 即将上线"))
             }
         }
     }
@@ -160,7 +160,7 @@ struct InviteView: View {
     /// for now — no inline rename UI yet.
     private var relationSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("关系昵称")
+            Text(lp: "关系昵称")
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(LP.Colors.ink)
             FlowLayout(spacing: 6) {
@@ -177,7 +177,7 @@ struct InviteView: View {
             LPHaptics.tap()
             selectedRelation = isActive ? nil : name
         } label: {
-            Text(name)
+            Text(AppLocalization.text(name))
                 .font(.system(size: 13, design: .rounded))
                 .foregroundStyle(isActive ? LP.Colors.paperCard : LP.Colors.ink)
                 .padding(.horizontal, 12)
@@ -200,7 +200,7 @@ struct InviteView: View {
     /// to fill its line, matching the prototype's stacked layout.
     private func inviteAction(_ title: String, primary: Bool, fullWidth: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: { LPHaptics.tap(); action() }) {
-            Text(title)
+            Text(AppLocalization.text(title))
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(primary ? LP.Colors.paperCard : LP.Colors.ink)
                 .frame(maxWidth: fullWidth ? .infinity : nil)
@@ -229,11 +229,11 @@ struct InviteView: View {
 
     private func copyCode() {
         UIPasteboard.general.string = inviteCode
-        showToast("已复制 \(inviteCode)")
+        showToast(AppLocalization.format("已复制 %@", inviteCode))
     }
 
     private func shareCode() {
-        showToast("已生成分享卡")
+        showToast(AppLocalization.text("已生成分享卡"))
     }
 
     private func showToast(_ text: String) {

@@ -184,7 +184,7 @@ struct HomeView: View {
     private var topMeta: some View {
         HStack(alignment: .firstTextBaseline, spacing: LP.Spacing.s2) {
             HStack(spacing: 0) {
-                Text(store.greeting + ", ")
+                Text(AppLocalization.text(store.greeting) + ", ")
                     .font(.system(size: 17, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
                 Text(store.ownerName)
@@ -200,14 +200,14 @@ struct HomeView: View {
             resetButton
         }
         .confirmationDialog(
-            "重置后会回到首启流程",
+            AppLocalization.text("重置后会回到首启流程"),
             isPresented: $showResetConfirm,
             titleVisibility: .visible
         ) {
-            Button("重新开始", role: .destructive, action: performReset)
-            Button("取消", role: .cancel) {}
+            Button(AppLocalization.text("重新开始"), role: .destructive, action: performReset)
+            Button(AppLocalization.text("取消"), role: .cancel) {}
         } message: {
-            Text("当前所有 stats、卡片和孵化记录都会清掉。")
+            Text(lp: "当前所有 stats、卡片和孵化记录都会清掉。")
         }
     }
 
@@ -227,7 +227,7 @@ struct HomeView: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("重置 Pibo 流程")
+        .accessibilityLabel(AppLocalization.text("重置 Pibo 流程"))
     }
 
     private func performReset() {
@@ -249,7 +249,7 @@ struct HomeView: View {
             HStack(spacing: 6) {
                 Image(systemName: "shuffle")
                     .font(.system(size: 11, weight: .semibold))
-                Text("换一换")
+                Text(lp: "换一换")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
             }
             .foregroundStyle(LP.Colors.ink)
@@ -262,7 +262,7 @@ struct HomeView: View {
         .buttonStyle(.plain)
         .opacity(hatched ? 1 : 0.3)
         .disabled(!hatched)
-        .accessibilityLabel("换一种宠物状态")
+        .accessibilityLabel(AppLocalization.text("换一种宠物状态"))
     }
 
     private func cycleDemoState() {
@@ -286,12 +286,12 @@ struct HomeView: View {
             }
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    Text("已陪伴 ")
+                    Text(lp: "已陪伴 ")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(LP.Colors.muted)
                         .tracking(1)
                         .textCase(.uppercase)
-                    Text("第 \(store.dayCount) 天")
+                    Text(AppLocalization.format("第 %d 天", store.dayCount))
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(LP.Colors.coral)
                         .tracking(1)
@@ -304,7 +304,7 @@ struct HomeView: View {
     }
 
     private var statePill: some View {
-        Text(store.state.journeyLabel)
+        Text(AppLocalization.text(store.state.journeyLabel))
             .font(.system(size: 10, design: .monospaced))
             .foregroundStyle(.white)
             .tracking(0.5)
@@ -323,7 +323,7 @@ private struct ToastView: View {
     let text: String
 
     var body: some View {
-        Text(text)
+        Text(AppLocalization.text(text))
             .font(.system(size: 14, design: .rounded))
             .foregroundStyle(LP.Colors.paperCard)
             .padding(.horizontal, LP.Spacing.s4)

@@ -33,9 +33,9 @@ struct StepsSectionView: View {
 
     private var heading: some View {
         HStack(spacing: 10) {
-            Text("今日步骤")
+            Text(lp: "今日步骤")
                 .font(.system(size: 17, weight: .bold, design: .rounded))
-            Text("\(store.doneCount) 已完成 · \(store.suggestCount) 建议")
+            Text(AppLocalization.format("%d 已完成 · %d 建议", store.doneCount, store.suggestCount))
                 .font(.system(size: 10, weight: .regular, design: .monospaced))
                 .foregroundStyle(LP.Colors.muted)
             LPDashedRule(dash: [4, 3])
@@ -44,7 +44,7 @@ struct StepsSectionView: View {
 
     private var subline: some View {
         // Emojis render as colored glyphs — no `foregroundStyle` here.
-        Text("打 ✅ 它开心，打 ❌ 不扣分 —— 但它会记住，下次少推。")
+        Text(lp: "打 ✅ 它开心，打 ❌ 不扣分 —— 但它会记住，下次少推。")
             .font(.system(size: 12, design: .rounded))
             .foregroundStyle(LP.Colors.muted)
             .padding(.leading, 2)
@@ -85,11 +85,11 @@ private struct StepCardView: View {
 
     private var title: some View {
         HStack(spacing: 0) {
-            Text(step.displayTitleLead)
+            Text(AppLocalization.text(step.displayTitleLead))
                 .font(.system(size: 15, design: .rounded))
                 .foregroundStyle(LP.Colors.ink)
             Text(" ")
-            Text(step.titleValue)
+            Text(AppLocalization.text(step.titleValue))
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(LP.Colors.coral)
         }
@@ -97,7 +97,7 @@ private struct StepCardView: View {
 
     @ViewBuilder
     private var result: some View {
-        let prefix = step.status == .done ? "→ " : "可获得 "
+        let prefix = step.status == .done ? "→ " : AppLocalization.text("可获得 ")
         HStack(spacing: 0) {
             Text(prefix)
                 .font(.system(size: 9, design: .monospaced))
@@ -105,7 +105,7 @@ private struct StepCardView: View {
             Text("+\(step.gain)")
                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                 .foregroundStyle(step.status == .done ? LP.Colors.ink : Color(hex: 0x7A6530))
-            Text(" \(step.affects.label)")
+            Text(" \(AppLocalization.text(step.affects.label))")
                 .font(.system(size: 9, design: .monospaced))
                 .foregroundStyle(LP.Colors.muted)
         }
@@ -115,7 +115,7 @@ private struct StepCardView: View {
     private var trailing: some View {
         switch step.status {
         case .done:
-            Text(step.time)
+            Text(AppLocalization.text(step.time))
                 .font(.system(size: 9, design: .monospaced))
                 .foregroundStyle(LP.Colors.faint)
         case .suggest:
@@ -135,7 +135,7 @@ private struct StepCardView: View {
     @ViewBuilder
     private var autoTagOverlay: some View {
         if step.fromAutoSensor && step.status == .done {
-            Text("⚡ 手表自动")
+            Text(lp: "⚡ 手表自动")
                 .font(.system(size: 7.5, design: .monospaced))
                 .foregroundStyle(LP.Colors.muted)
                 .tracking(0.3)

@@ -42,12 +42,12 @@ struct PlazaView: View {
     /// `snapshot.goalCurrent` changes via the timer.
     private var banner: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("今日社区 · 大家一起")
+            Text(lp: "今日社区 · 大家一起")
                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                 .tracking(1)
                 .textCase(.uppercase)
                 .foregroundStyle(LP.Colors.stickyInk)
-            Text(snapshot.goalTitle)
+            Text(AppLocalization.text(snapshot.goalTitle))
                 .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundStyle(LP.Colors.ink)
                 .lineLimit(2)
@@ -103,13 +103,13 @@ struct PlazaView: View {
             statCell(label: "在场人数",        value: "\(snapshot.onlineCount)", sub: "位宠物主人")
             statCell(label: "我的步数贡献",    value: snapshot.myContribSteps,   sub: "步", accent: true)
             statCell(label: "社区运动次数",    value: snapshot.exerciseCount,    sub: "次")
-            statCell(label: "我的排名",        value: snapshot.myRank,           sub: "/ \(snapshot.onlineCount) 人", accent: true)
+            statCell(label: "我的排名",        value: snapshot.myRank,           sub: AppLocalization.format("/ %d 人", snapshot.onlineCount), accent: true)
         }
     }
 
     private func statCell(label: String, value: String, sub: String, accent: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label)
+            Text(AppLocalization.text(label))
                 .font(.system(size: 9, design: .monospaced))
                 .tracking(0.5)
                 .textCase(.uppercase)
@@ -117,7 +117,7 @@ struct PlazaView: View {
             Text(value)
                 .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundStyle(accent ? LP.Colors.coral : LP.Colors.ink)
-            Text(sub)
+            Text(AppLocalization.text(sub))
                 .font(.system(size: 9, design: .monospaced))
                 .foregroundStyle(LP.Colors.muted)
         }
@@ -146,7 +146,7 @@ struct PlazaView: View {
     private var stage: some View {
         VStack(spacing: 10) {
             HStack {
-                Text("● \(snapshot.onlineCount) 人在场")
+                Text(AppLocalization.format("● %d 人在场", snapshot.onlineCount))
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .tracking(1)
                     .textCase(.uppercase)
@@ -216,7 +216,7 @@ struct PlazaView: View {
         VStack(spacing: 3) {
             BreathingSprite { PixelPetSprite(sprite: member.sprite).frame(width: 42, height: 42) }
                 .frame(width: 44, height: 44)
-            Text(member.name)
+            Text(AppLocalization.text(member.name))
                 .font(.system(size: 8, design: .monospaced))
                 .foregroundStyle(LCD.text)
             // Spacer placeholder to match height with the YOU badge in `meCell`.

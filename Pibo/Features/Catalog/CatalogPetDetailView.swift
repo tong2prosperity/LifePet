@@ -67,12 +67,12 @@ struct CatalogPetDetailView: View {
                         Text("‹")
                             .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundStyle(LP.Colors.coral)
-                        Text("返回图鉴")
+                        Text(lp: "返回图鉴")
                             .font(.system(size: 15, weight: .regular, design: .rounded))
                             .foregroundStyle(LP.Colors.ink)
                     }
                 }
-                .accessibilityLabel("返回图鉴")
+                .accessibilityLabel(AppLocalization.text("返回图鉴"))
             }
         }
         .toolbarBackground(LP.Colors.paper, for: .navigationBar)
@@ -139,9 +139,9 @@ struct CatalogPetDetailView: View {
 
     private var heroDates: String {
         if pet.isAlive {
-            return "\(pet.dates) · 已陪伴 \(pet.days) 天"
+            return AppLocalization.format("%@ · 已陪伴 %d 天", AppLocalization.text(pet.dates), pet.days)
         } else {
-            return "\(pet.dates) · \(pet.totalDays) 天"
+            return AppLocalization.format("%@ · %d 天", AppLocalization.text(pet.dates), pet.totalDays)
         }
     }
 
@@ -156,7 +156,7 @@ struct CatalogPetDetailView: View {
     @ViewBuilder
     private func tagChip(_ tag: CatalogPet.Tag) -> some View {
         let (fg, bg, border) = chipColors(for: tag)
-        Text(tag.label)
+        Text(AppLocalization.text(tag.label))
             .lpText(LP.Typography.monoTiny)
             .foregroundStyle(fg)
             .padding(.horizontal, 8)
@@ -197,7 +197,7 @@ struct CatalogPetDetailView: View {
             Text("\(value)")
                 .font(.system(size: 18, weight: .bold, design: .monospaced))
                 .foregroundStyle(coral ? LP.Colors.coral : LP.Colors.ink)
-            Text(label)
+            Text(AppLocalization.text(label))
                 .lpText(LP.Typography.monoTiny)
                 .foregroundStyle(LP.Colors.muted)
         }
@@ -232,14 +232,16 @@ struct CatalogPetDetailView: View {
     }
 
     private var trajectoryTitle: String {
-        pet.isAlive ? "生命轨迹 · 至今 \(pet.days) 天" : "生命轨迹 · \(pet.totalDays) 天"
+        pet.isAlive
+            ? AppLocalization.format("生命轨迹 · 至今 %d 天", pet.days)
+            : AppLocalization.format("生命轨迹 · %d 天", pet.totalDays)
     }
 
     // MARK: - Moments block
 
     private var momentsBlock: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("关键时刻")
+            Text(lp: "关键时刻")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(LP.Colors.ink)
                 .padding(.bottom, 6)
@@ -268,7 +270,7 @@ struct CatalogPetDetailView: View {
                 .frame(width: 34, alignment: .leading)
 
             (
-                Text(m.title)
+                Text(AppLocalization.text(m.title))
                 + Text(m.isDeath ? " 🕊️" : "")
             )
             .font(.system(size: 14, design: .rounded))
@@ -279,7 +281,7 @@ struct CatalogPetDetailView: View {
             Spacer(minLength: 6)
 
             if let val = m.value {
-                Text(val)
+                Text(AppLocalization.text(val))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(LP.Colors.muted)
             }
@@ -290,10 +292,10 @@ struct CatalogPetDetailView: View {
 
     private var bioNote: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(pet.isAlive ? "它的故事" : "— 它的故事 —")
+            Text(lp: pet.isAlive ? "它的故事" : "— 它的故事 —")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
                 .foregroundStyle(LP.Colors.stickyInk)
-            Text(pet.bio)
+            Text(AppLocalization.text(pet.bio))
                 .font(.system(size: 15, design: .rounded))
                 .foregroundStyle(LP.Colors.stickyInk)
                 .lineSpacing(2)
@@ -327,7 +329,7 @@ struct CatalogPetDetailView: View {
                 Text("♪")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(LP.Colors.coral)
-                Text(pet.memorialTitle ?? "《纪念曲》")
+                Text(AppLocalization.text(pet.memorialTitle ?? "《纪念曲》"))
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.stickyInk)
                 Spacer()
@@ -354,12 +356,12 @@ struct CatalogPetDetailView: View {
                     .frame(width: 30, height: 30)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(memorialPlaying ? "暂停纪念曲" : "播放纪念曲")
+                .accessibilityLabel(AppLocalization.text(memorialPlaying ? "暂停纪念曲" : "播放纪念曲"))
 
                 progressTrack
             }
 
-            Text("由 TA 一生的健康数据生成 · 时长 15 秒")
+            Text(lp: "由 TA 一生的健康数据生成 · 时长 15 秒")
                 .lpText(LP.Typography.monoTiny)
                 .foregroundStyle(LP.Colors.stickyInk.opacity(0.65))
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -408,7 +410,7 @@ struct CatalogPetDetailView: View {
                 memorialPlaying = false
                 showingIncense = true
             } label: {
-                Text("🕯 上香")
+                Text(lp: "🕯 上香")
                     .font(.system(size: 15, weight: .regular, design: .rounded))
                     .tracking(1)
                     .foregroundStyle(Color(hex: 0xF0D8A0))
@@ -417,7 +419,7 @@ struct CatalogPetDetailView: View {
             }
             .buttonStyle(IncenseButtonStyle())
 
-            Text("点燃一炷香 · 聆听 TA 的 15 秒纪念曲")
+            Text(lp: "点燃一炷香 · 聆听 TA 的 15 秒纪念曲")
                 .lpText(LP.Typography.monoTiny)
                 .foregroundStyle(LP.Colors.stickyInk.opacity(0.6))
         }
@@ -427,7 +429,7 @@ struct CatalogPetDetailView: View {
 
     private var shareButton: some View {
         LPButton(variant: .primary, action: { showingShareCard = true }) {
-            Label("分享", systemImage: "square.and.arrow.up")
+            Label(AppLocalization.text("分享"), systemImage: "square.and.arrow.up")
         }
         .frame(maxWidth: .infinity)
     }

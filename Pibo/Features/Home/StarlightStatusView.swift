@@ -6,10 +6,10 @@ struct StarlightStatusView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: LP.Spacing.s2) {
             HStack(spacing: LP.Spacing.s2) {
-                Text("今日星光")
+                Text(lp: "今日星光")
                     .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
-                Text("运动 + 睡眠")
+                Text(lp: "运动 + 睡眠")
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(LP.Colors.muted)
                 LPDashedRule(dash: [4, 3])
@@ -45,17 +45,17 @@ private struct StarlightCard: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(alignment: .firstTextBaseline, spacing: LP.Spacing.s2) {
-                        Text(summary.title)
+                        Text(AppLocalization.text(summary.title))
                             .font(.system(size: 15, weight: .bold, design: .rounded))
                             .foregroundStyle(LP.Colors.ink)
-                        Text(summary.level.label)
+                        Text(AppLocalization.text(summary.level.label))
                             .font(.system(size: 9, design: .monospaced))
                             .foregroundStyle(summary.level.accent)
                     }
-                    Text(summary.subtitle)
+                    Text(AppLocalization.text(summary.subtitle))
                         .font(.system(size: 12, design: .rounded))
                         .foregroundStyle(LP.Colors.muted)
-                    Text(summary.source)
+                    Text(AppLocalization.text(summary.source))
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(LP.Colors.faint)
                 }
@@ -71,7 +71,7 @@ private struct StarlightCard: View {
             ProgressTrack(progress: summary.progress, accent: summary.level.accent)
                 .frame(height: 10)
 
-            Text(summary.level.detail)
+            Text(AppLocalization.text(summary.level.detail))
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(LP.Colors.ink2)
         }

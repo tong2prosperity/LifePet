@@ -38,10 +38,10 @@ private struct StatRow: View {
                 ValueReadout(value: stat.value)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text("来自手表 · \(stat.kind.sourceCopy)")
+                Text(AppLocalization.text("来自手表 · ") + stat.kind.sourceCopy)
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(LP.Colors.muted)
-                Text("↑ 补充 · ").font(.system(size: 9, design: .monospaced)).foregroundStyle(LP.Colors.muted)
+                Text(lp: "↑ 补充 · ").font(.system(size: 9, design: .monospaced)).foregroundStyle(LP.Colors.muted)
                 + Text(stat.kind.supplementCopy)
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(LP.Colors.coral)
@@ -70,7 +70,7 @@ private struct DecrementButton: View {
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("调试 · 当前 stat 减 5")
+        .accessibilityLabel(AppLocalization.text("调试 · 当前 stat 减 5"))
     }
 }
 

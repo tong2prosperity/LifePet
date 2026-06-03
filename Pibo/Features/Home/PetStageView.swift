@@ -142,7 +142,7 @@ struct PetStageView: View {
                     .frame(width: 96, height: 96)
                     .scaleEffect(pulse)
                     .rotationEffect(.degrees(tilt))
-                Text("戳一下 →")
+                Text(lp: "戳一下 →")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .tracking(2)
                     .textCase(.uppercase)
@@ -156,7 +156,7 @@ struct PetStageView: View {
             withAnimation(.easeOut(duration: 0.15)) { hatchPlaying = true }
         }
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("点击让蛋孵化")
+        .accessibilityLabel(AppLocalization.text("点击让蛋孵化"))
     }
 
     private var corners: some View {

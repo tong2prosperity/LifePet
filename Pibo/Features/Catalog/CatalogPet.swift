@@ -53,9 +53,9 @@ struct CatalogPet: Identifiable, Equatable, Hashable {
         /// Tag copy + day-count format for the past-grid sticker.
         var tagPrefix: String {
             switch self {
-            case .natural: return "圆满"
-            case .chronic, .starve: return "短命"
-            case .acute, .illness: return "短命"
+            case .natural: return AppLocalization.text("圆满")
+            case .chronic, .starve: return AppLocalization.text("短命")
+            case .acute, .illness: return AppLocalization.text("短命")
             }
         }
     }
@@ -73,7 +73,7 @@ extension CatalogPet {
         var label: String {
             switch self {
             case .rare:        return "RARE"
-            case .dead:        return "已升天"
+            case .dead:        return AppLocalization.text("已升天")
             case .plain(let s): return s
             }
         }
@@ -83,14 +83,14 @@ extension CatalogPet {
         var out: [Tag] = []
         if isAlive {
             out.append(.plain("LIVE"))
-            out.append(.plain("养育中"))
+            out.append(.plain(AppLocalization.text("养育中")))
         } else {
             if isRare { out.append(.rare) }
             switch deathType {
             case .natural:
-                out.append(.plain("圆满"))
+                out.append(.plain(AppLocalization.text("圆满")))
             case .chronic, .starve, .acute, .illness:
-                out.append(.plain("短命"))
+                out.append(.plain(AppLocalization.text("短命")))
             case .none:
                 break
             }
@@ -102,7 +102,7 @@ extension CatalogPet {
     /// Short tag used on past-grid stickers ("圆满 · 21 天").
     var pastGridTag: String {
         guard let dt = deathType else { return "" }
-        return "\(dt.tagPrefix) · \(totalDays) 天"
+        return AppLocalization.format("%@ · %d 天", dt.tagPrefix, totalDays)
     }
 
     /// Color bucket for the past-grid sticker tint.
