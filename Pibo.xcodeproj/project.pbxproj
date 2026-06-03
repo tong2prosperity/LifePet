@@ -258,11 +258,11 @@
 				};
 			};
 			buildConfigurationList = A7F3FD462F9B1F0100EA90A6 /* Build configuration list for PBXProject "Pibo" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
-				Base,
+				"zh-Hans",
 			);
 			mainGroup = A7F3FD422F9B1F0100EA90A6;
 			minimizedProjectReferenceProxies = 1;
@@ -563,7 +563,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -601,7 +601,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;

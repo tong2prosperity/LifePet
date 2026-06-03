@@ -82,7 +82,9 @@ struct CatalogShareCard: View {
     }
 
     private var daysCopy: String {
-        pet.isAlive ? "已陪伴 · 第 \(pet.days) 天" : "陪伴了 \(pet.totalDays) 天 · 已升天"
+        pet.isAlive
+            ? AppLocalization.format("已陪伴 · 第 %d 天", pet.days)
+            : AppLocalization.format("陪伴了 %d 天 · 已升天", pet.totalDays)
     }
 
     // MARK: - Stats strip
@@ -108,7 +110,7 @@ struct CatalogShareCard: View {
             Text("\(value)")
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundStyle(coral ? LP.Colors.coral : LP.Colors.ink)
-            Text(label)
+            Text(AppLocalization.text(label))
                 .lpText(LP.Typography.monoTiny)
                 .foregroundStyle(LP.Colors.muted)
         }
@@ -125,7 +127,7 @@ struct CatalogShareCard: View {
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .foregroundStyle(LP.Colors.coral)
                         .frame(minWidth: 26, alignment: .leading)
-                    Text(m.title)
+                    Text(AppLocalization.text(m.title))
                         .font(.system(size: 12, design: .rounded))
                         .foregroundStyle(LP.Colors.ink)
                         .multilineTextAlignment(.leading)
@@ -153,10 +155,10 @@ struct CatalogShareCard: View {
                 )
             VStack(spacing: 2) {
                 HStack(spacing: 4) {
-                    Text("扫码注册")
+                    Text(lp: "扫码注册")
                     Text("Pibo").foregroundStyle(LP.Colors.coral).fontWeight(.bold)
                 }
-                Text("养一只属于你自己的")
+                Text(lp: "养一只属于你自己的")
             }
             .font(.system(size: 13, design: .rounded))
             .foregroundStyle(LP.Colors.ink)
@@ -174,10 +176,10 @@ struct CatalogShareCard: View {
 
     private var actions: some View {
         HStack(spacing: 8) {
-            LPButton("📥 保存到相册", variant: .secondary) {
+            LPButton(AppLocalization.text("📥 保存到相册"), variant: .secondary) {
                 // Hooks: render share-card as UIImage + write to PHPhotoLibrary.
             }
-            LPButton("🌹 分享到小红书", variant: .coral) {
+            LPButton(AppLocalization.text("🌹 分享到小红书"), variant: .coral) {
                 // Hooks: launch UIActivityViewController with the rendered image.
             }
         }

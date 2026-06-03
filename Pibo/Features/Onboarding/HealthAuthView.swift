@@ -47,14 +47,14 @@ struct HealthAuthView: View {
             StarShellHero()
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, LP.Spacing.s2)
-            Text("PIBO · 契约唤醒")
+            Text(lp: "PIBO · 契约唤醒")
                 .lpText(LP.Typography.monoLabel)
                 .foregroundStyle(LP.Colors.coral)
-            Text("用你的星光\n叫醒 Pibo。")
+            Text(lp: "用你的星光\n叫醒 Pibo。")
                 .font(.system(size: 34, weight: .bold, design: .rounded))
                 .foregroundStyle(LP.Colors.ink)
                 .lineSpacing(4)
-            Text("运动会变成活力星光，睡眠会变成静息星光。Pibo 会因为这些光保持清醒。")
+            Text(lp: "运动会变成活力星光，睡眠会变成静息星光。Pibo 会因为这些光保持清醒。")
                 .lpText(LP.Typography.serifItalic)
                 .foregroundStyle(LP.Colors.muted)
         }
@@ -62,7 +62,7 @@ struct HealthAuthView: View {
 
     private var why: some View {
         VStack(alignment: .leading, spacing: LP.Spacing.s3) {
-            Text("Pibo 会读取（不写入）")
+            Text(lp: "Pibo 会读取（不写入）")
                 .lpText(LP.Typography.monoTiny)
                 .foregroundStyle(LP.Colors.muted)
             VStack(alignment: .leading, spacing: LP.Spacing.s2) {
@@ -77,7 +77,7 @@ struct HealthAuthView: View {
 
     private var naming: some View {
         VStack(alignment: .leading, spacing: LP.Spacing.s2) {
-            Text("给这只 Pibo 起名")
+            Text(lp: "给这只 Pibo 起名")
                 .lpText(LP.Typography.monoTiny)
                 .foregroundStyle(LP.Colors.muted)
             TextField("PIBO", text: $petNameDraft)
@@ -95,7 +95,7 @@ struct HealthAuthView: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(LP.Colors.ink, lineWidth: 1.5)
                 )
-            Text("名字可以以后再改。MVP 里它仍然是同一种契约生命：Pibo。")
+            Text(lp: "名字可以以后再改。MVP 里它仍然是同一种契约生命：Pibo。")
                 .lpText(LP.Typography.caption)
                 .foregroundStyle(LP.Colors.muted)
         }
@@ -108,10 +108,10 @@ struct HealthAuthView: View {
                 .foregroundStyle(LP.Colors.coral)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(lp: title)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
-                Text(subtitle)
+                Text(lp: subtitle)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(LP.Colors.muted)
             }
@@ -125,24 +125,24 @@ struct HealthAuthView: View {
             switch health.authState {
             case .unavailable:
                 VStack(spacing: LP.Spacing.s3) {
-                    Text("当前设备不支持 HealthKit · 仅 Demo 模式可用")
+                    Text(lp: "当前设备不支持 HealthKit · 仅 Demo 模式可用")
                         .lpText(LP.Typography.caption)
                         .foregroundStyle(LP.Colors.muted)
                         .multilineTextAlignment(.center)
-                    LPButton("用临时星光继续", variant: .primary, action: continueWithDemo)
+                    LPButton(AppLocalization.text("用临时星光继续"), variant: .primary, action: continueWithDemo)
                 }
             case .requesting:
                 HStack(spacing: LP.Spacing.s3) {
                     ProgressView()
-                    Text("等你授权…")
+                    Text(lp: "等你授权…")
                         .lpText(LP.Typography.caption)
                         .foregroundStyle(LP.Colors.muted)
                 }
             default:
                 VStack(spacing: LP.Spacing.s3) {
-                    LPButton("签订契约并连接 HealthKit", variant: .primary, action: connect)
-                    LPButton("用临时星光继续", variant: .secondary, action: continueWithDemo)
-                    LPButton("以后再说", variant: .ghost, action: deferAuth)
+                    LPButton(AppLocalization.text("签订契约并连接 HealthKit"), variant: .primary, action: connect)
+                    LPButton(AppLocalization.text("用临时星光继续"), variant: .secondary, action: continueWithDemo)
+                    LPButton(AppLocalization.text("以后再说"), variant: .ghost, action: deferAuth)
                 }
             }
         }

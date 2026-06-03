@@ -69,14 +69,14 @@ struct WorkoutAlertSheet: View {
     // MARK: - Header text
 
     private var source: some View {
-        Text("APPLE WATCH · 刚刚同步")
+        Text(lp: "APPLE WATCH · 刚刚同步")
             .font(.system(size: 9, design: .monospaced))
             .tracking(1)
             .foregroundStyle(LP.Colors.muted)
     }
 
     private var title: some View {
-        Text(workout.titleLabel)
+        Text(AppLocalization.text(workout.titleLabel))
             .font(.system(size: 22, weight: .bold, design: .rounded))
             .foregroundStyle(LP.Colors.ink)
     }
@@ -89,7 +89,7 @@ struct WorkoutAlertSheet: View {
     }
 
     private var subtitleText: String {
-        var parts: [String] = ["\(workout.durationMin) 分钟"]
+        var parts: [String] = [AppLocalization.format("%d 分钟", workout.durationMin)]
         if let kcal = workout.kcal, kcal >= 1 {
             parts.append("\(Int(kcal)) KCAL")
         }
@@ -108,9 +108,9 @@ struct WorkoutAlertSheet: View {
 
     private var gainCells: some View {
         HStack(spacing: LP.Spacing.s2) {
-            GainCell(label: "体力", value: "+\(workout.gainVitality)", unit: "PTS", isPositive: true)
-            GainCell(label: "精力", value: "+\(workout.gainVitality)", unit: "PTS", isPositive: true)
-            GainCell(label: "心情", value: "+\(workout.gainVitality)", unit: "PTS", isPositive: true)
+            GainCell(label: AppLocalization.text("体力"), value: "+\(workout.gainVitality)", unit: "PTS", isPositive: true)
+            GainCell(label: AppLocalization.text("精力"), value: "+\(workout.gainVitality)", unit: "PTS", isPositive: true)
+            GainCell(label: AppLocalization.text("心情"), value: "+\(workout.gainVitality)", unit: "PTS", isPositive: true)
         }
     }
 
@@ -118,7 +118,7 @@ struct WorkoutAlertSheet: View {
 
     private var feedButton: some View {
         Button(action: onFeed) {
-            Text("喂养 \(petName)")
+            Text(AppLocalization.format("喂养 %@", petName))
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .tracking(1)
                 .foregroundStyle(LP.Colors.paperCool)
@@ -131,7 +131,7 @@ struct WorkoutAlertSheet: View {
                 .lpShadow(LP.Shadow.md)
         }
         .buttonStyle(LPPressEffectStyle())
-        .accessibilityLabel("喂养 \(petName)，应用本次运动的体力增益")
+        .accessibilityLabel(AppLocalization.format("喂养 %@，应用本次运动的体力增益", petName))
     }
 }
 

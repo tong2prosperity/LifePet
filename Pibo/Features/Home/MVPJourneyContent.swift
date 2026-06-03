@@ -32,19 +32,19 @@ enum StarlightLevel: Equatable {
 
     var label: String {
         switch self {
-        case .bright: return "星光充盈"
-        case .steady: return "星光稳定"
-        case .faint: return "星光微弱"
-        case .ember: return "将要沉睡"
+        case .bright: return AppLocalization.text("星光充盈")
+        case .steady: return AppLocalization.text("星光稳定")
+        case .faint: return AppLocalization.text("星光微弱")
+        case .ember: return AppLocalization.text("将要沉睡")
         }
     }
 
     var detail: String {
         switch self {
-        case .bright: return "Pibo 今天醒得很久。"
-        case .steady: return "契约正在稳定发光。"
-        case .faint: return "再补一点光就好。"
-        case .ember: return "它开始缩回星壳。"
+        case .bright: return AppLocalization.text("Pibo 今天醒得很久。")
+        case .steady: return AppLocalization.text("契约正在稳定发光。")
+        case .faint: return AppLocalization.text("再补一点光就好。")
+        case .ember: return AppLocalization.text("它开始缩回星壳。")
         }
     }
 
@@ -102,11 +102,11 @@ struct JourneyAccessory: Identifiable, Equatable {
 extension PetState {
     var journeyLabel: String {
         switch self {
-        case .excited, .blissful: return "明亮"
-        case .normal: return "平稳"
-        case .tired: return "困倦"
-        case .sleeping: return "浅眠"
-        case .sick: return "深眠预警"
+        case .excited, .blissful: return AppLocalization.text("明亮")
+        case .normal: return AppLocalization.text("平稳")
+        case .tired: return AppLocalization.text("困倦")
+        case .sleeping: return AppLocalization.text("浅眠")
+        case .sick: return AppLocalization.text("深眠预警")
         }
     }
 
@@ -178,7 +178,7 @@ extension PetStateStore {
         }
         return JourneyRitual(
             title: "第一次星光仪式",
-            subtitle: "还差 \(remaining) 天。继续给 Pibo 留下一点活力星光和静息星光。",
+            subtitle: AppLocalization.format("还差 %d 天。继续给 Pibo 留下一点活力星光和静息星光。", remaining),
             current: current,
             target: 7,
             isReady: false

@@ -55,7 +55,7 @@ struct CatalogView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 0) {
-                Text("图鉴")
+                Text(lp: "图鉴")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
                 Text(".")
@@ -63,13 +63,13 @@ struct CatalogView: View {
                     .foregroundStyle(LP.Colors.coral)
             }
             HStack(spacing: 0) {
-                Text("陪伴过 ").lpText(LP.Typography.monoTiny).foregroundStyle(LP.Colors.muted)
+                Text(lp: "陪伴过 ").lpText(LP.Typography.monoTiny).foregroundStyle(LP.Colors.muted)
                 Text("\(summary.totalCount)").font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(LP.Colors.coral).tracking(1).textCase(.uppercase)
-                Text(" 只 · 累计 ").lpText(LP.Typography.monoTiny).foregroundStyle(LP.Colors.muted)
+                Text(lp: " 只 · 累计 ").lpText(LP.Typography.monoTiny).foregroundStyle(LP.Colors.muted)
                 Text("\(summary.totalDays)").font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(LP.Colors.coral).tracking(1).textCase(.uppercase)
-                Text(" 天").lpText(LP.Typography.monoTiny).foregroundStyle(LP.Colors.muted)
+                Text(lp: " 天").lpText(LP.Typography.monoTiny).foregroundStyle(LP.Colors.muted)
             }
         }
     }
@@ -93,7 +93,7 @@ struct CatalogView: View {
             Text("\(value)")
                 .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundStyle(live ? LP.Colors.coral : LP.Colors.ink)
-            Text(label)
+            Text(AppLocalization.text(label))
                 .lpText(LP.Typography.monoTiny)
                 .foregroundStyle(LP.Colors.muted)
         }
@@ -147,12 +147,12 @@ struct CatalogView: View {
 
     private func sectionHeader(tag: String, count: Int?) -> some View {
         HStack(spacing: 10) {
-            Text(tag)
+            Text(AppLocalization.text(tag))
                 .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundStyle(LP.Colors.ink)
             LPDashedRule(dash: [4, 3])
             if let count = count {
-                Text("\(count) 只")
+                Text(AppLocalization.format("%d 只", count))
                     .lpText(LP.Typography.monoTiny)
                     .foregroundStyle(LP.Colors.muted)
             }
@@ -164,16 +164,16 @@ struct CatalogView: View {
     private var footerNote: some View {
         VStack(spacing: 3) {
             HStack(spacing: 0) {
-                Text("陪伴过 ").foregroundStyle(LP.Colors.stickyInk)
+                Text(lp: "陪伴过 ").foregroundStyle(LP.Colors.stickyInk)
                 Text("\(summary.totalCount)").foregroundStyle(LP.Colors.coral).fontWeight(.bold)
-                Text(" 只 · 养活 ").foregroundStyle(LP.Colors.stickyInk)
+                Text(lp: " 只 · 养活 ").foregroundStyle(LP.Colors.stickyInk)
                 Text("\(summary.aliveCount + summary.naturalCount)").foregroundStyle(LP.Colors.coral).fontWeight(.bold)
-                Text(" 只 · 送走 ").foregroundStyle(LP.Colors.stickyInk)
+                Text(lp: " 只 · 送走 ").foregroundStyle(LP.Colors.stickyInk)
                 Text("\(summary.earlyCount)").foregroundStyle(LP.Colors.coral).fontWeight(.bold)
-                Text(" 只").foregroundStyle(LP.Colors.stickyInk)
+                Text(lp: " 只").foregroundStyle(LP.Colors.stickyInk)
             }
             .font(.system(size: 14, weight: .bold, design: .rounded))
-            Text("养死了也别难过，下一只会更好。")
+            Text(lp: "养死了也别难过，下一只会更好。")
                 .font(.system(size: 12, design: .rounded).italic())
                 .foregroundStyle(LP.Colors.stickyInk.opacity(0.75))
         }
@@ -227,10 +227,10 @@ private struct LiveCatalogCard: View {
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .tracking(1.0)
                         .foregroundStyle(LP.Colors.ink)
-                    Text(pet.dates)
+                    Text(AppLocalization.text(pet.dates))
                         .lpText(LP.Typography.monoTiny)
                         .foregroundStyle(LP.Colors.muted)
-                    Text("已陪伴 · 第 \(pet.days) 天")
+                    Text(AppLocalization.format("已陪伴 · 第 %d 天", pet.days))
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .tracking(0.5)
                         .foregroundStyle(LP.Colors.coral)
@@ -267,7 +267,7 @@ private struct DeadCatalogCard: View {
             Text(pet.name)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .foregroundStyle(LP.Colors.ink)
-            Text(pet.dates)
+            Text(AppLocalization.text(pet.dates))
                 .font(.system(size: 8, design: .monospaced))
                 .foregroundStyle(LP.Colors.muted)
             deathBadge
@@ -302,7 +302,7 @@ private struct DeadCatalogCard: View {
 
     private var deathBadge: some View {
         let (bg, fg) = bucketColors(pet.deathBucket)
-        return Text(pet.pastGridTag)
+        return Text(AppLocalization.text(pet.pastGridTag))
             .font(.system(size: 7.5, design: .monospaced))
             .tracking(0.3)
             .foregroundStyle(fg)

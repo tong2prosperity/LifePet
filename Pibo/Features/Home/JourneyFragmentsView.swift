@@ -21,7 +21,7 @@ struct JourneyFragmentsView: View {
     private var ritualCard: some View {
         VStack(alignment: .leading, spacing: LP.Spacing.s2) {
             HStack(spacing: LP.Spacing.s2) {
-                Text("契约进度")
+                Text(lp: "契约进度")
                     .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
                 Text("\(ritual.current)/\(ritual.target)")
@@ -32,15 +32,15 @@ struct JourneyFragmentsView: View {
 
             VStack(alignment: .leading, spacing: LP.Spacing.s2) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(ritual.title)
+                    Text(AppLocalization.text(ritual.title))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(LP.Colors.ink)
                     Spacer()
-                    Text(ritual.isReady ? "可举行" : "稳定中")
+                    Text(lp: ritual.isReady ? "可举行" : "稳定中")
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundStyle(ritual.isReady ? LP.Colors.coral : LP.Colors.muted)
                 }
-                Text(ritual.subtitle)
+                Text(AppLocalization.text(ritual.subtitle))
                     .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(LP.Colors.ink2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -53,10 +53,10 @@ struct JourneyFragmentsView: View {
 
     private var lockedFragment: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("记忆碎片")
+            Text(lp: "记忆碎片")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(LP.Colors.muted)
-            Text(nudge)
+            Text(AppLocalization.text(nudge))
                 .font(.system(size: 13, design: .rounded))
                 .foregroundStyle(LP.Colors.ink2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -66,7 +66,7 @@ struct JourneyFragmentsView: View {
 
     private var fragmentsSection: some View {
         VStack(alignment: .leading, spacing: LP.Spacing.s2) {
-            Text("记忆碎片")
+            Text(lp: "记忆碎片")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(LP.Colors.muted)
             ForEach(fragments) { fragment in
@@ -77,7 +77,7 @@ struct JourneyFragmentsView: View {
 
     private var accessoriesSection: some View {
         VStack(alignment: .leading, spacing: LP.Spacing.s2) {
-            Text("星光里的物件")
+            Text(lp: "星光里的物件")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(LP.Colors.muted)
             ForEach(accessories) { accessory in
@@ -93,15 +93,15 @@ private struct FragmentCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text(fragment.title)
+                Text(AppLocalization.text(fragment.title))
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(LP.Colors.ink)
                 Spacer()
-                Text(fragment.unlockLabel)
+                Text(AppLocalization.text(fragment.unlockLabel))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(LP.Colors.coral)
             }
-            Text(fragment.body)
+            Text(AppLocalization.text(fragment.body))
                 .lpText(LP.Typography.serifItalic)
                 .foregroundStyle(LP.Colors.ink2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -130,14 +130,14 @@ private struct AccessoryRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline, spacing: LP.Spacing.s2) {
-                    Text(accessory.name)
+                    Text(AppLocalization.text(accessory.name))
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(LP.Colors.ink)
-                    Text(accessory.unlockLabel)
+                    Text(AppLocalization.text(accessory.unlockLabel))
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(accessory.isUnlocked ? LP.Colors.coral : LP.Colors.muted)
                 }
-                Text(accessory.meaning)
+                Text(AppLocalization.text(accessory.meaning))
                     .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(LP.Colors.muted)
             }

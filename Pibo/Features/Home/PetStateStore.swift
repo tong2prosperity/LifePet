@@ -38,25 +38,25 @@ enum StatKind: Hashable {
 
     var label: String {
         switch self {
-        case .vitality: return "✦ 活力星光"
-        case .energy:   return "☾ 静息星光"
-        case .mood:     return "❤️ 心绪回声"
+        case .vitality: return AppLocalization.text("✦ 活力星光")
+        case .energy:   return AppLocalization.text("☾ 静息星光")
+        case .mood:     return AppLocalization.text("❤️ 心绪回声")
         }
     }
 
     var sourceCopy: String {
         switch self {
-        case .vitality: return "步数 · 运动分钟 · 活动卡路里"
-        case .energy:   return "睡眠 · 深睡 · REM"
-        case .mood:     return "HRV · 心率稳定度"
+        case .vitality: return AppLocalization.text("步数 · 运动分钟 · 活动卡路里")
+        case .energy:   return AppLocalization.text("睡眠 · 深睡 · REM")
+        case .mood:     return AppLocalization.text("HRV · 心率稳定度")
         }
     }
 
     var supplementCopy: String {
         switch self {
-        case .vitality: return "走 1000 步 +4 星光 / 运动 10 分钟 +10"
-        case .energy:   return "每睡 1 小时 +6 星光 / 深睡多 30 分钟 +15"
-        case .mood:     return "冥想 5 分钟 +15 / 深呼吸 1 次 +3"
+        case .vitality: return AppLocalization.text("走 1000 步 +4 星光 / 运动 10 分钟 +10")
+        case .energy:   return AppLocalization.text("每睡 1 小时 +6 星光 / 深睡多 30 分钟 +15")
+        case .mood:     return AppLocalization.text("冥想 5 分钟 +15 / 深呼吸 1 次 +3")
         }
     }
 }
@@ -103,7 +103,7 @@ struct PendingWorkout: Identifiable, Equatable, Sendable, Codable {
     /// "跑步" / "走路" / …
     let label: String
     /// 「跑步完成」 / 「走路完成」 — sheet 的标题
-    var titleLabel: String { "\(label)完成" }
+    var titleLabel: String { AppLocalization.format("%@完成", label) }
     let durationMin: Int
     let kcal: Double?
     let endedAt: Date
@@ -120,11 +120,11 @@ enum StepKind: String, Hashable {
 
     var quitLabel: String {
         switch self {
-        case .run:      return "跑步"
-        case .sleep:    return "睡眠"
-        case .breath:   return "深呼吸"
-        case .meditate: return "冥想"
-        case .walk:     return "走路"
+        case .run:      return AppLocalization.text("跑步")
+        case .sleep:    return AppLocalization.text("睡眠")
+        case .breath:   return AppLocalization.text("深呼吸")
+        case .meditate: return AppLocalization.text("冥想")
+        case .walk:     return AppLocalization.text("走路")
         }
     }
 }
@@ -142,7 +142,7 @@ struct StepItem: Identifiable, Hashable {
 
     var displayTitleLead: String {
         switch status {
-        case .suggest: return "建议: \(actionLabel)"
+        case .suggest: return AppLocalization.format("建议: %@", actionLabel)
         case .done:    return actionLabel
         }
     }
@@ -247,11 +247,11 @@ final class PetStateStore {
         Stat(kind: .mood,     value: 82),
     ]
     private static let demoSteps: [StepItem] = [
-        StepItem(status: .done,    kind: .run,      actionLabel: "跑步",   titleValue: "28 分钟",     affects: .vitality, gain: 32, time: "07:30",    fromAutoSensor: true),
-        StepItem(status: .done,    kind: .sleep,    actionLabel: "入睡",   titleValue: "6 小时 12 分", affects: .energy,   gain: 24, time: "昨 23:30", fromAutoSensor: true),
-        StepItem(status: .done,    kind: .breath,   actionLabel: "深呼吸", titleValue: "3 次",        affects: .mood,     gain: 9,  time: "15:30",    fromAutoSensor: false),
-        StepItem(status: .suggest, kind: .walk,     actionLabel: "再走",   titleValue: "1500 步",     affects: .vitality, gain: 6,  time: "",         fromAutoSensor: false),
-        StepItem(status: .suggest, kind: .meditate, actionLabel: "冥想",   titleValue: "5 分钟",      affects: .mood,     gain: 15, time: "",         fromAutoSensor: false),
+        StepItem(status: .done,    kind: .run,      actionLabel: AppLocalization.text("跑步"),   titleValue: AppLocalization.format("%d 分钟", 28),     affects: .vitality, gain: 32, time: "07:30",    fromAutoSensor: true),
+        StepItem(status: .done,    kind: .sleep,    actionLabel: AppLocalization.text("入睡"),   titleValue: AppLocalization.format("%d 小时 %d 分", 6, 12), affects: .energy,   gain: 24, time: AppLocalization.format("昨 %@", "23:30"), fromAutoSensor: true),
+        StepItem(status: .done,    kind: .breath,   actionLabel: AppLocalization.text("深呼吸"), titleValue: AppLocalization.format("%d 次", 3),        affects: .mood,     gain: 9,  time: "15:30",    fromAutoSensor: false),
+        StepItem(status: .suggest, kind: .walk,     actionLabel: AppLocalization.text("再走"),   titleValue: AppLocalization.format("%d 步", 1500),     affects: .vitality, gain: 6,  time: "",         fromAutoSensor: false),
+        StepItem(status: .suggest, kind: .meditate, actionLabel: AppLocalization.text("冥想"),   titleValue: AppLocalization.format("%d 分钟", 5),      affects: .mood,     gain: 15, time: "",         fromAutoSensor: false),
     ]
 
     // — Transient feedback —
@@ -473,14 +473,14 @@ final class PetStateStore {
         let kind = steps[i].kind
         LPLog.petState.notice("user markDone kind=\(kind.rawValue, privacy: .public) +\(gain, privacy: .public) → \(stat.label, privacy: .public)")
         applyGain(to: stat, by: gain, reason: steps[i].actionLabel)
-        showToast("完成！+\(gain) 星光落下")
+        showToast(AppLocalization.format("完成！+%d 星光落下", gain))
         lastInteractionAt[kind] = Date()
         regenerateSuggestions()
     }
 
     func nudgePibo() {
         speechCursor += 1
-        showToast("Pibo 抬头看了你一眼")
+        showToast(AppLocalization.text("Pibo 抬头看了你一眼"))
     }
 
     /// 调试用：把某个 stat 当前值往下扣 `amount` 点（默认 5），并且在非
@@ -503,9 +503,9 @@ final class PetStateStore {
         let label = kind.quitLabel
         LPLog.petState.notice("user quit kind=\(kind.rawValue, privacy: .public) count=\(count, privacy: .public)")
         if count >= 3 {
-            showToast("📍 \(label) 已被 quit \(count) 次，偏好已更新")
+            showToast(AppLocalization.format("📍 %@ 已被 quit %d 次，偏好已更新", AppLocalization.text(label), count))
         } else {
-            showToast("已跳过 · 下次少推\(label)")
+            showToast(AppLocalization.format("已跳过 · 下次少推%@", AppLocalization.text(label)))
         }
         lastInteractionAt[kind] = Date()
         regenerateSuggestions()
@@ -1097,7 +1097,7 @@ final class PetStateStore {
             status: .done,
             kind: suggestMatch ?? .run,
             actionLabel: label,
-            titleValue: "\(durMin) 分钟",
+            titleValue: AppLocalization.format("%d 分钟", durMin),
             affects: .vitality,
             gain: gain,
             time: relativeTimeLabel(end),
@@ -1121,9 +1121,9 @@ final class PetStateStore {
         guard let pw = pendingWorkout else { return }
         LPLog.petState.notice("consume pending: \(pw.label, privacy: .public) \(pw.durationMin, privacy: .public)min +\(pw.gainVitality, privacy: .public) (user-confirmed)")
         pendingWorkout = nil
-        insertDoneCard(for: pw, time: "刚刚")
+        insertDoneCard(for: pw, time: AppLocalization.text("刚刚"))
         applyGain(to: .vitality, by: pw.gainVitality, reason: pw.label)
-        showToast("\(petName) 醒过来一点！+\(pw.gainVitality) 活力星光")
+        showToast(AppLocalization.format("%@ 醒过来一点！+%d 活力星光", petName, pw.gainVitality))
         feedToken = UUID()
         finishPendingWorkoutActivity(for: pw, completed: true)
     }
@@ -1165,12 +1165,12 @@ final class PetStateStore {
 
     private func workoutLabel(_ kind: HealthEvent.WorkoutKind) -> String {
         switch kind {
-        case .run:   return "跑步"
-        case .walk:  return "走路"
-        case .cycle: return "骑行"
-        case .hiit:  return "高强度训练"
-        case .yoga:  return "瑜伽"
-        case .other: return "运动"
+        case .run:   return AppLocalization.text("跑步")
+        case .walk:  return AppLocalization.text("走路")
+        case .cycle: return AppLocalization.text("骑行")
+        case .hiit:  return AppLocalization.text("高强度训练")
+        case .yoga:  return AppLocalization.text("瑜伽")
+        case .other: return AppLocalization.text("运动")
         }
     }
 
@@ -1362,7 +1362,7 @@ final class PetStateStore {
             let item = StepItem(
                 status: .done,
                 kind: .sleep,
-                actionLabel: "入睡",
+                actionLabel: AppLocalization.text("入睡"),
                 titleValue: title,
                 affects: .energy,
                 gain: energy,
@@ -1377,9 +1377,9 @@ final class PetStateStore {
         let totalMin = Int(seconds / 60)
         let h = totalMin / 60
         let m = totalMin % 60
-        if h == 0 { return "\(m) 分" }
-        if m == 0 { return "\(h) 小时" }
-        return "\(h) 小时 \(m) 分"
+        if h == 0 { return AppLocalization.format("%d 分", m) }
+        if m == 0 { return AppLocalization.format("%d 小时", h) }
+        return AppLocalization.format("%d 小时 %d 分", h, m)
     }
 
     private func sleepStartLabel(_ start: Date?) -> String {
@@ -1395,8 +1395,8 @@ final class PetStateStore {
         let hh = cal.component(.hour, from: d)
         let mm = cal.component(.minute, from: d)
         let timeStr = String(format: "%02d:%02d", hh, mm)
-        if cal.isDateInYesterday(d) { return "昨 \(timeStr)" }
-        if cal.isDateInToday(d)     { return "今 \(timeStr)" }
+        if cal.isDateInYesterday(d) { return AppLocalization.format("昨 %@", timeStr) }
+        if cal.isDateInToday(d)     { return AppLocalization.format("今 %@", timeStr) }
         let md = "\(cal.component(.month, from: d))/\(cal.component(.day, from: d))"
         return "\(md) \(timeStr)"
     }
@@ -1425,29 +1425,29 @@ final class PetStateStore {
                 let needed = max(500, min(2000, 8000 - s.raw.steps))
                 let deficit = ((needed + 499) / 500) * 500
                 let gain = max(2, deficit / 1000 * 4)   // PRD: 走 1000 步 +4
-                return StepItem(status: .suggest, kind: .walk, actionLabel: "再走",
-                                titleValue: "\(deficit) 步", affects: .vitality,
+                return StepItem(status: .suggest, kind: .walk, actionLabel: AppLocalization.text("再走"),
+                                titleValue: AppLocalization.format("%d 步", deficit), affects: .vitality,
                                 gain: gain, time: "", fromAutoSensor: false)
             }),
         SuggestionRule(kind: .run, affects: .vitality,
             eligible: { s in s.raw.exerciseMinutes < 20 && s.statValue(.vitality) < 75 && s.isWakingHour },
             make: { _ in
-                StepItem(status: .suggest, kind: .run, actionLabel: "去跑",
-                         titleValue: "20 分钟", affects: .vitality,
+                StepItem(status: .suggest, kind: .run, actionLabel: AppLocalization.text("去跑"),
+                         titleValue: AppLocalization.format("%d 分钟", 20), affects: .vitality,
                          gain: 20, time: "", fromAutoSensor: false)
             }),
         SuggestionRule(kind: .meditate, affects: .mood,
             eligible: { s in s.raw.mindfulMinutes < 5 && s.statValue(.mood) < 85 },
             make: { _ in
-                StepItem(status: .suggest, kind: .meditate, actionLabel: "冥想",
-                         titleValue: "5 分钟", affects: .mood,
+                StepItem(status: .suggest, kind: .meditate, actionLabel: AppLocalization.text("冥想"),
+                         titleValue: AppLocalization.format("%d 分钟", 5), affects: .mood,
                          gain: 15, time: "", fromAutoSensor: false)
             }),
         SuggestionRule(kind: .breath, affects: .mood,
             eligible: { s in s.statValue(.mood) < 65 },
             make: { _ in
-                StepItem(status: .suggest, kind: .breath, actionLabel: "深呼吸",
-                         titleValue: "3 次", affects: .mood,
+                StepItem(status: .suggest, kind: .breath, actionLabel: AppLocalization.text("深呼吸"),
+                         titleValue: AppLocalization.format("%d 次", 3), affects: .mood,
                          gain: 9, time: "", fromAutoSensor: false)
             }),
     ]
