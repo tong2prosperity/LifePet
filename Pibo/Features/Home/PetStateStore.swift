@@ -1,5 +1,11 @@
 import SwiftUI
 import os
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
 
 // MARK: - Pet state machine (PRD §5)
 
@@ -272,6 +278,13 @@ final class PetStateStore {
         didSet {
             guard pendingWorkout != oldValue else { return }
             persistPendingWorkout()
+            publishWidgetSnapshot()
+            if let oldValue, let pendingWorkout, oldValue.id != pendingWorkout.id {
+                finishPendingWorkoutActivity(for: oldValue, completed: false)
+            }
+            if let pendingWorkout {
+                startOrUpdatePendingWorkoutActivity(for: pendingWorkout)
+            }
         }
     }
     /// Bumped each time the user taps 「喂养」. `HomeView` watches this with
@@ -309,6 +322,7 @@ final class PetStateStore {
             // copy. Re-applied on every day rollover so it stays at 7 forever
             // in demo mode.
             identity.seedDemoBirth()
+            publishWidgetSnapshot()
         }
     }
 
@@ -404,6 +418,11 @@ final class PetStateStore {
                 UserDefaults.standard.removeObject(forKey: Self.pendingWorkoutKey)
                 LPLog.petState.notice("Discarded stale persisted pendingWorkout (age=\(Int(age/60), privacy: .public)min sameDay=\(sameDay, privacy: .public))")
             }
+        }
+
+        publishWidgetSnapshot()
+        if let pendingWorkout {
+            startOrUpdatePendingWorkoutActivity(for: pendingWorkout)
         }
 
         guard let events else { return }
@@ -521,6 +540,9 @@ final class PetStateStore {
         lastWorkoutEndedAt = nil
         toast = nil
         speechCursor = 0
+        if let pendingWorkout {
+            finishPendingWorkoutActivity(for: pendingWorkout, completed: false)
+        }
         pendingWorkout = nil
         feedToken = nil
         // New pet UUID + name + birth=today. Hackathon semantics: reset means
@@ -542,6 +564,7 @@ final class PetStateStore {
         Task { [weak self] in
             await self?.refreshBaseline()
         }
+        publishWidgetSnapshot()
     }
 
     // MARK: - Day rollover
@@ -601,6 +624,7 @@ final class PetStateStore {
     private func performRollover(closing closingDate: Date) {
         guard !demoMode else {
             identity.seedDemoBirth()
+            publishWidgetSnapshot()
             LPLog.petState.notice("rollover (demo) — re-anchored birth to keep day=7")
             return
         }
@@ -622,6 +646,9 @@ final class PetStateStore {
         // 时插出 `time: "刚刚"` 的卡（实际是昨天的运动）。aggregate 路径已
         // 经把昨天的 vitality 写进 closingDate 的 snapshot 里了，clear 不会
         // 丢数据。
+        if let pendingWorkout {
+            finishPendingWorkoutActivity(for: pendingWorkout, completed: false)
+        }
         pendingWorkout = nil
         feedToken = nil
         // Decay buffer is per-day — clear it and restart the 4h tick clock
@@ -638,6 +665,7 @@ final class PetStateStore {
             await closeWrite?.value
             await self?.refreshBaseline()
         }
+        publishWidgetSnapshot()
         onDayRollover?()
     }
 
@@ -693,6 +721,120 @@ final class PetStateStore {
             updatedAt: Date()
         )
     }
+
+    // MARK: - Widget / Live Activity bridge
+
+    private func publishWidgetSnapshot() {
+        let snapshot = PiboWidgetSnapshot(
+            petName: petName,
+            dayCount: dayCount,
+            stateTag: state.tag,
+            stateLabel: state.journeyLabel,
+            vitality: statValue(.vitality),
+            energy: statValue(.energy),
+            mood: statValue(.mood),
+            updatedAt: Date(),
+            pendingWorkoutTitle: pendingWorkout?.titleLabel,
+            pendingWorkoutGain: pendingWorkout?.gainVitality
+        )
+
+        if !PiboWidgetSnapshotStore.save(snapshot) {
+            LPLog.petState.error("widget snapshot save failed")
+        }
+
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadTimelines(ofKind: PiboWidgetConstants.homeWidgetKind)
+        #endif
+    }
+
+    #if canImport(ActivityKit)
+    private func startOrUpdatePendingWorkoutActivity(for workout: PendingWorkout) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            LPLog.petState.notice("Live Activity skipped — activities disabled")
+            return
+        }
+
+        let attributes = PiboFeedActivityAttributes(
+            petName: petName,
+            workoutID: workout.id
+        )
+        let contentState = pendingActivityState(for: workout)
+        let content = ActivityContent(
+            state: contentState,
+            staleDate: Date().addingTimeInterval(Self.pendingWorkoutMaxAge)
+        )
+
+        Task { @MainActor in
+            let activities = Activity<PiboFeedActivityAttributes>.activities
+            if let existing = activities.first(where: { $0.attributes.workoutID == workout.id }) {
+                await existing.update(content)
+                return
+            }
+
+            for activity in activities where activity.attributes.workoutID != workout.id {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+
+            do {
+                _ = try Activity<PiboFeedActivityAttributes>.request(
+                    attributes: attributes,
+                    content: content,
+                    pushType: nil
+                )
+                LPLog.petState.notice("Live Activity started for pending workout \(workout.id.uuidString, privacy: .public)")
+            } catch {
+                LPLog.petState.error("Live Activity request failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    private func finishPendingWorkoutActivity(for workout: PendingWorkout, completed: Bool) {
+        let contentState = finishedActivityState(for: workout, completed: completed)
+        let content = ActivityContent(state: contentState, staleDate: Date())
+
+        Task { @MainActor in
+            let activities = Activity<PiboFeedActivityAttributes>.activities
+                .filter { $0.attributes.workoutID == workout.id }
+            guard !activities.isEmpty else { return }
+
+            for activity in activities {
+                await activity.end(
+                    content,
+                    dismissalPolicy: completed ? .after(Date().addingTimeInterval(8)) : .immediate
+                )
+            }
+            LPLog.petState.notice("Live Activity ended for pending workout \(workout.id.uuidString, privacy: .public)")
+        }
+    }
+
+    private func pendingActivityState(for workout: PendingWorkout) -> PiboFeedActivityAttributes.ContentState {
+        PiboFeedActivityAttributes.ContentState(
+            title: workout.titleLabel,
+            message: "可喂给 \(petName)，活力星光正在落下",
+            vitalityGain: workout.gainVitality,
+            stateTag: state.tag,
+            endedAt: workout.endedAt,
+            isComplete: false
+        )
+    }
+
+    private func finishedActivityState(
+        for workout: PendingWorkout,
+        completed: Bool
+    ) -> PiboFeedActivityAttributes.ContentState {
+        PiboFeedActivityAttributes.ContentState(
+            title: completed ? "已喂给 \(petName)" : "\(workout.titleLabel)已记录",
+            message: completed ? "今日运动已变成活力星光" : "运动已记录到今日星光",
+            vitalityGain: workout.gainVitality,
+            stateTag: state.tag,
+            endedAt: workout.endedAt,
+            isComplete: true
+        )
+    }
+    #else
+    private func startOrUpdatePendingWorkoutActivity(for workout: PendingWorkout) {}
+    private func finishPendingWorkoutActivity(for workout: PendingWorkout, completed: Bool) {}
+    #endif
 
     // MARK: - HRV baseline (PRD §3 心情)
 
@@ -983,6 +1125,7 @@ final class PetStateStore {
         applyGain(to: .vitality, by: pw.gainVitality, reason: pw.label)
         showToast("\(petName) 醒过来一点！+\(pw.gainVitality) 活力星光")
         feedToken = UUID()
+        finishPendingWorkoutActivity(for: pw, completed: true)
     }
 
     /// User dismissed the sheet without tapping 「喂养」 (backdrop tap, swipe
@@ -994,6 +1137,7 @@ final class PetStateStore {
         pendingWorkout = nil
         insertDoneCard(for: pw, time: "刚刚")
         applyGain(to: .vitality, by: pw.gainVitality, reason: pw.label)
+        finishPendingWorkoutActivity(for: pw, completed: false)
     }
 
     private func insertDoneCard(for pw: PendingWorkout, time: String) {
@@ -1094,6 +1238,7 @@ final class PetStateStore {
         }
         regenerateSuggestions()
         recordSnapshot()
+        publishWidgetSnapshot()
     }
 
     private func computeVitality() -> Int {
@@ -1185,6 +1330,7 @@ final class PetStateStore {
         // a manual markDone bump wouldn't be persisted until the next HK
         // ingest fires recompute (could be hours later).
         recordSnapshot()
+        publishWidgetSnapshot()
     }
 
     // MARK: - Sleep card upsert

@@ -3,6 +3,7 @@ import HealthKit
 
 enum WorkoutSessionError: Error {
     case healthDataUnavailable
+    case workoutSharingDenied
 }
 
 @MainActor
@@ -23,12 +24,19 @@ final class WorkoutSessionManager: NSObject {
         HKQuantityType(.heartRate),
         HKQuantityType(.oxygenSaturation),
     ]
+    private static let shareTypes: Set<HKSampleType> = [
+        HKObjectType.workoutType(),
+    ]
 
     func requestAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else {
             throw WorkoutSessionError.healthDataUnavailable
         }
-        try await healthStore.requestAuthorization(toShare: [], read: Self.readTypes)
+        try await healthStore.requestAuthorization(toShare: Self.shareTypes, read: Self.readTypes)
+
+        if healthStore.authorizationStatus(for: HKObjectType.workoutType()) != .sharingAuthorized {
+            throw WorkoutSessionError.workoutSharingDenied
+        }
     }
 
     func start() async throws -> VitalSession {
@@ -48,8 +56,17 @@ final class WorkoutSessionManager: NSObject {
         self.builder = builder
 
         let startDate = Date()
-        session.startActivity(with: startDate)
-        try await builder.beginCollection(at: startDate)
+        do {
+            session.startActivity(with: startDate)
+            try await builder.beginCollection(at: startDate)
+        } catch {
+            session.end()
+            try? await builder.endCollection(at: Date())
+            self.session = nil
+            self.builder = nil
+            current = nil
+            throw error
+        }
 
         let vs = VitalSession(startedAt: startDate)
         current = vs
@@ -67,6 +84,15 @@ final class WorkoutSessionManager: NSObject {
         self.session = nil
         self.builder = nil
         return vs
+    }
+
+    func cancel() async {
+        guard let session, let builder else { return }
+        session.end()
+        try? await builder.endCollection(at: Date())
+        current = nil
+        self.session = nil
+        self.builder = nil
     }
 }
 

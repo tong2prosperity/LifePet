@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		A7F3FD592F9B1F0200EA90A6 /* Pibo Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = A7F3FD582F9B1F0200EA90A6 /* Pibo Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A7F5C52B2FC8832A0050C48C /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A7F5C52A2FC8832A0050C48C /* WidgetKit.framework */; };
+		A7F5C52D2FC8832A0050C48C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A7F5C52C2FC8832A0050C48C /* SwiftUI.framework */; };
+		A7F5C53E2FC8832B0050C48C /* PiboWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A7F5C5282FC8832A0050C48C /* PiboWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -17,6 +20,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = A7F3FD572F9B1F0200EA90A6;
 			remoteInfo = "Pibo Watch App";
+		};
+		A7F5C53C2FC8832B0050C48C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7F3FD432F9B1F0100EA90A6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A7F5C5272FC8832A0050C48C;
+			remoteInfo = PiboWidgetsExtension;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -32,12 +42,36 @@
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A7F5C53F2FC8832B0050C48C /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A7F5C53E2FC8832B0050C48C /* PiboWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A7F3FD4B2F9B1F0100EA90A6 /* Pibo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pibo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A7F3FD582F9B1F0200EA90A6 /* Pibo Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pibo Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A7F5C5282FC8832A0050C48C /* PiboWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PiboWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A7F5C52A2FC8832A0050C48C /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		A7F5C52C2FC8832A0050C48C /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A7F5C5422FC8832B0050C48C /* Exceptions for "PiboWidgets" folder in "PiboWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A7F5C5272FC8832A0050C48C /* PiboWidgetsExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A7F3FD4D2F9B1F0100EA90A6 /* Pibo */ = {
@@ -53,6 +87,14 @@
 		A7F3FDAA2F9B1F0200EA90A6 /* Shared */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		A7F5C52E2FC8832A0050C48C /* PiboWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A7F5C5422FC8832B0050C48C /* Exceptions for "PiboWidgets" folder in "PiboWidgetsExtension" target */,
+			);
+			path = PiboWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -72,6 +114,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A7F5C5252FC8832A0050C48C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A7F5C52D2FC8832A0050C48C /* SwiftUI.framework in Frameworks */,
+				A7F5C52B2FC8832A0050C48C /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -81,6 +132,8 @@
 				A7F3FD4D2F9B1F0100EA90A6 /* Pibo */,
 				A7F3FD5C2F9B1F0200EA90A6 /* Pibo Watch App */,
 				A7F3FDAA2F9B1F0200EA90A6 /* Shared */,
+				A7F5C52E2FC8832A0050C48C /* PiboWidgets */,
+				A7F5C5292FC8832A0050C48C /* Frameworks */,
 				A7F3FD4C2F9B1F0100EA90A6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,8 +143,18 @@
 			children = (
 				A7F3FD4B2F9B1F0100EA90A6 /* Pibo.app */,
 				A7F3FD582F9B1F0200EA90A6 /* Pibo Watch App.app */,
+				A7F5C5282FC8832A0050C48C /* PiboWidgetsExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A7F5C5292FC8832A0050C48C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A7F5C52A2FC8832A0050C48C /* WidgetKit.framework */,
+				A7F5C52C2FC8832A0050C48C /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -105,11 +168,13 @@
 				A7F3FD482F9B1F0100EA90A6 /* Frameworks */,
 				A7F3FD492F9B1F0100EA90A6 /* Resources */,
 				A7F3FD682F9B1F0300EA90A6 /* Embed Watch Content */,
+				A7F5C53F2FC8832B0050C48C /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				A7F3FD5B2F9B1F0200EA90A6 /* PBXTargetDependency */,
+				A7F5C53D2FC8832B0050C48C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A7F3FD4D2F9B1F0100EA90A6 /* Pibo */,
@@ -145,6 +210,29 @@
 			productReference = A7F3FD582F9B1F0200EA90A6 /* Pibo Watch App.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A7F5C5272FC8832A0050C48C /* PiboWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A7F5C5432FC8832B0050C48C /* Build configuration list for PBXNativeTarget "PiboWidgetsExtension" */;
+			buildPhases = (
+				A7F5C5242FC8832A0050C48C /* Sources */,
+				A7F5C5252FC8832A0050C48C /* Frameworks */,
+				A7F5C5262FC8832A0050C48C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A7F3FDAA2F9B1F0200EA90A6 /* Shared */,
+				A7F5C52E2FC8832A0050C48C /* PiboWidgets */,
+			);
+			name = PiboWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = PiboWidgetsExtension;
+			productReference = A7F5C5282FC8832A0050C48C /* PiboWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -152,7 +240,10 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2620;
+				KnownAssetTags = (
+					New,
+				);
+				LastSwiftUpdateCheck = 2650;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					A7F3FD4A2F9B1F0100EA90A6 = {
@@ -160,6 +251,9 @@
 					};
 					A7F3FD572F9B1F0200EA90A6 = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					A7F5C5272FC8832A0050C48C = {
+						CreatedOnToolsVersion = 26.5;
 					};
 				};
 			};
@@ -179,6 +273,7 @@
 			targets = (
 				A7F3FD4A2F9B1F0100EA90A6 /* Pibo */,
 				A7F3FD572F9B1F0200EA90A6 /* Pibo Watch App */,
+				A7F5C5272FC8832A0050C48C /* PiboWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -192,6 +287,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A7F3FD562F9B1F0200EA90A6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7F5C5262FC8832A0050C48C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -215,6 +317,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A7F5C5242FC8832A0050C48C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -222,6 +331,11 @@
 			isa = PBXTargetDependency;
 			target = A7F3FD572F9B1F0200EA90A6 /* Pibo Watch App */;
 			targetProxy = A7F3FD5A2F9B1F0200EA90A6 /* PBXContainerItemProxy */;
+		};
+		A7F5C53D2FC8832B0050C48C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A7F5C5272FC8832A0050C48C /* PiboWidgetsExtension */;
+			targetProxy = A7F5C53C2FC8832B0050C48C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -357,6 +471,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo reads your heart rate, SpO₂, and heart-rate variability to reflect them in your digital pet.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pibo uses workout sessions to keep sensors active during recording.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Pibo uses wrist motion to estimate breathing rhythm and check training posture during heart-breath coupling sessions.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = fun.tiebao.co.Pibo;
@@ -395,6 +510,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo reads your heart rate, SpO₂, and heart-rate variability to reflect them in your digital pet.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pibo uses workout sessions to keep sensors active during recording.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Pibo uses wrist motion to estimate breathing rhythm and check training posture during heart-breath coupling sessions.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = fun.tiebao.co.Pibo;
@@ -432,6 +548,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -469,6 +586,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -486,6 +604,73 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A7F5C5402FC8832B0050C48C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = PiboWidgets/PiboWidgetsExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XD36G5SYYU;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PiboWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PiboWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo.PiboWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A7F5C5412FC8832B0050C48C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = PiboWidgets/PiboWidgetsExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XD36G5SYYU;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PiboWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PiboWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo.PiboWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -520,6 +705,15 @@
 			buildConfigurations = (
 				A7F3FD6A2F9B1F0300EA90A6 /* Debug */,
 				A7F3FD6B2F9B1F0300EA90A6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A7F5C5432FC8832B0050C48C /* Build configuration list for PBXNativeTarget "PiboWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A7F5C5402FC8832B0050C48C /* Debug */,
+				A7F5C5412FC8832B0050C48C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
