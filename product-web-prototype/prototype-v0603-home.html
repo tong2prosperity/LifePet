@@ -1,0 +1,1456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pibo · 主页</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'SF Pro Display', 'PingFang SC', 'Noto Sans SC', -apple-system, sans-serif;
+    background: #1a1a1a;
+    width: 100vw; height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; touch-action: none;
+  }
+
+  /* ===== iPhone Frame ===== */
+  .phone-frame {
+    width: 390px; height: 844px;
+    border-radius: 48px; border: 12px solid #2a2a2a;
+    box-shadow: 0 0 0 2px #444, 0 25px 60px rgba(0,0,0,0.5);
+    overflow: hidden; position: relative; background: #faf8f5;
+    flex-shrink: 0;
+  }
+  .notch {
+    position: absolute; top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 150px; height: 30px;
+    background: #2a2a2a; border-radius: 0 0 20px 20px;
+    z-index: 10000; pointer-events: none;
+  }
+  .home-bar {
+    position: absolute; bottom: 8px; left: 50%;
+    transform: translateX(-50%);
+    width: 130px; height: 5px;
+    background: rgba(0,0,0,0.15); border-radius: 3px;
+    z-index: 10000; pointer-events: none;
+  }
+  @media (max-width: 480px) {
+    body { background: #faf8f5; align-items: flex-start; justify-content: flex-start; }
+    .phone-frame { width: 100vw; height: 100vh; border: none; border-radius: 0; box-shadow: none; }
+    .notch, .home-bar { display: none; }
+  }
+
+  /* ===== Home Screen ===== */
+  .home-screen {
+    width: 100%; height: 100%;
+    background: #faf8f5;
+    display: flex; flex-direction: column;
+    position: relative; overflow: hidden;
+  }
+
+  /* ===== Header ===== */
+  .home-header {
+    padding: 55px 24px 12px;
+    position: relative; z-index: 10;
+  }
+  .header-greeting {
+    font-size: 13px; color: #a0a0a0;
+    letter-spacing: 0.5px; line-height: 1.6;
+  }
+  .header-day {
+    font-size: 22px; color: #2c2c2c;
+    font-weight: 500; letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+
+  /* ===== Pibo World ===== */
+  .pibo-world {
+    flex: 1; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Sky background */
+  .world-sky {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 55%;
+    background: linear-gradient(180deg, #e8e4db 0%, #d4cfc4 100%);
+  }
+  .world-cloud {
+    position: absolute; background: rgba(255,255,255,0.7);
+    border-radius: 50px; opacity: 0.8;
+  }
+  .world-cloud.c1 { width: 80px; height: 28px; top: 15%; left: 10%; animation: cloud-drift 20s infinite linear; }
+  .world-cloud.c2 { width: 60px; height: 22px; top: 22%; left: 70%; animation: cloud-drift 25s infinite linear reverse; }
+  .world-cloud.c3 { width: 100px; height: 32px; top: 8%; left: 45%; animation: cloud-drift 30s infinite linear; }
+  @keyframes cloud-drift {
+    0% { transform: translateX(-20px); }
+    50% { transform: translateX(20px); }
+    100% { transform: translateX(-20px); }
+  }
+
+  /* Sun / moon */
+  .world-sun {
+    position: absolute; top: 12%; right: 15%;
+    width: 48px; height: 48px;
+    background: #f5e6c8; border-radius: 50%;
+    box-shadow: 0 0 40px rgba(245,230,200,0.5), 0 0 80px rgba(245,230,200,0.2);
+  }
+
+  /* Mountains */
+  .world-mountains {
+    position: absolute; bottom: 45%; left: 0;
+    width: 100%; height: 80px;
+  }
+  .mountain {
+    position: absolute; bottom: 0;
+    width: 0; height: 0;
+    border-style: solid;
+  }
+  .mountain.m1 {
+    left: 5%; border-left: 60px solid transparent; border-right: 60px solid transparent;
+    border-bottom: 50px solid #b8b0a0;
+  }
+  .mountain.m2 {
+    left: 30%; border-left: 80px solid transparent; border-right: 80px solid transparent;
+    border-bottom: 70px solid #a09888;
+  }
+  .mountain.m3 {
+    left: 60%; border-left: 70px solid transparent; border-right: 70px solid transparent;
+    border-bottom: 55px solid #b0a898;
+  }
+
+  /* Ground */
+  .world-ground {
+    position: absolute; bottom: 0; left: 0;
+    width: 100%; height: 45%;
+    background: linear-gradient(180deg, #c8d4b8 0%, #b8c8a8 100%);
+  }
+  .ground-flowers {
+    position: absolute; bottom: 0; left: 0;
+    width: 100%; height: 30px;
+  }
+  .gflower {
+    position: absolute; bottom: 8px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #e8a0a0;
+  }
+  .gflower::after {
+    content: ''; position: absolute; bottom: -8px; left: 2px;
+    width: 2px; height: 8px; background: #7a9a5a; border-radius: 1px;
+  }
+
+  /* ===== Pibo (non-pixel, rounded style) ===== */
+  .pibo-wrap {
+    position: relative; z-index: 5;
+    width: 160px; height: 180px;
+    cursor: pointer; user-select: none;
+    transition: transform 0.15s ease;
+  }
+  .pibo-wrap.tapped { transform: scale(0.94); }
+
+  .pibo-body {
+    position: absolute; left: 20px; top: 50px;
+    width: 120px; height: 105px;
+    background: #f5f0e6;
+    border-radius: 55% 55% 50% 50% / 60% 60% 45% 45%;
+    box-shadow:
+      inset -8px -4px 16px rgba(0,0,0,0.04),
+      inset 8px 4px 16px rgba(255,255,255,0.6),
+      0 8px 24px rgba(0,0,0,0.08);
+    transition: all 0.4s ease;
+  }
+
+  /* Pibo blush */
+  .pibo-blush {
+    position: absolute; top: 85px;
+    width: 16px; height: 10px;
+    background: rgba(232, 160, 160, 0.35);
+    border-radius: 50%;
+    transition: opacity 0.4s ease;
+  }
+  .pibo-blush.left { left: 38px; }
+  .pibo-blush.right { left: 106px; }
+
+  /* Pibo eyes — demon phase: small, dull, half-lidded */
+  .pibo-eye {
+    position: absolute; top: 75px;
+    width: 8px; height: 5px;
+    background: #3a3a3a; border-radius: 50%;
+    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    opacity: 0.75;
+  }
+  .pibo-eye.left { left: 53px; }
+  .pibo-eye.right { left: 99px; }
+
+  /* Slow demon blink */
+  @keyframes demon-blink {
+    0%, 92%, 100% { height: 5px; top: 75px; opacity: 0.75; border-radius: 50%; }
+    96% { height: 1.5px; top: 77px; opacity: 0.35; border-radius: 1px; }
+  }
+  .pibo-eye.blinking {
+    animation: demon-blink 5s ease-in-out infinite;
+  }
+  .pibo-eye.blinking.right { animation-delay: 0.15s; }
+
+  /* Wide open — surprised/annoyed on tap */
+  .pibo-eye.wide {
+    width: 10px; height: 10px; top: 72px; opacity: 1;
+  }
+
+  /* Eye highlight dot */
+  .pibo-eye::after {
+    content: ''; position: absolute; top: 1px; right: 1.5px;
+    width: 2px; height: 2px; background: rgba(255,255,255,0.5);
+    border-radius: 50%; transition: opacity 0.3s ease;
+  }
+  .pibo-eye.wide::after { opacity: 0.8; width: 2.5px; height: 2.5px; }
+
+  /* Closed / sleeping */
+  .pibo-eye.closed {
+    height: 1.5px; border-radius: 1px;
+    background: #3a3a3a; opacity: 0.3;
+    top: 77px;
+  }
+  .pibo-eye.closed::after { opacity: 0; }
+
+  /* Flower on head */
+  .pibo-flower {
+    position: absolute; top: 15px; left: 50%;
+    transform: translateX(-50%);
+    width: 36px; height: 36px;
+    transition: all 0.5s ease;
+  }
+  .flower-stem {
+    position: absolute; bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 3px; height: 20px;
+    background: #7a9a5a; border-radius: 2px;
+  }
+  .flower-head {
+    position: absolute; top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 24px; height: 24px;
+  }
+  .flower-petal {
+    position: absolute; width: 10px; height: 10px;
+    border-radius: 50%; background: #8fb070;
+    transition: all 0.5s ease;
+  }
+  .flower-petal:nth-child(1) { top: 0; left: 7px; }
+  .flower-petal:nth-child(2) { top: 7px; left: 0; }
+  .flower-petal:nth-child(3) { top: 7px; left: 14px; }
+  .flower-petal:nth-child(4) { top: 14px; left: 7px; }
+  .flower-center {
+    position: absolute; top: 5px; left: 5px;
+    width: 14px; height: 14px;
+    background: #e8c868; border-radius: 50%;
+  }
+
+  /* Flower states */
+  .pibo-flower.withered .flower-petal { background: #a0a0a0; transform: scale(0.7); }
+  .pibo-flower.withered .flower-center { background: #888; }
+  .pibo-flower.blooming .flower-petal { background: #7ab85a; transform: scale(1.1); }
+  .pibo-flower.blooming .flower-center { background: #f5d060; }
+
+  /* Speech bubble */
+  .pibo-speech {
+    position: absolute; top: -8px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.95);
+    padding: 10px 18px; border-radius: 18px;
+    font-size: 13px; color: #555;
+    white-space: nowrap;
+    opacity: 0; transition: all 0.4s ease;
+    pointer-events: none;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    border: 1px solid rgba(0,0,0,0.04);
+    z-index: 20;
+  }
+  .pibo-speech.show { opacity: 1; top: -28px; }
+  .pibo-speech::after {
+    content: ''; position: absolute; bottom: -6px; left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 6px solid transparent; border-right: 6px solid transparent;
+    border-top: 6px solid rgba(255,255,255,0.95);
+  }
+
+  /* ===== Energy Orb (Liquid Level) ===== */
+  .energy-orb-wrap {
+    position: absolute; top: 20%; right: 22%;
+    z-index: 15; display: flex; flex-direction: column;
+    align-items: center; gap: 6px;
+  }
+  .energy-orb {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    position: relative; cursor: pointer;
+    overflow: hidden;
+    background: linear-gradient(180deg, #f5f3f0 0%, #e8e4e0 100%);
+    border: 2px solid rgba(255,255,255,0.8);
+    box-shadow:
+      0 4px 16px rgba(0,0,0,0.08),
+      inset 0 -2px 6px rgba(0,0,0,0.04),
+      inset 0 2px 6px rgba(255,255,255,0.8);
+    transition: all 0.4s ease;
+  }
+
+  /* Glass highlight */
+  .energy-orb::after {
+    content: ''; position: absolute; top: 6px; left: 10px;
+    width: 18px; height: 10px; border-radius: 50%;
+    background: rgba(255,255,255,0.5);
+    transform: rotate(-25deg);
+    z-index: 10; pointer-events: none;
+  }
+
+  /* Liquid wave layers */
+  .orb-liquid {
+    position: absolute; left: -30%; bottom: 0;
+    width: 160%; height: 120%;
+    border-radius: 38%;
+    transform-origin: 50% 50%;
+    transition: background 0.6s ease;
+    animation: wave-rotate 5s linear infinite;
+  }
+  .orb-liquid.l2 {
+    position: absolute; left: -30%; bottom: 0;
+    width: 160%; height: 120%;
+    border-radius: 42%;
+    transform-origin: 50% 50%;
+    opacity: 0.5;
+    animation: wave-rotate 7s linear infinite reverse;
+    transition: background 0.6s ease;
+  }
+  @keyframes wave-rotate {
+    0% { transform: translateY(var(--liquid-y, 40%)) rotate(0deg); }
+    100% { transform: translateY(var(--liquid-y, 40%)) rotate(360deg); }
+  }
+
+  /* Liquid shine */
+  .orb-liquid-shine {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(180deg,
+      rgba(255,255,255,0.25) 0%,
+      rgba(255,255,255,0) 40%,
+      rgba(0,0,0,0.06) 100%);
+    border-radius: 50%;
+    z-index: 5; pointer-events: none;
+  }
+
+  /* Bubbles inside liquid */
+  .orb-bubble {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.35);
+    z-index: 4;
+    animation: bubble-rise 2.5s ease-in infinite;
+  }
+  .orb-bubble:nth-child(1) { width: 4px; height: 4px; left: 25%; bottom: 15%; animation-delay: 0s; }
+  .orb-bubble:nth-child(2) { width: 3px; height: 3px; left: 55%; bottom: 25%; animation-delay: 0.8s; }
+  .orb-bubble:nth-child(3) { width: 5px; height: 5px; left: 40%; bottom: 10%; animation-delay: 1.6s; }
+  @keyframes bubble-rise {
+    0% { transform: translateY(0) scale(1); opacity: 0.6; }
+    80% { opacity: 0.3; }
+    100% { transform: translateY(-40px) scale(0.6); opacity: 0; }
+  }
+
+  /* Level indicator text inside orb */
+  .orb-level-text {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 11px; font-weight: 600;
+    color: rgba(60,60,60,0.7);
+    z-index: 8; letter-spacing: 0.5px;
+    text-shadow: 0 1px 2px rgba(255,255,255,0.6);
+    transition: color 0.4s ease;
+  }
+  .energy-orb:hover { transform: scale(1.06); }
+  .energy-orb:active { transform: scale(0.96); }
+
+  .energy-orb-label {
+    font-size: 10px; color: #999;
+    letter-spacing: 0.5px;
+    background: rgba(255,255,255,0.8);
+    padding: 2px 8px; border-radius: 8px;
+  }
+
+  /* Orb liquid levels — liquid height via --liquid-y, color via background */
+  .orb-level-0 { --liquid-y: 92%; }
+  .orb-level-0 .orb-liquid,
+  .orb-level-0 .orb-liquid.l2 { background: linear-gradient(180deg, #c8c8c8, #b0b0b0); }
+  .orb-level-0 .orb-level-text { color: rgba(80,80,80,0.5); }
+
+  .orb-level-1 { --liquid-y: 74%; }
+  .orb-level-1 .orb-liquid,
+  .orb-level-1 .orb-liquid.l2 { background: linear-gradient(180deg, #d4c8a8, #c0b090); }
+  .orb-level-1 .orb-level-text { color: rgba(100,80,40,0.5); }
+
+  .orb-level-2 { --liquid-y: 56%; }
+  .orb-level-2 .orb-liquid,
+  .orb-level-2 .orb-liquid.l2 { background: linear-gradient(180deg, #b8d4a0, #9ec080); }
+  .orb-level-2 .orb-level-text { color: rgba(60,90,30,0.55); }
+
+  .orb-level-3 { --liquid-y: 38%; }
+  .orb-level-3 .orb-liquid,
+  .orb-level-3 .orb-liquid.l2 { background: linear-gradient(180deg, #98cc70, #78b050); }
+  .orb-level-3 .orb-level-text { color: rgba(255,255,255,0.7); }
+
+  .orb-level-4 { --liquid-y: 18%; }
+  .orb-level-4 .orb-liquid,
+  .orb-level-4 .orb-liquid.l2 { background: linear-gradient(180deg, #78b850, #58a030); }
+  .orb-level-4 .orb-level-text { color: rgba(255,255,255,0.75); }
+
+  .orb-level-5 { --liquid-y: -8%; }
+  .orb-level-5 .orb-liquid,
+  .orb-level-5 .orb-liquid.l2 { background: linear-gradient(180deg, #68b040, #489020); }
+  .orb-level-5 .orb-level-text { color: rgba(255,255,255,0.85); }
+  .orb-level-5 .energy-orb {
+    box-shadow:
+      0 4px 16px rgba(0,0,0,0.08),
+      0 0 20px rgba(100,180,60,0.25),
+      inset 0 -2px 6px rgba(0,0,0,0.04),
+      inset 0 2px 6px rgba(255,255,255,0.8);
+  }
+
+  /* ===== Energy Card Modal ===== */
+  .modal-overlay {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(8px);
+    z-index: 200; opacity: 0; pointer-events: none;
+    transition: opacity 0.35s ease;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.show { opacity: 1; pointer-events: auto; }
+
+  .energy-card {
+    width: 100%; max-height: 78%;
+    background: #fff; border-radius: 24px 24px 0 0;
+    padding: 24px 20px 32px;
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+    overflow-y: auto;
+  }
+  .modal-overlay.show .energy-card { transform: translateY(0); }
+
+  .card-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 20px; color: #2c2c2c; font-weight: 500;
+  }
+  .card-close {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #f0f0f0; border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #666; cursor: pointer;
+  }
+  .card-close:active { background: #e0e0e0; }
+
+  .card-date {
+    font-size: 13px; color: #999; margin-bottom: 16px;
+  }
+
+  .energy-score-bar {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px;
+  }
+  .energy-score-num {
+    font-size: 42px; color: #2c2c2c; font-weight: 300;
+    line-height: 1;
+  }
+  .energy-score-total {
+    font-size: 16px; color: #aaa; font-weight: 300;
+  }
+  .energy-score-text {
+    font-size: 14px; color: #888;
+  }
+  .energy-score-dots {
+    display: flex; gap: 6px; margin-top: 4px;
+  }
+  .score-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #e0e0e0; transition: all 0.3s ease;
+  }
+  .score-dot.active { background: #7ab85a; }
+  .score-dot.active.sleep { background: #7a8ab8; }
+
+  .data-section {
+    background: #f8f6f1; border-radius: 16px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .data-section-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 12px;
+  }
+  .data-section-icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .data-section-icon.sleep { background: #e8e4f0; }
+  .data-section-icon.sport { background: #e4f0e0; }
+  .data-section-icon.food { background: #f0e8e0; }
+  .data-section-title {
+    font-size: 15px; color: #333; font-weight: 500;
+    flex: 1;
+  }
+  .data-section-status {
+    font-size: 12px; color: #999;
+  }
+
+  .data-row {
+    display: flex; justify-content: space-between;
+    padding: 6px 0; font-size: 14px;
+  }
+  .data-row .label { color: #888; }
+  .data-row .value { color: #333; font-weight: 500; }
+
+  .data-divider {
+    height: 1px; background: #e8e6e0; margin: 8px 0;
+  }
+
+  /* Food photos in energy card */
+  .food-photos {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .food-photo {
+    width: 64px; height: 64px; border-radius: 10px;
+    object-fit: cover; background: #e0e0e0;
+    border: 1px solid #e8e6e0;
+  }
+  .food-photo.add {
+    display: flex; align-items: center; justify-content: center;
+    background: #f0f0f0; border: 1.5px dashed #ccc;
+    color: #999; font-size: 24px; cursor: pointer;
+  }
+  .food-photo.add:active { background: #e8e8e8; }
+
+  .food-hint {
+    font-size: 12px; color: #aaa; margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  /* ===== Camera Modal ===== */
+  .camera-modal {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #000; z-index: 300;
+    display: none; flex-direction: column;
+  }
+  .camera-modal.show { display: flex; }
+
+  .camera-top-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 55px 20px 16px; z-index: 10;
+  }
+  .camera-cancel {
+    color: #fff; font-size: 15px; background: none; border: none;
+    cursor: pointer;
+  }
+  .camera-target-title {
+    color: #fff; font-size: 15px; font-weight: 500;
+  }
+  .camera-target-sub {
+    color: rgba(255,255,255,0.6); font-size: 12px; text-align: center;
+    margin-top: 4px;
+  }
+  .camera-spacer { width: 40px; }
+
+  .camera-viewport {
+    flex: 1; position: relative;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  #camera-video {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%; object-fit: cover;
+    opacity: 0; transition: opacity 0.5s ease;
+  }
+  #camera-video.active { opacity: 1; }
+
+  .camera-fallback {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px;
+  }
+  .camera-fallback-text {
+    color: rgba(255,255,255,0.5); font-size: 14px;
+    text-align: center; padding: 0 40px;
+  }
+
+  .camera-focus {
+    width: 140px; height: 140px;
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 12px;
+    position: relative;
+  }
+  .camera-focus::before, .camera-focus::after {
+    content: ''; position: absolute;
+    width: 20px; height: 20px; border-color: rgba(255,255,255,0.5);
+    border-style: solid;
+  }
+  .camera-focus::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+  .camera-focus::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+  .camera-bottom-bar {
+    padding: 24px 20px 40px;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 16px;
+  }
+  .shutter-btn {
+    width: 72px; height: 72px;
+    border: 3px solid #fff; border-radius: 50%;
+    cursor: pointer; position: relative;
+    background: none;
+  }
+  .shutter-btn::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 56px; height: 56px; background: #fff;
+    border-radius: 50%; transition: all 0.2s ease;
+  }
+  .shutter-btn:active::after { transform: translate(-50%, -50%) scale(0.85); }
+
+  .camera-hint {
+    color: rgba(255,255,255,0.5); font-size: 12px;
+  }
+
+  /* Flash */
+  .flash-overlay {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #fff; opacity: 0; pointer-events: none;
+    z-index: 999;
+  }
+  .flash-overlay.anim { animation: flash 0.5s ease-out; }
+  @keyframes flash { 0%{opacity:0.9} 100%{opacity:0} }
+
+  /* Photo preview after capture */
+  .photo-preview-overlay {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+    z-index: 350; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px 20px;
+  }
+  .photo-preview-overlay.show { display: flex; }
+  .photo-preview-img {
+    max-width: 100%; max-height: 60%;
+    border-radius: 16px; object-fit: contain;
+    background: #333;
+  }
+  .photo-preview-actions {
+    display: flex; gap: 16px; margin-top: 24px;
+  }
+  .preview-btn {
+    padding: 12px 32px; border-radius: 24px;
+    font-size: 15px; border: none; cursor: pointer;
+    font-family: inherit;
+  }
+  .preview-btn.cancel { background: rgba(255,255,255,0.15); color: #fff; }
+  .preview-btn.save { background: #6b8e5a; color: #fff; }
+  .preview-btn:active { opacity: 0.8; }
+
+  .pibo-comment {
+    color: rgba(255,255,255,0.8); font-size: 14px;
+    text-align: center; margin-top: 16px;
+    line-height: 1.6; padding: 0 20px;
+    max-width: 320px;
+  }
+
+  /* ===== Camera trigger — subtle, blended into the scene ===== */
+  .camera-trigger {
+    position: absolute; bottom: 26%; left: 24%;
+    z-index: 15;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    animation: trigger-breathe 4s ease-in-out infinite;
+  }
+  .camera-trigger:active { transform: scale(0.92); }
+  @keyframes trigger-breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+
+  .camera-dew {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.22);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.35);
+    box-shadow:
+      0 2px 8px rgba(0,0,0,0.06),
+      inset 0 1px 2px rgba(255,255,255,0.4);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+
+  /* Subtle dew highlight */
+  .camera-dew::before {
+    content: ''; position: absolute; top: 7px; left: 10px;
+    width: 10px; height: 6px; border-radius: 50%;
+    background: rgba(255,255,255,0.5);
+    transform: rotate(-25deg);
+  }
+
+  /* Minimal line-drawn camera icon */
+  .dew-camera {
+    position: relative; width: 18px; height: 14px;
+    opacity: 0.7;
+  }
+  .dew-camera-body {
+    position: absolute; top: 2px; left: 0;
+    width: 18px; height: 12px;
+    border: 1.2px solid rgba(60,60,60,0.6);
+    border-radius: 3px;
+  }
+  .dew-camera-lens {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 7px; height: 7px;
+    border: 1.2px solid rgba(60,60,60,0.6);
+    border-radius: 50%;
+  }
+  .dew-camera-dot {
+    position: absolute; top: 3.5px; right: 2.5px;
+    width: 2px; height: 2px;
+    background: rgba(60,60,60,0.5);
+    border-radius: 50%;
+  }
+
+  .camera-trigger-label {
+    font-size: 10px; color: rgba(80,90,70,0.55);
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 1px rgba(255,255,255,0.5);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: all 0.4s ease;
+  }
+  .camera-trigger:hover .camera-trigger-label,
+  .camera-trigger.show-label .camera-trigger-label {
+    opacity: 1; transform: translateY(0);
+  }
+
+  .camera-trigger.has-badge .camera-dew::after {
+    content: ''; position: absolute; top: -1px; right: -1px;
+    width: 10px; height: 10px;
+    background: #ff3b30; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.6);
+  }
+
+  /* ===== Bottom Nav ===== */
+  .nav-bar {
+    display: flex; justify-content: space-around;
+    padding: 10px 0 30px;
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(0,0,0,0.04);
+    position: relative; z-index: 50;
+  }
+  .nav-item {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 3px;
+    font-size: 10px; color: #bbb;
+    cursor: pointer; transition: all 0.2s ease;
+    padding: 4px 16px; border-radius: 12px;
+  }
+  .nav-item.active { color: #6b8e5a; }
+  .nav-item:active { transform: scale(0.95); }
+  .nav-icon {
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  /* ===== Utility ===== */
+  .hidden { display: none !important; }
+  .fade-in { animation: fadeIn 0.5s ease forwards; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Scan line for camera */
+  .scan-line {
+    position: absolute; left: 0; width: 100%;
+    height: 2px; background: rgba(107,142,90,0.5);
+    box-shadow: 0 0 8px rgba(107,142,90,0.3);
+    opacity: 0; pointer-events: none; z-index: 20;
+  }
+  .scan-line.active { opacity: 1; animation: scan 1.5s ease-in-out; }
+  @keyframes scan { 0% { top: 25%; } 100% { top: 75%; } }
+
+  /* Particle effects for tap */
+  .tap-particle {
+    position: absolute; pointer-events: none;
+    font-size: 14px; opacity: 0; z-index: 30;
+  }
+  .tap-particle.active {
+    animation: particle-float 1s ease forwards;
+  }
+  @keyframes particle-float {
+    0% { opacity: 0.8; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-60px) scale(0.5); }
+  }
+
+  /* Welcome animation overlay */
+  .welcome-overlay {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #faf8f5; z-index: 500;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    transition: opacity 0.8s ease;
+  }
+  .welcome-overlay.done { opacity: 0; pointer-events: none; }
+  .welcome-text {
+    font-size: 16px; color: #888;
+    text-align: center; line-height: 2;
+    letter-spacing: 1px;
+  }
+
+  /* Tooltip for first-time camera */
+  .fab-tooltip {
+    position: absolute; bottom: 150px; right: 16px;
+    background: #3a3a3a; color: #fff;
+    padding: 10px 14px; border-radius: 12px;
+    font-size: 13px; max-width: 200px;
+    line-height: 1.5; z-index: 60;
+    opacity: 0; transform: translateY(8px);
+    transition: all 0.4s ease; pointer-events: none;
+  }
+  .fab-tooltip.show { opacity: 1; transform: translateY(0); }
+  .fab-tooltip::after {
+    content: ''; position: absolute; bottom: -6px; right: 20px;
+    width: 0; height: 0;
+    border-left: 6px solid transparent; border-right: 6px solid transparent;
+    border-top: 6px solid #3a3a3a;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone-frame">
+  <div class="notch"></div>
+  <div class="home-bar"></div>
+
+  <!-- Welcome Overlay (shown briefly on first load) -->
+  <div class="welcome-overlay" id="welcome-overlay">
+    <div class="welcome-text" id="welcome-text">...</div>
+  </div>
+
+  <!-- ===== HOME SCREEN ===== -->
+  <div class="home-screen" id="home-screen">
+
+    <!-- Header -->
+    <div class="home-header">
+      <div class="header-greeting" id="header-greeting">苏氨酸 · 早上好</div>
+      <div class="header-day" id="header-day">与Pibo相识的第 7 天</div>
+    </div>
+
+    <!-- Pibo World -->
+    <div class="pibo-world" id="pibo-world">
+      <!-- Background -->
+      <div class="world-sky"></div>
+      <div class="world-cloud c1"></div>
+      <div class="world-cloud c2"></div>
+      <div class="world-cloud c3"></div>
+      <div class="world-sun"></div>
+      <div class="world-mountains">
+        <div class="mountain m1"></div>
+        <div class="mountain m2"></div>
+        <div class="mountain m3"></div>
+      </div>
+      <div class="world-ground">
+        <div class="ground-flowers" id="ground-flowers"></div>
+      </div>
+
+      <!-- Energy Orb -->
+      <div class="energy-orb-wrap" id="energy-orb-wrap">
+        <div class="energy-orb orb-level-2" id="energy-orb">
+          <div class="orb-liquid"></div>
+          <div class="orb-liquid l2"></div>
+          <div class="orb-bubble"></div>
+          <div class="orb-bubble"></div>
+          <div class="orb-bubble"></div>
+          <div class="orb-liquid-shine"></div>
+          <div class="orb-level-text" id="orb-level-text">2</div>
+        </div>
+        <div class="energy-orb-label">今日能量</div>
+      </div>
+
+      <!-- Pibo -->
+      <div class="pibo-wrap" id="pibo-wrap">
+        <div class="pibo-flower" id="pibo-flower">
+          <div class="flower-head">
+            <div class="flower-petal"></div>
+            <div class="flower-petal"></div>
+            <div class="flower-petal"></div>
+            <div class="flower-petal"></div>
+            <div class="flower-center"></div>
+          </div>
+          <div class="flower-stem"></div>
+        </div>
+        <div class="pibo-body" id="pibo-body"></div>
+        <div class="pibo-eye left" id="eye-left"></div>
+        <div class="pibo-eye right" id="eye-right"></div>
+        <div class="pibo-blush left"></div>
+        <div class="pibo-blush right"></div>
+        <div class="pibo-speech" id="pibo-speech"></div>
+      </div>
+    </div>
+
+    <!-- Camera trigger — subtle dew on the grass -->
+    <div class="camera-trigger" id="camera-trigger">
+      <div class="camera-dew">
+        <div class="dew-camera">
+          <div class="dew-camera-body"></div>
+          <div class="dew-camera-lens"></div>
+          <div class="dew-camera-dot"></div>
+        </div>
+      </div>
+      <div class="camera-trigger-label">记录</div>
+    </div>
+    <div class="fab-tooltip" id="fab-tooltip">
+      Pibo想知道你吃了什么<br>拍张照片告诉它吧
+    </div>
+
+    <!-- Bottom Nav -->
+    <div class="nav-bar">
+      <div class="nav-item active" id="nav-pibo">
+        <div class="nav-icon">🏠</div>
+        <span>PIBO</span>
+      </div>
+      <div class="nav-item" id="nav-plants">
+        <div class="nav-icon">🌱</div>
+        <span>PLANTS</span>
+      </div>
+    </div>
+
+  </div><!-- /home-screen -->
+
+  <!-- ===== ENERGY CARD MODAL ===== -->
+  <div class="modal-overlay" id="energy-modal">
+    <div class="energy-card" id="energy-card">
+      <div class="card-header">
+        <div class="card-title">今日数据</div>
+        <button class="card-close" id="card-close">×</button>
+      </div>
+      <div class="card-date" id="card-date">6月5日 星期四</div>
+
+      <div class="energy-score-bar">
+        <div class="energy-score-num" id="score-num">3</div>
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <div>
+            <span class="energy-score-total">/ 5</span>
+            <span class="energy-score-text" id="score-text">今日能量</span>
+          </div>
+          <div class="energy-score-dots" id="score-dots">
+            <div class="score-dot active"></div>
+            <div class="score-dot active"></div>
+            <div class="score-dot active"></div>
+            <div class="score-dot"></div>
+            <div class="score-dot"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sleep Data -->
+      <div class="data-section">
+        <div class="data-section-header">
+          <div class="data-section-icon sleep">🌙</div>
+          <div class="data-section-title">睡眠</div>
+          <div class="data-section-status" id="sleep-status">良好</div>
+        </div>
+        <div class="data-row">
+          <span class="label">时长</span>
+          <span class="value" id="sleep-duration">7h 12m</span>
+        </div>
+        <div class="data-row">
+          <span class="label">深睡</span>
+          <span class="value" id="sleep-deep">18%</span>
+        </div>
+        <div class="data-divider"></div>
+        <div class="data-row">
+          <span class="label">基线</span>
+          <span class="value" style="color:#999;">7h · 持平</span>
+        </div>
+      </div>
+
+      <!-- Activity Data -->
+      <div class="data-section">
+        <div class="data-section-header">
+          <div class="data-section-icon sport">🏃</div>
+          <div class="data-section-title">运动</div>
+          <div class="data-section-status" id="sport-status">进行中</div>
+        </div>
+        <div class="data-row">
+          <span class="label">步数</span>
+          <span class="value" id="sport-steps">4,520</span>
+        </div>
+        <div class="data-row">
+          <span class="label">卡路里</span>
+          <span class="value" id="sport-cals">280 kcal</span>
+        </div>
+        <div class="data-row">
+          <span class="label">户外步行</span>
+          <span class="value" id="sport-workout">32 分钟</span>
+        </div>
+        <div class="data-divider"></div>
+        <div class="data-row">
+          <span class="label">基线</span>
+          <span class="value" style="color:#999;">基于过去7天均值，每日自动更新</span>
+        </div>
+      </div>
+
+      <!-- Food Records -->
+      <div class="data-section">
+        <div class="data-section-header">
+          <div class="data-section-icon food">📸</div>
+          <div class="data-section-title">今日记录</div>
+          <div class="data-section-status" id="food-count">0 张</div>
+        </div>
+        <div class="food-photos" id="food-photos">
+          <div class="food-photo add" id="add-photo-btn">+</div>
+        </div>
+        <div class="food-hint">
+          Pibo说它的能量来自健康活动数据，很好奇人的能量是从哪里来的。拍下你今天吃的东西，帮它认识地球的食物吧。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CAMERA MODAL ===== -->
+  <div class="camera-modal" id="camera-modal">
+    <div class="flash-overlay" id="camera-flash"></div>
+
+    <div class="camera-top-bar">
+      <button class="camera-cancel" id="camera-cancel">取消</button>
+      <div>
+        <div class="camera-target-title">记录饮食</div>
+        <div class="camera-target-sub">Pibo想知道你吃了什么</div>
+      </div>
+      <div class="camera-spacer"></div>
+    </div>
+
+    <div class="camera-viewport">
+      <video id="camera-video" autoplay playsinline muted></video>
+      <div class="camera-fallback" id="camera-fallback">
+        <div class="camera-focus"></div>
+        <div class="camera-fallback-text">
+          相机需要权限<br>或点击此处模拟拍照
+        </div>
+      </div>
+      <div class="scan-line" id="camera-scan"></div>
+    </div>
+
+    <div class="camera-bottom-bar">
+      <div class="shutter-btn" id="shutter-btn"></div>
+      <div class="camera-hint">拍一张你今天吃的东西</div>
+    </div>
+  </div>
+
+  <!-- ===== PHOTO PREVIEW OVERLAY ===== -->
+  <div class="photo-preview-overlay" id="photo-preview">
+    <canvas id="preview-canvas" class="photo-preview-img"></canvas>
+    <div class="pibo-comment" id="pibo-comment"></div>
+    <div class="photo-preview-actions">
+      <button class="preview-btn cancel" id="preview-cancel">重拍</button>
+      <button class="preview-btn save" id="preview-save">保存</button>
+    </div>
+  </div>
+
+</div><!-- /phone-frame -->
+
+<script>
+// ===== Utils =====
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ===== State =====
+let currentEnergy = 2; // 0-5
+let tapCount = 0;
+let foodPhotos = [];
+let dayCount = 7;
+let isFirstVisit = true;
+let piboPhase = 'demon'; // demon / tsundere / partner (MVP = demon)
+
+// ===== Time-based greeting =====
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 11) return '早上好';
+  if (hour < 14) return '中午好';
+  if (hour < 18) return '下午好';
+  return '晚上好';
+}
+
+function updateHeader() {
+  const username = '苏氨酸';
+  $('header-greeting').textContent = `${username} · ${getGreeting()}`;
+  $('header-day').textContent = `与Pibo相识的第 ${dayCount} 天`;
+}
+
+// ===== Ground flowers generation =====
+function generateGroundFlowers() {
+  const container = $('ground-flowers');
+  const colors = ['#e8a0a0', '#e8c8a0', '#a0c8e8', '#c8a0e8', '#a0e8c0'];
+  for (let i = 0; i < 12; i++) {
+    const f = document.createElement('div');
+    f.className = 'gflower';
+    f.style.left = (5 + Math.random() * 90) + '%';
+    f.style.background = colors[Math.floor(Math.random() * colors.length)];
+    container.appendChild(f);
+  }
+}
+
+// ===== Pibo Speech =====
+const speechPool = {
+  demon: {
+    default: ['…花…需要…光…', '…能…量…？', '…#@!%…', '…地球…好吵…', '…别…看…我…'],
+    tap: ['…别碰…#@!%', '…花…会…掉…', '…你…是…谁…', '…地球人…真奇怪…', '…#@!%…烦…'],
+    hasGift: ['…不…想…理你…', '…花籽…自己…掉…', '…拿…走…', '…别…挡…光…'],
+    lowEnergy: ['…暗…', '…花…蔫了…', '…#@!%…'],
+    photo: ['…能吃…？', '…地球…食物…？', '…#@!%…香…？']
+  }
+};
+
+function showSpeech(key = 'default', customText) {
+  const pool = speechPool.demon[key] || speechPool.demon.default;
+  const text = customText || pool[Math.floor(Math.random() * pool.length)];
+  const el = $('pibo-speech');
+  el.textContent = text;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ===== Pibo Tap Interaction =====
+$('pibo-wrap').addEventListener('click', (e) => {
+  const wrap = $('pibo-wrap');
+  wrap.classList.add('tapped');
+  setTimeout(() => wrap.classList.remove('tapped'), 150);
+
+  tapCount++;
+
+  // Spawn particle
+  const rect = wrap.getBoundingClientRect();
+  const particle = document.createElement('div');
+  particle.className = 'tap-particle';
+  particle.textContent = ['✦', '✧', '·', '…'][Math.floor(Math.random() * 4)];
+  particle.style.left = (e.clientX - rect.left + (Math.random() - 0.5) * 40) + 'px';
+  particle.style.top = (e.clientY - rect.top - 20) + 'px';
+  particle.style.color = ['#7ab85a', '#e8c868', '#a0c8e8'][Math.floor(Math.random() * 3)];
+  wrap.appendChild(particle);
+  requestAnimationFrame(() => particle.classList.add('active'));
+  setTimeout(() => particle.remove(), 1000);
+
+  // Eyes widen briefly (annoyed/surprised)
+  document.querySelectorAll('.pibo-eye').forEach(eye => {
+    eye.classList.add('wide');
+    eye.classList.remove('blinking');
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.pibo-eye').forEach(eye => {
+      eye.classList.remove('wide');
+      eye.classList.add('blinking');
+    });
+  }, 500);
+
+  // Determine response
+  if (tapCount % 7 === 0) {
+    showSpeech('hasGift');
+  } else if (currentEnergy <= 1) {
+    showSpeech('lowEnergy');
+  } else {
+    showSpeech('tap');
+  }
+});
+
+// ===== Energy Orb =====
+function updateEnergyOrb(level) {
+  currentEnergy = Math.max(0, Math.min(5, level));
+  const orb = $('energy-orb');
+  orb.className = `energy-orb orb-level-${currentEnergy}`;
+  $('orb-level-text').textContent = currentEnergy;
+}
+
+$('energy-orb').addEventListener('click', () => {
+  $('energy-modal').classList.add('show');
+  updateCardData();
+});
+
+$('card-close').addEventListener('click', () => {
+  $('energy-modal').classList.remove('show');
+});
+
+$('energy-modal').addEventListener('click', (e) => {
+  if (e.target === $('energy-modal')) {
+    $('energy-modal').classList.remove('show');
+  }
+});
+
+// ===== Energy Card Data =====
+function updateCardData() {
+  const now = new Date();
+  $('card-date').textContent = `${now.getMonth() + 1}月${now.getDate()}日 星期${['日','一','二','三','四','五','六'][now.getDay()]}`;
+  $('score-num').textContent = currentEnergy;
+
+  const dots = $('score-dots').children;
+  for (let i = 0; i < 5; i++) {
+    dots[i].classList.toggle('active', i < currentEnergy);
+  }
+
+  const statusTexts = ['枯萎', '萎靡', '普通', '不错', '充沛', '绽放'];
+  $('score-text').textContent = `今日能量 · ${statusTexts[currentEnergy]}`;
+
+  // Update food count
+  $('food-count').textContent = `${foodPhotos.length} 张`;
+}
+
+// Demo data
+function loadDemoData() {
+  $('sleep-duration').textContent = '7h 12m';
+  $('sleep-deep').textContent = '18%';
+  $('sleep-status').textContent = '良好';
+  $('sport-steps').textContent = '4,520';
+  $('sport-cals').textContent = '280 kcal';
+  $('sport-workout').textContent = '32 分钟';
+  $('sport-status').textContent = '进行中';
+}
+
+// ===== Camera =====
+let camStream = null;
+let capturedPhotoData = null;
+
+async function startCamera() {
+  const video = $('camera-video');
+  const fallback = $('camera-fallback');
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    video.srcObject = camStream;
+    video.classList.add('active');
+    fallback.style.display = 'none';
+  } catch (e) {
+    video.classList.remove('active');
+    fallback.style.display = 'flex';
+  }
+}
+
+function stopCamera() {
+  if (camStream) {
+    camStream.getTracks().forEach(t => t.stop());
+    camStream = null;
+  }
+}
+
+function openCamera() {
+  $('camera-modal').classList.add('show');
+  startCamera();
+}
+
+function closeCamera() {
+  $('camera-modal').classList.remove('show');
+  stopCamera();
+  $('camera-flash').classList.remove('anim');
+}
+
+$('camera-trigger').addEventListener('click', openCamera);
+$('camera-cancel').addEventListener('click', closeCamera);
+
+// Fallback click
+$('camera-fallback').addEventListener('click', () => {
+  takePhoto();
+});
+
+// Shutter
+$('shutter-btn').addEventListener('click', takePhoto);
+
+function takePhoto() {
+  // Flash
+  $('camera-flash').classList.add('anim');
+  setTimeout(() => $('camera-flash').classList.remove('anim'), 500);
+
+  // Scan line
+  $('camera-scan').classList.add('active');
+  setTimeout(() => $('camera-scan').classList.remove('active'), 1500);
+
+  // Capture from video or generate placeholder
+  setTimeout(() => {
+    const video = $('camera-video');
+    const canvas = $('preview-canvas');
+    const ctx = canvas.getContext('2d');
+
+    if (video.classList.contains('active') && video.videoWidth) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+    } else {
+      // Generate a placeholder food image
+      canvas.width = 400; canvas.height = 400;
+      const grad = ctx.createLinearGradient(0, 0, 400, 400);
+      grad.addColorStop(0, '#e8d8c8');
+      grad.addColorStop(0.5, '#d8c8b8');
+      grad.addColorStop(1, '#c8b8a8');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 400, 400);
+      // Draw a simple plate shape
+      ctx.beginPath();
+      ctx.arc(200, 200, 120, 0, Math.PI * 2);
+      ctx.fillStyle = '#f5f0e8';
+      ctx.fill();
+      ctx.strokeStyle = '#e0d8d0';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      // Food items
+      ctx.beginPath(); ctx.arc(170, 180, 25, 0, Math.PI * 2);
+      ctx.fillStyle = '#c87060'; ctx.fill();
+      ctx.beginPath(); ctx.arc(230, 190, 30, 0, Math.PI * 2);
+      ctx.fillStyle = '#7ab85a'; ctx.fill();
+      ctx.beginPath(); ctx.arc(200, 230, 22, 0, Math.PI * 2);
+      ctx.fillStyle = '#e8c868'; ctx.fill();
+      // Timestamp
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.font = '14px sans-serif';
+      ctx.fillText(new Date().toLocaleString('zh-CN'), 20, 380);
+    }
+
+    capturedPhotoData = canvas.toDataURL('image/jpeg', 0.8);
+    stopCamera();
+
+    // Show preview
+    $('camera-modal').classList.remove('show');
+    $('photo-preview').classList.add('show');
+
+    // Pibo comment
+    const comments = [
+      '…这个…能吃？',
+      '…地球的…食物…好奇怪…',
+      '…#@!%…闻起来…',
+      '…花…不吃…这个…',
+      '…人的能量…从这儿来…？'
+    ];
+    $('pibo-comment').textContent = comments[Math.floor(Math.random() * comments.length)];
+  }, 600);
+}
+
+$('preview-cancel').addEventListener('click', () => {
+  $('photo-preview').classList.remove('show');
+  openCamera();
+});
+
+$('preview-save').addEventListener('click', () => {
+  if (capturedPhotoData) {
+    foodPhotos.push({ data: capturedPhotoData, time: new Date() });
+    addFoodPhotoThumb(capturedPhotoData);
+  }
+  $('photo-preview').classList.remove('show');
+  showSpeech('photo');
+  $('camera-trigger').classList.add('has-badge');
+});
+
+function addFoodPhotoThumb(dataUrl) {
+  const container = $('food-photos');
+  const addBtn = $('add-photo-btn');
+
+  const img = document.createElement('img');
+  img.className = 'food-photo';
+  img.src = dataUrl;
+  container.insertBefore(img, addBtn);
+
+  // Also add to energy card
+  updateCardData();
+}
+
+$('add-photo-btn').addEventListener('click', () => {
+  $('energy-modal').classList.remove('show');
+  openCamera();
+});
+
+// ===== Welcome Sequence =====
+async function playWelcome() {
+  const overlay = $('welcome-overlay');
+  const text = $('welcome-text');
+
+  const messages = [
+    '…早…',
+    '…地球…天亮…了…',
+    '…花…想…晒太阳…'
+  ];
+
+  for (const msg of messages) {
+    text.textContent = msg;
+    await sleep(900);
+  }
+
+  overlay.classList.add('done');
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    // Show default speech after welcome
+    setTimeout(() => showSpeech('default'), 600);
+  }, 800);
+}
+
+// ===== First-time FAB tooltip =====
+function showFabTooltip() {
+  if (isFirstVisit && foodPhotos.length === 0) {
+    setTimeout(() => {
+      $('fab-tooltip').classList.add('show');
+      setTimeout(() => $('fab-tooltip').classList.remove('show'), 5000);
+    }, 3000);
+  }
+}
+
+// ===== Nav =====
+$('nav-plants').addEventListener('click', () => {
+  alert('植物田页面（在另一个原型中）');
+});
+
+// ===== Init =====
+function init() {
+  updateHeader();
+  generateGroundFlowers();
+  loadDemoData();
+  updateEnergyOrb(2);
+
+  // Start eye blinking
+  document.querySelectorAll('.pibo-eye').forEach(eye => eye.classList.add('blinking'));
+
+  // Check URL params for onboarding transition
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('from') === 'onboarding') {
+    playWelcome();
+  } else {
+    $('welcome-overlay').style.display = 'none';
+    setTimeout(() => showSpeech('default'), 800);
+  }
+
+  showFabTooltip();
+
+  // Auto-cycle speech if idle
+  let idleTimer;
+  function resetIdle() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      if (!document.querySelector('.pibo-speech.show')) {
+        showSpeech('default');
+      }
+    }, 15000);
+  }
+  document.addEventListener('click', resetIdle);
+  document.addEventListener('touchstart', resetIdle);
+  resetIdle();
+}
+
+init();
+</script>
+</body>
+</html>
