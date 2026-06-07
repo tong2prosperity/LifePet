@@ -8,9 +8,6 @@ nonisolated enum CRCConstants {
     static let minimumMeasuredBreathingRate: Double = 4.0
     static let maximumMeasuredBreathingRate: Double = 24.0
     static let baselineDuration: TimeInterval = 30
-    static let introductoryGuideDuration: TimeInterval = 16
-    static let realtimeMonitorDuration: TimeInterval = 18
-    static let adaptiveReviewDuration: TimeInterval = 12
     static let recommendedTrainingDuration: TimeInterval = 5 * 60
     static let motionSampleRate: Double = 30
     static let couplingTickInterval: TimeInterval = 1
@@ -22,10 +19,7 @@ enum CRCFlowStep: Int, CaseIterable, Identifiable {
     case welcome = 1
     case preparation
     case baseline
-    case breathingGuide
-    case realtimeMonitor
-    case adaptiveTuning
-    case trainingFeedback
+    case coreTraining
     case report
     case error
 
@@ -34,16 +28,21 @@ enum CRCFlowStep: Int, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .welcome: return "心呼耦合训练"
-        case .preparation: return "准备开始训练"
-        case .baseline: return "基线检测 30秒"
-        case .breathingGuide: return "跟随引导，放松呼吸"
-        case .realtimeMonitor: return "实时监测中"
-        case .adaptiveTuning: return "实时调整引导频率"
-        case .trainingFeedback: return "训练中"
-        case .report: return "训练完成！"
+        case .preparation: return "准备就绪"
+        case .baseline: return "今日节律建立"
+        case .coreTraining: return "核心训练"
+        case .report: return "训练完成"
         case .error: return "需要重新准备"
         }
     }
+}
+
+/// Lightweight states layered on top of `coreTraining` as overlays (not flow steps).
+enum CRCTransientState {
+    case none
+    case paused
+    case endConfirm
+    case unstable
 }
 
 enum CRCBreathingPhase: String, Codable, Sendable {

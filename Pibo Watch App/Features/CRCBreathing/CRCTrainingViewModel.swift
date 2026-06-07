@@ -21,6 +21,7 @@ final class CRCTrainingViewModel: ObservableObject {
     @Published var report: CRCTrainingReport?
     @Published var errorMessage: String?
     @Published var isStopping = false
+    @Published var transient: CRCTransientState = .none
 
     private let workout = WorkoutSessionManager()
     private let motionDetector = CRCMotionBreathingDetector()
@@ -29,11 +30,14 @@ final class CRCTrainingViewModel: ObservableObject {
     private var baselineHeartRates: [Double] = []
     private var snapshots: [CRCSnapshot] = []
     private var sessionStartedAt = Date()
+    private var accumulatedPausedTime: TimeInterval = 0
+    private var pauseStartedAt: Date?
     private var baselineTask: Task<Void, Never>?
     private var couplingTask: Task<Void, Never>?
-    private var flowTask: Task<Void, Never>?
     private var hasReceivedMotionUpdate = false
     private var hasReceivedHeartRate = false
+    private var unstableTickCount = 0
+    private var unstableCooldownUntil: Date?
 
     var baselineHeartRate: Double {
         guard !baselineHeartRates.isEmpty else {
@@ -49,6 +53,11 @@ final class CRCTrainingViewModel: ObservableObject {
 
     var currentStepNumber: Int {
         min(step.rawValue, CRCFlowStep.report.rawValue)
+    }
+
+    /// Seconds remaining in the recommended training duration (floored at 0).
+    var remainingSeconds: Int {
+        max(0, Int(CRCConstants.recommendedTrainingDuration) - elapsedSeconds)
     }
 
     func showPreparation() {
@@ -113,8 +122,8 @@ final class CRCTrainingViewModel: ObservableObject {
     func stopTraining() async {
         guard step != .welcome, step != .report else { return }
         isStopping = true
+        transient = .none
         baselineTask?.cancel()
-        flowTask?.cancel()
         couplingTask?.cancel()
         motionDetector.stop()
         haptic.stop()
@@ -124,9 +133,59 @@ final class CRCTrainingViewModel: ObservableObject {
         isStopping = false
     }
 
+    /// Pause the active training: freeze the clock, stop ticks + haptics. Sensors keep running.
+    func pauseTraining() {
+        guard step == .coreTraining, pauseStartedAt == nil else { return }
+        pauseStartedAt = Date()
+        couplingTask?.cancel()
+        haptic.stop()
+        transient = .paused
+    }
+
+    /// Resume after a pause / dismissed overlay: roll the paused gap into the offset and restart ticks.
+    func resumeTraining() {
+        guard step == .coreTraining else { return }
+        if let pauseStartedAt {
+            accumulatedPausedTime += Date().timeIntervalSince(pauseStartedAt)
+            self.pauseStartedAt = nil
+        }
+        transient = .none
+        haptic.start()
+        startCouplingLoop()
+    }
+
+    /// Resume from the 检测不稳定 overlay and suppress re-triggering for a short cooldown.
+    func dismissUnstable() {
+        unstableCooldownUntil = Date().addingTimeInterval(15)
+        unstableTickCount = 0
+        resumeTraining()
+    }
+
+    /// Ask to end the session — shows the confirmation overlay and pauses the clock underneath.
+    func requestEnd() {
+        guard step == .coreTraining else { return }
+        if pauseStartedAt == nil {
+            pauseStartedAt = Date()
+            couplingTask?.cancel()
+            haptic.stop()
+        }
+        transient = .endConfirm
+    }
+
+    /// Discard the session without saving a report and return to welcome.
+    func discardTraining() async {
+        transient = .none
+        baselineTask?.cancel()
+        couplingTask?.cancel()
+        motionDetector.stop()
+        haptic.stop()
+        await workout.cancel()
+        step = .welcome
+        resetRuntime()
+    }
+
     func reset() {
         baselineTask?.cancel()
-        flowTask?.cancel()
         couplingTask?.cancel()
         motionDetector.stop()
         haptic.stop()
@@ -143,6 +202,11 @@ final class CRCTrainingViewModel: ObservableObject {
         snapshot = nil
         report = nil
         errorMessage = nil
+        transient = .none
+        accumulatedPausedTime = 0
+        pauseStartedAt = nil
+        unstableTickCount = 0
+        unstableCooldownUntil = nil
         hasReceivedMotionUpdate = false
         hasReceivedHeartRate = false
         baselineHeartRates.removeAll(keepingCapacity: true)
@@ -202,7 +266,6 @@ final class CRCTrainingViewModel: ObservableObject {
 
     private func failDetection(message: String) async {
         baselineTask?.cancel()
-        flowTask?.cancel()
         couplingTask?.cancel()
         motionDetector.stop()
         haptic.stop()
@@ -213,30 +276,15 @@ final class CRCTrainingViewModel: ObservableObject {
 
     private func beginCoupledTraining() {
         sessionStartedAt = Date()
+        accumulatedPausedTime = 0
+        pauseStartedAt = nil
         elapsedSeconds = 0
+        unstableTickCount = 0
+        unstableCooldownUntil = nil
         coupling.reset(startDate: sessionStartedAt)
         haptic.start()
-        step = .breathingGuide
-        startFlowLoop()
+        step = .coreTraining
         startCouplingLoop()
-    }
-
-    private func startFlowLoop() {
-        flowTask?.cancel()
-        flowTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            try? await Task.sleep(for: .seconds(Int(CRCConstants.introductoryGuideDuration)))
-            guard !Task.isCancelled else { return }
-            step = .realtimeMonitor
-
-            try? await Task.sleep(for: .seconds(Int(CRCConstants.realtimeMonitorDuration)))
-            guard !Task.isCancelled else { return }
-            step = .adaptiveTuning
-
-            try? await Task.sleep(for: .seconds(Int(CRCConstants.adaptiveReviewDuration)))
-            guard !Task.isCancelled else { return }
-            step = .trainingFeedback
-        }
     }
 
     private func startCouplingLoop() {
@@ -245,7 +293,10 @@ final class CRCTrainingViewModel: ObservableObject {
             guard let self else { return }
 
             while !Task.isCancelled {
-                elapsedSeconds = Int(Date().timeIntervalSince(sessionStartedAt))
+                elapsedSeconds = max(
+                    0,
+                    Int(Date().timeIntervalSince(sessionStartedAt) - accumulatedPausedTime)
+                )
                 let currentSnapshot = coupling.snapshot(
                     heartRate: latestHeartRate,
                     baselineHeartRate: baselineHeartRate,
@@ -260,6 +311,11 @@ final class CRCTrainingViewModel: ObservableObject {
                     syncScore: currentSnapshot.syncScore
                 )
 
+                evaluateStability(for: currentSnapshot)
+                if transient == .unstable {
+                    return
+                }
+
                 if elapsedSeconds >= Int(CRCConstants.recommendedTrainingDuration) {
                     await stopTraining()
                     return
@@ -267,6 +323,27 @@ final class CRCTrainingViewModel: ObservableObject {
 
                 try? await Task.sleep(for: .seconds(Int(CRCConstants.couplingTickInterval)))
             }
+        }
+    }
+
+    /// Raise the 检测不稳定 overlay after sustained low-confidence detection (with cooldown).
+    private func evaluateStability(for snapshot: CRCSnapshot) {
+        let isUnstable = snapshot.pose.poseConfidence < 0.35 || snapshot.breathSignalQuality < 0.2
+        guard isUnstable else {
+            unstableTickCount = 0
+            return
+        }
+
+        if let cooldown = unstableCooldownUntil, Date() < cooldown {
+            return
+        }
+
+        unstableTickCount += 1
+        if unstableTickCount >= 5 {
+            unstableTickCount = 0
+            pauseStartedAt = Date()
+            haptic.stop()
+            transient = .unstable
         }
     }
 
@@ -301,7 +378,8 @@ final class CRCTrainingViewModel: ObservableObject {
 
     private func makeReport() -> CRCTrainingReport {
         let usedSnapshots = snapshots
-        let duration = max(0, Date().timeIntervalSince(sessionStartedAt))
+        // Active training time (pauses already excluded from elapsedSeconds).
+        let duration = TimeInterval(elapsedSeconds)
         let avgCoupling = average(usedSnapshots.map(\.couplingIndex))
         let avgHeart = average(usedSnapshots.map(\.heartRate))
         let avgBreath = average(usedSnapshots.map(\.measuredBreathingRate))
