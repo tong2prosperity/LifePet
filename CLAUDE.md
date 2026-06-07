@@ -8,18 +8,20 @@ The product is **Pibo · Life is Vibe**. The project, schemes, bundle identifier
 
 > 你不是喂宠物，你的身体就是宠物的食物。养得好它陪你更久，养不好它早早走掉。
 
-- **iOS** is the only active surface. It owns the pet UI / step loop / 图鉴 / share, and reads health data **passively** from HealthKit on-device.
-- **Apple Watch** has no custom app in this project. The watch the user already wears writes 步数 / HR / HRV / 睡眠 / workouts into HealthKit on its own; iOS reads those samples after the fact.
+- **iOS** is the primary surface. It owns the pet UI / step loop / 图鉴 / 一起 / share, and reads health data **passively** from HealthKit on-device. This is where almost all feature work belongs.
+- **Apple Watch** no longer streams live samples to the phone. The watch the user already wears writes 步数 / HR / HRV / 睡眠 / workouts into HealthKit on its own; iOS reads those samples after the fact. **However, the watch target is no longer purely dead** — it now hosts a standalone **CRC (cardiorespiratory coupling) breathing trainer** (`Pibo Watch App/Features/CRCBreathing/`), the only active watch feature. Its `RootView` shows `CRCTrainingView()` directly and runs in dark mode.
 
-The original plan had an active watch app streaming live samples over `WCSession`. **That is cut.** No watch session, no `WCSession.sendMessage`, no on-watch UI. New code should treat HealthKit as the sole input. There is dead code from the previous direction (`Shared/Connectivity/`, `Pibo/Services/Connectivity/`, the entire `Pibo Watch App/` target, the `Generation` / `Playback` / `Session` features, `SessionStore`); it can be removed in a cleanup pass and should not be extended.
+The original plan had the watch streaming live samples over `WCSession`. **That `WCSession` direction is cut** — no watch session, no `WCSession.sendMessage` feeding the phone; iOS treats HealthKit as the sole input. Genuine dead code from that era still lingers and should not be extended: `Shared/Connectivity/`, `Pibo/Services/Connectivity/`, the `Generation` / `Playback` / `Session` iOS features, `SessionStore`, the `LiveCoding` / `MusicGeneration` / `Visualization` services, and the watch's older `Recording` / `Start` features + `WatchConnectivitySender`. The CRC breathing feature is the exception — it is current. Old `Shared/Models/Vital*` wire-format types are also slated for replacement.
 
 ## Core Product Logic (PRD v0.7 — source of truth)
 
-The full PRD lives at `../lifepulse_md/运动健康的拓麻歌子.md`. The rules below are the parts that drive code; if anything here disagrees with the PRD, the PRD wins and this file should be updated.
+The full PRD lives at `../lifepulse_md/运动健康的拓麻歌子.md`. In-repo product docs also live under `legacy_docs/` (`pibo-mvp-user-journey.md`, `pibo-worldbuilding-bible.md`, the rendered manual/worldbuilding builds) and the newest world-view rework + HTML mockups under `product-web-prototype/` (`0603Pibo世界观重构.md`, `prototype-v0603-*.html`). The rules below are the parts that drive code; if anything here disagrees with the PRD, the PRD wins and this file should be updated.
+
+There is also a sibling `AGENTS.md` (concise repo guidelines) and `README.md` (current 中文 overview with a feature checklist) — keep all three roughly in sync when the architecture shifts.
 
 ### Three stats — the only signals the UI shows
 
-Every screen ultimately reduces to these three numbers in [0, 100]:
+Every screen ultimately reduces to these three numbers in [0, 100]. **Note the UI copy has been reframed to a "star-light" (星光) theme** while the underlying `StatKind` cases stay `vitality` / `energy` / `mood`: 体力 → **活力星光** (`✦`), 精力 → **静息星光** (`☾`), 心情 → **心绪回声** (`❤️`). Use the reframed copy in new UI; keep the formulas below.
 
 | Stat | Sources (HealthKit) | Formula | Supplement (`+N`) |
 |---|---|---|---|
@@ -82,8 +84,10 @@ Subheading copy under "今日步骤" is fixed: **"打 ✅ 它开心，打 ❌ �
 3. LCD stage — pixel pet (state-driven), corner labels, sparkle FX
 4. 3 stat bars — 体力 / 精力 / 心情 with data source + supplement copy
 5. 今日步骤 — 已完成 (with 手表自动 tag) + 建议 (with ✅ / ❌)
-6. Bottom tab — 主页 · 图鉴
+6. Bottom tab — 主页 · 图鉴 · 一起
 ```
+
+(The shipped `MainTabs` in `Pibo/App/RootView.swift` has three tabs — 主页 `HomeView`, 图鉴 `CatalogView`, 一起 `TogetherView` — plus a floating language menu (中 / EN) in the top-right.)
 
 What was *removed* in v0.7 and must **not** come back: 21-cell life-pixel grid, 7-day silhouette band, "赛博祭坛" naming, 上香按钮, 致敬计数, 分身replace-you叙事, 收藏按钮, 固定 21 天分母.
 
@@ -98,14 +102,16 @@ For demo / preview, hard-code: pet name **BEAN**, day **D07**, stats **体力 88
 
 ## Project Layout
 
-Two Xcode targets inside a single project (`Pibo.xcodeproj`):
+**Three** Xcode targets / schemes inside a single project (`Pibo.xcodeproj`): `Pibo`, `Pibo Watch App`, `PiboWidgetsExtension`.
 
-- `Pibo/` — iOS app (bundle `fun.tiebao.co.Pibo`, SDK `iphoneos`, deployment iOS 26.2). The pet UI / step loop / HealthKit observer pipeline / 图鉴 / share lives here.
-- `Pibo Watch App/` — watchOS app target. **Now vestigial.** The pivot to passive HealthKit reads makes the watch app unnecessary. It still builds (the iOS scheme embeds it), but no new feature work should land here. Plan: drop the target in a cleanup pass once the iOS HealthKit story is wired up.
+- `Pibo/` — iOS app (bundle `fun.tiebao.co.Pibo`, SDK `iphoneos`, deployment iOS 26.2). The pet UI / step loop / HealthKit observer pipeline / 图鉴 / 一起 / share lives here. Active feature folders: `Features/Home` (pet stage, stat triad, step cards, `PetStateStore`), `Features/Catalog` (图鉴 + 纪念波形), `Features/Together` (一起养 — friends / invite / plaza), `Features/Pet` (sprite sequences), `Features/Onboarding` (`HealthAuthView`). Active services: `Services/HealthData` (the observer pipeline), `Services/Identity`, `Services/History` (`DailySnapshot`), `Services/Logging`, `Services/Localization` (中 / EN via `AppLanguage` + `AppLocalization`).
+- `Pibo Watch App/` — watchOS target. No longer pure dead weight: its `RootView` is the **CRC breathing trainer** (`Features/CRCBreathing/` — `CRCTrainingViewModel`, `CRCCouplingEngine`, `CRCHapticGuide`, `CRCMotionBreathingDetector`, `CRCTrainingView`, `Models/CRCModels`). The watch's older `Features/Recording`, `Features/Start`, and `Services/Connectivity/WatchConnectivitySender` are the dead WCSession-era code.
+- `PiboWidgets/` (`PiboWidgetsExtension` target) — Home Screen widget (`PiboWidgets`) + Live Activity (`PiboWidgetsLiveActivity`), wired through `PiboWidgetsBundle`. Widget/Live-Activity payloads come from `Shared/WidgetSupport/` (`PiboWidgetSnapshot`, `PiboFeedActivityAttributes`); `PetStateStore` pushes updates via WidgetKit / ActivityKit.
 
 Shared code sits in `Shared/`:
 
 - `Shared/DesignSystem/` — `LP.*` tokens (Colors, Typography, Spacing, Radius, BorderWidth, Shadow, DashPattern) and components (`LPCard`, `LPStatBar`, `LPButton`, `LPPill`, `LPStickyNote`, `LPSpeechBubble`, `LPStamp`, `LPDashedRule`) plus modifiers (`lpCard`, `lpStampedCard`, `lpDashedBorder`, `lpPaper`). **Always reach for these first** before defining one-off colors/fonts/cards. Tokens are platform-aware (watchOS compresses sizes; `lpShadow` is a no-op on watchOS).
+- `Shared/WidgetSupport/` — payload types shared between the iOS app and the widget extension (`PiboWidgetSnapshot`, `PiboFeedActivityAttributes`). **Live**, not dead.
 - `Shared/Connectivity/` — *dead*. Holdover from the WatchConnectivity direction; remove in cleanup.
 - `Shared/Models/` — `VitalSession`, `VitalSnapshot`, `VitalSample`, `VitalKind`. Were the wire-format for the watch link; will likely be replaced by a leaner local-only state model once the HealthKit layer lands.
 
@@ -122,25 +128,25 @@ Both targets use `PBXFileSystemSynchronizedRootGroup`, so **any `.swift` / asset
 
 ## Frameworks This Project Will Need
 
-- **HealthKit** (iOS, read-only): 步数, 运动分钟, kcal, 站立, 睡眠 stages, HRV (SDNN), RHR, 冥想 events, 已完成 workouts. The pipeline is **observer query + anchored object query + background delivery** — see "HealthKit observer architecture (planned)" below for the design. Request `HKHealthStore.requestAuthorization` once at first launch; only the *read* half is needed (we don't write samples). Add `NSHealthShareUsageDescription` to `Pibo/Info.plist` and turn on the HealthKit capability on the iOS target.
-- **WatchConnectivity**: ❌ not used. The pivot to HealthKit observers makes WCSession unnecessary.
-- **SwiftUI Canvas / SpriteKit / Lottie (TBD)**: pixel pet animation + stat bar transitions. The pet stage animates with bounce + sparkle particles via `TimelineView` + animated transforms; reach for SpriteKit only if particle counts blow up.
-- **AVFoundation** (later): only for the *纪念曲* feature in 图鉴 详情 — generate a waveform from a dead pet's lifetime data. **Do not** rebuild a music-generation pipeline; that direction was cut.
+- **HealthKit** (iOS, read-only): 步数, 运动分钟, kcal, 站立, 睡眠 stages, HRV (SDNN), RHR, 冥想 events, 已完成 workouts. The pipeline (observer query + background delivery, per-metric read strategy) is **implemented** — see "HealthKit observer architecture (implemented)" below. Read-only auth requested once at first launch; `NSHealthShareUsageDescription` + the HealthKit capability are already configured on the iOS target.
+- **WidgetKit + ActivityKit** (iOS): the `PiboWidgetsExtension` target's Home Screen widget + Live Activity. Snapshots/attributes live in `Shared/WidgetSupport/`; `PetStateStore` reloads timelines / updates the activity on state change.
+- **CoreMotion + HealthKit workout session** (watch): the CRC breathing trainer reads heart rate via a `WorkoutSessionManager` and breathing via `CRCMotionBreathingDetector`, coupling them in `CRCCouplingEngine` with `CRCHapticGuide` feedback. Self-contained to `Pibo Watch App/Features/CRCBreathing/`.
+- **WatchConnectivity**: ❌ not used for the phone↔watch link. WCSession-era code is dead.
+- **SwiftUI Canvas / TimelineView**: pixel pet animation + stat bar transitions. The pet stage animates with bounce + sparkle particles via `TimelineView` + animated transforms; reach for SpriteKit only if particle counts blow up.
+- **AVFoundation**: only for the *纪念曲* memorial waveform in 图鉴 详情 (`Catalog/CatalogMemorialWaveform`) — a waveform from a dead pet's lifetime data. **Do not** rebuild a music-generation pipeline; that direction was cut (the `Services/MusicGeneration` + `LiveCoding` code is dead).
 
-## HealthKit observer architecture (planned, not yet implemented)
+## HealthKit observer architecture (implemented)
 
-The home page currently runs off a hard-coded `HomeModel` with sample stats. The plan to wire it to real HealthKit data:
+This pipeline is **built and wired**, not aspirational. The home page runs off `PetStateStore`, fed by `HealthDataService`. Files: `Pibo/Services/HealthData/` (`HealthDataService`, `HealthMetric`, `HealthEvent`) and `Pibo/Features/Home/PetStateStore.swift`. The shape:
 
 1. **Onboarding** — first-launch screen requests HealthKit read auth for: `HKQuantityType` (stepCount, activeEnergyBurned, appleExerciseTime, appleStandTime, heartRate, heartRateVariabilitySDNN, restingHeartRate), `HKCategoryType` (sleepAnalysis, mindfulSession), `HKWorkoutType.workoutType()`. Store granted-set status in `UserDefaults` so we don't re-prompt.
-2. **`HealthDataService`** (new, `Pibo/Services/HealthData/`) — owns one `HKHealthStore`, exposes async streams of typed samples. Each watched type registers two queries:
-   - `HKObserverQuery` for *notification only*. The handler fires `HKAnchoredObjectQuery` with the saved anchor to read the delta, then persists the new anchor.
-   - `HKHealthStore.enableBackgroundDelivery(for:frequency:)` so iOS wakes the app briefly when the watch syncs new samples — even if the user isn't holding the phone.
-3. **`PetStateStore`** (new, replaces hand-set `HomeModel`) — `@Observable @MainActor`. Subscribes to `HealthDataService` streams, maps incoming samples to PRD §3 formulas, mutates the three stats, derives `PetState` per §5 priority order. Owns the `[StepItem]` derivation (auto-tick suggest cards when a matching workout/sleep/mindful session arrives).
-4. **Animation feedback on push** — when a sample arrives while the app is foregrounded, `PetStateStore` raises a `lastDelta` event. `HomeView` listens, runs the same `applyGain` / toast / stat-bar animation flow that `markDone` uses today, plus a sparkle burst on the pet stage. Background-delivered updates that land while the app is backgrounded simply update state silently — the next foreground will animate to the new values.
-5. **Reconciliation on foreground** — `scenePhase == .active` triggers a one-shot `HKAnchoredObjectQuery` per type to catch anything that slipped through (e.g. permission revoked + restored). Cheap because we still have the anchor.
-6. **Demo mode toggle** — keep the hard-coded `BEAN / D07 / 88·74·82` numbers behind a `DemoMode.isEnabled` flag so we can present without HealthKit data on the demo device.
+2. **`HealthDataService`** (`@MainActor @Observable`) — owns one `HKHealthStore` and posts typed `HealthEvent`s on an `events` stream. Per metric it registers an `HKObserverQuery` for *notification only* plus `enableBackgroundDelivery(... .immediate)` so iOS wakes the app when the watch syncs — even backgrounded. The **read strategy varies by metric** (don't assume anchored everywhere): aggregates (steps / kcal / stand / exercise / mindful) use `HKStatisticsQuery cumulativeSum` for the day's running total; HRV / RHR / HR use `HKSampleQueryDescriptor limit:1` for the latest value; sleep sums category durations; **only workouts** use an anchored (delta) query so a just-finished run can flip a matching suggest card.
+3. **`PetStateStore`** (`@Observable @MainActor`) — subscribes to `HealthDataService.events`, maps samples to PRD §3 formulas, mutates the three stats, derives `PetState` per §5 priority order, and owns the `[StepItem]` derivation (auto-tick suggest cards on a matching workout/sleep/mindful sample). Also handles day rollover (`checkDayRollover` → `applyDecayCatchup` → reconcile) and pushes widget / Live Activity snapshots.
+4. **Animation feedback on push** — when a sample arrives while foregrounded, `PetStateStore` raises a delta event; `HomeView` runs the same `applyGain` / toast / stat-bar flow as a manual ✅, plus a sparkle burst. Background-delivered updates apply silently and animate on the next foreground.
+5. **Reconciliation on foreground** — `scenePhase == .active` triggers `reconcile()` to catch anything the observer missed (e.g. permission toggled, app force-quit mid-delivery).
+6. **Demo mode** — `PetStateStore.demoMode` falls back to hard-coded `BEAN / D07 / 88·74·82` (state `EXCITED`) when there's no real HealthKit data, so the app demos on any device. Demo still runs the hatch animation (`UserDefaults` key `pibo.hatched.v1`).
 
-Out of scope for now: the AI-recommended suggestion ranking (currently static cards), the death-trigger evaluation loop, longevity reward bookkeeping. Those build on top of `PetStateStore`'s daily snapshots once the observer layer is in.
+Still TODO on top of this layer: AI-recommended suggestion ranking (cards are static today), the death-trigger evaluation loop, and longevity reward bookkeeping — all build on `PetStateStore`'s daily snapshots (`Services/History/DailySnapshot`).
 
 ## Common Commands
 
@@ -152,6 +158,9 @@ xcodebuild -project Pibo.xcodeproj -scheme Pibo -configuration Debug build
 
 # Build only the watch app.
 xcodebuild -project Pibo.xcodeproj -scheme "Pibo Watch App" -configuration Debug build
+
+# Build only the widget extension.
+xcodebuild -project Pibo.xcodeproj -scheme PiboWidgetsExtension -configuration Debug build
 
 # List schemes / targets.
 xcodebuild -project Pibo.xcodeproj -list
