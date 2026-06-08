@@ -15,6 +15,15 @@ extension LP {
         /// Modal / sheet / tweaks panel.
         static let lg = Spec(color: .black.opacity(0.12), radius: 12, x: 0, y: 8)
 
+        // — Figma UI Kit ramp (node 57:226 §shadow): shadow-1 … shadow-4 —
+        //   Soft ambient elevation for the new card/pop surfaces. ⚠️ Provisional
+        //   blur/offset — the Figma effect styles aren't exported yet (selection
+        //   tool blocked); tuned to read as gentle floats on the off-white paper.
+        static let elevation1 = Spec(color: .black.opacity(0.04), radius: 4,  x: 0, y: 1)
+        static let elevation2 = Spec(color: .black.opacity(0.06), radius: 8,  x: 0, y: 2)
+        static let elevation3 = Spec(color: .black.opacity(0.08), radius: 16, x: 0, y: 6)
+        static let elevation4 = Spec(color: .black.opacity(0.12), radius: 28, x: 0, y: 12)
+
         struct Spec {
             let color: Color
             let radius: CGFloat

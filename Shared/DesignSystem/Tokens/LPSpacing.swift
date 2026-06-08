@@ -20,6 +20,22 @@ extension LP {
         static let s7: CGFloat = 48   // chapter / section gap (iOS)
         static let s8: CGFloat = 64   // major section break
 
+        // — Figma UI Kit scale (node 57:226 §Spacing) —
+        //   Named t-shirt sizes used by Figma frames; same values as `s1…s8`
+        //   above, exposed under the design-system names so new layouts can
+        //   read `LP.Spacing.m` / `.l` straight off a Figma inspector.
+        static let none:  CGFloat = 0
+        static let xs:    CGFloat = 4    // = s1
+        static let s:     CGFloat = 8    // = s2
+        static let m:     CGFloat = 12   // = s3
+        static let l:     CGFloat = 16   // = s4
+        static let xl:    CGFloat = 20
+        static let xxl:   CGFloat = 24   // = s5
+        static let xxl3:  CGFloat = 32   // 3xl  = s6
+        static let xxl4:  CGFloat = 36   // 4xl
+        static let xxl5:  CGFloat = 40   // 5xl
+        static let xxl6:  CGFloat = 48   // 6xl  = s7
+
         // — Semantic aliases (platform-aware) —
         static var inlineGap:   CGFloat { s1 }
         static var fieldGap:    CGFloat { s2 }

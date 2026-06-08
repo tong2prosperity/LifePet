@@ -40,6 +40,34 @@ extension LP {
         static let body      = style(.sans, weight: .regular,  size: 15, tracking: 0, line: 1.65)
         static let bodyBold  = style(.sans, weight: .semibold, size: 15, tracking: 0, line: 1.65)
         static let caption   = style(.sans, weight: .regular,  size: 13, tracking: 0, line: 1.45)
+
+        // — Figma UI Kit ramp (node 57:226 §Typography) —
+        //   The product-UI sans scale used by the home / Dashboard / cards:
+        //   Headline `h1…h5`, body `b1…b4` (medium + regular), caption `c1…c2`.
+        //   Distinct from the serif `h1/h2/h3` above (those stay for the LP
+        //   narrative aesthetic). ⚠️ Sizes provisional — the Figma text styles
+        //   aren't exported yet (selection tool blocked), so this ramp is anchored
+        //   to the existing scale + the home 三屏 proportions. Replace with exact
+        //   px when the variables export (select 57:226 in desktop).
+        static let uiH1 = style(.sans, weight: .bold,     size: 40, tracking: -0.6, line: 1.10)
+        static let uiH2 = style(.sans, weight: .bold,     size: 32, tracking: -0.4, line: 1.12)
+        static let uiH3 = style(.sans, weight: .semibold, size: 24, tracking: -0.2, line: 1.20)
+        static let uiH4 = style(.sans, weight: .semibold, size: 20, tracking:  0.0, line: 1.25)
+        static let uiH5 = style(.sans, weight: .semibold, size: 16, tracking:  0.0, line: 1.30)
+
+        static let b1Medium  = style(.sans, weight: .medium,  size: 17, tracking: 0, line: 1.45)
+        static let b1Regular = style(.sans, weight: .regular, size: 17, tracking: 0, line: 1.45)
+        static let b2Medium  = style(.sans, weight: .medium,  size: 15, tracking: 0, line: 1.50)
+        static let b2Regular = style(.sans, weight: .regular, size: 15, tracking: 0, line: 1.50)
+        static let b3Medium  = style(.sans, weight: .medium,  size: 14, tracking: 0, line: 1.50)
+        static let b3Regular = style(.sans, weight: .regular, size: 14, tracking: 0, line: 1.50)
+        static let b4Medium  = style(.sans, weight: .medium,  size: 13, tracking: 0, line: 1.45)
+        static let b4Regular = style(.sans, weight: .regular, size: 13, tracking: 0, line: 1.45)
+
+        static let c1Medium  = style(.sans, weight: .medium,  size: 12, tracking: 0.2, line: 1.35)
+        static let c1Regular = style(.sans, weight: .regular, size: 12, tracking: 0.2, line: 1.35)
+        static let c2Medium  = style(.sans, weight: .medium,  size: 11, tracking: 0.2, line: 1.30)
+        static let c2Regular = style(.sans, weight: .regular, size: 11, tracking: 0.2, line: 1.30)
     }
 
     /// A typography recipe. Prefer applying via `Text("…").lpText(style)` — that
