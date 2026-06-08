@@ -8,103 +8,114 @@ The product is **Pibo · Life is Vibe**. The project, schemes, bundle identifier
 
 > 你不是喂宠物，你的身体就是宠物的食物。养得好它陪你更久，养不好它早早走掉。
 
-- **iOS** is the primary surface. It owns the pet UI / step loop / 图鉴 / 一起 / share, and reads health data **passively** from HealthKit on-device. This is where almost all feature work belongs.
+- **iOS** is the primary surface. It owns the pet UI / 活动区 (拍一拍 · 拔毛) / 上滑 Dashboard / 拍照 / 图鉴 / 一起 / share, and reads health data **passively** from HealthKit on-device. This is where almost all feature work belongs.
 - **Apple Watch** no longer streams live samples to the phone. The watch the user already wears writes 步数 / HR / HRV / 睡眠 / workouts into HealthKit on its own; iOS reads those samples after the fact. **However, the watch target is no longer purely dead** — it now hosts a standalone **CRC (cardiorespiratory coupling) breathing trainer** (`Pibo Watch App/Features/CRCBreathing/`), the only active watch feature. Its `RootView` shows `CRCTrainingView()` directly and runs in dark mode.
 
 The original plan had the watch streaming live samples over `WCSession`. **That `WCSession` direction is cut** — no watch session, no `WCSession.sendMessage` feeding the phone; iOS treats HealthKit as the sole input. Genuine dead code from that era still lingers and should not be extended: `Shared/Connectivity/`, `Pibo/Services/Connectivity/`, the `Generation` / `Playback` / `Session` iOS features, `SessionStore`, the `LiveCoding` / `MusicGeneration` / `Visualization` services, and the watch's older `Recording` / `Start` features + `WatchConnectivitySender`. The CRC breathing feature is the exception — it is current. Old `Shared/Models/Vital*` wire-format types are also slated for replacement.
 
-## Core Product Logic (PRD v0.7 — source of truth)
+## Core Product Logic (0603 rework + home spec — source of truth)
 
-The full PRD lives at `../lifepulse_md/运动健康的拓麻歌子.md`. In-repo product docs also live under `legacy_docs/` (`pibo-mvp-user-journey.md`, `pibo-worldbuilding-bible.md`, the rendered manual/worldbuilding builds) and the newest world-view rework + HTML mockups under `product-web-prototype/` (`0603Pibo世界观重构.md`, `prototype-v0603-*.html`). The rules below are the parts that drive code; if anything here disagrees with the PRD, the PRD wins and this file should be updated.
+The product direction is set by two docs under `product-web-prototype/`, both newer than the original PRD:
 
-There is also a sibling `AGENTS.md` (concise repo guidelines) and `README.md` (current 中文 overview with a feature checklist) — keep all three roughly in sync when the architecture shifts.
+- **`0603Pibo世界观重构.md`** — the world-view: who Pibo is (异世界种花小精灵), the flower↔energy loop, the three personality stages, the glitch/sickness/death arc.
+- **`pibo-home-features-spec.md`** — the concrete home-page feature + copy spec (greeting / activity zone / pull-up Dashboard / camera). **This is the most current home spec; when it disagrees with anything below or in the PRD, it wins.** Note its banner: only the §2 greeting copy is locked; other copy pools are still under review.
 
-### Three stats — the only signals the UI shows
+The original PRD (`../lifepulse_md/运动健康的拓麻歌子.md`) and the `legacy_docs/` builds (`pibo-mvp-user-journey.md`, `pibo-worldbuilding-bible.md`) are **historical** — keep them for thresholds/lineage, but the worldview, copy, and home IA are superseded by the two docs above.
 
-Every screen ultimately reduces to these three numbers in [0, 100]. **Note the UI copy has been reframed to a "star-light" (星光) theme** while the underlying `StatKind` cases stay `vitality` / `energy` / `mood`: 体力 → **活力星光** (`✦`), 精力 → **静息星光** (`☾`), 心情 → **心绪回声** (`❤️`). Use the reframed copy in new UI; keep the formulas below.
+There is also a sibling `AGENTS.md` (concise repo guidelines) and `README.md` (中文 overview) — keep all three roughly in sync when the architecture shifts.
 
-| Stat | Sources (HealthKit) | Formula | Supplement (`+N`) |
-|---|---|---|---|
-| 💪 **体力** (vitality) | 步数 · 运动分钟 · 活动卡路里 · 站立时长 | `20 + (步数/10000)·40 + (运动分钟/30)·30 + (kcal/300)·10` | 走 1000 步 +4 / 运动 10 分钟 +10 / 站立 1 小时 +6 |
-| ⚡ **精力** (energy)   | 总睡眠 · 深睡 · REM | `(总睡眠h/8)·50 + (深睡h/2)·30 + (REMh/1.5)·20` | 每睡 1 小时 +6 / 深睡多 30 分钟 +15 |
-| ❤️ **心情** (mood)     | HRV · 心率稳定度 · 压力峰值 | `50 + (HRV_今 - HRV_基线)·0.8 − 压力峰值·5` | 冥想 5 分钟 +15 / 深呼吸 1 次 +3 |
+> **Pivot away from the three-stat model.** The shipped code still computes the old 体力/精力/心情 (`StatKind` vitality/energy/mood) numbers, the `[0,100]` star-light bars (活力星光/静息星光/心绪回声), and the 今日步骤 step cards. **That layer is superseded — do not extend it.** The product no longer surfaces stats or star-light at all; state and the flower are derived **directly from raw HealthKit data + time of day**. Migrate toward the model below; the three-stat / star-light / step-card code (`PetStateStore` stat math, `StatKind`, `LPStatBar` usage, `StepItem`) is prior-pivot scaffolding to be replaced.
 
-**Decay:** every 4h, each stat naturally drops 5 (floor 10). 精力 does **not** decay during sleep.
+### What Pibo is (MVP = 魔丸态)
 
-There is **no intermediate "nutrient" layer** — HealthKit data maps directly onto these three stats. Don't introduce养分 / 经验 / 等级 systems.
+Pibo is a tsundere flower-growing sprite that fell to Earth. It doesn't like humans, knows nothing about Earth, and only cares about the flower on its head — which needs human energy to bloom. So it leeches off you but never admits it.
 
-### Pet visual state machine (priority order)
+> 你不是喂宠物，是 Pibo 为了让头上的花开，不得不从你身上吸能量。养得好它陪你更久，养不好它发疯、生病、离去。
 
-The pet has 6 states, evaluated in this priority. MVP / demo only animates `NORMAL` and `EXCITED`; the other four are ID-only placeholders for V1.
+MVP ships the **魔丸 (demon-pill) stage** (Day 1–14): can't understand human speech, talks in garbled-but-readable syllable fragments, mostly ignores you, only cares about the flower. (中期·傲娇 Day 14–60 / 后期·伙伴 Day 60+ soften the personality — out of MVP scope.)
 
-| Priority | Condition | State | Visual |
-|---|---|---|---|
-| 1 | 心情 < 30        | `SICK`     | 红晕 + 蹙眉 |
-| 2 | 精力 < 30        | `SLEEPING` | 闭眼 + Zzz |
-| 3 | 体力 < 30        | `TIRED`    | 半闭眼 + 微垂 |
-| 4 | 心情 > 85        | `BLISSFUL` | 爱心飘出 |
-| 5 | 体力 > 85        | `EXCITED`  | 举手 + 火花 |
-| 6 | otherwise        | `NORMAL`   | 睁眼 + 红舌 |
+### Energy → flower (no three-stat / no star-light / no nutrient layer)
 
-### Dynamic life cycle (no fixed 21 days)
+HealthKit data maps **directly** onto Pibo's state and the head-flower's condition. No 养分 / 经验 / 等级 / 星光 / `[0,100]` stat in between.
 
-Lifespan is **not** capped. UI shows only **"已陪伴第 N 天"** — never `N / 21` or any denominator.
-
-Death triggers (轻量化 copy, never accusatory):
-
-| Type | Trigger | Tag |
+| Energy | Source (HealthKit) | Effect on the flower |
 |---|---|---|
-| 急性死 | 心情 < 30 连续 7 天 | "TA 没撑过压力" |
-| 慢性死 | 10 天零运动 | "TA 懒得再动了" |
-| 饿死 | 基础能量 7 天不补 | "TA 被忘在了角落" |
-| 急病死 | 任一状态 = 0 超 48h | "TA 就这么没了" |
+| 🌙 睡眠能量 | sleep | 精神力 — slept well → flower upright/bright; poorly → droops |
+| 🏃 运动能量 | steps / workouts | 活力 — active → vivid color; idle → grey/dim |
+| 📸 认知能量 | user photos | unlocks flower 品种 (later) |
+| 🎤 声音能量 | calling Pibo's name | flower 亲密度 (later) |
 
-Longevity rewards: 3 状态均 > 60 → 每满 7 天自动续命; 连续早起 / 冥想 7 天 → 奖励天数. Visual stages (egg → 幼体 → 青年 → 成体 → 长老) are loose, day-driven, **not** strictly enforced.
-
-### Step cards (今日步骤) — the input loop
-
-Two card kinds:
-
-- **✅ 已完成卡** — what already happened today (auto-generated from HealthKit *or* manually checked).
-- **🎯 建议卡** — AI-recommended next step, with two buttons:
-  - `✅ 完成` → stat +N, card flips to 已完成
-  - `❌ Quit` → **does not deduct**; backend记录 a preference signal. After 3 quits of the same kind → reduce that kind's推送 weight.
-
-Auto-tick comes in two flavors and both must be supported:
-- **Manual** — user taps ✅.
-- **System auto** — HealthKit detects 跑步 / 睡眠 / 冥想 → 建议卡 auto-flips to 已完成 + a small toast. Auto-completed cards show a `手表自动` tag.
-
-Subheading copy under "今日步骤" is fixed: **"打 ✅ 它开心，打 ❌ 不扣分 —— 但它会记住，下次少推。"** Don't rephrase.
-
-### Home screen IA (v0.7)
+### Home screen IA (home spec §1)
 
 ```
-1. Top meta — greeting + date
-2. Pet identity — large pet name + 已陪伴第 N 天 + 当前 state tag
-3. LCD stage — pixel pet (state-driven), corner labels, sparkle FX
-4. 3 stat bars — 体力 / 精力 / 心情 with data source + supplement copy
-5. 今日步骤 — 已完成 (with 手表自动 tag) + 建议 (with ✅ / ❌)
-6. Bottom tab — 主页 · 图鉴 · 一起
+1. 首页打招呼文案区 — 时间问候 + 与Pibo相识的第 N 天 + Pibo 日记  (display only)
+2. Pibo 活动区     — Pibo 形象 + 拍一拍 (pat) + 拔毛 (pluck seeds)
+3. 上滑 Dashboard   — swipe up → 历史数据二楼 (当日/历史健康可视化)
+4. 拍照交互        — 露珠相机 → 拍摄 → 预览 + Pibo 弹幕 → 保存
+5. Bottom tab      — 主页 · 图鉴 · 一起
 ```
 
-(The shipped `MainTabs` in `Pibo/App/RootView.swift` has three tabs — 主页 `HomeView`, 图鉴 `CatalogView`, 一起 `TogetherView` — plus a floating language menu (中 / EN) in the top-right.)
+The old **能量球 (energy ball) component is removed** — daily/historical health viz now lives behind the **pull-up Dashboard** (风吹草地 / 睡眠云朵 / 露珠活动 / 运动卡片 / 体征面板 / 饮食画廊). The shipped `MainTabs` (`Pibo/App/RootView.swift`) still has the three tabs — 主页 `HomeView`, 图鉴 `CatalogView`, 一起 `TogetherView` — plus a floating 中/EN language menu.
 
-What was *removed* in v0.7 and must **not** come back: 21-cell life-pixel grid, 7-day silhouette band, "赛博祭坛" naming, 上香按钮, 致敬计数, 分身replace-you叙事, 收藏按钮, 固定 21 天分母.
+### Greeting copy (home spec §2 — the only locked copy)
+
+Format `{称呼}，[文案]`. 称呼: Day 1–14 always `人`; Day 15+ the user nickname (fallback `人`). Day line is fixed: **`与Pibo相识的第 N 天`**. The greeting pool maps **by time band only** (7 bands, 4–6 lines each, drawn once per day) — see spec §2.1 for the full pool. No data-state overrides the greeting.
+
+### Pibo activity zone — 6-state machine (home spec §3.1)
+
+Driven by **time rhythm + raw HealthKit data**. Priority: **深眠 > 初醒(·睡够 / ·没睡够) > 活跃 / 烦躁 > 发呆** (被打扰 is optional 🅿️; if built it outranks all).
+
+| State | Trigger |
+|---|---|
+| **深眠** SLEEPING | 22:00–06:00, or within 5 min after 拔毛 |
+| **初醒** WAKING | 06:00–10:00 first app open — 🅿️ ·睡够 if 昨日睡眠 ≥7h / ·没睡够 if <7h |
+| **活跃** ACTIVE | 步数 ≥10000 or has an active workout |
+| **烦躁** IRRITATED | 步数 <3000 且无运动, or 睡眠 <5h |
+| **发呆** IDLE | default — 数据普通, most common state |
+| **被打扰** 🅿️ | ≥3 pats within 10 min |
+
+🅿️ = optional if design resources are tight (初醒 need not split; 被打扰 may be skipped). Each state has its own copy pool (spec §3.3): garbled-but-readable syllable fragments with a subject (Pibo / 花) and the odd 啵/呢/啊 — e.g. `...花...睡了...` / `...发芽了啵！`. The background also shifts per state (spec §3.6): 深眠 dark + stars/moon, 初醒 white sky + sunrise/晨雾, 活跃 brighter + faster clouds, 烦躁 grey + wilted flowers.
+
+### 拍一拍 / pat (home spec §3.2)
+
+Two reactions: **不理睬** (back/side to user, no text) or **说一句话** (current-state copy). Hard speech caps: **≤3 lines / 10 min** and **≤9 lines / 24h**. Logic: at the day cap → always ignore; at the 10-min cap → always ignore; else **30% speak / 70% ignore**. Idle 15–30s → 20% chance of a self-mutter (发呆 pool). Pibo is stingy with words, never fully silent.
+
+### 能量收集 / energy collection (home spec §3.4)
+
+HK background delivery detects an event → 头顶毛动画 (~3s, designer-delivered) → slide-up 能量卡片 auto-positioned to its data block. Backgrounded → mark + replay on next foreground.
+
+| Event | Detection | Card 定位 · 系统提示 |
+|---|---|---|
+| 运动 | new `HKWorkout` | 运动区块 · 收集到你的运动能量！ |
+| 睡眠 | yesterday `sleepAnalysis` filled | 睡眠区块 · 睡眠能量已更新 |
+| 拍照 | camera save | 今日记录区块 · 记录已保存 |
+
+### 拔毛 / pluck seeds (home spec §3.5)
+
+Window **22:00–02:00**, triggered on first app open. Uncollected past 02:00 → **cleared, no next-day makeup**. Grade from sleep + exercise: **好** (睡眠≥7h 且 有运动) / **中** (睡眠≥6h) / **坏** (睡眠<6h or 步数<3000) → drives seed visual + Pibo copy. After plucking, Pibo enters a **5-min 深眠** (won't respond to pats). Seeds drop into the 花田 (历史页). Next-day uncollected state shows a dashed placeholder + `...昨天...带走了...`-style copy.
+
+### 拍照交互 / camera (home spec §4)
+
+露珠相机 → 拍摄 → 扫描线 → 预览 + **Pibo 弹幕** (no AI recognition yet — time-bucketed copy + a generic pool) → 保存/重拍. Timestamp shown as `YYYY.M.D HH:mm AM/PM` (preview) / `YYYY.M.D HH:mm` (history card). After save: 头顶花轻晃 + 50% chance a 拍照 line. Narrative: the user is Pibo's 地球向导 collecting world samples, not "showing Pibo a photo".
+
+### Glitch / sickness / death (0603 §5 — the decline arc)
+
+`正常 → 连续能量不足 → 发疯/glitch → 长期不管 → 生病 → 死亡/离去`. 发疯态 is **glitch 故障艺术** (UI 错位/抖动/像素剥落/Pibo 扭曲), recovered by completing **one** health task (运动 10 min / 睡够 / 拍一张指定照片). Thresholds inherit the original PRD (~3 days low energy → glitch, ~7 → sick, ~30 → death/离去; revival = N days on-target + a 找回仪式, no payment). Lifespan stays **uncapped** and the UI shows only 与Pibo相识的第 N 天 — never a denominator.
 
 ### Tone
 
-- ❌ 不卖惨, 不问责, 不悲情 ("分身替你死" / "你没好好活着")
-- ✅ Statistical, playful, expectant ("已经陪过 4 只" / "又被你熬死了" / "下一只想养什么类型？")
+- ❌ 不卖惨, 不问责, 不悲情, 不直接说「你该运动了」("分身替你死" / "你没好好活着")
+- ✅ 傲娇、把健康提醒包进「花的状态」("花今天没精神…不是因为我在乎"), playful, expectant ("已经陪过 4 只" / "又被你熬死了")
 
 ### Demo defaults (when health data isn't wired up)
 
-For demo / preview, hard-code: pet name **BEAN**, day **D07**, stats **体力 88 / 精力 74 / 心情 82**, state `EXCITED`. The `Shared/` mocks folder (`mocks/`) holds JSONL streams for the watch side.
+The shipped `PetStateStore.demoMode` still hard-codes the **prior-pivot** values (pet name **BEAN**, day **D07**, 体力 88 / 精力 74 / 心情 82, state `EXCITED`) so the app demos on any device — update these as the 魔丸态 model lands. The `mocks/` folder holds JSONL streams from the earlier watch workflow.
 
 ## Project Layout
 
 **Three** Xcode targets / schemes inside a single project (`Pibo.xcodeproj`): `Pibo`, `Pibo Watch App`, `PiboWidgetsExtension`.
 
-- `Pibo/` — iOS app (bundle `fun.tiebao.co.Pibo`, SDK `iphoneos`, deployment iOS 26.2). The pet UI / step loop / HealthKit observer pipeline / 图鉴 / 一起 / share lives here. Active feature folders: `Features/Home` (pet stage, stat triad, step cards, `PetStateStore`), `Features/Catalog` (图鉴 + 纪念波形), `Features/Together` (一起养 — friends / invite / plaza), `Features/Pet` (sprite sequences), `Features/Onboarding` (`HealthAuthView`). Active services: `Services/HealthData` (the observer pipeline), `Services/Identity`, `Services/History` (`DailySnapshot`), `Services/Logging`, `Services/Localization` (中 / EN via `AppLanguage` + `AppLocalization`).
+- `Pibo/` — iOS app (bundle `fun.tiebao.co.Pibo`, SDK `iphoneos`, deployment iOS 26.2). The pet UI / activity zone / HealthKit observer pipeline / 图鉴 / 一起 / share lives here. Active feature folders: `Features/Home` (Pibo 活动区, `PetStateStore` — currently still the prior-pivot stat triad + step cards, migrating to the 魔丸态 spec: 打招呼文案 / 拍一拍 / 拔毛 / 上滑 Dashboard / 拍照), `Features/Catalog` (图鉴 + 纪念波形), `Features/Together` (一起养 — friends / invite / plaza), `Features/Pet` (sprite sequences), `Features/Onboarding` (`HealthAuthView`). Active services: `Services/HealthData` (the observer pipeline), `Services/Identity`, `Services/History` (`DailySnapshot`), `Services/Logging`, `Services/Localization` (中 / EN via `AppLanguage` + `AppLocalization`).
 - `Pibo Watch App/` — watchOS target. No longer pure dead weight: its `RootView` is the **CRC breathing trainer** (`Features/CRCBreathing/` — `CRCTrainingViewModel`, `CRCCouplingEngine`, `CRCHapticGuide`, `CRCMotionBreathingDetector`, `CRCTrainingView`, `Models/CRCModels`). The watch's older `Features/Recording`, `Features/Start`, and `Services/Connectivity/WatchConnectivitySender` are the dead WCSession-era code.
 - `PiboWidgets/` (`PiboWidgetsExtension` target) — Home Screen widget (`PiboWidgets`) + Live Activity (`PiboWidgetsLiveActivity`), wired through `PiboWidgetsBundle`. Widget/Live-Activity payloads come from `Shared/WidgetSupport/` (`PiboWidgetSnapshot`, `PiboFeedActivityAttributes`); `PetStateStore` pushes updates via WidgetKit / ActivityKit.
 
@@ -132,7 +143,8 @@ Both targets use `PBXFileSystemSynchronizedRootGroup`, so **any `.swift` / asset
 - **WidgetKit + ActivityKit** (iOS): the `PiboWidgetsExtension` target's Home Screen widget + Live Activity. Snapshots/attributes live in `Shared/WidgetSupport/`; `PetStateStore` reloads timelines / updates the activity on state change.
 - **CoreMotion + HealthKit workout session** (watch): the CRC breathing trainer reads heart rate via a `WorkoutSessionManager` and breathing via `CRCMotionBreathingDetector`, coupling them in `CRCCouplingEngine` with `CRCHapticGuide` feedback. Self-contained to `Pibo Watch App/Features/CRCBreathing/`.
 - **WatchConnectivity**: ❌ not used for the phone↔watch link. WCSession-era code is dead.
-- **SwiftUI Canvas / TimelineView**: pixel pet animation + stat bar transitions. The pet stage animates with bounce + sparkle particles via `TimelineView` + animated transforms; reach for SpriteKit only if particle counts blow up.
+- **SwiftUI Canvas / TimelineView**: pixel pet animation, the 6-state activity zone, 头顶毛/拔毛 animations, and (later) the glitch 故障艺术. The pet stage animates with bounce + sparkle particles via `TimelineView` + animated transforms; reach for SpriteKit only if particle counts blow up.
+- **AVFoundation + camera**: the 拍照交互 (露珠相机 → 扫描线 → 预览 + Pibo 弹幕 → 保存). No AI recognition in MVP — 弹幕 are time-bucketed + a generic pool.
 - **AVFoundation**: only for the *纪念曲* memorial waveform in 图鉴 详情 (`Catalog/CatalogMemorialWaveform`) — a waveform from a dead pet's lifetime data. **Do not** rebuild a music-generation pipeline; that direction was cut (the `Services/MusicGeneration` + `LiveCoding` code is dead).
 
 ## HealthKit observer architecture (implemented)
@@ -140,13 +152,13 @@ Both targets use `PBXFileSystemSynchronizedRootGroup`, so **any `.swift` / asset
 This pipeline is **built and wired**, not aspirational. The home page runs off `PetStateStore`, fed by `HealthDataService`. Files: `Pibo/Services/HealthData/` (`HealthDataService`, `HealthMetric`, `HealthEvent`) and `Pibo/Features/Home/PetStateStore.swift`. The shape:
 
 1. **Onboarding** — first-launch screen requests HealthKit read auth for: `HKQuantityType` (stepCount, activeEnergyBurned, appleExerciseTime, appleStandTime, heartRate, heartRateVariabilitySDNN, restingHeartRate), `HKCategoryType` (sleepAnalysis, mindfulSession), `HKWorkoutType.workoutType()`. Store granted-set status in `UserDefaults` so we don't re-prompt.
-2. **`HealthDataService`** (`@MainActor @Observable`) — owns one `HKHealthStore` and posts typed `HealthEvent`s on an `events` stream. Per metric it registers an `HKObserverQuery` for *notification only* plus `enableBackgroundDelivery(... .immediate)` so iOS wakes the app when the watch syncs — even backgrounded. The **read strategy varies by metric** (don't assume anchored everywhere): aggregates (steps / kcal / stand / exercise / mindful) use `HKStatisticsQuery cumulativeSum` for the day's running total; HRV / RHR / HR use `HKSampleQueryDescriptor limit:1` for the latest value; sleep sums category durations; **only workouts** use an anchored (delta) query so a just-finished run can flip a matching suggest card.
-3. **`PetStateStore`** (`@Observable @MainActor`) — subscribes to `HealthDataService.events`, maps samples to PRD §3 formulas, mutates the three stats, derives `PetState` per §5 priority order, and owns the `[StepItem]` derivation (auto-tick suggest cards on a matching workout/sleep/mindful sample). Also handles day rollover (`checkDayRollover` → `applyDecayCatchup` → reconcile) and pushes widget / Live Activity snapshots.
-4. **Animation feedback on push** — when a sample arrives while foregrounded, `PetStateStore` raises a delta event; `HomeView` runs the same `applyGain` / toast / stat-bar flow as a manual ✅, plus a sparkle burst. Background-delivered updates apply silently and animate on the next foreground.
+2. **`HealthDataService`** (`@MainActor @Observable`) — owns one `HKHealthStore` and posts typed `HealthEvent`s on an `events` stream. Per metric it registers an `HKObserverQuery` for *notification only* plus `enableBackgroundDelivery(... .immediate)` so iOS wakes the app when the watch syncs — even backgrounded. The **read strategy varies by metric** (don't assume anchored everywhere): aggregates (steps / kcal / stand / exercise / mindful) use `HKStatisticsQuery cumulativeSum` for the day's running total; HRV / RHR / HR use `HKSampleQueryDescriptor limit:1` for the latest value; sleep sums category durations; **only workouts** use an anchored (delta) query so a just-finished run can trigger a 运动 能量收集 card.
+3. **`PetStateStore`** (`@Observable @MainActor`) — subscribes to `HealthDataService.events` and owns the home-page state. **The data plumbing here is current; the mapping layer is mid-pivot.** It still computes the prior-pivot three stats / `StatKind` / `[StepItem]` step cards, but per the 魔丸态 spec that layer is being replaced by **direct** state derivation: map raw metrics + time of day onto the 6-state machine (深眠/初醒/活跃/烦躁/发呆/被打扰), the 拍一拍 speech caps, the 能量收集 cards, and the 22:00–02:00 拔毛 grade — no stats in between. Day rollover (`checkDayRollover` → reconcile) and widget / Live Activity pushes stay.
+4. **Animation feedback on push** — when a sample arrives while foregrounded, `PetStateStore` raises a delta event; `HomeView` plays the 头顶毛动画 (~3s) + slides up the matching 能量卡片. Background-delivered updates apply silently and replay on the next foreground.
 5. **Reconciliation on foreground** — `scenePhase == .active` triggers `reconcile()` to catch anything the observer missed (e.g. permission toggled, app force-quit mid-delivery).
-6. **Demo mode** — `PetStateStore.demoMode` falls back to hard-coded `BEAN / D07 / 88·74·82` (state `EXCITED`) when there's no real HealthKit data, so the app demos on any device. Demo still runs the hatch animation (`UserDefaults` key `pibo.hatched.v1`).
+6. **Demo mode** — `PetStateStore.demoMode` falls back to the prior-pivot hard-codes (`BEAN / D07 / 88·74·82`, state `EXCITED`) when there's no real HealthKit data, so the app demos on any device — update as the 魔丸态 model lands. Demo still runs the hatch animation (`UserDefaults` key `pibo.hatched.v1`).
 
-Still TODO on top of this layer: AI-recommended suggestion ranking (cards are static today), the death-trigger evaluation loop, and longevity reward bookkeeping — all build on `PetStateStore`'s daily snapshots (`Services/History/DailySnapshot`).
+Still TODO on top of this layer: the direct-data 6-state derivation + 拍一拍/拔毛/能量收集 mechanics, the 拍照 flow, the pull-up Dashboard, and the glitch/sickness/death arc — all build on `PetStateStore`'s daily snapshots (`Services/History/DailySnapshot`).
 
 ## Common Commands
 
