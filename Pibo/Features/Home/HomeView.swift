@@ -1,203 +1,80 @@
 import SwiftUI
 
-/// Pibo home — translates `原型-01-主页.html` into SwiftUI on top of the
-/// `LP` design system. State lives in `PetStateStore`, fed by HealthKit
-/// events; this view is mostly presentation + the "incoming sample"
-/// animation glue.
+/// Pibo home (魔丸态) — the SpriteKit stage fills the screen; SwiftUI overlays
+/// the chrome: greeting + 与Pibo相识第 N 天, the 露珠相机 button, the 上滑
+/// Dashboard handle, 拍一拍 speech, 拔毛, and the 能量收集 card.
 ///
-/// Sections, top to bottom:
-/// 1. Top meta (greeting + date)
-/// 2. Pet identity (large hand-style name + 已陪伴第 N 天 + state pill)
-/// 3. LCD stage with pixel pet
-/// 4. Three stat cards (体力 / 精力 / 心情)
-/// 5. 今日步骤 — done + suggest cards
+/// Per the home spec, there are no stat bars / step cards / star-light — Pibo's
+/// state and the head-flower come straight off raw HealthKit + time of day
+/// (see `PetStateStore+Mowan`).
 struct HomeView: View {
     @Environment(PetStateStore.self) private var store
 
-    /// Time-bounded sparkle burst on the pet stage, fired when a HealthKit
-    /// event nudges any stat. Held for 1.6s, then cleared.
-    @State private var burstUntil: Date? = nil
-    /// Toggles a one-shot 0.45s shake on the pet sprite. Driven by
-    /// `store.feedToken` changes (i.e. the user just tapped 「喂养」). Held
-    /// only long enough for the animation to finish.
-    @State private var vibrateToken: UUID? = nil
-    /// `false` until the user watches the egg hatch once. Persists across
-    /// launches via `UserDefaults`. Demo mode also goes through the hatch —
-    /// the gate is purely "have they seen it once," not "is this real data."
-    /// `PetStageView` itself splits hatch into two stages (waiting-for-tap →
-    /// playing) so the 1.25s animation isn't missed during the auth-dialog
-    /// dismissal.
-    @AppStorage(PiboPersistenceKeys.Defaults.hatched) private var hatched: Bool = false
-    /// Mirrored from `RootView` so the reset button can flip it back to
-    /// `false` and bounce the app to `HealthAuthView`. SwiftUI's @AppStorage
-    /// shares UserDefaults, so this stays in sync with the source of truth.
-    @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
+    @State private var speech: String? = nil
+    @State private var speechClear: Task<Void, Never>? = nil
+    @State private var showDashboard = false
+    @State private var showCamera = false
+    @State private var energyToken: UUID? = nil
+    @State private var pluckToken: PluckToken? = nil
     @State private var showResetConfirm = false
 
-    /// Index into `Self.demoCycleStates`. Only used when `store.demoMode` is
-    /// true — taps on the "换一换" pill advance it modulo the cycle length.
-    @State private var demoStateIndex: Int = 0
-    /// Demo cycle covers all 6 PRD states. Two pairs share sprites
-    /// (`.sick`/`.normal` → blobLying; `.blissful`/`.excited` → blobRun) but
-    /// their corner tags + sparkle flags differ, so cycling through all six
-    /// still feels visually distinct.
-    private static let demoCycleStates: [PetState] = [
-        .normal, .excited, .tired, .sleeping, .sick, .blissful,
-    ]
+    @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    topMeta
-                        .padding(.bottom, 8)
-                        .overlay(LPDashedRule(dash: [4, 3]), alignment: .bottom)
-                    petIdentity
-                        .padding(.top, 14)
-                        .padding(.bottom, 10)
-                        .overlay(LPDashedRule(dash: [4, 3]), alignment: .bottom)
-                    PetStageView(
+        GeometryReader { geo in
+            ZStack {
+                PiboStageView(
+                    theme: store.currentTheme,
+                    state: store.activityState,
+                    onPat: handlePat,
+                    energyGainToken: energyToken,
+                    pluckToken: pluckToken
+                )
+                .ignoresSafeArea()
+
+                // Speech bubble floats just above Pibo's head (~32% down).
+                if let speech {
+                    PiboSpeechCloud(text: speech)
+                        .position(x: geo.size.width / 2, y: geo.size.height * 0.30)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                }
+
+                VStack(spacing: 0) {
+                    header
+                    Spacer()
+                    bottomControls
+                }
+                .padding(.horizontal, LP.Spacing.l)
+
+                if store.pendingWorkout != nil {
+                    EnergyCollectCard(
                         petName: store.petName,
-                        dayCount: store.dayCount,
-                        state: store.state,
-                        lastWorkoutAt: store.lastWorkoutEndedAt,
-                        bursting: isBursting,
-                        vibrateToken: vibrateToken,
-                        isHatching: !hatched,
-                        onHatchCompleted: { hatched = true },
-                        onPetTapped: {
-                            LPHaptics.tap()
-                            store.nudgePibo()
-                        }
+                        gain: store.pendingWorkout?.gainVitality ?? 0,
+                        onCollect: { store.consumePendingWorkout() },
+                        onDismiss: { store.dismissPendingWorkout() }
                     )
-                    .padding(.top, 12)
-                    .padding(.bottom, 10)
-
-                    LPSpeechBubble(store.piboSpeech.text, tone: store.piboSpeech.tone)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.bottom, store.demoMode ? 8 : 14)
-
-                    if store.demoMode {
-                        demoCycleButton
-                            .frame(maxWidth: .infinity)
-                            .padding(.bottom, 14)
-                    }
-
-                    StarlightStatusView(summaries: store.starlightSummaries)
-                        .padding(.bottom, 14)
-
-                    JourneyFragmentsView(
-                        ritual: store.journeyRitual,
-                        fragments: store.memoryFragments,
-                        accessories: store.journeyAccessories,
-                        nudge: store.journeyNudge
-                    )
-                    .padding(.bottom, 14)
-
-                    StepsSectionView(store: store)
-                        .padding(.bottom, 24)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
-            }
-            .lpPaper(.app)
-
-            // Workout sheet 三层（backdrop / sheet / toast）—— 故意拆成
-            // 三个**顶层**条件而不是嵌套 ZStack 子元素，是因为 `.transition`
-            // 在 if-let 内嵌 ZStack 的子元素上 SwiftUI 不一定播完整退出动画；
-            // 顶层 if 才是稳定写法。
-            //
-            // 层序（背 → 前）= ScrollView → backdrop → sheet → toast。
-            // 把 toast 放最前是为了让喂养完成的 toast 不被退出中的 backdrop
-            // 压暗（B1 修复）。`hatched` 守卫防止蛋未孵化时 sheet 盖在蛋上面
-            // —— pendingWorkout 留着，孵化完 SwiftUI 重评 if 后再弹（W2）。
-            if hatched, store.pendingWorkout != nil {
-                Color.black.opacity(0.45)
-                    .ignoresSafeArea()
-                    .contentShape(Rectangle())
-                    .onTapGesture { store.dismissPendingWorkout() }
-                    .transition(.opacity)
-            }
-            if hatched, let pw = store.pendingWorkout {
-                WorkoutAlertSheet(
-                    workout: pw,
-                    petName: store.petName,
-                    onFeed: { store.consumePendingWorkout() },
-                    onDismiss: { store.dismissPendingWorkout() }
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            if let toast = store.toast {
-                ToastView(text: toast)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, LP.Spacing.l)
+                    .padding(.bottom, geo.safeAreaInsets.bottom + 90)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        // 能量粒子层 — 用 overlayPreferenceValue 拿宠物中心 + GeometryReader
-        // 拿容器尺寸，再交给 EnergyParticleField 自己监听 feedToken 触发。
-        // 放在 ZStack 之后是为了让粒子盖在 sheet 上面（喂养瞬间 sheet 还在
-        // 滑下，粒子从按钮位置往上飞穿过去更顺）。
-        .overlayPreferenceValue(PetCenterAnchorKey.self) { anchor in
-            GeometryReader { geo in
-                let center = anchor.map { geo[$0] }
-                EnergyParticleField(
-                    token: store.feedToken,
-                    petCenter: center,
-                    size: geo.size
-                )
-            }
-            .allowsHitTesting(false)
-        }
-        .animation(.easeInOut(duration: 0.25), value: store.toast)
-        .animation(.spring(response: 0.42, dampingFraction: 0.82), value: store.pendingWorkout)
-        .onChange(of: store.lastDelta) { _, new in
-            // Any new delta = run the sparkle burst for ~1.6s.
-            guard new != nil else { return }
-            burstUntil = Date().addingTimeInterval(1.6)
-            Task {
-                try? await Task.sleep(for: .seconds(1.6))
-                if let until = burstUntil, until <= Date() {
-                    burstUntil = nil
                 }
             }
         }
-        .onChange(of: store.feedToken) { _, new in
-            // 用户点了「喂养」 — 触发宠物震动 + 强制开 burst（即使 lastDelta
-            // 因为 clamp/同值未触发也至少要有动画反馈）。
-            guard let new else { return }
-            vibrateToken = new
-            burstUntil = Date().addingTimeInterval(1.6)
-            Task {
-                try? await Task.sleep(for: .seconds(0.5))
-                if vibrateToken == new { vibrateToken = nil }
-            }
+        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: store.pendingWorkout)
+        .animation(.spring(response: 0.32, dampingFraction: 0.7), value: speech)
+        .gesture(
+            DragGesture(minimumDistance: 24)
+                .onEnded { v in if v.translation.height < -40 { openDashboard() } }
+        )
+        .task { await idleMutterLoop() }
+        .onChange(of: store.pendingWorkout?.id) { _, id in
+            if id != nil { energyToken = UUID() }
         }
-    }
-
-    private var isBursting: Bool {
-        guard let until = burstUntil else { return false }
-        return Date() < until
-    }
-
-    // MARK: - Subviews
-
-    private var topMeta: some View {
-        HStack(alignment: .firstTextBaseline, spacing: LP.Spacing.s2) {
-            HStack(spacing: 0) {
-                Text(AppLocalization.text(store.greeting) + ", ")
-                    .font(.system(size: 17, design: .rounded))
-                    .foregroundStyle(LP.Colors.ink)
-                Text(store.ownerName)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(LP.Colors.coral)
-            }
-            Spacer(minLength: LP.Spacing.s2)
-            Text(store.dateLabel)
-                .font(.system(size: 10, design: .monospaced))
-                .tracking(1)
-                .textCase(.uppercase)
-                .foregroundStyle(LP.Colors.muted)
-            resetButton
+        .sheet(isPresented: $showDashboard) {
+            PiboDashboardView().environment(store)
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            PiboCameraView(onPhotoSaved: handlePhotoSaved).environment(store)
         }
         .confirmationDialog(
             AppLocalization.text("重置后会回到首启流程"),
@@ -206,141 +83,228 @@ struct HomeView: View {
         ) {
             Button(AppLocalization.text("重新开始"), role: .destructive, action: performReset)
             Button(AppLocalization.text("取消"), role: .cancel) {}
-        } message: {
-            Text(lp: "当前所有 stats、卡片和孵化记录都会清掉。")
         }
     }
 
-    /// Subtle "↻" pill in topMeta. Low visual weight on purpose — it's a
-    /// dev/recovery affordance, not a primary action.
-    private var resetButton: some View {
+    // MARK: Header
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(store.mowanGreeting)
+                    .lpText(LP.Typography.b2Regular)
+                    .foregroundStyle(LP.Content.secondary)
+                if !store.currentTheme.displayName.isEmpty {
+                    Text(store.currentTheme.displayName)
+                        .lpText(LP.Typography.uiH3)
+                        .foregroundStyle(LP.Content.primary)
+                }
+                Text(store.relationshipDayLabel)
+                    .lpText(store.currentTheme.displayName.isEmpty ? LP.Typography.uiH4 : LP.Typography.b1Medium)
+                    .foregroundStyle(store.currentTheme.displayName.isEmpty ? LP.Content.primary : LP.Content.secondary)
+            }
+            Spacer()
+            Button {
+                LPHaptics.tap()
+                showResetConfirm = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(LP.Content.tertiary)
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(AppLocalization.text("设置"))
+        }
+        .padding(.top, LP.Spacing.s)
+    }
+
+    // MARK: Bottom controls
+
+    private var bottomControls: some View {
+        VStack(spacing: LP.Spacing.m) {
+            if store.pluckAvailable {
+                pluckButton
+            }
+            cameraButton
+            upArrowHandle
+        }
+        .padding(.bottom, LP.Spacing.s)
+    }
+
+    private var cameraButton: some View {
         Button {
             LPHaptics.tap()
-            showResetConfirm = true
+            showCamera = true
         } label: {
-            Image(systemName: "arrow.counterclockwise")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(LP.Colors.muted)
-                .frame(width: 22, height: 22)
-                .overlay(
-                    Circle().strokeBorder(LP.Colors.muted.opacity(0.4), lineWidth: 1)
-                )
+            Image(systemName: "camera")
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(LP.Content.secondary)
+                .frame(width: 60, height: 60)
+                .background(Circle().fill(LP.Fill.bgContainer.opacity(0.92)))
+                .overlay(Circle().strokeBorder(LP.Separator.primary, lineWidth: 1))
+                .lpShadow(LP.Shadow.elevation2)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(AppLocalization.text("重置 Pibo 流程"))
+        .accessibilityLabel(AppLocalization.text("拍照"))
+    }
+
+    private var pluckButton: some View {
+        Button {
+            LPHaptics.tap()
+            doPluck()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "leaf.fill").font(.system(size: 12))
+                Text(AppLocalization.text("收下今天的毛"))
+                    .lpText(LP.Typography.b3Medium)
+            }
+            .foregroundStyle(LP.Fill.foundationOnAccent)
+            .padding(.horizontal, LP.Spacing.l)
+            .padding(.vertical, LP.Spacing.s)
+            .background(Capsule().fill(LP.Fill.foundationAccent))
+            .lpShadow(LP.Shadow.elevation2)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var upArrowHandle: some View {
+        Button(action: openDashboard) {
+            VStack(spacing: 3) {
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 13, weight: .semibold))
+                Capsule().fill(LP.Content.quarternary)
+                    .frame(width: 36, height: 4)
+            }
+            .foregroundStyle(LP.Content.tertiary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppLocalization.text("上滑查看数据"))
+    }
+
+    // MARK: Actions
+
+    private func handlePat() {
+        LPHaptics.tap()
+        if let line = store.pat() { show(line) }
+    }
+
+    private func doPluck() {
+        let grade = store.pluck()
+        pluckToken = PluckToken(id: UUID(), color: grade.seedColor)
+        show(grade.piboLines.randomElement() ?? "...给...你...")
+    }
+
+    private func handlePhotoSaved() {
+        // 拍照 = 认知能量. Nudge the head 毛 + let Pibo react (spec §4.3).
+        energyToken = UUID()
+        if Bool.random() {
+            show(PiboCameraView.genericComments.randomElement() ?? "...颜色...记...")
+        }
+    }
+
+    private func openDashboard() {
+        LPHaptics.tap()
+        showDashboard = true
+    }
+
+    private func show(_ line: String) {
+        speechClear?.cancel()
+        withAnimation { speech = line }
+        speechClear = Task {
+            try? await Task.sleep(for: .seconds(2.6))
+            if !Task.isCancelled { withAnimation { speech = nil } }
+        }
+    }
+
+    /// Idle self-mutter loop (spec §3.3) — every 15–30s, ~20% chance Pibo
+    /// drifts a line on its own. Cancelled automatically when the view leaves.
+    private func idleMutterLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(Double.random(in: 15...30)))
+            if speech == nil, let line = store.idleMutter() { show(line) }
+        }
     }
 
     private func performReset() {
         store.reset()
-        hatched = false
         onboardingDone = false
-    }
-
-    /// Demo-only "换一换" pill below the LCD. Cycling mutates `store.state`
-    /// directly — that single field flows into the sprite (via
-    /// `SpriteCatalog.idle(for:)`), the LCD corner tag, and the sparkle flag,
-    /// so one tap updates all three at once.
-    ///
-    /// Skipped while the egg is still waiting (`!hatched`) — letting the
-    /// user shuffle states before hatch finishes is a layering bug, not a
-    /// feature.
-    private var demoCycleButton: some View {
-        Button(action: { LPHaptics.tap(); cycleDemoState() }) {
-            HStack(spacing: 6) {
-                Image(systemName: "shuffle")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(lp: "换一换")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-            }
-            .foregroundStyle(LP.Colors.ink)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Capsule(style: .continuous).fill(LP.Colors.paperCard))
-            .overlay(Capsule(style: .continuous).strokeBorder(LP.Colors.ink, lineWidth: 1))
-            .lpShadow(LP.Shadow.sm)
-        }
-        .buttonStyle(.plain)
-        .opacity(hatched ? 1 : 0.3)
-        .disabled(!hatched)
-        .accessibilityLabel(AppLocalization.text("换一种宠物状态"))
-    }
-
-    private func cycleDemoState() {
-        let next = (demoStateIndex + 1) % Self.demoCycleStates.count
-        demoStateIndex = next
-        withAnimation(.easeInOut(duration: 0.2)) {
-            store.state = Self.demoCycleStates[next]
-        }
-    }
-
-    private var petIdentity: some View {
-        VStack(spacing: 7) {
-            HStack(spacing: 0) {
-                Text(store.petName)
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .tracking(2)
-                    .foregroundStyle(LP.Colors.ink)
-                Text(".")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .foregroundStyle(LP.Colors.coral)
-            }
-            HStack(spacing: 8) {
-                HStack(spacing: 0) {
-                    Text(lp: "已陪伴 ")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(LP.Colors.muted)
-                        .tracking(1)
-                        .textCase(.uppercase)
-                    Text(AppLocalization.format("第 %d 天", store.dayCount))
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(LP.Colors.coral)
-                        .tracking(1)
-                        .textCase(.uppercase)
-                }
-                statePill
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var statePill: some View {
-        Text(AppLocalization.text(store.state.journeyLabel))
-            .font(.system(size: 10, design: .monospaced))
-            .foregroundStyle(.white)
-            .tracking(0.5)
-            .padding(.horizontal, LP.Spacing.s2)
-            .padding(.vertical, 1)
-            .background(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(LP.Colors.coral)
-            )
     }
 }
 
-// MARK: - Toast
+// MARK: - Speech cloud
 
-private struct ToastView: View {
+/// Pibo's garbled one-liner, as a soft rounded bubble.
+private struct PiboSpeechCloud: View {
     let text: String
 
     var body: some View {
-        Text(AppLocalization.text(text))
-            .font(.system(size: 14, design: .rounded))
-            .foregroundStyle(LP.Colors.paperCard)
-            .padding(.horizontal, LP.Spacing.s4)
-            .padding(.vertical, LP.Spacing.s2)
+        Text(text)
+            .lpText(LP.Typography.b2Medium)
+            .foregroundStyle(LP.Content.primary)
+            .padding(.horizontal, LP.Spacing.l)
+            .padding(.vertical, LP.Spacing.s)
             .background(
-                Capsule(style: .continuous)
-                    .fill(LP.Colors.ink)
+                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                    .fill(LP.Fill.bgContainer.opacity(0.96))
             )
             .overlay(
-                Capsule(style: .continuous)
-                    .strokeBorder(LP.Colors.ink, lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                    .strokeBorder(LP.Separator.primary, lineWidth: 1)
             )
-            .lpShadow(LP.Shadow.sm)
+            .lpShadow(LP.Shadow.elevation2)
+    }
+}
+
+// MARK: - 能量收集 card
+
+private struct EnergyCollectCard: View {
+    let petName: String
+    let gain: Int
+    let onCollect: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: LP.Spacing.m) {
+            Image(systemName: "figure.run")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(LP.Fill.foundationOnAccent)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(LP.Fill.foundationAccent))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(AppLocalization.text("收集到你的运动能量！"))
+                    .lpText(LP.Typography.b2Medium)
+                    .foregroundStyle(LP.Content.primary)
+                Text(AppLocalization.format("%@ 感觉到了…+%d", petName, gain))
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(LP.Content.tertiary)
+            }
+            Spacer(minLength: LP.Spacing.s)
+            Button(action: onCollect) {
+                Text(AppLocalization.text("收下"))
+                    .lpText(LP.Typography.b3Medium)
+                    .foregroundStyle(LP.Fill.foundationOnAccent)
+                    .padding(.horizontal, LP.Spacing.l)
+                    .padding(.vertical, LP.Spacing.s)
+                    .background(Capsule().fill(LP.Fill.foundationAccent))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(LP.Spacing.m)
+        .background(
+            RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                .fill(LP.Fill.bgPop)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                .strokeBorder(LP.Separator.primary, lineWidth: 1)
+        )
+        .lpShadow(LP.Shadow.elevation3)
+        .onTapGesture(perform: onDismiss)
     }
 }
 
 #Preview {
     HomeView()
-        .environment(PetStateStore())
+        .environment(PetStateStore(demoMode: true))
 }

@@ -260,6 +260,61 @@ final class PetStateStore {
     /// simple counter instead of random state so the same day/stat combination
     /// renders predictably until the user explicitly interacts.
     var speechCursor: Int = 0
+
+    // MARK: - 魔丸态 (new model — raw-data-driven, no three-stat layer)
+    //
+    // The new home reads these straight off raw HealthKit + time of day. The
+    // derived API (greeting pools, 6-state machine, 拍一拍 caps, 拔毛) lives in
+    // `PetStateStore+Mowan.swift`; these are the stored/accessor hooks it needs.
+
+    /// Timestamps of 拍一拍 lines Pibo actually spoke — drives the speech caps
+    /// in `pat()` (≤3 / 10 min, ≤9 / 24h). In-memory only.
+    var patSpeechTimes: [Date] = []
+    /// Set when Pibo enters the post-拔毛 5-minute 深眠. `nil` otherwise.
+    var pluckSleepUntil: Date? = nil
+    /// Flipped true on the first foreground open in the 06:00–10:00 window so
+    /// the 初醒 state only greets once per morning. Reset at day rollover.
+    var sawMorningOpen: Bool = false
+
+    private static let lastPluckedKey = "pibo.mowan.lastPluckedDay"
+    /// Day (startOfDay) the user last collected 花籽. Persisted so the
+    /// 22:00–02:00 拔毛 window fires once per night.
+    var lastPluckedDay: Date? {
+        get {
+            let ts = UserDefaults.standard.double(forKey: Self.lastPluckedKey)
+            return ts > 0 ? Date(timeIntervalSince1970: ts) : nil
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(newValue.timeIntervalSince1970, forKey: Self.lastPluckedKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.lastPluckedKey)
+            }
+        }
+    }
+
+    // Raw HealthKit readings, exposed for the direct-data UI (state machine +
+    // 上滑 Dashboard). The home no longer surfaces the three derived stats.
+    var rawSteps: Int { raw.steps }
+    var rawExerciseMinutes: Int { raw.exerciseMinutes }
+    var rawActiveEnergy: Double { raw.activeEnergy }
+    var rawStandMinutes: Int { raw.standMinutes }
+    var rawHeartRate: Double { raw.heartRate }
+    var rawHRV: Double { raw.hrv }
+    var rawRestingHR: Double { raw.restingHR }
+    var rawSleepHours: Double { raw.sleepTotal / 3600 }
+    var rawSleepDeepHours: Double { raw.sleepDeep / 3600 }
+    var rawSleepREMHours: Double { raw.sleepREM / 3600 }
+    var rawSleepStart: Date? { raw.sleepStart }
+    var rawMindfulMinutes: Int { raw.mindfulMinutes }
+    /// True when the latest ingested workout ended today.
+    var hasWorkoutToday: Bool {
+        lastWorkoutEndedAt.map { Calendar.current.isDateInToday($0) } ?? false
+    }
+    /// False until the first real HealthKit snapshot lands. The 魔丸态 state
+    /// machine falls back to a time-only read until then so an empty device
+    /// (or demo) doesn't read as 烦躁 (steps < 3000).
+    var hasRealHealthData: Bool { hasIngestedAny }
     /// The latest stat change. Set on every recompute / `markDone` /
     /// `applyGain`. The home view watches this with `.onChange` to fire a
     /// sparkle burst on the pet stage.
@@ -729,7 +784,7 @@ final class PetStateStore {
             petName: petName,
             dayCount: dayCount,
             stateTag: state.tag,
-            stateLabel: state.journeyLabel,
+            stateLabel: activityState.displayName,
             vitality: statValue(.vitality),
             energy: statValue(.energy),
             mood: statValue(.mood),
