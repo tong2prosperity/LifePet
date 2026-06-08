@@ -1,120 +1,120 @@
 import SwiftUI
 import os
 
-/// First-launch screen. Asks the user to share HealthKit reads, then hands
-/// control back to `RootView`. The actual auth round-trip lives in
-/// `HealthDataService.requestAuthorization()`; this view is just the
-/// presentation + copy.
-///
-/// We surface three buttons:
-/// - **Connect** — primary; runs the system dialog.
-/// - **Demo only** — proceeds with hard-coded demo data (`DemoMode = true`).
-/// - **Maybe later** — closes the gate without touching HK; the home shows
-///   the demo defaults until the user opens this screen again.
+/// First-launch screen (魔丸态). Introduces Pibo — a tsundere flower-sprite that
+/// just fell to Earth — and asks to read (never write) HealthKit so the flower
+/// on its head can grow. Auth round-trip lives in
+/// `HealthDataService.requestAuthorization()`; this is presentation + copy.
 struct HealthAuthView: View {
     @Environment(HealthDataService.self) private var health
     @Environment(PetStateStore.self) private var store
     @State private var petNameDraft: String = ""
 
-    /// Called by `RootView` when the gate should close — either auth was
-    /// granted, the user accepted demo mode, or they tapped "later".
+    /// Called by `RootView` when the gate should close — auth granted, demo
+    /// accepted, or "later".
     let onContinue: () -> Void
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: LP.Spacing.s5) {
+            VStack(alignment: .leading, spacing: LP.Spacing.xxl) {
                 hero
                 why
                 naming
-                Spacer(minLength: LP.Spacing.s5)
+                Spacer(minLength: LP.Spacing.l)
                 actions
             }
-            .padding(LP.Spacing.s5)
+            .padding(LP.Spacing.l)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .lpPaper(.app)
-        .onAppear {
-            if petNameDraft.isEmpty {
-                petNameDraft = store.petName
-            }
-        }
+        .background(LP.Fill.bgSurface.ignoresSafeArea())
+        .onAppear { if petNameDraft.isEmpty { petNameDraft = store.petName } }
     }
 
-    // MARK: - Sections
+    // MARK: Sections
 
     private var hero: some View {
-        VStack(alignment: .leading, spacing: LP.Spacing.s2) {
-            StarShellHero()
+        VStack(alignment: .leading, spacing: LP.Spacing.m) {
+            OnboardingPiboHero()
                 .frame(maxWidth: .infinity)
-                .padding(.bottom, LP.Spacing.s2)
-            Text(lp: "PIBO · 契约唤醒")
-                .lpText(LP.Typography.monoLabel)
-                .foregroundStyle(LP.Colors.coral)
-            Text(lp: "用你的星光\n叫醒 Pibo。")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundStyle(LP.Colors.ink)
-                .lineSpacing(4)
-            Text(lp: "运动会变成活力星光，睡眠会变成静息星光。Pibo 会因为这些光保持清醒。")
-                .lpText(LP.Typography.serifItalic)
-                .foregroundStyle(LP.Colors.muted)
+                .padding(.vertical, LP.Spacing.m)
+            Text(lp: "PIBO · 魔丸态")
+                .lpText(LP.Typography.c1Medium)
+                .tracking(2)
+                .foregroundStyle(LP.Content.tertiary)
+            Text(lp: "它刚掉到\n这颗星球。")
+                .lpText(LP.Typography.uiH1)
+                .foregroundStyle(LP.Content.primary)
+            Text(lp: "Pibo 是只种花的小精灵，听不懂人话，只在乎头上那株花。花要靠你身上的能量才能开——所以它赖上了你，却死不承认。")
+                .lpText(LP.Typography.b2Regular)
+                .foregroundStyle(LP.Content.secondary)
         }
     }
 
     private var why: some View {
-        VStack(alignment: .leading, spacing: LP.Spacing.s3) {
+        VStack(alignment: .leading, spacing: LP.Spacing.s) {
             Text(lp: "Pibo 会读取（不写入）")
-                .lpText(LP.Typography.monoTiny)
-                .foregroundStyle(LP.Colors.muted)
-            VStack(alignment: .leading, spacing: LP.Spacing.s2) {
-                row(icon: "figure.walk", title: "步数 / 运动 / 卡路里", subtitle: "→ 活力星光")
-                row(icon: "moon.zzz.fill", title: "睡眠 · 深睡 · REM", subtitle: "→ 静息星光")
-                row(icon: "heart.fill", title: "HRV / 心率 / 冥想", subtitle: "→ 心绪回声（后台）")
-                row(icon: "sparkles", title: "已完成的运动", subtitle: "→ 星光落下，Pibo 会回应")
+                .lpText(LP.Typography.c1Medium)
+                .foregroundStyle(LP.Content.tertiary)
+            VStack(spacing: LP.Spacing.m) {
+                row(icon: "figure.walk", title: "步数 / 运动", subtitle: "让花有活力，颜色更鲜艳")
+                row(icon: "moon.zzz.fill", title: "睡眠 · 深睡 · REM", subtitle: "让花有精神，挺得起头")
+                row(icon: "heart.fill", title: "心率 / HRV", subtitle: "感知你今天的状态")
+                row(icon: "camera", title: "拍照", subtitle: "帮 Pibo 认识地球")
             }
-            .lpStampedCard(fill: LP.Colors.paperCard)
+            .padding(LP.Spacing.l)
+            .background(
+                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                    .fill(LP.Fill.bgContainer)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                    .strokeBorder(LP.Separator.primary, lineWidth: 1)
+            )
+            .lpShadow(LP.Shadow.elevation1)
         }
     }
 
     private var naming: some View {
-        VStack(alignment: .leading, spacing: LP.Spacing.s2) {
+        VStack(alignment: .leading, spacing: LP.Spacing.s) {
             Text(lp: "给这只 Pibo 起名")
-                .lpText(LP.Typography.monoTiny)
-                .foregroundStyle(LP.Colors.muted)
+                .lpText(LP.Typography.c1Medium)
+                .foregroundStyle(LP.Content.tertiary)
             TextField("PIBO", text: $petNameDraft)
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                .lpText(LP.Typography.b1Medium)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
-                .foregroundStyle(LP.Colors.ink)
-                .padding(.horizontal, LP.Spacing.s3)
-                .padding(.vertical, LP.Spacing.s3)
+                .foregroundStyle(LP.Content.primary)
+                .padding(.horizontal, LP.Spacing.m)
+                .padding(.vertical, LP.Spacing.m)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(LP.Colors.paperCard)
+                    RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous)
+                        .fill(LP.Fill.bgContainer)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(LP.Colors.ink, lineWidth: 1.5)
+                    RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous)
+                        .strokeBorder(LP.Separator.primary, lineWidth: 1.5)
                 )
-            Text(lp: "名字可以以后再改。MVP 里它仍然是同一种契约生命：Pibo。")
-                .lpText(LP.Typography.caption)
-                .foregroundStyle(LP.Colors.muted)
+            Text(lp: "前两周它只会喊你「人」。第 15 天起，它会试着喊你的名字。")
+                .lpText(LP.Typography.c1Regular)
+                .foregroundStyle(LP.Content.tertiary)
         }
     }
 
     private func row(icon: String, title: String, subtitle: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: LP.Spacing.s3) {
+        HStack(alignment: .center, spacing: LP.Spacing.m) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(LP.Colors.coral)
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: 2) {
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(LP.Fill.foundationAccent)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 1) {
                 Text(lp: title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(LP.Colors.ink)
+                    .lpText(LP.Typography.b3Medium)
+                    .foregroundStyle(LP.Content.primary)
                 Text(lp: subtitle)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(LP.Colors.muted)
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(LP.Content.tertiary)
             }
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -124,32 +124,68 @@ struct HealthAuthView: View {
         Group {
             switch health.authState {
             case .unavailable:
-                VStack(spacing: LP.Spacing.s3) {
+                VStack(spacing: LP.Spacing.m) {
                     Text(lp: "当前设备不支持 HealthKit · 仅 Demo 模式可用")
-                        .lpText(LP.Typography.caption)
-                        .foregroundStyle(LP.Colors.muted)
+                        .lpText(LP.Typography.c1Regular)
+                        .foregroundStyle(LP.Content.tertiary)
                         .multilineTextAlignment(.center)
-                    LPButton(AppLocalization.text("用临时星光继续"), variant: .primary, action: continueWithDemo)
+                    primaryButton("用 Demo 数据继续", action: continueWithDemo)
                 }
             case .requesting:
-                HStack(spacing: LP.Spacing.s3) {
+                HStack(spacing: LP.Spacing.m) {
                     ProgressView()
                     Text(lp: "等你授权…")
-                        .lpText(LP.Typography.caption)
-                        .foregroundStyle(LP.Colors.muted)
+                        .lpText(LP.Typography.c1Regular)
+                        .foregroundStyle(LP.Content.tertiary)
                 }
             default:
-                VStack(spacing: LP.Spacing.s3) {
-                    LPButton(AppLocalization.text("签订契约并连接 HealthKit"), variant: .primary, action: connect)
-                    LPButton(AppLocalization.text("用临时星光继续"), variant: .secondary, action: continueWithDemo)
-                    LPButton(AppLocalization.text("以后再说"), variant: .ghost, action: deferAuth)
+                VStack(spacing: LP.Spacing.m) {
+                    primaryButton("连接 HealthKit", action: connect)
+                    secondaryButton("用 Demo 数据继续", action: continueWithDemo)
+                    ghostButton("以后再说", action: deferAuth)
                 }
             }
         }
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Actions
+    private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(AppLocalization.text(title))
+                .lpText(LP.Typography.b1Medium)
+                .foregroundStyle(LP.Fill.foundationOnAccent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, LP.Spacing.l)
+                .background(Capsule().fill(LP.Fill.foundationAccent))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func secondaryButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(AppLocalization.text(title))
+                .lpText(LP.Typography.b1Medium)
+                .foregroundStyle(LP.Content.primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, LP.Spacing.l)
+                .background(Capsule().fill(LP.Fill.bgContainer))
+                .overlay(Capsule().strokeBorder(LP.Separator.primary, lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func ghostButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(AppLocalization.text(title))
+                .lpText(LP.Typography.b2Regular)
+                .foregroundStyle(LP.Content.tertiary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, LP.Spacing.s)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Actions
 
     private func connect() {
         LPLog.onboarding.notice("User chose: connect HealthKit")
@@ -182,35 +218,43 @@ struct HealthAuthView: View {
     }
 }
 
-private struct StarShellHero: View {
+/// 魔丸态 Pibo hero: a soft blob with the mystery head (黑洞 + 绿色 ?), in a
+/// dashed-ring spotlight.
+private struct OnboardingPiboHero: View {
     var body: some View {
         ZStack {
+            Circle().fill(LP.Fill.bgContainer)
+                .frame(width: 172, height: 172)
+                .overlay(Circle().strokeBorder(LP.Separator.primary, lineWidth: 1))
+                .lpShadow(LP.Shadow.elevation2)
             Circle()
-                .fill(LP.Colors.paperWarm)
-                .frame(width: 156, height: 156)
-                .overlay(Circle().strokeBorder(LP.Colors.ink, lineWidth: 2))
-            Circle()
-                .strokeBorder(LP.Colors.coral.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
-                .frame(width: 126, height: 126)
-            Image(systemName: "sparkle")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(LP.Colors.coral)
-                .offset(x: -44, y: -38)
-            Image(systemName: "sparkles")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(LP.Colors.sage)
-                .offset(x: 44, y: 36)
-            Image(systemName: "circle.hexagongrid.fill")
-                .font(.system(size: 58, weight: .regular))
-                .foregroundStyle(LP.Colors.ink)
-                .opacity(0.9)
-            Text("PIBO")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .tracking(2)
-                .foregroundStyle(LP.Colors.paperCard)
-                .offset(y: 2)
+                .strokeBorder(LP.Content.quarternary,
+                              style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
+                .frame(width: 140, height: 140)
+            VStack(spacing: -8) {
+                PiboHeadItemView(item: .mystery, size: 30)
+                blob
+            }
+            .offset(y: 6)
         }
         .accessibilityHidden(true)
+    }
+
+    private var blob: some View {
+        ZStack {
+            Capsule(style: .continuous)
+                .fill(.white)
+                .frame(width: 78, height: 90)
+                .overlay(Capsule(style: .continuous).strokeBorder(Color(hex: 0xDADADA), lineWidth: 2))
+            HStack(spacing: 16) {
+                eye; eye
+            }
+            .offset(y: 4)
+        }
+    }
+
+    private var eye: some View {
+        Ellipse().fill(Color(hex: 0x1F1F1F)).frame(width: 7, height: 9)
     }
 }
 

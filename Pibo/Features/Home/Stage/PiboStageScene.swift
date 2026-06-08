@@ -47,6 +47,12 @@ final class PiboStageScene: SKScene {
         layoutAll()
     }
 
+    override func update(_ currentTime: TimeInterval) {
+        // Belt-and-suspenders: if the scene wasn't built by didMove/didChangeSize
+        // (SwiftUI SpriteView size timing), build as soon as a valid size lands.
+        if !built, size.width > 1, size.height > 1 { buildIfNeeded() }
+    }
+
     // MARK: Public API (called from the SwiftUI wrapper)
 
     func apply(theme newTheme: PiboTheme, state newState: PiboActivityState) {

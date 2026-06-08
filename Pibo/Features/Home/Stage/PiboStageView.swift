@@ -12,7 +12,9 @@ struct PiboStageView: View {
     /// Set to drop a 拔毛 seed of the given color.
     var pluckToken: PluckToken? = nil
 
-    @State private var scene = PiboStageScene()
+    // Non-zero initial size so the scene presents + builds immediately;
+    // `.resizeFill` then snaps it to the real SpriteView bounds.
+    @State private var scene = PiboStageScene(size: CGSize(width: 390, height: 760))
 
     var body: some View {
         SpriteView(scene: scene, options: [.allowsTransparency])
