@@ -156,9 +156,11 @@ xcodebuild -project Pibo.xcodeproj -scheme Pibo clean
 - [x] HealthKit 授权 + Observer 管道
 - [x] 图鉴 + 纪念波形
 - [x] Together（一起养）
-- [x] iOS 主页骨架（仍是上一阶段的三状态条 / 步骤卡，待迁移）
-- [ ] 魔丸态主页：打招呼文案 / 6 状态活动区 / 拍一拍 / 拔毛 / 能量收集
-- [ ] 上滑 Dashboard（历史数据二楼，取代能量球）
-- [ ] 拍照交互（露珠相机 + Pibo 弹幕）
+- [x] 魔丸态主页（SpriteKit 活动区）：打招呼文案 / 6 状态 / 拍一拍 / 拔毛 / 能量收集
+- [x] 上滑 Dashboard（历史数据二楼，取代能量球）
+- [x] 拍照交互（露珠相机 → 扫描 → 预览 + Pibo 弹幕）
+- [x] 魔丸态 Onboarding 改版
+- [x] 砍掉死代码（Generation / Playback / Session / SessionStore）
+- [ ] 拍照接入真实 `AVCaptureSession`（目前是合成帧）
+- [ ] 节气/活动限定主题解锁（目前 demon / sprout）
 - [ ] glitch / 生病 / 离去 衰退弧线
-- [ ] 砍掉 watch 旧 WCSession / LiveCoding / Connectivity 死代码
