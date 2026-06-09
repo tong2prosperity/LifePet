@@ -14,65 +14,17 @@ struct RootView: View {
     var body: some View {
         Group {
             if onboardingDone {
-                MainTabs()
+                // No bottom tab bar: the home is the only floor; swiping the grab
+                // bar up reveals the 数据二楼 (see `HomeView`). 图鉴 / 一起 are not
+                // wired to an entry point yet — re-surface later (二楼 or a menu).
+                HomeView()
             } else {
                 HealthAuthView(onContinue: { onboardingDone = true })
             }
         }
+        // Language follows the stored value; the in-app 中/EN switch button was
+        // removed per product direction (2026-06-09).
         .environment(\.locale, language.locale)
-        .overlay(alignment: .topTrailing) {
-            LanguageMenu(selection: $appLanguage)
-                .padding(.top, 8)
-                .padding(.trailing, 12)
-        }
-    }
-}
-
-private struct MainTabs: View {
-    var body: some View {
-        TabView {
-            HomeView()
-                .tabItem { Label("主页", systemImage: "house.fill") }
-            CatalogView()
-                .tabItem { Label("图鉴", systemImage: "book.fill") }
-            TogetherView()
-                .tabItem { Label("一起", systemImage: "person.2.fill") }
-        }
-        .tint(LP.Colors.coral)
-    }
-}
-
-private struct LanguageMenu: View {
-    @Binding var selection: String
-
-    private var language: AppLanguage {
-        AppLanguage(rawValue: selection) ?? .chinese
-    }
-
-    var body: some View {
-        Menu {
-            ForEach(AppLanguage.allCases) { option in
-                Button {
-                    selection = option.rawValue
-                } label: {
-                    Label(option.title, systemImage: option == language ? "checkmark" : "")
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "globe")
-                    .font(.system(size: 12, weight: .semibold))
-                Text(language.shortTitle)
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-            }
-            .foregroundStyle(LP.Colors.ink)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(Capsule(style: .continuous).fill(LP.Colors.paperCard.opacity(0.94)))
-            .overlay(Capsule(style: .continuous).strokeBorder(LP.Colors.ink, lineWidth: 1))
-            .lpShadow(LP.Shadow.sm)
-        }
-        .accessibilityLabel(Text("语言"))
     }
 }
 

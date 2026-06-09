@@ -225,10 +225,13 @@ extension PetStateStore {
 
     // MARK: Theme (关于毛的主题)
 
-    /// The active 主题 (节气/活动限定). MVP: 魔丸 (D1–) shows the mystery head,
-    /// otherwise the default sprout. Seasonal/event themes unlock later.
+    /// The active 主题 (节气/活动限定). MVP: 魔丸 (D1) shows the mystery head;
+    /// otherwise 桃花时节 — the first theme fully restored from the Figma art
+    /// (本体/桃花枝/笔刷草地 are real assets). Real 节气/活动 unlock rules (date-
+    /// driven) come later; until then this is the visible default so the restored
+    /// screen shows. Swap back to `.sprout` for the neutral procedural look.
     var currentTheme: PiboTheme {
         if dayCount <= 1 { return .demon }
-        return .sprout
+        return .peachSeason
     }
 }

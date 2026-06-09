@@ -25,7 +25,8 @@ final class PiboStageScene: SKScene {
     // — Nodes —
     private let backdrop = SKNode()      // sky + ground
     private let pibo = SKNode()          // body group (bobs as a unit)
-    private var bodyNode: SKShapeNode?
+    private var bodyNode: SKShapeNode?   // procedural egg body
+    private var bodySprite: SKSpriteNode? // art body (when theme.bodyImage set)
     private var leftEye = SKNode()
     private var rightEye = SKNode()
     private var blush = SKNode()
@@ -61,7 +62,9 @@ final class PiboStageScene: SKScene {
         theme = newTheme
         activityState = newState
         guard built else { return }
-        if themeChanged { rebuildBackdrop(); rebuildHead() }
+        // A theme may switch between art and procedural Pibo, so rebuild the body
+        // group (not just the backdrop/head) when the theme changes.
+        if themeChanged { rebuildBackdrop(); rebuildPibo() }
         if stateChanged || themeChanged { applyState(animated: true) }
     }
 
@@ -129,11 +132,48 @@ final class PiboStageScene: SKScene {
         startHeadIdle()
     }
 
-    private var bodyWidth: CGFloat { min(size.width * 0.34, 150) }
-    private var bodyHeight: CGFloat { bodyWidth * 1.12 }
+    /// When the active theme carries body art, the stage shows a sprite instead
+    /// of the procedural egg/face geometry.
+    private var usesArt: Bool { theme.bodyImage != nil }
+    /// The live body node for squash/bounce FX, whichever path is active.
+    private var bodyForFX: SKNode? { bodySprite ?? bodyNode }
+
+    // Art bodies size to the Figma frame proportions (image 239.262×235 on a
+    // 393-wide frame, node 74:5954); procedural bodies keep the prior sizing.
+    private var bodyWidth: CGFloat {
+        usesArt ? size.width * (239.262 / 393.0) : min(size.width * 0.34, 150)
+    }
+    private var bodyHeight: CGFloat {
+        usesArt ? bodyWidth * (235.0 / 239.262) : bodyWidth * 1.12
+    }
     private var groundTopY: CGFloat { size.height * 0.34 }   // ground band height from bottom
 
+    /// Tear down and rebuild the body group for the current theme — used when the
+    /// theme changes (art ⇄ procedural body) at runtime.
+    private func rebuildPibo() {
+        pibo.removeAllChildren()
+        bodyNode = nil
+        bodySprite = nil
+        buildPibo()
+        rebuildHead()
+        layoutAll()
+        startIdleBob()
+        startHeadIdle()
+    }
+
     private func buildPibo() {
+        // Art path: a single Pibo sprite (body + face baked in) plus the head
+        // item on its own layer. Procedural face/feet/shadow are skipped.
+        if usesArt, let name = theme.bodyImage {
+            let body = SKSpriteNode(texture: SKTexture(imageNamed: name))
+            body.zPosition = 10
+            bodySprite = body
+            pibo.addChild(body)
+            headNode.zPosition = 12
+            pibo.addChild(headNode)
+            return
+        }
+
         let w = bodyWidth, h = bodyHeight
         // Soft egg/blob body.
         let rect = CGRect(x: -w / 2, y: -h / 2, width: w, height: h)
@@ -230,6 +270,16 @@ final class PiboStageScene: SKScene {
         backdrop.removeAllChildren()
         let scene = theme.scene
 
+        // Art path: one full-bleed backdrop sprite (sky + grass + ground baked in).
+        if let bg = scene.backgroundImage {
+            let sprite = SKSpriteNode(texture: SKTexture(imageNamed: bg))
+            sprite.zPosition = 0
+            sprite.position = CGPoint(x: size.width / 2, y: size.height / 2)
+            sprite.size = size
+            backdrop.addChild(sprite)
+            return
+        }
+
         // Sky gradient.
         let sky = SKSpriteNode(texture: Self.gradientTexture(
             size: size, top: SKColor(scene.skyTop), bottom: SKColor(scene.skyBottom)))
@@ -309,6 +359,13 @@ final class PiboStageScene: SKScene {
     // MARK: Head item (rendered from the SwiftUI design-system view → texture)
 
     private func rebuildHead() {
+        // Art path: a real head-item texture (桃花枝 etc.); sized/placed in layout.
+        if let head = theme.headImage {
+            headNode.texture = SKTexture(imageNamed: head)
+            positionHead()
+            return
+        }
+
         let side = bodyWidth * 0.9
         let renderer = ImageRenderer(content:
             PiboHeadItemView(item: theme.headItem, size: side)
@@ -327,17 +384,46 @@ final class PiboStageScene: SKScene {
     private func layoutAll() {
         guard built else { return }
         rebuildBackdrop()
-        pibo.position = CGPoint(x: size.width / 2, y: groundTopY + bodyHeight * 0.18)
+        if usesArt {
+            // Place the body sprite at its Figma frame center (195.64, 436.5) on a
+            // 393×852 frame; size it to the mapped body box.
+            bodySprite?.size = CGSize(width: bodyWidth, height: bodyHeight)
+            pibo.position = CGPoint(x: size.width * (195.64 / 393.0),
+                                    y: size.height * (1 - 436.5 / 852.0))
+        } else {
+            pibo.position = CGPoint(x: size.width / 2, y: groundTopY + bodyHeight * 0.18)
+        }
         positionHead()
     }
 
     private func positionHead() {
+        if usesArt {
+            // 桃花枝 box 38×89.5 centered at frame (194, 292.75); offset from the
+            // body center (195.64, 436.5) → up and a touch left.
+            headNode.size = CGSize(width: size.width * (38.0 / 393.0),
+                                   height: size.height * (89.5 / 852.0))
+            headNode.position = CGPoint(x: size.width * (-1.64 / 393.0),
+                                        y: size.height * (143.75 / 852.0))
+            return
+        }
         headNode.position = CGPoint(x: 0, y: bodyHeight * 0.5 + headNode.size.height * 0.32)
     }
 
     // MARK: State
 
     private func applyState(animated: Bool) {
+        // Art bodies bake the face/expression into the sprite — only posture-level
+        // cues apply (Zzz when asleep, a brief turn-away when 被打扰). Per-state art
+        // swaps come with the state-machine pass.
+        if usesArt {
+            showZzz(activityState == .deepSleep)
+            if activityState == .disturbed {
+                pibo.run(.sequence([.rotate(toAngle: 0.12, duration: 0.15),
+                                    .wait(forDuration: 0.6),
+                                    .rotate(toAngle: 0, duration: 0.2)]))
+            }
+            return
+        }
         switch activityState {
         case .deepSleep:
             setEyes(.closed); setBlush(0); showZzz(true); setBodyTint(0.97)
@@ -401,13 +487,13 @@ final class PiboStageScene: SKScene {
     }
 
     private func bouncePibo() {
-        bodyNode?.removeAction(forKey: "squash")
+        bodyForFX?.removeAction(forKey: "squash")
         let squash = SKAction.sequence([
             .scaleX(to: 1.12, y: 0.9, duration: 0.08),
             .scaleX(to: 0.94, y: 1.08, duration: 0.10),
             .scaleX(to: 1.0, y: 1.0, duration: 0.12),
         ])
-        bodyNode?.run(squash, withKey: "squash")
+        bodyForFX?.run(squash, withKey: "squash")
     }
 
     private func emitSparkles(at point: CGPoint, count: Int) {

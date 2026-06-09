@@ -60,7 +60,9 @@ final class HealthDataService {
 
     // MARK: - Private state
 
-    private let store: HKHealthStore
+    /// Internal (not private) so the history backfill extension in
+    /// `HealthDataService+History.swift` can reuse the same authorized store.
+    let store: HKHealthStore
     private let metrics: Set<HealthMetric>
     private let continuation: AsyncStream<HealthEvent>.Continuation
     /// Anchored only for workouts — those are *discrete events* and we want

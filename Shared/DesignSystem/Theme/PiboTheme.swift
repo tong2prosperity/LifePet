@@ -24,6 +24,13 @@ struct PiboTheme: Identifiable, Hashable {
     let displayName: String
     let scene: PiboScene
     let headItem: PiboHeadItem
+    /// Pibo body artwork (asset name). When set, the stage shows this sprite
+    /// instead of the procedural egg/face geometry. `headItem` still drives the
+    /// procedural fallback head when `headImage` is nil.
+    var bodyImage: String? = nil
+    /// Head decoration artwork (asset name) — 桃花枝 / 嫩芽 etc. Overrides the
+    /// `PiboHeadItemView` render when set.
+    var headImage: String? = nil
 }
 
 /// Backdrop tokens — a vertical sky gradient over a ground band.
@@ -34,6 +41,9 @@ struct PiboScene: Hashable {
     /// Petals (meadow) / sea-foam (beach) / slab edge (platform).
     var groundAccent: Color
     var terrain: Terrain
+    /// Full-bleed backdrop artwork (asset name). When set, the stage shows this
+    /// single sprite instead of the procedural sky-gradient + ground band.
+    var backgroundImage: String? = nil
 
     /// How the ground band is drawn. See `PiboThemeScene`.
     enum Terrain: Hashable { case meadow, beach, platform }
@@ -69,9 +79,12 @@ extension PiboTheme {
         scene: PiboScene(
             skyTop: Color(hex: 0xFFFFFF), skyBottom: Color(hex: 0xFDF3F6),
             ground: Color(hex: 0xAFC98E), groundAccent: Color(hex: 0xF3A9BE),
-            terrain: .meadow
+            terrain: .meadow,
+            backgroundImage: "peach_bg"        // 还原自 Figma 74:5954（4 层笔刷草地 + 底部白圆）
         ),
-        headItem: .peachBranch
+        headItem: .peachBranch,
+        bodyImage: "pibo_body",                // Group70：白团子 + 脸
+        headImage: "peach_branch"              // Group74 + 枝干
     )
 
     /// 活动限定 · 阿那亚的海风里 — sea-and-sand beach, green sea leaf on head.

@@ -1,8 +1,13 @@
 import SwiftUI
+import SwiftData
 import os
 
 @main
 struct PiboApp: App {
+    /// In-app SwiftData store of complete per-day HealthKit history (the 二楼's
+    /// source for past days + the month heat-map).
+    private let modelContainer: ModelContainer
+    @State private var history: HealthHistoryStore
     /// Persisted pet identity (UUID, name, birthDate). Lives for the lifetime
     /// of the process so day-count derivations stay stable across views.
     @State private var identity: PetIdentityStore
@@ -39,6 +44,17 @@ struct PiboApp: App {
         self.snapshots = snaps
         _health = State(initialValue: h)
         _store = State(initialValue: s)
+
+        do {
+            modelContainer = try ModelContainer(for: HealthDayRecord.self)
+        } catch {
+            // In-memory fallback so a corrupt store never blocks launch.
+            modelContainer = try! ModelContainer(
+                for: HealthDayRecord.self,
+                configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            LPLog.app.error("HealthDayRecord store failed, using in-memory: \(error.localizedDescription, privacy: .public)")
+        }
+        _history = State(initialValue: HealthHistoryStore(context: modelContainer.mainContext))
     }
 
     var body: some Scene {
@@ -47,7 +63,21 @@ struct PiboApp: App {
                 .environment(identity)
                 .environment(health)
                 .environment(store)
+                .environment(history)
+                .modelContainer(modelContainer)
                 .preferredColorScheme(.light)   // LP palette is light-only paper
+                .task {
+                    // Backfill the SwiftData history once per launch. On a real
+                    // authorized device this is HK data; on a simulator with no
+                    // HK, DEBUG-seed so the 二楼 is demonstrable.
+                    #if DEBUG
+                    if health.authState != .granted { history.seedSampleHistoryIfEmpty() }
+                    #endif
+                    if health.authState == .granted {
+                        let values = await health.fetchDailyHistory()
+                        history.ingest(values)
+                    }
+                }
                 .onChange(of: scenePhase) { _, phase in
                     LPLog.app.debug("scenePhase → \(String(describing: phase), privacy: .public)")
                     // Foreground reconciliation per the plan: catch anything

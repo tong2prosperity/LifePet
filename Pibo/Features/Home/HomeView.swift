@@ -1,4 +1,13 @@
 import SwiftUI
+import SwiftData
+import Observation
+
+/// Drives the 上滑二楼 pull. Owned by `HomeView` for its lifetime but read **only**
+/// by `FloorContainer`, so mutating `progress` during a drag re-renders just the
+/// thin transform shell — never the stage / chrome / 二楼 subtrees.
+@Observable final class FloorModel {
+    var progress: CGFloat = 0
+}
 
 /// Pibo home (魔丸态) — the SpriteKit stage fills the screen; SwiftUI overlays
 /// the chrome: greeting + 与Pibo相识第 N 天, the 露珠相机 button, the 上滑
@@ -12,27 +21,74 @@ struct HomeView: View {
 
     @State private var speech: String? = nil
     @State private var speechClear: Task<Void, Never>? = nil
-    @State private var showDashboard = false
+    /// 上滑二楼 state — 0 = home floor, 1 = data 二楼. Lives in a model HomeView
+    /// owns but does not read, so the drag only re-renders `FloorContainer`.
+    @State private var floor = FloorModel()
+    /// Pause the stage's 60fps loop while parked on the 二楼. Toggled on settle
+    /// (not per frame), so the stage is never re-rendered mid-drag.
+    @State private var stagePaused = false
     @State private var showCamera = false
     @State private var energyToken: UUID? = nil
     @State private var pluckToken: PluckToken? = nil
     @State private var showResetConfirm = false
+    /// Greeting / day-label cached once (they're "drawn once per day"): keeps the
+    /// header off the per-frame Calendar path while the 二楼 pull-up drags.
+    @State private var greetingText: String = ""
+    @State private var dayLabelText: String = ""
 
     @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
+        FloorContainer(
+            floor: floor,
+            onSettle: { target in stagePaused = target > 0.5 },
+            stage: {
                 PiboStageView(
                     theme: store.currentTheme,
                     state: store.activityState,
                     onPat: handlePat,
                     energyGainToken: energyToken,
-                    pluckToken: pluckToken
+                    pluckToken: pluckToken,
+                    isPaused: stagePaused
                 )
                 .ignoresSafeArea()
+            },
+            chrome: { chromeContent },
+            secondFloor: {
+                PiboDashboardView(onClose: closeFloor).environment(store)
+            }
+        )
+        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: store.pendingWorkout)
+        .animation(.spring(response: 0.32, dampingFraction: 0.7), value: speech)
+        .task { await idleMutterLoop() }
+        .onAppear {
+            greetingText = store.mowanGreeting
+            dayLabelText = store.relationshipDayLabel
+        }
+        .onChange(of: store.pendingWorkout?.id) { _, id in
+            if id != nil { energyToken = UUID() }
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            PiboCameraView(onPhotoSaved: handlePhotoSaved).environment(store)
+        }
+        .confirmationDialog(
+            AppLocalization.text("重置后会回到首启流程"),
+            isPresented: $showResetConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(AppLocalization.text("重新开始"), role: .destructive, action: performReset)
+            Button(AppLocalization.text("取消"), role: .cancel) {}
+        }
+    }
 
-                // Speech bubble floats just above Pibo's head (~32% down).
+    // MARK: Chrome (home greeting / speech / controls / energy card)
+
+    /// All the home-floor overlay built as one subtree. `FloorContainer` fades it
+    /// out as the 二楼 rises, so it has no per-progress logic of its own.
+    private var chromeContent: some View {
+        GeometryReader { geo in
+            ZStack {
+                // Speech bubble floats just above Pibo's head (~30% down).
                 if let speech {
                     PiboSpeechCloud(text: speech)
                         .position(x: geo.size.width / 2, y: geo.size.height * 0.30)
@@ -55,34 +111,10 @@ struct HomeView: View {
                     )
                     .padding(.horizontal, LP.Spacing.l)
                     .padding(.bottom, geo.safeAreaInsets.bottom + 90)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-        }
-        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: store.pendingWorkout)
-        .animation(.spring(response: 0.32, dampingFraction: 0.7), value: speech)
-        .gesture(
-            DragGesture(minimumDistance: 24)
-                .onEnded { v in if v.translation.height < -40 { openDashboard() } }
-        )
-        .task { await idleMutterLoop() }
-        .onChange(of: store.pendingWorkout?.id) { _, id in
-            if id != nil { energyToken = UUID() }
-        }
-        .sheet(isPresented: $showDashboard) {
-            PiboDashboardView().environment(store)
-        }
-        .fullScreenCover(isPresented: $showCamera) {
-            PiboCameraView(onPhotoSaved: handlePhotoSaved).environment(store)
-        }
-        .confirmationDialog(
-            AppLocalization.text("重置后会回到首启流程"),
-            isPresented: $showResetConfirm,
-            titleVisibility: .visible
-        ) {
-            Button(AppLocalization.text("重新开始"), role: .destructive, action: performReset)
-            Button(AppLocalization.text("取消"), role: .cancel) {}
         }
     }
 
@@ -91,7 +123,7 @@ struct HomeView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(store.mowanGreeting)
+                Text(greetingText.isEmpty ? store.mowanGreeting : greetingText)
                     .lpText(LP.Typography.b2Regular)
                     .foregroundStyle(LP.Content.secondary)
                 if !store.currentTheme.displayName.isEmpty {
@@ -99,7 +131,7 @@ struct HomeView: View {
                         .lpText(LP.Typography.uiH3)
                         .foregroundStyle(LP.Content.primary)
                 }
-                Text(store.relationshipDayLabel)
+                Text(dayLabelText.isEmpty ? store.relationshipDayLabel : dayLabelText)
                     .lpText(store.currentTheme.displayName.isEmpty ? LP.Typography.uiH4 : LP.Typography.b1Medium)
                     .foregroundStyle(store.currentTheme.displayName.isEmpty ? LP.Content.primary : LP.Content.secondary)
             }
@@ -205,7 +237,14 @@ struct HomeView: View {
 
     private func openDashboard() {
         LPHaptics.tap()
-        showDashboard = true
+        stagePaused = true
+        withAnimation(.spring(response: 0.46, dampingFraction: 0.86)) { floor.progress = 1 }
+    }
+
+    private func closeFloor() {
+        LPHaptics.tap()
+        stagePaused = false
+        withAnimation(.spring(response: 0.46, dampingFraction: 0.86)) { floor.progress = 0 }
     }
 
     private func show(_ line: String) {
@@ -229,6 +268,68 @@ struct HomeView: View {
     private func performReset() {
         store.reset()
         onboardingDone = false
+    }
+}
+
+// MARK: - Floor container (pull-up coordinator)
+
+/// Owns the 上滑 `progress` + the drag, applying offset/opacity to three subtrees
+/// that `HomeView` builds once. Only this view reads `floor.progress`, so a drag
+/// re-renders just this thin shell — the stage / chrome / 二楼 bodies are not
+/// re-evaluated per frame (they update only when their own inputs change).
+private struct FloorContainer<Stage: View, Chrome: View, SecondFloor: View>: View {
+    let floor: FloorModel
+    /// Called once when a drag settles, with the target floor (0 or 1).
+    var onSettle: (CGFloat) -> Void = { _ in }
+    @ViewBuilder let stage: Stage
+    @ViewBuilder let chrome: Chrome
+    @ViewBuilder let secondFloor: SecondFloor
+
+    /// `progress` captured at the start of a drag, so partial drags compose.
+    @State private var dragBase: CGFloat? = nil
+
+    var body: some View {
+        GeometryReader { geo in
+            let h = max(geo.size.height, 1)
+            let p = floor.progress
+            ZStack {
+                stage
+                    .offset(y: -p * h * 0.5)
+                    .opacity(1 - Double(p) * 0.85)
+
+                chrome
+                    .opacity(1 - Double(min(1, p * 1.6)))
+                    .allowsHitTesting(p < 0.08)
+
+                secondFloor
+                    .offset(y: (1 - p) * h)
+                    .opacity(p > 0.001 ? 1 : 0)
+                    .allowsHitTesting(p > 0.9)
+            }
+            .contentShape(Rectangle())
+            .gesture(drag(height: h))
+        }
+    }
+
+    /// Finger-tracking pull; snaps to the nearer floor (or follows a flick) on
+    /// release. `minimumDistance` lets taps reach Pibo (拍一拍) and 二楼 controls.
+    private func drag(height h: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { v in
+                let base = dragBase ?? floor.progress
+                if dragBase == nil { dragBase = floor.progress }
+                floor.progress = min(1, max(0, base + (-v.translation.height) / h))
+            }
+            .onEnded { v in
+                let base = dragBase ?? floor.progress
+                let p = min(1, max(0, base + (-v.translation.height) / h))
+                let flickUp = -v.predictedEndTranslation.height > 150
+                let flickDown = v.predictedEndTranslation.height > 150
+                let target: CGFloat = flickUp ? 1 : (flickDown ? 0 : (p > 0.5 ? 1 : 0))
+                dragBase = nil
+                onSettle(target)
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.85)) { floor.progress = target }
+            }
     }
 }
 
@@ -305,6 +406,10 @@ private struct EnergyCollectCard: View {
 }
 
 #Preview {
-    HomeView()
+    let container = try! ModelContainer(
+        for: HealthDayRecord.self,
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    return HomeView()
         .environment(PetStateStore(demoMode: true))
+        .environment(HealthHistoryStore(context: container.mainContext))
 }

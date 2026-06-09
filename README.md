@@ -24,7 +24,7 @@ MVP 是 **魔丸态** Pibo（相识第 1–14 天）：听不懂人话、说乱�
 **活动区 6 状态**（时间节律 + 原始数据，优先级）：深眠 > 初醒(·睡够/·没睡够) > 活跃/烦躁 > 发呆（被打扰为选做）。
 - **深眠** 22:00–06:00 或拔毛后 5 分钟 · **初醒** 06:00–10:00 首开 · **活跃** 步数≥10000 或有运动 · **烦躁** 步数<3000 无运动 或 睡眠<5h · **发呆** 默认。
 
-**主页交互**：首页打招呼文案区（问候 + 与Pibo相识第 N 天 + 日记）· 活动区（拍一拍 / 拔毛）· 上滑 Dashboard（历史健康数据二楼，取代旧能量球）· 拍照交互（露珠相机 + Pibo 弹幕）。
+**主页交互**：首页打招呼文案区（问候 + 与Pibo相识第 N 天 + 日记）· 活动区（拍一拍 / 拔毛）· 底部 grab bar 上滑进**数据二楼**（可滚动日期条 + 睡眠/运动卡 + 本月活动热力图，历史数据来自 SwiftData，取代旧能量球；**已无底部 Tab**）· 拍照交互（露珠相机 + Pibo 弹幕）。
 - **拍一拍**：不理睬 或 说一句话，硬上限 10 分钟≤3 句 / 24 小时≤9 句，否则 30% 概率说话。
 - **拔毛**：每晚 22:00–02:00 首开收花籽，按睡眠+运动评 好/中/坏，超时清空不补；拔毛后进入 5 分钟深眠。
 
@@ -39,7 +39,7 @@ MVP 是 **魔丸态** Pibo（相识第 1–14 天）：听不懂人话、说乱�
 ```
 Pibo.xcodeproj         # 单工程，两个 target
 ├── Pibo/              # iOS 应用（唯一活跃 target）
-│   ├── App/                # @main · RootView · Tab 容器
+│   ├── App/                # @main · RootView（无 Tab，直接 HomeView）· SwiftData 容器
 │   ├── Features/
 │   │   ├── Home/           # 主页：Pibo 活动区 / 拍一拍 / 拔毛 / 上滑 Dashboard / 拍照
 │   │   ├── Catalog/        # 图鉴 + 死亡纪念波形
@@ -50,7 +50,7 @@ Pibo.xcodeproj         # 单工程，两个 target
 │   ├── Services/
 │   │   ├── HealthData/     # HKObserverQuery + Anchored + 后台投递
 │   │   ├── Identity/       # 宠物 UUID / 名字 / 出生日 持久化
-│   │   ├── History/        # 每日快照（DailySnapshot）
+│   │   ├── History/        # SwiftData 健康历史（HealthDayRecord / HealthHistoryStore）+ 旧 DailySnapshot
 │   │   ├── Logging/        # os.Logger 包装
 │   │   └── ⚠️ LiveCoding / MusicGeneration / Visualization / Playback / Connectivity — 旧方向死代码
 │   └── Assets.xcassets/sprites/   # 像素宠物动画帧
