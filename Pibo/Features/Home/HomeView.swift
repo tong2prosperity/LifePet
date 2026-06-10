@@ -7,6 +7,19 @@ import Observation
 /// thin transform shell — never the stage / chrome / 二楼 subtrees.
 @Observable final class FloorModel {
     var progress: CGFloat = 0
+    /// Pibo's 下半身 handle — shown only once the 二楼 is fully open, dropping in
+    /// from behind the status bar. Toggled on settle, never mid-drag.
+    var feetShown: Bool = false
+}
+
+/// Shared spring timings for the 上滑二楼 choreography (used by both the drag
+/// settle and the tap-to-open/close paths so they stay identical).
+enum FloorAnim {
+    static let panel   = Animation.spring(response: 0.46, dampingFraction: 0.86)
+    static let feetIn  = Animation.spring(response: 0.52, dampingFraction: 0.6)   // emerge w/ slight overshoot
+    static let feetOut = Animation.spring(response: 0.26, dampingFraction: 0.85)
+    /// Delay before the feet drop, so they arrive *after* the panel has settled.
+    static let feetDelay: TimeInterval = 0.24
 }
 
 /// Pibo home (魔丸态) — the SpriteKit stage fills the screen; SwiftUI overlays
@@ -54,8 +67,9 @@ struct HomeView: View {
                 .ignoresSafeArea()
             },
             chrome: { chromeContent },
-            secondFloor: {
-                PiboDashboardView(onClose: closeFloor).environment(store)
+            panel: { secondFloorPanel },
+            content: {
+                PiboDashboardView().environment(store)
             }
         )
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: store.pendingWorkout)
@@ -118,32 +132,51 @@ struct HomeView: View {
         }
     }
 
+    /// The 二楼 surface — a domed crown over the cool grey-blue panel. Rendered
+    /// behind (and risen with) the data content, so the content can fade in on
+    /// top of an already-opaque surface.
+    private var secondFloorPanel: some View {
+        FloorDome(rise: 54)
+            .fill(Color(hex: 0xEAEEEF))
+            .ignoresSafeArea()
+            // 球状 background (Figma Ellipse 24, x−180 / y−655 / 749²): a big light
+            // circle whose bottom cap reads as a soft lighter dome behind Pibo's
+            // lower body. Lighter than the panel (#F4F8F9 vs #EAEEEF).
+            .overlay(alignment: .top) {
+                Circle()
+                    .fill(LP.Fill.bgSurface)   // #F4F8F9 = grey 100
+                    .frame(width: 749, height: 749)
+                    .offset(y: -655)
+                    .ignoresSafeArea(edges: .top)
+            }
+    }
+
     // MARK: Header
 
+    /// Header — faithful to Figma `HomeHeader` (76:6662): the `b4Medium` greeting
+    /// (14pt) over the `uiH4` 与Pibo相识的第 N 天 line (28pt), both
+    /// `LP.Content.secondary` (≈ rgba(0,0,0,0.72)), gear top-right. No theme-name
+    /// title — the theme is expressed through the stage art.
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .top, spacing: LP.Spacing.s) {
+            VStack(alignment: .leading, spacing: LP.Spacing.s) {
                 Text(greetingText.isEmpty ? store.mowanGreeting : greetingText)
-                    .lpText(LP.Typography.b2Regular)
+                    .lpText(LP.Typography.b4Medium)
                     .foregroundStyle(LP.Content.secondary)
-                if !store.currentTheme.displayName.isEmpty {
-                    Text(store.currentTheme.displayName)
-                        .lpText(LP.Typography.uiH3)
-                        .foregroundStyle(LP.Content.primary)
-                }
                 Text(dayLabelText.isEmpty ? store.relationshipDayLabel : dayLabelText)
-                    .lpText(store.currentTheme.displayName.isEmpty ? LP.Typography.uiH4 : LP.Typography.b1Medium)
-                    .foregroundStyle(store.currentTheme.displayName.isEmpty ? LP.Content.primary : LP.Content.secondary)
+                    .lpText(LP.Typography.uiH4)
+                    .foregroundStyle(LP.Content.secondary)
             }
-            Spacer()
+            Spacer(minLength: 0)
             Button {
                 LPHaptics.tap()
                 showResetConfirm = true
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 18, weight: .regular))
-                    .foregroundStyle(LP.Content.tertiary)
-                    .frame(width: 36, height: 36)
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(LP.Content.secondary)
+                    .frame(width: 28, height: 28)
+                    .padding(LP.Spacing.xs)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(AppLocalization.text("设置"))
@@ -153,12 +186,16 @@ struct HomeView: View {
 
     // MARK: Bottom controls
 
+    /// 露珠相机 floats in the lower third (Figma `74:6178`, 88pt @ ~80% height),
+    /// with the grab-bar chevron pinned to the very bottom — they're not stacked.
     private var bottomControls: some View {
-        VStack(spacing: LP.Spacing.m) {
+        VStack(spacing: 0) {
             if store.pluckAvailable {
                 pluckButton
+                Spacer().frame(height: LP.Spacing.m)
             }
             cameraButton
+            Spacer().frame(height: 60)
             upArrowHandle
         }
         .padding(.bottom, LP.Spacing.s)
@@ -170,11 +207,11 @@ struct HomeView: View {
             showCamera = true
         } label: {
             Image(systemName: "camera")
-                .font(.system(size: 22, weight: .regular))
+                .font(.system(size: 26, weight: .regular))
                 .foregroundStyle(LP.Content.secondary)
-                .frame(width: 60, height: 60)
-                .background(Circle().fill(LP.Fill.bgContainer.opacity(0.92)))
-                .overlay(Circle().strokeBorder(LP.Separator.primary, lineWidth: 1))
+                .frame(width: 84, height: 84)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair))
                 .lpShadow(LP.Shadow.elevation2)
         }
         .buttonStyle(.plain)
@@ -202,13 +239,11 @@ struct HomeView: View {
 
     private var upArrowHandle: some View {
         Button(action: openDashboard) {
-            VStack(spacing: 3) {
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 13, weight: .semibold))
-                Capsule().fill(LP.Content.quarternary)
-                    .frame(width: 36, height: 4)
-            }
-            .foregroundStyle(LP.Content.tertiary)
+            Image(systemName: "chevron.up")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(LP.Content.tertiary)
+                .frame(width: 44, height: 28)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(AppLocalization.text("上滑查看数据"))
@@ -238,13 +273,15 @@ struct HomeView: View {
     private func openDashboard() {
         LPHaptics.tap()
         stagePaused = true
-        withAnimation(.spring(response: 0.46, dampingFraction: 0.86)) { floor.progress = 1 }
+        withAnimation(FloorAnim.panel) { floor.progress = 1 }
+        withAnimation(FloorAnim.feetIn.delay(FloorAnim.feetDelay)) { floor.feetShown = true }
     }
 
     private func closeFloor() {
         LPHaptics.tap()
+        withAnimation(FloorAnim.feetOut) { floor.feetShown = false }
+        withAnimation(FloorAnim.panel) { floor.progress = 0 }
         stagePaused = false
-        withAnimation(.spring(response: 0.46, dampingFraction: 0.86)) { floor.progress = 0 }
     }
 
     private func show(_ line: String) {
@@ -277,58 +314,136 @@ struct HomeView: View {
 /// that `HomeView` builds once. Only this view reads `floor.progress`, so a drag
 /// re-renders just this thin shell — the stage / chrome / 二楼 bodies are not
 /// re-evaluated per frame (they update only when their own inputs change).
-private struct FloorContainer<Stage: View, Chrome: View, SecondFloor: View>: View {
+private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: View>: View {
     let floor: FloorModel
     /// Called once when a drag settles, with the target floor (0 or 1).
     var onSettle: (CGFloat) -> Void = { _ in }
     @ViewBuilder let stage: Stage
     @ViewBuilder let chrome: Chrome
-    @ViewBuilder let secondFloor: SecondFloor
+    @ViewBuilder let panel: Panel
+    @ViewBuilder let content: Content
 
     /// `progress` captured at the start of a drag, so partial drags compose.
     @State private var dragBase: CGFloat? = nil
+    /// Whether the in-flight drag is allowed to move the floor. Armed only when a
+    /// pull starts on the bottom control band (or the floor is already open).
+    @State private var dragActive = false
+
+    /// A pull may *open* the 二楼 only when it starts below this fraction of the
+    /// screen height — i.e. on the bottom control cluster (露珠相机 circle + grab
+    /// chevron), not from Pibo or the header. (Computed, not stored: `FloorContainer`
+    /// is generic, and Swift forbids static stored properties in generic types.)
+    private static var openDragZoneTop: CGFloat { 0.72 }
 
     var body: some View {
         GeometryReader { geo in
             let h = max(geo.size.height, 1)
             let p = floor.progress
+            let cT = Self.contentReveal(p)
             ZStack {
+                // Pibo (+ themed stage) holds place with a hair of parallax; the
+                // rising panel *submerges* it from the feet up, so its 下半身 is the
+                // first thing covered — never left dangling mid-screen. They always
+                // overlap, so there's no uncovered (black) gap.
                 stage
-                    .offset(y: -p * h * 0.5)
-                    .opacity(1 - Double(p) * 0.85)
+                    .offset(y: -p * h * 0.06)
 
                 chrome
-                    .opacity(1 - Double(min(1, p * 1.6)))
+                    .opacity(1 - Double(min(1, p * 1.7)))
                     .allowsHitTesting(p < 0.08)
 
-                secondFloor
+                // 二楼 surface: domed panel, rises with the finger, fully opaque.
+                panel
                     .offset(y: (1 - p) * h)
                     .opacity(p > 0.001 ? 1 : 0)
+
+                // 二楼 data: rises with the panel but *materializes* via a
+                // late-weighted fade (+ a tiny settle) — never a rigid fly-in.
+                content
+                    .offset(y: (1 - p) * h + CGFloat(1 - cT) * 14)
+                    .opacity(cT)
                     .allowsHitTesting(p > 0.9)
             }
             .contentShape(Rectangle())
             .gesture(drag(height: h))
         }
+        // Pibo 下半身 crown — a full-screen overlay that *actually* ignores the safe
+        // area (the earlier per-layer `.ignoresSafeArea` inside the GeometryReader
+        // didn't push the body up — it sat at the safe-area top). Now the body
+        // bleeds up behind the status bar / dynamic island like the Figma. Hidden
+        // through the pull; drops in from behind the status bar after the floor opens.
+        .overlay {
+            VStack(spacing: 0) {
+                feet
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .offset(y: floor.feetShown ? -16 : -176)
+            .opacity(floor.feetShown ? 1 : 0)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// The hanging lower-body + feet — `pibo_lower`, the exact Figma 二楼 Pibo
+    /// (Group 70 render, 226×110): a wide body tapering to two feet. Rendered at
+    /// the Figma width (226pt) so the silhouette matches; `pibo_body` is a
+    /// different (rounder) shape and can't be scaled to fit.
+    private var feet: some View {
+        Image("pibo_lower")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 226)
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.10), radius: 9, y: 6)
+    }
+
+    /// Late-weighted smoothstep — content stays hidden through the first ~45% of
+    /// the pull, then develops to full by the top (so you don't see it mid-drag).
+    private static func contentReveal(_ p: CGFloat) -> Double {
+        let t = max(0, min(1, (Double(p) - 0.45) / 0.55))
+        return t * t * (3 - 2 * t)
     }
 
     /// Finger-tracking pull; snaps to the nearer floor (or follows a flick) on
     /// release. `minimumDistance` lets taps reach Pibo (拍一拍) and 二楼 controls.
+    ///
+    /// Gating: a pull is *armed* only if it starts on the bottom control band
+    /// (`openDragZoneTop`) or the floor is already open — so an up-swipe on Pibo /
+    /// the header does nothing, while a drag-down anywhere still closes the 二楼.
+    /// An un-armed drag is ignored end-to-end (no snap on release).
     private func drag(height h: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { v in
+                if !dragActive {
+                    let fromHandle = v.startLocation.y >= h * Self.openDragZoneTop
+                    guard floor.progress > 0.5 || fromHandle else { return }
+                    dragBase = floor.progress
+                    dragActive = true
+                }
                 let base = dragBase ?? floor.progress
-                if dragBase == nil { dragBase = floor.progress }
-                floor.progress = min(1, max(0, base + (-v.translation.height) / h))
+                let np = min(1, max(0, base + (-v.translation.height) / h))
+                floor.progress = np
+                // Retract the feet as soon as a pull-down starts from the open floor.
+                if floor.feetShown && np < 0.92 {
+                    withAnimation(FloorAnim.feetOut) { floor.feetShown = false }
+                }
             }
             .onEnded { v in
+                defer { dragBase = nil; dragActive = false }
+                guard dragActive else { return }
                 let base = dragBase ?? floor.progress
                 let p = min(1, max(0, base + (-v.translation.height) / h))
                 let flickUp = -v.predictedEndTranslation.height > 150
                 let flickDown = v.predictedEndTranslation.height > 150
                 let target: CGFloat = flickUp ? 1 : (flickDown ? 0 : (p > 0.5 ? 1 : 0))
-                dragBase = nil
                 onSettle(target)
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.85)) { floor.progress = target }
+                withAnimation(FloorAnim.panel) { floor.progress = target }
+                if target > 0.5 {
+                    withAnimation(FloorAnim.feetIn.delay(FloorAnim.feetDelay)) { floor.feetShown = true }
+                } else {
+                    withAnimation(FloorAnim.feetOut) { floor.feetShown = false }
+                }
             }
     }
 }
@@ -351,7 +466,7 @@ private struct PiboSpeechCloud: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                    .strokeBorder(LP.Separator.primary, lineWidth: 1)
+                    .strokeBorder(LP.Separator.primary, lineWidth: LP.BorderWidth.hair)
             )
             .lpShadow(LP.Shadow.elevation2)
     }
@@ -398,7 +513,7 @@ private struct EnergyCollectCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                .strokeBorder(LP.Separator.primary, lineWidth: 1)
+                .strokeBorder(LP.Separator.primary, lineWidth: LP.BorderWidth.hair)
         )
         .lpShadow(LP.Shadow.elevation3)
         .onTapGesture(perform: onDismiss)

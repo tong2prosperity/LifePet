@@ -68,7 +68,7 @@ struct HealthAuthView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                    .strokeBorder(LP.Separator.primary, lineWidth: 1)
+                    .strokeBorder(LP.Separator.primary, lineWidth: LP.BorderWidth.hair)
             )
             .lpShadow(LP.Shadow.elevation1)
         }
@@ -92,7 +92,7 @@ struct HealthAuthView: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous)
-                        .strokeBorder(LP.Separator.primary, lineWidth: 1.5)
+                        .strokeBorder(LP.Separator.primary, lineWidth: LP.BorderWidth.regular)
                 )
             Text(lp: "前两周它只会喊你「人」。第 15 天起，它会试着喊你的名字。")
                 .lpText(LP.Typography.c1Regular)
@@ -169,7 +169,7 @@ struct HealthAuthView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, LP.Spacing.l)
                 .background(Capsule().fill(LP.Fill.bgContainer))
-                .overlay(Capsule().strokeBorder(LP.Separator.primary, lineWidth: 1.5))
+                .overlay(Capsule().strokeBorder(LP.Separator.primary, lineWidth: LP.BorderWidth.regular))
         }
         .buttonStyle(.plain)
     }
@@ -225,11 +225,11 @@ private struct OnboardingPiboHero: View {
         ZStack {
             Circle().fill(LP.Fill.bgContainer)
                 .frame(width: 172, height: 172)
-                .overlay(Circle().strokeBorder(LP.Separator.primary, lineWidth: 1))
+                .overlay(Circle().strokeBorder(LP.Separator.primary, lineWidth: LP.BorderWidth.hair))
                 .lpShadow(LP.Shadow.elevation2)
             Circle()
                 .strokeBorder(LP.Content.quarternary,
-                              style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
+                              style: StrokeStyle(lineWidth: LP.BorderWidth.regular, dash: [5, 5]))
                 .frame(width: 140, height: 140)
             VStack(spacing: -8) {
                 PiboHeadItemView(item: .mystery, size: 30)

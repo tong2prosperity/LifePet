@@ -547,6 +547,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Pibo 想认识地球：用相机拍下你的食物，这份记录会变成它头上那株花的能量。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -585,6 +586,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Pibo 想认识地球：用相机拍下你的食物，这份记录会变成它头上那株花的能量。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

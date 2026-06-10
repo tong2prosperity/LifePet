@@ -2,17 +2,18 @@ import SwiftUI
 import SwiftData
 
 /// 上滑数据二楼 (历史数据二楼) — the "second floor" pulled up from the home grab
-/// bar. A scrollable day strip + 今日能量 + 睡眠 / 运动 cards (per selected day),
+/// bar. Pibo's feet hang from a domed crown (the panel edge during the pull-up),
+/// over a scrollable day strip + 今日能量 + 睡眠 / 运动 cards (per selected day),
 /// and a 本月活动 heat-map. Today's numbers come live from `PetStateStore`; past
 /// days + the heat-map read the SwiftData `HealthHistoryStore`.
 ///
-/// Faithful to Figma nodes 74:6250 (day) / 74:6288 (month). Only the displayed
-/// subset of each `HealthDayRecord` is rendered — the store keeps the full set.
+/// Faithful to Figma nodes 74:6250 (day) / 74:6288 (month): cool grey-blue panel
+/// (#EAEEEF), 4%-black date-strip rail wrapping a white pill, #1FA843 accents,
+/// rounded-square day selection. Only the displayed subset of each
+/// `HealthDayRecord` is rendered — the store keeps the full set.
 struct PiboDashboardView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(HealthHistoryStore.self) private var history
-    /// Drag the 尾巴 / chevron down → back to the home floor.
-    var onClose: () -> Void = {}
 
     enum Mode { case day, month }
     @State private var mode: Mode = .day
@@ -22,12 +23,17 @@ struct PiboDashboardView: View {
     /// How many days back the strip / heat-map cover.
     private static let historyDays = 30
 
+    // Date-strip / energy / heat-map accent — the brand green (#1FA843 = green 500).
+    // The panel surface (#EAEEEF dome) is drawn by `FloorContainer`; this view is
+    // content-only. (Future/inactive greys now read from `LP.Content`.)
+    private let accent = LP.Fill.foundationAccent
+
     // DateFormatter init is expensive — share one instance.
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "M月d日 EEEE"; return f
     }()
     private static let monthFormatter: DateFormatter = {
-        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "yyyy年M月"; return f
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "M月"; return f
     }()
 
     var body: some View {
@@ -35,50 +41,27 @@ struct PiboDashboardView: View {
         // heat-map refreshes once data lands.
         let _ = history.revision
 
-        ZStack(alignment: .top) {
-            LP.Fill.bgSurface.ignoresSafeArea()
-
-            VStack(spacing: LP.Spacing.l) {
-                tailHandle
-                dateStrip
-                Group {
-                    if mode == .day { dayContent } else { monthContent }
-                }
-                Spacer(minLength: 0)
+        // Content only — the domed #EAEEEF surface + the hanging-feet handle are
+        // drawn by `FloorContainer` so they can rise/fade/emerge independently.
+        // The top inset clears the feet that hang from the status bar.
+        VStack(spacing: LP.Spacing.l) {
+            dateStrip
+            Group {
+                if mode == .day { dayContent } else { monthContent }
             }
-            .padding(.horizontal, LP.Spacing.l)
+            // Content sits 8pt inside the date strip (Figma: rail margin 20 / content 28).
+            .padding(.horizontal, LP.Spacing.s)
+            Spacer(minLength: 0)
         }
-    }
-
-    // MARK: Pibo 尾巴 handle (drag down to go back)
-
-    private var tailHandle: some View {
-        VStack(spacing: 2) {
-            Color.clear
-                .frame(height: 58)
-                .overlay(alignment: .top) {
-                    Image("pibo_body")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 150)
-                        .offset(y: -104)
-                }
-                .clipped()
-            Image(systemName: "chevron.compact.down")
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(LP.Content.quarternary)
-        }
-        .frame(maxWidth: .infinity)
-        .contentShape(Rectangle())
-        .padding(.top, LP.Spacing.s)
-        .gesture(
-            DragGesture(minimumDistance: 8)
-                .onEnded { v in if v.translation.height > 30 { onClose() } }
-        )
+        .padding(.horizontal, LP.Spacing.xl)   // 20 — date-strip margin
+        .padding(.top, 72)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     // MARK: Scrollable date strip + calendar toggle
 
+    /// A 4%-black rail wrapping a white scrolling pill of day cells, with the
+    /// grid toggle resting on the rail to the right (Figma 74:6259).
     private var dateStrip: some View {
         let today = cal.startOfDay(for: .now)
         let days: [Date] = (0...Self.historyDays)
@@ -86,55 +69,64 @@ struct PiboDashboardView: View {
             .reversed()
         let recordDays = recentRecordDays
 
-        return HStack(spacing: LP.Spacing.s) {
+        return HStack(spacing: LP.Spacing.m) {
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 2) {
+                    HStack(spacing: 6) {
                         ForEach(days, id: \.self) { day in
                             dayChip(day, hasData: recordDays.contains(day) || cal.isDateInToday(day))
                                 .id(day)
                         }
                     }
-                    .padding(.horizontal, 2)
+                    .padding(5)
                 }
+                .background(
+                    RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous).fill(LP.Fill.bgPop)
+                )
                 .onAppear { proxy.scrollTo(today, anchor: .trailing) }
             }
-            Button {
-                mode = (mode == .month) ? .day : .month
-            } label: {
-                Image(systemName: "calendar")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(mode == .month ? LP.Fill.foundationOnAccent : LP.Content.secondary)
-                    .frame(width: 34, height: 34)
-                    .background(
-                        RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous)
-                            .fill(mode == .month ? LP.Fill.foundationAccent : LP.Fill.bgContainer)
-                    )
-            }
-            .buttonStyle(.plain)
+            gridToggle
         }
-        .padding(LP.Spacing.xs)
+        .padding(5)
         .background(
             RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                .fill(LP.Fill.bgContainer)
+                .fill(Color.black.opacity(0.04))   // 4%-black rail — bespoke subtle wash, no token
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                .strokeBorder(LP.Separator.primary, lineWidth: 1)
-        )
+    }
+
+    private var gridToggle: some View {
+        Button {
+            mode = (mode == .month) ? .day : .month
+        } label: {
+            Image(systemName: "square.grid.3x3.square")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(mode == .month ? LP.Fill.foundationOnAccent : LP.Content.secondary)
+                .frame(width: 38, height: 38)
+                .background(
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(mode == .month ? accent : .clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppLocalization.text("本月活动"))
     }
 
     private func dayChip(_ day: Date, hasData: Bool) -> some View {
         let isSel = cal.isDate(day, inSameDayAs: selectedDate) && mode == .day
+        let isFuture = day > cal.startOfDay(for: .now)
         let fg: Color = isSel ? LP.Fill.foundationOnAccent
-            : (hasData ? LP.Content.primary : LP.Content.quarternary)
+            : isFuture ? LP.Content.quarternary
+            : (hasData ? accent : LP.Content.tertiary)
         return Text("\(cal.component(.day, from: day))")
-            .lpText(LP.Typography.b3Medium)
+            .lpText(LP.Typography.b2Medium)
             .foregroundStyle(fg)
-            .frame(width: 32, height: 32)
-            .background(Circle().fill(isSel ? LP.Fill.foundationAccent : .clear))
-            .contentShape(Circle())
-            .onTapGesture { mode = .day; selectedDate = day }
+            .frame(width: 38, height: 38)
+            .background(
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .fill(isSel ? accent : .clear)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture { if !isFuture { mode = .day; selectedDate = day } }
     }
 
     // MARK: Day view
@@ -156,30 +148,36 @@ struct PiboDashboardView: View {
         }
     }
 
+    /// Big energy score with the "/5 今日能量 · …" caption and the 5-dot meter
+    /// stacked to its right (Figma 74:6250) — the dots align under the caption,
+    /// not under the number.
     private func energyLine(_ d: DayData) -> some View {
-        HStack(spacing: LP.Spacing.s) {
+        HStack(alignment: .center, spacing: LP.Spacing.m) {
             Text("\(d.energyScore)")
-                .lpText(LP.Typography.uiH2)
+                .font(.system(size: 46, weight: .regular))
                 .foregroundStyle(LP.Content.primary)
-            Text(AppLocalization.format("/ 5  %@ · %@",
-                                        AppLocalization.text(d.isToday ? "今日能量" : "当日能量"),
-                                        d.energyWord))
-                .lpText(LP.Typography.c1Regular)
-                .foregroundStyle(LP.Content.tertiary)
-            Spacer(minLength: 0)
-            HStack(spacing: 4) {
-                ForEach(0..<5, id: \.self) { i in
-                    Circle()
-                        .fill(i < d.energyScore ? LP.Fill.foundationAccent : LP.Content.quarternary.opacity(0.4))
-                        .frame(width: 6, height: 6)
+            VStack(alignment: .leading, spacing: 7) {
+                Text(AppLocalization.format("/ 5  %@ · %@",
+                                            AppLocalization.text(d.isToday ? "今日能量" : "当日能量"),
+                                            d.energyWord))
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(LP.Content.tertiary)
+                HStack(spacing: 6) {
+                    ForEach(0..<5, id: \.self) { i in
+                        Circle()
+                            .fill(i < d.energyScore ? accent : Color.black.opacity(0.12))
+                            .frame(width: 7, height: 7)
+                    }
                 }
             }
+            Spacer(minLength: 0)
         }
-        .padding(.top, LP.Spacing.xs)
+        .padding(.top, 2)
     }
 
     private func sleepCard(_ d: DayData) -> some View {
-        dataCard(icon: "moon.zzz.fill", title: "睡眠", tint: Color(hex: 0x6C8BD0), tag: d.sleepTag) {
+        dataCard(icon: "moon.stars.fill", title: "睡眠",
+                 tint: LP.Colorful.yellow500, tag: d.sleepTag) {
             cardRow("时长", d.sleepDurationText)
             cardRow("深睡", d.sleepDeepText)
             Divider().overlay(LP.Separator.primary)
@@ -188,8 +186,8 @@ struct PiboDashboardView: View {
     }
 
     private func exerciseCard(_ d: DayData) -> some View {
-        dataCard(icon: "figure.run", title: "运动", tint: Color(hex: 0xE08A4B),
-                 tag: d.isToday && d.exerciseMinutes > 0 ? "进行中" : nil) {
+        dataCard(icon: "figure.run", title: "运动", tint: accent,
+                 tag: d.isToday ? "进行中" : (d.steps > 0 ? "已完成" : nil)) {
             cardRow("步数", d.steps > 0 ? "\(d.steps)" : "—")
             cardRow("卡路里", d.activeEnergy > 0 ? "\(Int(d.activeEnergy)) kcal" : "—")
             cardRow("户外步行", d.exerciseMinutes > 0 ? "\(d.exerciseMinutes) 分钟" : "—")
@@ -206,13 +204,14 @@ struct PiboDashboardView: View {
                 .lpText(LP.Typography.uiH3)
                 .foregroundStyle(LP.Content.primary)
 
-            VStack(spacing: LP.Spacing.m) {
-                HStack {
+            VStack(spacing: LP.Spacing.l) {
+                HStack(spacing: LP.Spacing.s) {
                     Image(systemName: "chevron.left").foregroundStyle(LP.Content.tertiary)
                     Text(Self.monthFormatter.string(from: selectedDate))
                         .lpText(LP.Typography.b2Medium)
                         .foregroundStyle(LP.Content.secondary)
                     Image(systemName: "chevron.right").foregroundStyle(LP.Content.tertiary)
+                    Spacer(minLength: 0)
                 }
                 .font(.system(size: 13, weight: .medium))
 
@@ -221,30 +220,26 @@ struct PiboDashboardView: View {
             .padding(LP.Spacing.l)
             .background(
                 RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                    .fill(LP.Fill.bgContainer)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                    .strokeBorder(LP.Separator.primary, lineWidth: 1)
+                    .fill(LP.Fill.bgPop)
             )
         }
     }
 
     private var monthGrid: some View {
         let levels = monthActivityLevels        // [day-of-month : 0–4]
-        let cols = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
+        let cols = Array(repeating: GridItem(.flexible(), spacing: LP.Spacing.s), count: 7)
         let count = cal.range(of: .day, in: .month, for: selectedDate)?.count ?? 30
-        return LazyVGrid(columns: cols, spacing: 6) {
+        return LazyVGrid(columns: cols, spacing: LP.Spacing.s) {
             ForEach(1...count, id: \.self) { day in
                 let level = levels[day] ?? 0
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(heatColor(level))
                     .aspectRatio(1, contentMode: .fit)
                     .overlay {
                         if level >= 3 {
-                            Image(systemName: "leaf.fill")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(LP.Fill.foundationAccent)
+                            Image(systemName: "hurricane")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(accent)
                         }
                     }
                     .onTapGesture { selectDay(ofMonth: day) }
@@ -261,8 +256,10 @@ struct PiboDashboardView: View {
         VStack(alignment: .leading, spacing: LP.Spacing.m) {
             HStack(spacing: LP.Spacing.s) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(tint)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(tint.opacity(0.15)))
                 Text(AppLocalization.text(title))
                     .lpText(LP.Typography.b1Medium)
                     .foregroundStyle(LP.Content.primary)
@@ -278,13 +275,9 @@ struct PiboDashboardView: View {
         .padding(LP.Spacing.l)
         .background(
             RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                .fill(LP.Fill.bgContainer)
+                .fill(LP.Fill.bgPop)
+                .lpShadow(LP.Shadow.elevation2)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                .strokeBorder(LP.Separator.primary, lineWidth: 1)
-        )
-        .lpShadow(LP.Shadow.elevation1)
     }
 
     private func cardRow(_ label: String, _ value: String, muted: Bool = false) -> some View {
@@ -393,12 +386,35 @@ struct PiboDashboardView: View {
 
     private func heatColor(_ level: Int) -> Color {
         switch level {
-        case 0: return LP.Content.quarternary.opacity(0.12)
-        case 1: return LP.Fill.foundationAccent.opacity(0.22)
-        case 2: return LP.Fill.foundationAccent.opacity(0.40)
-        case 3: return LP.Fill.foundationAccent.opacity(0.62)
-        default: return LP.Fill.foundationAccent.opacity(0.85)
+        case 0: return Color.black.opacity(0.05)
+        case 1: return accent.opacity(0.18)
+        case 2: return accent.opacity(0.34)
+        case 3: return accent.opacity(0.50)
+        default: return accent.opacity(0.68)
         }
+    }
+}
+
+// MARK: - Domed crown
+
+/// The 二楼 panel's domed top — a wide, shallow convex arc (≈ Figma Ellipse 24, a
+/// 749-pt circle). The apex bleeds `rise` pt **above** the frame, so at rest
+/// (panel offset 0) the dome sits off-screen and the top fills flat; during the
+/// pull-up the panel rides down and the crown sweeps into view.
+struct FloorDome: Shape {
+    var rise: CGFloat = 54
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let shoulderY = rect.minY
+        let apexY = rect.minY - rise
+        p.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX, y: shoulderY))
+        // Quadratic whose apex lands at `apexY`: control = 2·apex − shoulder.
+        p.addQuadCurve(to: CGPoint(x: rect.maxX, y: shoulderY),
+                       control: CGPoint(x: rect.midX, y: 2 * apexY - shoulderY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.closeSubpath()
+        return p
     }
 }
 
@@ -411,6 +427,7 @@ struct PiboDashboardView: View {
     hist.seedSampleHistoryIfEmpty()
     #endif
     return PiboDashboardView()
+        .background(Color(hex: 0xEAEEEF).ignoresSafeArea())
         .environment(PetStateStore(demoMode: true))
         .environment(hist)
 }

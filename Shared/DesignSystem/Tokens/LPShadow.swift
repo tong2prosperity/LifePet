@@ -16,30 +16,67 @@ extension LP {
         static let lg = Spec(color: .black.opacity(0.12), radius: 12, x: 0, y: 8)
 
         // — Figma UI Kit ramp (node 57:226 §shadow): shadow-1 … shadow-4 —
-        //   Soft ambient elevation for the new card/pop surfaces. ⚠️ Provisional
-        //   blur/offset — the Figma effect styles aren't exported yet (selection
-        //   tool blocked); tuned to read as gentle floats on the off-white paper.
-        static let elevation1 = Spec(color: .black.opacity(0.04), radius: 4,  x: 0, y: 1)
-        static let elevation2 = Spec(color: .black.opacity(0.06), radius: 8,  x: 0, y: 2)
-        static let elevation3 = Spec(color: .black.opacity(0.08), radius: 16, x: 0, y: 6)
-        static let elevation4 = Spec(color: .black.opacity(0.12), radius: 28, x: 0, y: 12)
+        //   Exact effect styles exported via `get_variable_defs` on 2026-06-10.
+        //   Each elevation is **two** stacked drop shadows: a tight ambient
+        //   layer (#000 @ ~3% blur 1.8–32) plus a softer key layer that carries
+        //   the offset. `lpShadow` applies both. Figma `radius` = blur; we drop
+        //   `spread` (always 0). Subtle on the light surfaces by design.
+        static let elevation1 = Spec(layers: [
+            .init(color: .black.opacity(0.031), radius: 1.8, x: 0, y: 0),
+            .init(color: .black.opacity(0.039), radius: 4,   x: 0, y: 0.5),
+        ])
+        static let elevation2 = Spec(layers: [
+            .init(color: .black.opacity(0.031), radius: 3,  x: 0, y: 0),
+            .init(color: .black.opacity(0.039), radius: 24, x: 0, y: 2.4),
+        ])
+        static let elevation3 = Spec(layers: [
+            .init(color: .black.opacity(0.031), radius: 3,  x: 0, y: 0),
+            .init(color: .black.opacity(0.059), radius: 32, x: 0, y: 6),
+        ])
+        static let elevation4 = Spec(layers: [
+            .init(color: .black.opacity(0.031), radius: 32,  x: 0, y: 4),
+            .init(color: .black.opacity(0.078), radius: 100, x: 0, y: 8),
+        ])
 
+        /// A shadow spec. May carry multiple stacked drop-shadow `layers`
+        /// (the Figma elevation ramp), or a single layer (`sm`/`md`/`lg`).
         struct Spec {
-            let color: Color
-            let radius: CGFloat
-            let x: CGFloat
-            let y: CGFloat
+            struct Layer {
+                let color: Color
+                let radius: CGFloat
+                let x: CGFloat
+                let y: CGFloat
+            }
+
+            let layers: [Layer]
+
+            init(layers: [Layer]) { self.layers = layers }
+
+            /// Single-layer convenience (back-compat with the original API).
+            init(color: Color, radius: CGFloat, x: CGFloat, y: CGFloat) {
+                self.layers = [Layer(color: color, radius: radius, x: x, y: y)]
+            }
+
+            // First-layer accessors so existing `spec.radius` / `.color` reads
+            // keep compiling.
+            var color: Color  { layers.first?.color  ?? .clear }
+            var radius: CGFloat { layers.first?.radius ?? 0 }
+            var x: CGFloat { layers.first?.x ?? 0 }
+            var y: CGFloat { layers.first?.y ?? 0 }
         }
     }
 }
 
 extension View {
-    /// Apply an LP shadow. No-op on watchOS — safe to call unconditionally.
+    /// Apply an LP shadow (all of its layers). No-op on watchOS — safe to call
+    /// unconditionally.
     func lpShadow(_ spec: LP.Shadow.Spec) -> some View {
         #if os(iOS)
-        shadow(color: spec.color, radius: spec.radius, x: spec.x, y: spec.y)
+        return spec.layers.reduce(AnyView(self)) { view, layer in
+            AnyView(view.shadow(color: layer.color, radius: layer.radius, x: layer.x, y: layer.y))
+        }
         #else
-        self
+        return self
         #endif
     }
 }
