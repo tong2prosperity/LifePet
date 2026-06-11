@@ -293,6 +293,49 @@ final class PetStateStore {
         }
     }
 
+    private static let selectedThemeKey = "pibo.theme.selected.v1"
+    /// User-picked 关于毛的主题 id (settings gear → 主题). `nil` = default 魔丸.
+    /// Loaded in `init`, persisted on change; `currentTheme`
+    /// (`PetStateStore+Mowan`) resolves it against `PiboTheme.selectable`.
+    var selectedThemeID: String? = nil {
+        didSet {
+            if let selectedThemeID {
+                UserDefaults.standard.set(selectedThemeID, forKey: Self.selectedThemeKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.selectedThemeKey)
+            }
+        }
+    }
+
+    private static let growthStageKey = "pibo.growth.v1"
+    /// 魔丸 head growth — the 「?」卷芽 until the first collected 运动能量,
+    /// then 发芽带叶 (Figma《识别到用户的活动》74:6102: 播完缩回主页面,
+    /// pibo头顶发生变化). Loaded in `init`; per-pet, so `reset()` wipes it.
+    var growthStage: PiboGrowthStage = .mystery {
+        didSet { UserDefaults.standard.set(growthStage.rawValue, forKey: Self.growthStageKey) }
+    }
+
+    /// First 运动能量 collected — the 毛 sprouts its leaf. Idempotent.
+    func markSprouted() {
+        guard growthStage == .mystery else { return }
+        growthStage = .sprouted
+        LPLog.petState.notice("growth → sprouted")
+    }
+
+    /// Pibo 故事线 progress — 拍一拍 can surface the next clue of the current
+    /// chapter (app 叙事). Owned here so `pat()` and `reset()` reach it.
+    let story = PiboStorylineStore()
+
+    #if DEBUG
+    /// Dev/demo helper (settings sheet): inject a fake "刚跑完步" so the 发芽
+    /// energy-collection flow can be rehearsed without a real HKWorkout.
+    func debugInjectWorkout() {
+        pendingWorkout = PendingWorkout(
+            id: UUID(), kind: .run, label: AppLocalization.text("跑步"),
+            durationMin: 24, kcal: 186, endedAt: Date(), gainVitality: 18)
+    }
+    #endif
+
     // Raw HealthKit readings, exposed for the direct-data UI (state machine +
     // 上滑 Dashboard). The home no longer surfaces the three derived stats.
     var rawSteps: Int { raw.steps }
@@ -422,6 +465,10 @@ final class PetStateStore {
         self.stats = Self.demoStats
         self.state = .excited
         self.steps = demoMode ? Self.demoSteps : []
+        // Theme + growth persistence (didSet doesn't fire from init).
+        self.selectedThemeID = UserDefaults.standard.string(forKey: Self.selectedThemeKey)
+        self.growthStage = PiboGrowthStage(
+            rawValue: UserDefaults.standard.string(forKey: Self.growthStageKey) ?? "") ?? .mystery
         LPLog.petState.notice("PetStateStore init demoMode=\(demoMode, privacy: .public) eventsBound=\(events != nil, privacy: .public) day=\(identity.daysSinceBirth, privacy: .public)")
 
         // Cold-launch rollover catch-up. If the app was killed across one or
@@ -600,6 +647,11 @@ final class PetStateStore {
         }
         pendingWorkout = nil
         feedToken = nil
+        // New pet = back to 魔丸 D1: 「?」卷芽, default theme, fresh story.
+        growthStage = .mystery
+        UserDefaults.standard.removeObject(forKey: Self.growthStageKey)
+        selectedThemeID = nil
+        story.reset()
         // New pet UUID + name + birth=today. Hackathon semantics: reset means
         // "start fresh" — when snapshot persistence ships, the previous pet's
         // history will still be addressable via its old `currentPetId`.

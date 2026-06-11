@@ -7,18 +7,29 @@ import SwiftUI
 // 2D-game-like animation: idle motion, 拍一拍 reactions, 拔毛, 头顶毛/能量收集,
 // background transitions, particles). SwiftUI owns only the surrounding chrome.
 //
-// Data in: a `PiboTheme` (scene backdrop + head item) and a `PiboActivityState`
-// (drives Pibo's face/posture). Touches on Pibo call `onPat`; the SwiftUI layer
-// decides whether Pibo speaks (the spec's caps live in `PetStateStore.pat()`).
+// Data in: a `PiboTheme` (scene backdrop + head item), a `PiboGrowthStage`
+// (魔丸 「?」卷芽 ⇄ 发芽带叶), and a `PiboActivityState` (drives Pibo's
+// face/posture). Touches on Pibo call `onPat`; the SwiftUI layer decides how
+// Pibo reacts (the spec's caps live in `PetStateStore.pat()`).
 //
-// Node tree (z back→front): sky → ground → pibo(shadow, body, eyes, blush) →
-// head item → fx (Zzz / sparkles / seeds).
+// Node tree (z back→front): backdrop(sky → ground) → pibo(shadow, body, eyes,
+// blush, head 毛) → overhead 黑洞 → fx (Zzz / sparkles / seeds). A
+// `SKCameraNode` frames the scene; the 发芽 close-up zooms it onto the head.
+
+/// Phases of the 发芽 close-up (Figma《识别到用户的活动》74:6102), reported back
+/// so the SwiftUI overlay can swap its caption in sync.
+enum SproutCloseupPhase {
+    case shaking    // 毛抖动 — "收集到你的运动能量！"
+    case sprouted   // 长出叶片 — "Pibo...发芽了啵！"
+    case finished   // 缩回主页面 — show the 能量已收集 pop
+}
 
 final class PiboStageScene: SKScene {
 
     // — Inputs (set by the SwiftUI wrapper) —
     private(set) var theme: PiboTheme = .sprout
     private(set) var activityState: PiboActivityState = .idle
+    private(set) var growth: PiboGrowthStage = .mystery
     /// Fired on a tap that lands on Pibo.
     var onPat: (() -> Void)?
 
@@ -31,9 +42,14 @@ final class PiboStageScene: SKScene {
     private var rightEye = SKNode()
     private var blush = SKNode()
     private var headNode = SKSpriteNode()
+    private let overheadNode = SKSpriteNode()  // 魔丸黑洞 — floats above the head
     private let fx = SKNode()            // transient effects layer
+    private let cam = SKCameraNode()
 
     private var built = false
+    /// True while the 发芽 close-up owns the camera (blocks pats + relayouts
+    /// from snapping the camera back mid-flight).
+    private var closeupActive = false
 
     override func didMove(to view: SKView) {
         scaleMode = .resizeFill
@@ -56,20 +72,24 @@ final class PiboStageScene: SKScene {
 
     // MARK: Public API (called from the SwiftUI wrapper)
 
-    func apply(theme newTheme: PiboTheme, state newState: PiboActivityState) {
+    func apply(theme newTheme: PiboTheme, state newState: PiboActivityState, growth newGrowth: PiboGrowthStage) {
         let themeChanged = newTheme.id != theme.id
+        let growthChanged = newGrowth != growth
         let stateChanged = newState != activityState
         theme = newTheme
         activityState = newState
+        growth = newGrowth
         guard built else { return }
         // A theme may switch between art and procedural Pibo, so rebuild the body
         // group (not just the backdrop/head) when the theme changes.
         if themeChanged { rebuildBackdrop(); rebuildPibo() }
+        else if growthChanged { rebuildHead() }
         if stateChanged || themeChanged { applyState(animated: true) }
     }
 
     /// 能量收集 — the head 毛 senses new energy: shake → grow → settle, with a
-    /// little sparkle burst (spec §3.4).
+    /// little sparkle burst (spec §3.4). The small in-place animation, used when
+    /// the head is already sprouted (the first collection plays the close-up).
     func playEnergyGain() {
         guard built else { return }
         headNode.removeAction(forKey: "headIdle")
@@ -82,6 +102,119 @@ final class PiboStageScene: SKScene {
         let grow = SKAction.sequence([.scale(to: 1.18, duration: 0.18), .scale(to: 1.0, duration: 0.22)])
         headNode.run(.sequence([shake, grow])) { [weak self] in self?.startHeadIdle() }
         emitSparkles(at: CGPoint(x: pibo.position.x, y: pibo.position.y + bodyHeight * 0.7), count: 14)
+    }
+
+    /// 发芽 close-up (Figma 74:6102): the camera zooms onto Pibo's head, the 毛
+    /// 抖动 (shake) → 发力 (strain) → 长出叶片 (texture swaps to the sprouted
+    /// sprite, the 黑洞 fades), then the camera pulls back.
+    ///
+    /// **Animation seam:** this is the shipped placeholder built from current
+    /// assets. The designer's final close-up (Lottie, per the Figma note
+    /// 暂定为lottie素材) plugs in at `SproutAnimationStyle` in
+    /// `EnergySproutFlow.swift` — when it lands, the SwiftUI overlay plays it
+    /// full-screen instead of calling this.
+    func playSproutCloseup(onPhase: @escaping (SproutCloseupPhase) -> Void) {
+        guard built, !closeupActive else { onPhase(.finished); return }
+        closeupActive = true
+        headNode.removeAction(forKey: "headIdle")
+
+        // Frame the head with a hint of the body top, like the Figma close-up.
+        let headWorld = CGPoint(x: pibo.position.x + headNode.position.x,
+                                y: pibo.position.y + headNode.position.y)
+        let focus = CGPoint(x: headWorld.x, y: headWorld.y - size.height * 0.06)
+        let zoomIn = SKAction.group([.move(to: focus, duration: 0.55), .scale(to: 0.45, duration: 0.55)])
+        zoomIn.timingMode = .easeInEaseOut
+        let zoomOut = SKAction.group([
+            .move(to: CGPoint(x: size.width / 2, y: size.height / 2), duration: 0.55),
+            .scale(to: 1.0, duration: 0.55),
+        ])
+        zoomOut.timingMode = .easeInEaseOut
+
+        // 毛抖动 — escalating wiggle (~1.7s).
+        var swings: [SKAction] = []
+        for (angle, dur) in [(0.10, 0.10), (-0.12, 0.16), (0.16, 0.14), (-0.20, 0.16),
+                             (0.24, 0.14), (-0.26, 0.16), (0.30, 0.14), (-0.30, 0.16)] {
+            let r = SKAction.rotate(toAngle: CGFloat(angle), duration: dur)
+            r.timingMode = .easeInEaseOut
+            swings.append(r)
+        }
+        let wiggle = SKAction.sequence(swings)
+
+        // 发力 → 长出叶片: squash, swap to the sprouted sprite, burst back.
+        let strain = SKAction.scale(to: 0.78, duration: 0.22)
+        strain.timingMode = .easeIn
+        let swap = SKAction.run { [weak self] in
+            guard let self else { return }
+            self.growth = .sprouted
+            self.rebuildHead()
+            self.overheadNode.run(.fadeOut(withDuration: 0.45))
+            self.emitSparkles(at: headWorld, count: 18)
+        }
+        let burst = SKAction.sequence([.scale(to: 1.25, duration: 0.20), .scale(to: 1.0, duration: 0.24)])
+        burst.timingMode = .easeOut
+
+        let camScript = SKAction.sequence([
+            zoomIn,
+            .run { onPhase(.shaking) },
+            .wait(forDuration: 1.7 + 0.42),          // wiggle + strain run on the head
+            .run { onPhase(.sprouted) },
+            .wait(forDuration: 1.5),
+            zoomOut,
+            .run { [weak self] in
+                self?.closeupActive = false
+                self?.startHeadIdle()
+                onPhase(.finished)
+            },
+        ])
+        let headScript = SKAction.sequence([
+            .wait(forDuration: 0.55),
+            wiggle,
+            .rotate(toAngle: 0, duration: 0.08),
+            strain,
+            swap,
+            burst,
+        ])
+        cam.run(camScript, withKey: "closeup")
+        headNode.run(headScript, withKey: "sprout")
+    }
+
+    /// 拍一拍 不理睬 — Pibo 扭过头背对用户 (Figma 76:7115): hop, swap the body to
+    /// the turned-away art, hold, turn back. Procedural themes just swivel.
+    func playTurnAway() {
+        guard built else { return }
+        if let backName = theme.bodyBackImage, let body = bodySprite {
+            guard body.action(forKey: "turnAway") == nil else { return }
+            let frontTexture = body.texture
+            let frontSize = body.size
+            let backTexture = SKTexture(imageNamed: backName)
+            let nat = backTexture.size()
+            let backWidth = size.width * (232.0 / 393.0)
+            let backSize = CGSize(width: backWidth, height: backWidth * nat.height / max(nat.width, 1))
+            let turnBack = SKAction.run {
+                body.texture = backTexture
+                body.size = backSize
+                // Bottom-align so the feet stay planted (the back pose is shorter).
+                body.position.y = -(frontSize.height - backSize.height) / 2
+            }
+            let turnFront = SKAction.run {
+                body.texture = frontTexture
+                body.size = frontSize
+                body.position.y = 0
+            }
+            let hop = SKAction.sequence([
+                .scaleX(to: 0.86, y: 1.04, duration: 0.10),
+                .scaleX(to: 1.0, y: 1.0, duration: 0.12),
+            ])
+            body.run(.sequence([hop, turnBack, .wait(forDuration: 1.4), turnFront, hop.copy() as! SKAction]),
+                     withKey: "turnAway")
+        } else {
+            // Procedural fallback: a sulky swivel away.
+            pibo.run(.sequence([
+                .rotate(toAngle: 0.45, duration: 0.18),
+                .wait(forDuration: 1.2),
+                .rotate(toAngle: 0, duration: 0.22),
+            ]))
+        }
     }
 
     /// 拔毛 — a seed drops from the head and falls to the ground.
@@ -102,7 +235,7 @@ final class PiboStageScene: SKScene {
     // MARK: Touch → pat
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard built, let t = touches.first else { return }
+        guard built, !closeupActive, let t = touches.first else { return }
         let p = t.location(in: self)
         // Generous hit area around Pibo.
         let dx = p.x - pibo.position.x
@@ -120,8 +253,13 @@ final class PiboStageScene: SKScene {
         built = true
         addChild(backdrop)
         addChild(pibo)
+        overheadNode.zPosition = 13   // over the head 毛 — the curl emerges from the hole
+        addChild(overheadNode)
         addChild(fx)
         fx.zPosition = 40
+        cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        addChild(cam)
+        camera = cam
 
         rebuildBackdrop()
         buildPibo()
@@ -356,16 +494,36 @@ final class PiboStageScene: SKScene {
         }
     }
 
-    // MARK: Head item (rendered from the SwiftUI design-system view → texture)
+    // MARK: Head item (theme art, or rendered from the SwiftUI design-system view)
 
     private func rebuildHead() {
-        // Art path: a real head-item texture (桃花枝 etc.); sized/placed in layout.
-        if let head = theme.headImage {
-            headNode.texture = SKTexture(imageNamed: head)
+        let (head, overhead) = theme.resolvedHead(for: growth)
+
+        // Overhead 黑洞 — scene-level so the curl slides through it as Pibo bobs.
+        if let overhead {
+            overheadNode.texture = SKTexture(imageNamed: overhead.image)
+            overheadNode.isHidden = false
+            overheadNode.alpha = 1
+        } else {
+            overheadNode.isHidden = true
+        }
+
+        // Art path: a real head-item texture (桃花枝 / 海草 / 卷芽); sized/placed
+        // in layout from its design-frame anchor.
+        if let head {
+            headNode.texture = SKTexture(imageNamed: head.image)
+            headNode.isHidden = false
+            positionHead()
+            return
+        }
+        if usesArt {
+            // Art body without head art (shouldn't happen for shipped themes).
+            headNode.isHidden = true
             positionHead()
             return
         }
 
+        headNode.isHidden = false
         let side = bodyWidth * 0.9
         let renderer = ImageRenderer(content:
             PiboHeadItemView(item: theme.headItem, size: side)
@@ -385,25 +543,45 @@ final class PiboStageScene: SKScene {
         guard built else { return }
         rebuildBackdrop()
         if usesArt {
-            // Place the body sprite at its Figma frame center (195.64, 436.5) on a
-            // 393×852 frame; size it to the mapped body box.
+            // Place the body sprite at the theme's design-frame body center;
+            // size it to the mapped body box.
             bodySprite?.size = CGSize(width: bodyWidth, height: bodyHeight)
-            pibo.position = CGPoint(x: size.width * (195.64 / 393.0),
-                                    y: size.height * (1 - 436.5 / 852.0))
+            pibo.position = CGPoint(x: size.width * (theme.bodyCenterX / 393.0),
+                                    y: size.height * (1 - theme.bodyCenterY / 852.0))
         } else {
             pibo.position = CGPoint(x: size.width / 2, y: groundTopY + bodyHeight * 0.18)
         }
         positionHead()
+        if !closeupActive {
+            cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
+            cam.setScale(1)
+        }
     }
 
     private func positionHead() {
-        if usesArt {
-            // 桃花枝 box 38×89.5 centered at frame (194, 292.75); offset from the
-            // body center (195.64, 436.5) → up and a touch left.
-            headNode.size = CGSize(width: size.width * (38.0 / 393.0),
-                                   height: size.height * (89.5 / 852.0))
-            headNode.position = CGPoint(x: size.width * (-1.64 / 393.0),
-                                        y: size.height * (143.75 / 852.0))
+        let (head, overhead) = theme.resolvedHead(for: growth)
+
+        if let overhead {
+            let nat = overheadNode.texture?.size() ?? CGSize(width: 234, height: 64)
+            let s = size.height / 852.0
+            overheadNode.size = CGSize(width: nat.width * s, height: nat.height * s)
+            overheadNode.position = CGPoint(x: size.width * (overhead.centerX / 393.0),
+                                            y: size.height * (1 - overhead.centerY / 852.0))
+        }
+
+        if let head {
+            // Size from the head texture's natural points (@3x asset → design pts)
+            // so each theme's 毛/花 keeps its own aspect — 桃花枝 38×89.5 stays put,
+            // while 阿那亚 海草 (taller/narrower) isn't squished into the branch box.
+            // Scaled uniformly by the 852-pt frame height to stay resolution-free.
+            let nat = headNode.texture?.size() ?? CGSize(width: 38, height: 89.5)
+            let s = size.height / 852.0
+            headNode.size = CGSize(width: nat.width * s, height: nat.height * s)
+            // Offset from the body center to the sprite's design-frame anchor —
+            // center-anchored, so a taller head grows symmetrically about it.
+            headNode.position = CGPoint(
+                x: size.width * ((head.centerX - theme.bodyCenterX) / 393.0),
+                y: size.height * ((theme.bodyCenterY - head.centerY) / 852.0))
             return
         }
         headNode.position = CGPoint(x: 0, y: bodyHeight * 0.5 + headNode.size.height * 0.32)
@@ -417,11 +595,7 @@ final class PiboStageScene: SKScene {
         // swaps come with the state-machine pass.
         if usesArt {
             showZzz(activityState == .deepSleep)
-            if activityState == .disturbed {
-                pibo.run(.sequence([.rotate(toAngle: 0.12, duration: 0.15),
-                                    .wait(forDuration: 0.6),
-                                    .rotate(toAngle: 0, duration: 0.2)]))
-            }
+            if activityState == .disturbed { playTurnAway() }
             return
         }
         switch activityState {
@@ -435,8 +609,7 @@ final class PiboStageScene: SKScene {
             setEyes(.half); setBlush(0.5); showZzz(false); setBodyTint(0.96)
         case .disturbed:
             setEyes(.half); setBlush(0.3); showZzz(false); setBodyTint(1.0)
-            // Turn away briefly.
-            pibo.run(.sequence([.rotate(toAngle: 0.12, duration: 0.15), .wait(forDuration: 0.6), .rotate(toAngle: 0, duration: 0.2)]))
+            playTurnAway()
         case .idle:
             setEyes(.open); setBlush(0); showZzz(false); setBodyTint(1.0)
         }

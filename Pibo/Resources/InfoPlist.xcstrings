@@ -30,6 +30,18 @@
         }
       }
     },
+    "NSCameraUsageDescription" : {
+      "comment" : "Privacy - Camera Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Pibo 想认识地球：用相机拍下你的食物，这份记录会变成它头上那株花的能量。"
+          }
+        }
+      }
+    },
     "NSHealthShareUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {

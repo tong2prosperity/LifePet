@@ -152,30 +152,52 @@ extension PetStateStore {
         return rawSleepHours >= 7
     }
 
-    // MARK: 拍一拍 (spec §3.2)
+    // MARK: 拍一拍 (spec §3.2 + Figma 76:6758)
 
-    /// React to a pat. Returns a line to speak, or `nil` for 不理睬.
-    /// Caps: ≤3 lines / 10 min, ≤9 lines / 24h; otherwise 30% speak.
-    func pat() -> String? {
+    /// React to a pat. 不理睬 = Pibo 扭过头背对用户 (no text); otherwise a line
+    /// with a mood (生气 also turns away). Caps: ≤3 lines / 10 min, ≤9 / 24h;
+    /// under the caps 30% speak / 70% cold shoulder. A spoken line has a 25%
+    /// chance of being the next 故事线 clue instead of state-pool copy.
+    func pat() -> PatResponse {
         let now = Date()
         let in24h = patSpeechTimes.filter { now.timeIntervalSince($0) < 24 * 3600 }
         let in10m = patSpeechTimes.filter { now.timeIntervalSince($0) < 10 * 60 }
         // Prune so the array doesn't grow unbounded.
         patSpeechTimes = in24h
 
-        guard in24h.count < 9, in10m.count < 3 else { return nil }
-        guard Double.random(in: 0..<1) < 0.3 else { return nil }
+        guard in24h.count < 9, in10m.count < 3 else { return .ignored }
+        guard Double.random(in: 0..<1) < 0.3 else { return .ignored }
 
-        let line = activityState.speechPool.randomElement()
-        if line != nil { patSpeechTimes.append(now) }
-        return line
+        // 故事线: patting can shake the next clue loose (app 叙事).
+        if Double.random(in: 0..<1) < 0.25, let clue = story.revealNextClue() {
+            patSpeechTimes.append(now)
+            return PatResponse(line: PiboSpeechLine(text: clue.line, isStoryClue: true))
+        }
+
+        guard let text = activityState.speechPool.randomElement() else { return .ignored }
+        patSpeechTimes.append(now)
+        let mood = speechMood
+        return PatResponse(line: PiboSpeechLine(text: text, mood: mood),
+                           turnsAway: mood == .angry)
     }
 
-    /// Idle self-mutter (spec §3.3): ~20% chance, drawn from the 发呆 pool.
-    /// Driven by a timer in the view, not a pat — does not consume the caps.
-    func idleMutter() -> String? {
+    /// Bubble treatment for the current state: 烦躁/被打扰 grumble in the black
+    /// 生气 bubble, 深眠 talks in its sleep (呓语), everything else is 正常.
+    private var speechMood: PiboSpeechMood {
+        switch activityState {
+        case .irritated, .disturbed: return .angry
+        case .deepSleep:             return .murmur
+        default:                     return .normal
+        }
+    }
+
+    /// Idle self-mutter (spec §3.3): ~20% chance, drawn from the 发呆 pool,
+    /// drifting by as a 呓语. Driven by a timer in the view, not a pat — does
+    /// not consume the caps.
+    func idleMutter() -> PiboSpeechLine? {
         guard Double.random(in: 0..<1) < 0.2 else { return nil }
-        return PiboActivityState.idle.speechPool.randomElement()
+        guard let text = PiboActivityState.idle.speechPool.randomElement() else { return nil }
+        return PiboSpeechLine(text: text, mood: .murmur)
     }
 
     // MARK: 拔毛 (spec §3.5)
@@ -225,13 +247,16 @@ extension PetStateStore {
 
     // MARK: Theme (关于毛的主题)
 
-    /// The active 主题 (节气/活动限定). MVP: 魔丸 (D1) shows the mystery head;
-    /// otherwise 桃花时节 — the first theme fully restored from the Figma art
-    /// (本体/桃花枝/笔刷草地 are real assets). Real 节气/活动 unlock rules (date-
-    /// driven) come later; until then this is the visible default so the restored
-    /// screen shows. Swap back to `.sprout` for the neutral procedural look.
+    /// The active 主题 (节气/活动限定): the user's pick from the settings gear,
+    /// falling back to the 魔丸 default (Figma 74:6101's D1 screen — 黑洞 +
+    /// 「?」卷芽 on the floating slab, now fully image-backed). All three Figma
+    /// themes are selectable in `SettingsSheet`; date-driven 节气/活动 unlock
+    /// rules are a later pass.
     var currentTheme: PiboTheme {
-        if dayCount <= 1 { return .demon }
-        return .peachSeason
+        if let id = selectedThemeID,
+           let chosen = PiboTheme.selectable.first(where: { $0.id == id }) {
+            return chosen
+        }
+        return .demon
     }
 }

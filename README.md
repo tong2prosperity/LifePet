@@ -162,5 +162,5 @@ xcodebuild -project Pibo.xcodeproj -scheme Pibo clean
 - [x] 魔丸态 Onboarding 改版
 - [x] 砍掉死代码（Generation / Playback / Session / SessionStore）
 - [ ] 拍照接入真实 `AVCaptureSession`（目前是合成帧）
-- [ ] 节气/活动限定主题解锁（目前 demon / sprout）
+- [ ] 节气/活动限定主题按日期自动解锁（目前 魔丸/桃花/阿那亚 三主题已实现，settings gear 自由切换）
 - [ ] glitch / 生病 / 离去 衰退弧线
