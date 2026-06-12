@@ -41,9 +41,8 @@ Pibo.xcodeproj         # 单工程，两个 target
 ├── Pibo/              # iOS 应用（唯一活跃 target）
 │   ├── App/                # @main · RootView（无 Tab，直接 HomeView）· SwiftData 容器
 │   ├── Features/
-│   │   ├── Home/           # 主页：Pibo 活动区 / 拍一拍 / 拔毛 / 上滑 Dashboard / 拍照
-│   │   ├── Catalog/        # 图鉴 + 死亡纪念波形
-│   │   ├── Together/       # 一起养（朋友 / 邀请）
+│   │   ├── Home/           # 主页：Pibo 活动区 / 拍一拍 / 拔毛 / 上滑数据二楼 / 拍照
+│   │   ├── History/        # 历史数据页（二楼内容）：日/月健康可视化
 │   │   ├── Pet/            # Sprite 序列与目录
 │   │   ├── Onboarding/     # HealthKit 授权
 │   │   └── ⚠️ Generation / Playback / Session — 旧方向死代码，待清理
@@ -154,10 +153,9 @@ xcodebuild -project Pibo.xcodeproj -scheme Pibo clean
 
 - [x] LP 设计系统
 - [x] HealthKit 授权 + Observer 管道
-- [x] 图鉴 + 纪念波形
-- [x] Together（一起养）
 - [x] 魔丸态主页（SpriteKit 活动区）：打招呼文案 / 6 状态 / 拍一拍 / 拔毛 / 能量收集
-- [x] 上滑 Dashboard（历史数据二楼，取代能量球）
+- [x] 上滑数据二楼（历史数据页 `Features/History`，取代能量球）
+- [~] 图鉴 + 纪念波形 / Together（一起养）— 已于 2026-06-13 移除，新设计不再依赖
 - [x] 拍照交互（露珠相机 → 扫描 → 预览 + Pibo 弹幕）
 - [x] 魔丸态 Onboarding 改版
 - [x] 砍掉死代码（Generation / Playback / Session / SessionStore）

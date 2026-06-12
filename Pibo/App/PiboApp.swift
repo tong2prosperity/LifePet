@@ -46,13 +46,13 @@ struct PiboApp: App {
         _store = State(initialValue: s)
 
         do {
-            modelContainer = try ModelContainer(for: HealthDayRecord.self)
+            modelContainer = try ModelContainer(for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self)
         } catch {
             // In-memory fallback so a corrupt store never blocks launch.
             modelContainer = try! ModelContainer(
-                for: HealthDayRecord.self,
+                for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-            LPLog.app.error("HealthDayRecord store failed, using in-memory: \(error.localizedDescription, privacy: .public)")
+            LPLog.app.error("History store failed, using in-memory: \(error.localizedDescription, privacy: .public)")
         }
         _history = State(initialValue: HealthHistoryStore(context: modelContainer.mainContext))
     }
@@ -71,11 +71,13 @@ struct PiboApp: App {
                     // authorized device this is HK data; on a simulator with no
                     // HK, DEBUG-seed so the 二楼 is demonstrable.
                     #if DEBUG
-                    if health.authState != .granted { history.seedSampleHistoryIfEmpty() }
+                    if health.authState != .granted { history.seedSampleAllIfEmpty() }
                     #endif
                     if health.authState == .granted {
                         let values = await health.fetchDailyHistory()
                         history.ingest(values)
+                        let workouts = await health.fetchWorkoutHistory()
+                        history.ingestWorkouts(workouts)
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in

@@ -10,6 +10,8 @@ struct PiboStageView: View {
     /// 魔丸 head growth (「?」卷芽 ⇄ 发芽带叶) — drives which head sprite shows.
     var growth: PiboGrowthStage = .sprouted
     var onPat: () -> Void = {}
+    /// Fired when the head 毛 is dragged past the pull threshold (the 拔毛 gesture).
+    var onHairPulled: () -> Void = {}
     /// Bump to fire the 能量收集 头顶毛 animation.
     var energyGainToken: UUID? = nil
     /// Set to drop a 拔毛 seed of the given color.
@@ -38,6 +40,7 @@ struct PiboStageView: View {
                 .onAppear {
                     scene.size = geo.size
                     scene.onPat = onPat
+                    scene.onHairPulled = onHairPulled
                     scene.apply(theme: theme, state: state, growth: growth)
                 }
                 .onChange(of: geo.size) { _, newSize in

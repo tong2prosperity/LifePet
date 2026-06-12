@@ -37,6 +37,7 @@ extension HealthDataService {
         let bpm = HKUnit.count().unitDivided(by: .minute())
         await collectAvg(.restingHeartRate, unit: bpm, start: start, anchor: today) { d, v in mutate(d) { $0.restingHR = v } }
         await collectAvg(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: start, anchor: today) { d, v in mutate(d) { $0.hrv = v } }
+        await collectAvg(.oxygenSaturation, unit: .percent(), start: start, anchor: today) { d, v in mutate(d) { $0.oxygenSaturation = v } }
         await collectHeartRate(start: start, anchor: today) { d, avg, lo, hi in
             mutate(d) { $0.heartRateAvg = avg; $0.heartRateMin = lo; $0.heartRateMax = hi }
         }
@@ -50,6 +51,42 @@ extension HealthDataService {
 
         LPLog.healthKit.notice("History backfill: \(byDay.count, privacy: .public) day buckets over \(days, privacy: .public)d")
         return byDay.values.sorted { $0.date < $1.date }
+    }
+
+    /// Read the last `days` of completed `HKWorkout`s as per-workout detail for
+    /// the 运动记录 card (type / time range / duration / energy / distance →
+    /// pace). Separate from the live `postWorkouts` delta path, which only
+    /// surfaces the *latest* workout for the 发芽 flow.
+    func fetchWorkoutHistory(days: Int = 35) async -> [WorkoutValues] {
+        guard authState == .granted, HKHealthStore.isHealthDataAvailable() else { return [] }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let start = cal.date(byAdding: .day, value: -days, to: today) else { return [] }
+        let predicate = HKSamplePredicate.workout(
+            HKQuery.predicateForSamples(withStart: start, end: nil))
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [predicate],
+            sortDescriptors: [SortDescriptor(\.startDate)])
+        do {
+            let workouts = try await descriptor.result(for: store)
+            let energyType = HKQuantityType(.activeEnergyBurned)
+            let distanceType = HKQuantityType(.distanceWalkingRunning)
+            let out: [WorkoutValues] = workouts.map { w in
+                let kcal = w.statistics(for: energyType)?
+                    .sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
+                let dist = w.statistics(for: distanceType)?
+                    .sumQuantity()?.doubleValue(for: .meter()) ?? 0
+                return WorkoutValues(
+                    id: w.uuid, kind: Self.bucket(w.workoutActivityType),
+                    start: w.startDate, end: w.endDate, duration: w.duration,
+                    energyKcal: kcal, distanceMeters: dist)
+            }
+            LPLog.workout.notice("Workout history: \(out.count, privacy: .public) over \(days, privacy: .public)d")
+            return out
+        } catch {
+            LPLog.workout.error("fetchWorkoutHistory: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
     }
 
     // MARK: - Collection helpers

@@ -9,8 +9,10 @@ import SwiftUI
 //
 // Data in: a `PiboTheme` (scene backdrop + head item), a `PiboGrowthStage`
 // (魔丸 「?」卷芽 ⇄ 发芽带叶), and a `PiboActivityState` (drives Pibo's
-// face/posture). Touches on Pibo call `onPat`; the SwiftUI layer decides how
-// Pibo reacts (the spec's caps live in `PetStateStore.pat()`).
+// face/posture). Touches are region-routed: a tap on the body calls `onPat`,
+// a drag on the head 毛 bends it and fires `onHairPulled` on release — the
+// SwiftUI layer decides how Pibo reacts (the spec's caps live in
+// `PetStateStore.pat()`; the pull is 拔毛 when the window is open).
 //
 // Node tree (z back→front): backdrop(sky → ground) → pibo(shadow, body, eyes,
 // blush, head 毛) → overhead 黑洞 → fx (Zzz / sparkles / seeds). A
@@ -30,8 +32,12 @@ final class PiboStageScene: SKScene {
     private(set) var theme: PiboTheme = .sprout
     private(set) var activityState: PiboActivityState = .idle
     private(set) var growth: PiboGrowthStage = .mystery
-    /// Fired on a tap that lands on Pibo.
+    /// Fired on a tap that lands on Pibo's body (拍一拍).
     var onPat: (() -> Void)?
+    /// Fired when the head 毛 is dragged past the pull threshold and released —
+    /// the 拔毛 gesture. The scene plays the local snap-back; the SwiftUI layer
+    /// decides what the pull *means* (collect the seed / an annoyed turn-away).
+    var onHairPulled: (() -> Void)?
 
     // — Nodes —
     private let backdrop = SKNode()      // sky + ground
@@ -232,18 +238,108 @@ final class PiboStageScene: SKScene {
         headNode.run(.sequence([.rotate(byAngle: 0.2, duration: 0.08), .rotate(byAngle: -0.2, duration: 0.12)]))
     }
 
-    // MARK: Touch → pat
+    // MARK: Touch → 拍一拍 (body) / 拖毛 (hair)
 
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard built, !closeupActive, let t = touches.first else { return }
-        let p = t.location(in: self)
-        // Generous hit area around Pibo.
+    /// Which sprite region a scene point lands in. The 毛 wins where it overlaps
+    /// the body (it grows out of the body top), and its box is padded out to at
+    /// least 44pt per side (HIG minimum — the 桃花枝 art is only ~38pt wide).
+    private enum HitRegion { case hair, body, none }
+
+    private func hitRegion(at p: CGPoint) -> HitRegion {
+        if !headNode.isHidden {
+            // `headNode.frame` is in pibo's coords (its parent) and already
+            // accounts for the idle rotation / any in-flight scale.
+            let local = convert(p, to: pibo)
+            let f = headNode.frame
+            let padX = max(12, (44 - f.width) / 2)
+            let padY = max(12, (44 - f.height) / 2)
+            if f.insetBy(dx: -padX, dy: -padY).contains(local) { return .hair }
+        }
+        // Generous circle around the body (the prior whole-Pibo hit area).
         let dx = p.x - pibo.position.x
         let dy = p.y - (pibo.position.y + bodyHeight * 0.3)
-        if dx * dx + dy * dy < pow(bodyWidth * 0.8, 2) {
+        if dx * dx + dy * dy < pow(bodyWidth * 0.8, 2) { return .body }
+        return .none
+    }
+
+    // — 拖毛 drag state —
+    private var hairTouch: UITouch?
+    private var hairDragOrigin: CGPoint = .zero
+    /// Past this pull distance a release counts as a real 拔 (vs a poke).
+    private static let hairPullThreshold: CGFloat = 30
+
+    /// Asymptotic rubber-band: approaches ±`limit` as |v| grows, so the 毛
+    /// resists harder the further it's dragged and can never over-rotate.
+    private static func rubberBand(_ v: CGFloat, limit: CGFloat) -> CGFloat {
+        limit * v / (abs(v) + limit)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard built, !closeupActive, hairTouch == nil, let t = touches.first else { return }
+        let p = t.location(in: self)
+        switch hitRegion(at: p) {
+        case .hair:
+            hairTouch = t
+            hairDragOrigin = p
+            headNode.removeAction(forKey: "headIdle")
+            headNode.removeAction(forKey: "hairSettle")
+        case .body:
             bouncePibo()
             onPat?()
+        case .none:
+            break
         }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let t = hairTouch, touches.contains(t) else { return }
+        let p = t.location(in: self)
+        // Bend toward the finger with rubber-band resistance; pulling upward
+        // also stretches the 毛 a little, like it's really being tugged.
+        let dx = p.x - hairDragOrigin.x
+        let up = max(0, p.y - hairDragOrigin.y)
+        headNode.zRotation = -0.55 * Self.rubberBand(dx, limit: 110) / 110
+        headNode.yScale = 1 + 0.28 * Self.rubberBand(up, limit: 130) / 130
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let t = hairTouch, touches.contains(t) else { return }
+        let p = t.location(in: self)
+        let pull = hypot(p.x - hairDragOrigin.x, p.y - hairDragOrigin.y)
+        finishHairDrag(pulled: pull > Self.hairPullThreshold)
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        // System interruption (call banner, app switcher) — release without a pull.
+        guard let t = hairTouch, touches.contains(t) else { return }
+        finishHairDrag(pulled: false)
+    }
+
+    /// Snap the 毛 back — a springy overshoot when it was really pulled, a tiny
+    /// acknowledging wiggle for a mere poke — then resume the idle sway.
+    private func finishHairDrag(pulled: Bool) {
+        hairTouch = nil
+        let releaseAngle = headNode.zRotation
+        let settle: SKAction
+        if pulled {
+            emitSparkles(at: CGPoint(x: pibo.position.x + headNode.position.x,
+                                     y: pibo.position.y + headNode.position.y), count: 10)
+            settle = .sequence([
+                .group([.scaleY(to: 1, duration: 0.10),
+                        .rotate(toAngle: -releaseAngle * 0.5, duration: 0.10)]),
+                .rotate(toAngle: releaseAngle * 0.22, duration: 0.10),
+                .rotate(toAngle: 0, duration: 0.10),
+            ])
+        } else {
+            settle = .sequence([
+                .group([.scaleY(to: 1, duration: 0.12), .rotate(toAngle: 0, duration: 0.12)]),
+                .rotate(byAngle: 0.08, duration: 0.08),
+                .rotate(byAngle: -0.08, duration: 0.10),
+            ])
+        }
+        let resumeIdle = SKAction.run { [weak self] in self?.startHeadIdle() }
+        headNode.run(.sequence([settle, resumeIdle]), withKey: "hairSettle")
+        if pulled { onHairPulled?() }
     }
 
     // MARK: - Build

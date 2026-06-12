@@ -22,6 +22,8 @@ enum HealthEvent: Sendable, Equatable {
     case hrv(Double)
     /// Latest resting HR, bpm. Slow-changing baseline.
     case restingHR(Double)
+    /// Latest blood-oxygen (SpO2) reading as a fraction 0–1 (HK `.percent()`).
+    case oxygen(Double)
     /// Last-night sleep totals (the watch's interpretation, not raw stages).
     /// `start` is the earliest `asleep*` sample's startDate in the window —
     /// used by the home screen to label the card "昨 23:30".

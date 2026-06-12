@@ -11,6 +11,7 @@ enum HealthMetric: String, CaseIterable, Sendable {
     case heartRate         // 心情 (stability proxy)
     case hrv               // 心情 (SDNN)
     case restingHR         // 心情 baseline
+    case oxygen            // 体征 血氧 (SpO2)
     case sleep             // 精力
     case mindful           // 心情 supplement (+15)
     case workout           // auto-tick suggest cards
@@ -27,6 +28,7 @@ enum HealthMetric: String, CaseIterable, Sendable {
         case .heartRate:       return HKQuantityType(.heartRate)
         case .hrv:             return HKQuantityType(.heartRateVariabilitySDNN)
         case .restingHR:       return HKQuantityType(.restingHeartRate)
+        case .oxygen:          return HKQuantityType(.oxygenSaturation)
         case .sleep:           return HKCategoryType(.sleepAnalysis)
         case .mindful:         return HKCategoryType(.mindfulSession)
         case .workout:         return HKWorkoutType.workoutType()

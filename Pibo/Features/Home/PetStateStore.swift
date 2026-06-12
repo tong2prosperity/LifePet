@@ -171,6 +171,8 @@ private struct RawMetrics {
     /// samples exist yet.
     var sleepStart: Date? = nil
     var mindfulMinutes: Int = 0
+    /// Latest blood-oxygen (SpO2) reading as a fraction 0–1.
+    var oxygen: Double = 0
 }
 
 // MARK: - Store
@@ -345,6 +347,8 @@ final class PetStateStore {
     var rawHeartRate: Double { raw.heartRate }
     var rawHRV: Double { raw.hrv }
     var rawRestingHR: Double { raw.restingHR }
+    /// Latest blood-oxygen (SpO2) as a fraction 0–1 (0 when none recorded).
+    var rawOxygen: Double { raw.oxygen }
     var rawSleepHours: Double { raw.sleepTotal / 3600 }
     var rawSleepDeepHours: Double { raw.sleepDeep / 3600 }
     var rawSleepREMHours: Double { raw.sleepREM / 3600 }
@@ -391,9 +395,9 @@ final class PetStateStore {
     /// fire on user-confirmed feeds, not on every silent stat update.
     var feedToken: UUID? = nil
     /// EndDate of the latest workout we've ingested (HK or otherwise).
-    /// `SpriteCatalog.idle` uses it to switch the pet to a `run` animation
-    /// when the user has just finished exercising — overrides the time-of-day
-    /// walk/lying mapping for `.normal`. Set in `handleNewWorkout`, cleared on
+    /// Marks the "刚刚运动" window — consumers react to a just-finished workout
+    /// (e.g. the 发芽 energy-collection flow / ACTIVE state). Set in
+    /// `handleNewWorkout`, cleared on
     /// `reset()`. Survives only in-memory; on cold launch the workout
     /// reconciliation pass replays any sample within the last 36h, so the
     /// "刚刚运动" window naturally re-establishes itself if it's still active.
@@ -1105,6 +1109,9 @@ final class PetStateStore {
         case .restingHR(let rhr):
             raw.restingHR = rhr
             LPLog.petState.debug("ingest restingHR=\(rhr, privacy: .public)")
+        case .oxygen(let frac):
+            raw.oxygen = frac
+            LPLog.petState.debug("ingest oxygen=\(Int(frac * 100), privacy: .public)%")
         case .sleep(let total, let d, let r, let start):
             raw.sleepTotal = total
             raw.sleepDeep = d

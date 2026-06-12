@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import Observation
 import QuartzCore
+import UIKit
 
 /// Drives the 上滑二楼 pull. Owned by `HomeView` for its lifetime but read **only**
 /// by `FloorContainer`, so mutating `progress` during a drag re-renders just the
@@ -85,6 +86,7 @@ enum FloorAnim {
 /// (see `PetStateStore+Mowan`).
 struct HomeView: View {
     @Environment(PetStateStore.self) private var store
+    @Environment(HealthHistoryStore.self) private var history
 
     @State private var speech: PiboSpeechLine? = nil
     @State private var speechClear: Task<Void, Never>? = nil
@@ -125,6 +127,7 @@ struct HomeView: View {
                         state: store.activityState,
                         growth: store.growthStage,
                         onPat: handlePat,
+                        onHairPulled: handleHairPull,
                         energyGainToken: energyToken,
                         pluckToken: pluckToken,
                         turnAwayToken: turnAwayToken,
@@ -137,7 +140,7 @@ struct HomeView: View {
                 chrome: { chromeContent },
                 panel: { secondFloorPanel },
                 content: {
-                    PiboDashboardView()
+                    PiboHistoryView()
                         .environment(store)
                         // ⌄ back to the home floor (Figma plant frames) — also
                         // the accessible close path (the drag isn't reachable
@@ -379,6 +382,19 @@ struct HomeView: View {
         if let line = response.line { show(line) }
     }
 
+    /// 拖毛 released past the pull threshold (scene's `onHairPulled`). Inside
+    /// the 22:00–02:00 window this IS the 拔毛 collection; outside it Pibo just
+    /// hates having its 毛 yanked and turns away — no speech, doesn't touch the
+    /// pat caps.
+    private func handleHairPull() {
+        LPHaptics.tap()
+        if store.pluckAvailable {
+            doPluck()
+        } else {
+            turnAwayToken = UUID()
+        }
+    }
+
     // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)
 
     /// Workout detected (app open / push while foregrounded): play the 发芽
@@ -438,11 +454,20 @@ struct HomeView: View {
         show(PiboSpeechLine(text: grade.piboLines.randomElement() ?? "...给...你..."))
     }
 
-    private func handlePhotoSaved() {
+    private func handlePhotoSaved(_ image: UIImage?) {
         // 拍照 = 认知能量. Nudge the head 毛 + let Pibo react (spec §4.3).
         energyToken = UUID()
         if Bool.random() {
             show(PiboSpeechLine(text: PiboCameraView.genericComments.randomElement() ?? "...颜色...记..."))
+        }
+        // Persist a background-removed (抠图) copy as a 今日记录 food photo so it
+        // lands on the 历史数据页 (home spec §4). Heavy Vision work runs off-main.
+        guard let image else { return }
+        let capturedAt = Date()
+        Task {
+            let png = await Task.detached { SubjectCutout.cutoutPNG(image) }.value
+            guard let png else { return }
+            history.addFoodPhoto(pngData: png, capturedAt: capturedAt)
         }
     }
 
@@ -521,12 +546,18 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
     /// Whether the in-flight drag is allowed to move the floor. Armed only when a
     /// pull starts on the bottom control band (or the floor is already open).
     @State private var dragActive = false
+    /// Mirrors "a drag is being tracked" via GestureState, which the system
+    /// resets even when the gesture is *cancelled* (interruption, mask change)
+    /// — the one case `onEnded` never reports. `dragActive` outliving this
+    /// reset means the drag died mid-flight and the floor must self-settle.
+    @GestureState private var dragTracking = false
 
-    /// A pull may *open* the 二楼 only when it starts below this fraction of the
-    /// screen height — i.e. on the bottom control cluster (露珠相机 circle + grab
-    /// chevron), not from Pibo or the header. (Computed, not stored: `FloorContainer`
-    /// is generic, and Swift forbids static stored properties in generic types.)
-    private static var openDragZoneTop: CGFloat { 0.72 }
+    /// The dome grab band pinned to the very bottom — the only place a pull can
+    /// *open* the 二楼. Sized to stay clear of the 露珠相机 button (its bottom
+    /// edge sits 96pt above the safe-area bottom: 60pt spacer + 28pt chevron +
+    /// `LP.Spacing.s`). (Computed, not stored: `FloorContainer` is generic, and
+    /// Swift forbids static stored properties in generic types.)
+    private static var grabBandHeight: CGFloat { 88 }
 
     var body: some View {
         GeometryReader { geo in
@@ -546,6 +577,20 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
                     .opacity(cF)
                     .allowsHitTesting(p < 0.08)
 
+                // 抓手区 — the bottom dome below the 露珠相机. While the floor is
+                // closed this band carries the *only* pull-up gesture (see the
+                // container gesture's mask below), and a tap anywhere on it opens
+                // the 二楼. It sits above the chrome so a drag starting exactly on
+                // the ʌ chevron isn't eaten by the button (which stays underneath
+                // as the VoiceOver path).
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: open)
+                    .gesture(drag(height: h, fromBand: true))
+                    .frame(height: Self.grabBandHeight)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(p < 0.08)
+
                 // 二楼 surface: domed panel, rises with the finger, fully opaque.
                 panel
                     .offset(y: (1 - p) * h)
@@ -559,7 +604,18 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
                     .allowsHitTesting(p > 0.9)
             }
             .contentShape(Rectangle())
-            .gesture(drag(height: h))
+            // While the floor is closed this container-level gesture is masked
+            // OFF (`.subviews`) — a full-screen recognizer would claim (and
+            // cancel) any >12pt touch stream, killing the SpriteKit stage's 拖毛
+            // drag. The grab band above carries the open gesture instead. Open /
+            // settling: full-screen again, so a drag-down anywhere closes and a
+            // mid-flight panel can be caught like a sheet. `dragActive` MUST keep
+            // the mask at `.all` for the whole drag: a close pull crossing below
+            // p = 0.5 would otherwise flip the mask mid-gesture and the system
+            // would cancel the drag on the spot — no onEnded, no settle, floor
+            // stranded half-open with every control unreachable.
+            .gesture(drag(height: h, fromBand: false),
+                     including: dragActive || p > 0.5 || floor.isSettling ? .all : .subviews)
         }
         // Pibo 下半身 crown — a full-screen overlay that *actually* ignores the safe
         // area (the earlier per-layer `.ignoresSafeArea` inside the GeometryReader
@@ -582,6 +638,16 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
         // never strands half-open with the chrome faded and unreachable.
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active, dragActive else { return }
+            dragBase = nil
+            dragActive = false
+            settleAfterInterruption()
+        }
+        // Same guarantee for any *in-app* cancellation: GestureState resets when
+        // the gesture ends for ANY reason. A normal release clears `dragActive`
+        // in `onEnded` first, so this only fires when the drag was cancelled —
+        // then the floor must settle itself or it strands half-open.
+        .onChange(of: dragTracking) { _, tracking in
+            guard !tracking, dragActive else { return }
             dragBase = nil
             dragActive = false
             settleAfterInterruption()
@@ -629,20 +695,29 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
         return 1 - t * t * (3 - 2 * t)
     }
 
+    /// Tap on the grab band — same choreography as the chevron's `openDashboard`
+    /// up in `HomeView` (the band covers the chevron button, so taps land here).
+    private func open() {
+        LPHaptics.tap()
+        floor.settle(to: 1) { onCovered() }
+        withAnimation(FloorAnim.feetIn.delay(FloorAnim.feetDelay)) { floor.feetShown = true }
+    }
+
     /// Finger-tracking pull; snaps to the nearer floor (or follows a flick) on
-    /// release. `minimumDistance` lets taps reach Pibo (拍一拍) and 二楼 controls.
+    /// release. `minimumDistance` lets taps reach the band's tap-to-open and the
+    /// 二楼 controls.
     ///
-    /// Gating: a pull is *armed* if it starts on the bottom control band
-    /// (`openDragZoneTop`), the floor is already open, **or a settle spring is
-    /// mid-flight** (so the panel can be caught anywhere, like a sheet) — an
-    /// up-swipe on Pibo / the header does nothing, while a drag-down anywhere
-    /// still closes the 二楼. An un-armed drag is ignored end-to-end.
-    private func drag(height h: CGFloat) -> some Gesture {
+    /// Two attachment points share this builder: the bottom grab band
+    /// (`fromBand` — always armed, only exists while the floor is closed) and
+    /// the container itself (armed only when the floor is open **or a settle
+    /// spring is mid-flight**, so the panel can be caught anywhere like a sheet
+    /// and a drag-down anywhere closes). An un-armed drag is ignored end-to-end.
+    private func drag(height h: CGFloat, fromBand: Bool) -> some Gesture {
         DragGesture(minimumDistance: 12)
+            .updating($dragTracking) { _, tracking, _ in tracking = true }
             .onChanged { v in
                 if !dragActive {
-                    let fromHandle = v.startLocation.y >= h * Self.openDragZoneTop
-                    guard floor.progress > 0.5 || fromHandle || floor.isSettling else { return }
+                    guard fromBand || floor.progress > 0.5 || floor.isSettling else { return }
                     floor.beginInteraction()   // catch the spring where it visually is
                     onRevealing()              // the stage may show under finger control
                     dragBase = floor.progress  // == on-screen position (model-driven)

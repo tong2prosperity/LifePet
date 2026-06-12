@@ -15,7 +15,10 @@ import UIKit
 /// the whole flow still demos.
 struct PiboCameraView: View {
     @Environment(\.dismiss) private var dismiss
-    var onPhotoSaved: () -> Void = {}
+    /// Called on 保存 with the captured frame (nil on a camera-less device). The
+    /// home persists a background-removed (抠图) copy as a 今日记录 food photo and
+    /// raises 认知能量.
+    var onPhotoSaved: (UIImage?) -> Void = { _ in }
 
     @State private var camera = CameraController()
     private enum Stage { case viewfinder, preview }
@@ -287,7 +290,7 @@ struct PiboCameraView: View {
             PiboPhotoStore.saveLatest(shot)
             lastThumb = shot
         }
-        onPhotoSaved()
+        onPhotoSaved(shot)
         dismiss()
     }
 

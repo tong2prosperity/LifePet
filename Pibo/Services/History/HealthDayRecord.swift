@@ -8,7 +8,7 @@ import SwiftData
 /// metrics we can read from HealthKit — not just what any one screen shows — so
 /// the 上滑数据二楼 (and future views) can render history offline without
 /// re-querying HK. The UI then reads only the subset it displays (see the
-/// `displayed-subset` computed helpers + `PiboDashboardView`).
+/// `displayed-subset` computed helpers + `PiboHistoryView`).
 ///
 /// Today's row is kept in sync from the live `RawMetrics` on every reconcile;
 /// past rows are backfilled once by `HealthHistoryFetcher` (daily-bucketed HK
@@ -32,6 +32,7 @@ final class HealthDayRecord {
     var heartRateMin: Double
     var heartRateMax: Double
     var hrv: Double                   // SDNN ms, daily average
+    var oxygenSaturation: Double      // SpO2 fraction 0–1, daily average
 
     // — Sleep (last night, attributed to this wake-day) —
     var sleepTotal: TimeInterval
@@ -55,7 +56,7 @@ final class HealthDayRecord {
          steps: Int = 0, activeEnergy: Double = 0, exerciseMinutes: Int = 0,
          standMinutes: Int = 0, distanceMeters: Double = 0, flightsClimbed: Int = 0,
          restingHR: Double = 0, heartRateAvg: Double = 0, heartRateMin: Double = 0,
-         heartRateMax: Double = 0, hrv: Double = 0,
+         heartRateMax: Double = 0, hrv: Double = 0, oxygenSaturation: Double = 0,
          sleepTotal: TimeInterval = 0, sleepDeep: TimeInterval = 0, sleepREM: TimeInterval = 0,
          sleepCore: TimeInterval = 0, sleepAwake: TimeInterval = 0,
          sleepStart: Date? = nil, sleepEnd: Date? = nil,
@@ -73,6 +74,7 @@ final class HealthDayRecord {
         self.heartRateMin = heartRateMin
         self.heartRateMax = heartRateMax
         self.hrv = hrv
+        self.oxygenSaturation = oxygenSaturation
         self.sleepTotal = sleepTotal
         self.sleepDeep = sleepDeep
         self.sleepREM = sleepREM

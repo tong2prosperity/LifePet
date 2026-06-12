@@ -5,7 +5,7 @@
 `Pibo.xcodeproj` contains `Pibo` and `Pibo Watch App` schemes. The active product is the iOS app in `Pibo/`; treat the watch target as legacy unless doing cleanup.
 
 - `Pibo/App/`: app entry point, root view, environment wiring.
-- `Pibo/Features/`: SwiftUI screens such as `Home` (Pibo 活动区 / 拍一拍 / 拔毛 / 上滑 Dashboard / 拍照), `Catalog`, `Together`, `Onboarding`, `Pet`.
+- `Pibo/Features/`: SwiftUI screens such as `Home` (Pibo 活动区 / 拍一拍 / 拔毛 / 上滑数据二楼 / 拍照), `History` (历史数据页 — the 二楼 content, `PiboHistoryView`), `Onboarding`, `Pet`. (`Catalog` / `Together` were removed 2026-06-13 — the new design no longer depends on them.)
 - `Pibo/Services/`: HealthKit, history, identity, storage, logging, playback, and app services.
 - `Shared/DesignSystem/`: LP tokens, reusable components, and modifiers. Use these before adding one-off UI styles.
 - `Shared/Models/` and `Shared/Connectivity/`: older watch-streaming models; avoid extending them for new iOS work.

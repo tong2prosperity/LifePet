@@ -201,6 +201,7 @@ final class HealthDataService {
         case .heartRate:       await postLatest(.heartRate,        unit: .count().unitDivided(by: .minute()), as: HealthEvent.heartRate)
         case .hrv:             await postLatest(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), as: HealthEvent.hrv)
         case .restingHR:       await postLatest(.restingHeartRate, unit: .count().unitDivided(by: .minute()), as: HealthEvent.restingHR)
+        case .oxygen:          await postLatest(.oxygenSaturation, unit: .percent(), as: HealthEvent.oxygen)
         case .sleep:           await postSleep()
         case .mindful:         await postMindful()
         case .workout:         await postWorkouts()
@@ -571,7 +572,7 @@ final class HealthDataService {
 
     /// Coarse bucketing for the home screen. We don't need fine-grained
     /// activity types — just enough to flip a matching "建议: 跑步" card to done.
-    private static func bucket(_ type: HKWorkoutActivityType) -> HealthEvent.WorkoutKind {
+    static func bucket(_ type: HKWorkoutActivityType) -> HealthEvent.WorkoutKind {
         switch type {
         case .running:                                  return .run
         case .walking, .hiking:                         return .walk
