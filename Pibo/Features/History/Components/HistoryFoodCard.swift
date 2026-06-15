@@ -41,6 +41,14 @@ struct HistoryFoodCard: View {
                 .padding(.leading, LP.Spacing.s)
             photo(food)
                 .rotationEffect(.degrees(tilt))
+            if let label = food.subjectLabel {
+                // 识图 caption — polaroid-style note under the shot.
+                Text(label)
+                    .lpText(LP.Typography.c1Medium)
+                    .foregroundStyle(LP.Content.secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity)
+            }
         }
         .frame(width: 120)
     }

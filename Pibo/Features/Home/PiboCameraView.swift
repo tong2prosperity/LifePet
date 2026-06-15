@@ -15,10 +15,11 @@ import UIKit
 /// the whole flow still demos.
 struct PiboCameraView: View {
     @Environment(\.dismiss) private var dismiss
-    /// Called on 保存 with the captured frame (nil on a camera-less device). The
-    /// home persists a background-removed (抠图) copy as a 今日记录 food photo and
-    /// raises 认知能量.
-    var onPhotoSaved: (UIImage?) -> Void = { _ in }
+    /// Called on 保存 with the captured frame (nil on a camera-less device) and
+    /// the 识图 subject label (nil when classification found nothing). The home
+    /// persists a background-removed (抠图) + 镶边框 copy as a 今日记录 food
+    /// photo and raises 认知能量.
+    var onPhotoSaved: (UIImage?, String?) -> Void = { _, _ in }
 
     @State private var camera = CameraController()
     private enum Stage { case viewfinder, preview }
@@ -29,6 +30,8 @@ struct PiboCameraView: View {
     @State private var flash = false
     @State private var aspect: CaptureAspect = .fourThree
     @State private var tilt: Double = 0
+    /// 识图 — fills in asynchronously after the shutter; shown on the polaroid.
+    @State private var subjectLabel: String? = nil
 
     var body: some View {
         ZStack {
@@ -212,6 +215,17 @@ struct PiboCameraView: View {
                 Text(timestampLabel)
                     .lpText(LP.Typography.c1Regular)
                     .foregroundStyle(LP.Content.secondary)
+                Spacer(minLength: 0)
+                if let subjectLabel {
+                    // 识图 tag — best-effort, so it reads as Pibo's guess.
+                    Text(subjectLabel)
+                        .lpText(LP.Typography.c1Medium)
+                        .foregroundStyle(LP.Content.secondary)
+                        .padding(.horizontal, LP.Spacing.s)
+                        .padding(.vertical, LP.Spacing.xs)
+                        .background(Capsule().fill(.white.opacity(0.6)))
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                }
             }
         }
         .padding(LP.Spacing.l)
@@ -276,11 +290,26 @@ struct PiboCameraView: View {
             shot = img
             withAnimation(.easeOut(duration: 0.18)) { flash = false }
             withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) { stage = .preview }
+            classify(img)
+        }
+    }
+
+    /// 识图 — runs off-main after the shutter; the tag pops onto the polaroid
+    /// once Vision answers. Best-effort: a nil result simply shows no tag.
+    private func classify(_ image: UIImage?) {
+        subjectLabel = nil
+        guard let image else { return }
+        Task {
+            let label = await Task.detached { SubjectClassifier.classify(image) }.value
+            // Drop a stale answer if the user already retook the shot.
+            guard stage == .preview, shot === image else { return }
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.75)) { subjectLabel = label }
         }
     }
 
     private func retake() {
         shot = nil
+        subjectLabel = nil
         withAnimation(.spring(response: 0.34, dampingFraction: 0.85)) { stage = .viewfinder }
     }
 
@@ -290,7 +319,7 @@ struct PiboCameraView: View {
             PiboPhotoStore.saveLatest(shot)
             lastThumb = shot
         }
-        onPhotoSaved(shot)
+        onPhotoSaved(shot, subjectLabel)
         dismiss()
     }
 

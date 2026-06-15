@@ -1,12 +1,6 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "" : {
-
-    },
-    " 🕊️" : {
-
-    },
     " 只" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -92,9 +86,6 @@
         }
       }
     },
-    "— via Pibo" : {
-
-    },
     "— 上 香 —" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -149,15 +140,6 @@
     "?" : {
 
     },
-    "???" : {
-
-    },
-    "." : {
-
-    },
-    "· PIBO ·" : {
-
-    },
     "· 今天 ·" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -174,9 +156,6 @@
           }
         }
       }
-    },
-    "‹" : {
-
     },
     "《纪念曲 · 圆满》" : {
       "extractionState" : "manual",
@@ -470,9 +449,6 @@
     "%lld" : {
 
     },
-    "%lld%%" : {
-
-    },
     "→ 心绪回声（后台）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -626,9 +602,6 @@
         }
       }
     },
-    "♪" : {
-
-    },
     "⚡ 手表自动" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -696,9 +669,6 @@
           }
         }
       }
-    },
-    "✨" : {
-
     },
     "❤️ 心绪回声" : {
       "extractionState" : "manual",
@@ -784,9 +754,6 @@
           }
         }
       }
-    },
-    "0:15" : {
-
     },
     "3 次" : {
       "extractionState" : "manual",
@@ -1094,12 +1061,6 @@
         }
       }
     },
-    "D%@" : {
-
-    },
-    "D%lld" : {
-
-    },
     "Day 3 解锁" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1202,9 +1163,6 @@
         }
       }
     },
-    "LIVE" : {
-
-    },
     "NOCT 只活了 14 天。它从没见过早晨的太阳——你总在凌晨才睡，醒来直接坐到电脑前。它等了很久，你始终没动。慢慢地，它懒得再动。被你熬死的第 3 只。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1221,9 +1179,6 @@
           }
         }
       }
-    },
-    "Pibo" : {
-
     },
     "PIBO" : {
 
@@ -1296,12 +1251,6 @@
         }
       }
     },
-    "pibo.app · via FISH" : {
-
-    },
-    "RARE" : {
-
-    },
     "SICK 突变" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1335,12 +1284,6 @@
           }
         }
       }
-    },
-    "UNLOCK" : {
-
-    },
-    "YOU" : {
-
     },
     "一起" : {
       "extractionState" : "manual",

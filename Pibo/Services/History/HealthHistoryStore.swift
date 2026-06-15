@@ -10,6 +10,7 @@ import UIKit
 struct HealthDayValues: Sendable {
     var date: Date
     var steps = 0
+    var hourlySteps: [Int] = []
     var activeEnergy = 0.0
     var exerciseMinutes = 0
     var standMinutes = 0
@@ -28,6 +29,7 @@ struct HealthDayValues: Sendable {
     var sleepAwake: TimeInterval = 0
     var sleepStart: Date?
     var sleepEnd: Date?
+    var sleepSegments: [SleepSegmentValue] = []
     var mindfulMinutes = 0
     var workoutCount = 0
     var workoutMinutes = 0
@@ -118,6 +120,7 @@ final class HealthHistoryStore {
             context.insert(record)
         }
         record.steps = v.steps
+        record.hourlySteps = v.hourlySteps
         record.activeEnergy = v.activeEnergy
         record.exerciseMinutes = v.exerciseMinutes
         record.standMinutes = v.standMinutes
@@ -136,6 +139,7 @@ final class HealthHistoryStore {
         record.sleepAwake = v.sleepAwake
         record.sleepStart = v.sleepStart
         record.sleepEnd = v.sleepEnd
+        record.sleepSegments = v.sleepSegments
         record.mindfulMinutes = v.mindfulMinutes
         record.workoutCount = v.workoutCount
         record.workoutMinutes = v.workoutMinutes
@@ -197,8 +201,8 @@ final class HealthHistoryStore {
 
     /// Persist a freshly captured (and cut-out) food photo. Bumps `revision`.
     @discardableResult
-    func addFoodPhoto(pngData: Data, capturedAt: Date = .now) -> FoodPhoto {
-        let photo = FoodPhoto(capturedAt: capturedAt, pngData: pngData)
+    func addFoodPhoto(pngData: Data, capturedAt: Date = .now, subjectLabel: String? = nil) -> FoodPhoto {
+        let photo = FoodPhoto(capturedAt: capturedAt, pngData: pngData, subjectLabel: subjectLabel)
         context.insert(photo)
         try? context.save()
         revision += 1
@@ -226,6 +230,7 @@ final class HealthHistoryStore {
             upsertSilently(HealthDayValues(
                 date: day,
                 steps: steps,
+                hourlySteps: Self.seedHourlySteps(total: steps, seed: doy),
                 activeEnergy: Double(180 + (doy * 13) % 420),
                 exerciseMinutes: (doy * 5) % 65,
                 standMinutes: 120 + (doy % 8) * 30,   // ~2–5 stand-hours when /60
@@ -239,6 +244,7 @@ final class HealthHistoryStore {
                 sleepREM: sleepH * 3600 * 0.2,
                 sleepStart: sStart,
                 sleepEnd: sEnd,
+                sleepSegments: sStart.map { Self.seedSleepSegments(start: $0, hours: sleepH, seed: doy) } ?? [],
                 mindfulMinutes: doy % 3 == 0 ? 10 : 0,
                 workoutCount: (doy * 5) % 65 > 20 ? 1 : 0,
                 workoutMinutes: (doy * 5) % 65
@@ -252,8 +258,35 @@ final class HealthHistoryStore {
     /// so a store half-populated by an older build still gets the missing pieces.
     func seedSampleAllIfEmpty(days: Int = 35) {
         seedSampleHistoryIfEmpty(days: days)
+        upgradeSeededRows(days: days)
         seedSampleWorkoutsIfEmpty(days: days)
         seedSampleFoodIfEmpty()
+        upgradeSeededFood()
+    }
+
+    /// Dev-only: rows seeded by an older build predate `hourlySteps` /
+    /// `sleepSegments` — fill those in deterministically so the new visuals
+    /// demo without wiping the simulator container.
+    private func upgradeSeededRows(days: Int) {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        let rows = records(from: cal.date(byAdding: .day, value: -days, to: today) ?? today, to: today)
+        var changed = false
+        for r in rows {
+            let doy = cal.ordinality(of: .day, in: .year, for: r.date) ?? 0
+            if r.hourlySteps.isEmpty, r.steps > 0 {
+                r.hourlySteps = Self.seedHourlySteps(total: r.steps, seed: doy)
+                changed = true
+            }
+            if r.sleepSegments.isEmpty, r.sleepTotal > 0, let start = r.sleepStart {
+                r.sleepSegments = Self.seedSleepSegments(start: start, hours: r.sleepTotal / 3600, seed: doy)
+                changed = true
+            }
+        }
+        if changed {
+            try? context.save()
+            revision += 1
+        }
     }
 
     /// Dev-only: one or two synthetic workouts on active days so the 运动记录 card
@@ -286,22 +319,89 @@ final class HealthHistoryStore {
         ingestWorkouts(seeded)
     }
 
+    /// Seed photo specs — symbol, tint, hour, 识图 label. Shared by the fresh
+    /// seed and the upgrade pass that patches pre-label seeded rows.
+    private static let foodSeedSpecs: [(String, UIColor, Int, String)] = [
+        ("birthday.cake.fill", .systemBrown, 9, "蛋糕"),
+        ("cup.and.saucer.fill", .darkGray, 11, "咖啡"),
+        ("carrot.fill", .systemGreen, 13, "胡萝卜"),
+    ]
+
     /// Dev-only: a few cut-out-style food photos on *today* so the 今日记录 card
-    /// demos with content (SF Symbols rendered onto transparency).
+    /// demos with content (SF Symbols rendered onto transparency, stickerized
+    /// like real captures).
     private func seedSampleFoodIfEmpty() {
         let today = Calendar.current.startOfDay(for: .now)
         guard foodPhotos(on: today).isEmpty else { return }
-        let specs: [(String, UIColor, Int)] = [
-            ("birthday.cake.fill", .systemBrown, 9),
-            ("cup.and.saucer.fill", .darkGray, 11),
-            ("carrot.fill", .systemGreen, 13),
-        ]
         let cal = Calendar.current
-        for (symbol, color, hour) in specs {
+        for (symbol, color, hour, label) in Self.foodSeedSpecs {
             guard let data = Self.renderSymbolPNG(symbol, color: color) else { continue }
             let at = cal.date(bySettingHour: hour, minute: 33, second: 0, of: today) ?? today
-            addFoodPhoto(pngData: data, capturedAt: at)
+            addFoodPhoto(pngData: data, capturedAt: at, subjectLabel: label)
         }
+    }
+
+    /// Dev-only: re-stamp the seed-slot photos (hour + :33 capture times) every
+    /// launch so label/border treatment changes land on an already-seeded
+    /// container. Cheap (3 small renders) and only touches seed content — real
+    /// captures never sit on a seed slot.
+    private func upgradeSeededFood() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        var changed = false
+        for photo in foodPhotos(on: today) {
+            let hour = cal.component(.hour, from: photo.capturedAt)
+            let minute = cal.component(.minute, from: photo.capturedAt)
+            guard minute == 33,
+                  let spec = Self.foodSeedSpecs.first(where: { $0.2 == hour }) else { continue }
+            if let data = Self.renderSymbolPNG(spec.0, color: spec.1) {
+                photo.pngData = data
+            }
+            photo.subjectLabel = spec.3
+            photo.updatedAt = .now
+            changed = true
+        }
+        if changed {
+            try? context.save()
+            revision += 1
+        }
+    }
+
+    /// Deterministic hourly distribution of `total` steps: quiet nights, a
+    /// commute bump in the morning/evening, a lunch stroll — varied by `seed`.
+    private static func seedHourlySteps(total: Int, seed: Int) -> [Int] {
+        // Relative weight per hour 0–23.
+        let weights: [Double] = (0..<24).map { h in
+            switch h {
+            case 0..<7:   return 0.05
+            case 7..<10:  return 1.6 + Double((seed + h) % 3) * 0.5   // morning peak
+            case 12..<14: return 1.1 + Double((seed + h) % 2) * 0.4   // lunch
+            case 18..<21: return 1.8 + Double((seed + h) % 3) * 0.6   // evening peak
+            default:      return 0.5 + Double((seed + h) % 4) * 0.2
+            }
+        }
+        let sum = weights.reduce(0, +)
+        return weights.map { Int(Double(total) * $0 / sum) }
+    }
+
+    /// Deterministic stage segments for a seeded night: repeating 浅睡→深睡→浅睡→
+    /// 眼动 cycles (~90 min each) trimmed to the night's length.
+    private static func seedSleepSegments(start: Date, hours: Double, seed: Int) -> [SleepSegmentValue] {
+        let cycle: [(SleepStage, TimeInterval)] = [
+            (.core, 35 * 60), (.deep, 30 * 60), (.core, 15 * 60), (.rem, 12 * 60),
+        ]
+        var segments: [SleepSegmentValue] = []
+        var t = start
+        let end = start.addingTimeInterval(hours * 3600)
+        var i = seed % cycle.count
+        while t < end {
+            let (stage, base) = cycle[i % cycle.count]
+            let dur = min(base + Double((seed + i) % 5) * 120, end.timeIntervalSince(t))
+            segments.append(SleepSegmentValue(start: t, end: t.addingTimeInterval(dur), stage: stage))
+            t = t.addingTimeInterval(dur)
+            i += 1
+        }
+        return segments
     }
 
     private static func renderSymbolPNG(_ name: String, color: UIColor) -> Data? {
@@ -312,12 +412,14 @@ final class HealthHistoryStore {
         let fmt = UIGraphicsImageRendererFormat.default()
         fmt.opaque = false
         let renderer = UIGraphicsImageRenderer(size: size, format: fmt)
-        return renderer.image { _ in
+        let flat = renderer.image { _ in
             let r = CGRect(x: (size.width - img.size.width) / 2,
                            y: (size.height - img.size.height) / 2,
                            width: img.size.width, height: img.size.height)
             img.draw(in: r)
-        }.pngData()
+        }
+        // Same 镶嵌边框 treatment as real captures so the card demos faithfully.
+        return SubjectCutout.stickerize(flat, border: 7).pngData()
     }
     #endif
 }

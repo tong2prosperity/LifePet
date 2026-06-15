@@ -78,14 +78,24 @@ struct PiboHistoryView: View {
                 kcal: Int(day.activeEnergy.rounded()),
                 exerciseMinutes: day.exerciseMinutes,
                 standHours: day.standHours)
-            HistoryStepsCard(steps: day.steps, caption: AppLocalization.text(stepsCaption(day.steps)))
+            HistoryStepsCard(
+                steps: day.steps,
+                hourlySteps: day.hourlySteps,
+                isToday: day.isToday,
+                caption: AppLocalization.text(stepsCaption(day.steps)))
             HistorySleepCard(
                 totalSeconds: day.sleepTotal, deepSeconds: day.sleepDeep,
-                remSeconds: day.sleepREM, start: day.sleepStart, end: day.sleepEnd)
-            HistoryWorkoutsCard(workouts: day.workouts)
-            HistoryVitalsCard(
-                heartRate: day.heartRate, restingHR: day.restingHR,
-                hrv: day.hrv, oxygen: day.oxygen)
+                remSeconds: day.sleepREM, start: day.sleepStart, end: day.sleepEnd,
+                segments: day.sleepSegments)
+            // 没有运动就整卡不渲染；体征同理（全部缺数据才隐藏）。
+            if !day.workouts.isEmpty {
+                HistoryWorkoutsCard(workouts: day.workouts)
+            }
+            if day.heartRate > 0 || day.restingHR > 0 || day.hrv > 0 || day.oxygen > 0 {
+                HistoryVitalsCard(
+                    heartRate: day.heartRate, restingHR: day.restingHR,
+                    hrv: day.hrv, oxygen: day.oxygen)
+            }
             HistoryFoodCard(foods: day.foods)
         }
         .padding(.horizontal, LP.Spacing.xl)
@@ -102,11 +112,13 @@ struct PiboHistoryView: View {
         var exerciseMinutes: Int
         var standHours: Int
         var steps: Int
+        var hourlySteps: [Int]
         var sleepTotal: TimeInterval
         var sleepDeep: TimeInterval
         var sleepREM: TimeInterval
         var sleepStart: Date?
         var sleepEnd: Date?
+        var sleepSegments: [SleepSegmentValue]
         var heartRate: Double
         var restingHR: Double
         var hrv: Double
@@ -121,17 +133,22 @@ struct PiboHistoryView: View {
         if cal.isDateInToday(date) {
             let sleepH = store.rawSleepHours
             let start = store.rawSleepStart
+            // Hourly steps + sleep segments aren't in the live RawMetrics —
+            // read them off today's backfilled record.
+            let r = history.record(on: date)
             return HistoryDay(
                 date: date, isToday: true,
                 activeEnergy: store.rawActiveEnergy,
                 exerciseMinutes: store.rawExerciseMinutes,
                 standHours: Int((Double(store.rawStandMinutes) / 60).rounded()),
                 steps: store.rawSteps,
+                hourlySteps: r?.hourlySteps ?? [],
                 sleepTotal: sleepH * 3600,
                 sleepDeep: store.rawSleepDeepHours * 3600,
                 sleepREM: store.rawSleepREMHours * 3600,
                 sleepStart: start,
                 sleepEnd: start.map { $0.addingTimeInterval(sleepH * 3600) },
+                sleepSegments: r?.sleepSegments ?? [],
                 heartRate: store.rawHeartRate,
                 restingHR: store.rawRestingHR,
                 hrv: store.rawHRV,
@@ -145,11 +162,13 @@ struct PiboHistoryView: View {
             exerciseMinutes: r?.exerciseMinutes ?? 0,
             standHours: Int((Double(r?.standMinutes ?? 0) / 60).rounded()),
             steps: r?.steps ?? 0,
+            hourlySteps: r?.hourlySteps ?? [],
             sleepTotal: r?.sleepTotal ?? 0,
             sleepDeep: r?.sleepDeep ?? 0,
             sleepREM: r?.sleepREM ?? 0,
             sleepStart: r?.sleepStart,
             sleepEnd: r?.sleepEnd,
+            sleepSegments: r?.sleepSegments ?? [],
             heartRate: r?.heartRateAvg ?? 0,
             restingHR: r?.restingHR ?? 0,
             hrv: r?.hrv ?? 0,

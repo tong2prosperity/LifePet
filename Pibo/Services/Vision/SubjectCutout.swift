@@ -44,6 +44,60 @@ enum SubjectCutout {
         return scaled.pngData()
     }
 
+    /// The full 今日记录 treatment: cutout → downscale → 镶嵌白色贴纸边框 → PNG.
+    /// Border width scales with the final image so every record reads the same.
+    nonisolated static func stickerPNG(_ image: UIImage, maxDimension: CGFloat = 1024) -> Data? {
+        let lifted = cutout(image)
+        let scaled = downscale(lifted, maxDimension: maxDimension)
+        let border = max(8, min(scaled.size.width, scaled.size.height) * 0.035)
+        return stickerize(scaled, border: border).pngData()
+    }
+
+    /// 镶嵌边框 — draw a white sticker outline hugging the subject's silhouette
+    /// (the cutout's alpha stamped at 24 offsets around a circle of radius
+    /// `border`, subject composited on top), rimmed by a hairline grey die-cut
+    /// edge so the white border still reads on the card's white polaroid. When
+    /// the cutout failed upstream and the image is a full rectangle, this
+    /// degrades to a clean framed photo.
+    nonisolated static func stickerize(_ image: UIImage, border: CGFloat) -> UIImage {
+        guard border > 0, image.size.width > 0, image.size.height > 0 else { return image }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = image.scale
+        format.opaque = false
+
+        let white = silhouette(of: image, color: .white, format: format)
+        let rim = max(1.5, border * 0.15)
+        let grey = silhouette(of: image, color: UIColor(white: 0.78, alpha: 1), format: format)
+
+        let inset = border + rim
+        let padded = CGSize(width: image.size.width + inset * 2,
+                            height: image.size.height + inset * 2)
+        return UIGraphicsImageRenderer(size: padded, format: format).image { _ in
+            for step in 0..<24 {
+                let a = CGFloat(step) / 24 * .pi * 2
+                grey.draw(at: CGPoint(x: inset + cos(a) * (border + rim),
+                                      y: inset + sin(a) * (border + rim)))
+            }
+            for step in 0..<24 {
+                let a = CGFloat(step) / 24 * .pi * 2
+                white.draw(at: CGPoint(x: inset + cos(a) * border,
+                                       y: inset + sin(a) * border))
+            }
+            image.draw(at: CGPoint(x: inset, y: inset))
+        }
+    }
+
+    /// The image's alpha stamped in a flat color.
+    private nonisolated static func silhouette(of image: UIImage, color: UIColor,
+                                               format: UIGraphicsImageRendererFormat) -> UIImage {
+        let rect = CGRect(origin: .zero, size: image.size)
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { ctx in
+            color.setFill()
+            ctx.fill(rect)
+            image.draw(in: rect, blendMode: .destinationIn, alpha: 1)
+        }
+    }
+
     // MARK: - Helpers
 
     private nonisolated static func downscale(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
@@ -59,7 +113,8 @@ enum SubjectCutout {
         return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: target)) }
     }
 
-    private nonisolated static func cgOrientation(_ o: UIImage.Orientation) -> CGImagePropertyOrientation {
+    /// Shared with `SubjectClassifier` — both hand UIKit orientations to Vision.
+    nonisolated static func cgOrientation(_ o: UIImage.Orientation) -> CGImagePropertyOrientation {
         switch o {
         case .up:            return .up
         case .down:          return .down

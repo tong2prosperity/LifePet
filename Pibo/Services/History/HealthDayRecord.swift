@@ -1,6 +1,34 @@
 import Foundation
 import SwiftData
 
+/// Sleep stage of one night segment, persisted raw so the codable layout stays
+/// stable across refactors. Display mapping: 眼动 = rem, 浅睡 = core (incl. HK
+/// "unspecified"), 深睡 = deep.
+enum SleepStage: Int, Codable, Sendable {
+    case awake = 0
+    case rem = 1
+    case core = 2
+    case deep = 3
+}
+
+/// One contiguous sleep segment of a night (HK `sleepAnalysis` samples, adjacent
+/// same-stage samples merged). Feeds the 睡眠 card's cloud illustration: x = time
+/// within the night, y = stage band, cloud size = duration.
+struct SleepSegmentValue: Codable, Sendable, Equatable {
+    var start: Date
+    var end: Date
+    var stageRaw: Int
+
+    init(start: Date, end: Date, stage: SleepStage) {
+        self.start = start
+        self.end = end
+        self.stageRaw = stage.rawValue
+    }
+
+    var stage: SleepStage { SleepStage(rawValue: stageRaw) ?? .core }
+    var duration: TimeInterval { end.timeIntervalSince(start) }
+}
+
 /// One day's **complete** HealthKit-readable snapshot, persisted in-app via
 /// SwiftData. One row per day (`date` = `startOfDay`, unique).
 ///
@@ -20,6 +48,10 @@ final class HealthDayRecord {
 
     // — Activity (cumulative for the day) —
     var steps: Int
+    /// Per-hour step counts (index = hour 0–23, local calendar). Empty for rows
+    /// written before this field existed; the 今日脚步 grass falls back to the
+    /// day-total pattern then.
+    var hourlySteps: [Int] = []
     var activeEnergy: Double          // kcal
     var exerciseMinutes: Int
     var standMinutes: Int
@@ -42,6 +74,10 @@ final class HealthDayRecord {
     var sleepAwake: TimeInterval
     var sleepStart: Date?
     var sleepEnd: Date?
+    /// The night's stage segments in time order (adjacent same-stage merged).
+    /// Empty for rows written before this field existed; the 睡眠 card falls
+    /// back to total-derived clouds then.
+    var sleepSegments: [SleepSegmentValue] = []
 
     // — Mind / workouts —
     var mindfulMinutes: Int
@@ -53,17 +89,19 @@ final class HealthDayRecord {
     var updatedAt: Date
 
     init(date: Date,
-         steps: Int = 0, activeEnergy: Double = 0, exerciseMinutes: Int = 0,
+         steps: Int = 0, hourlySteps: [Int] = [], activeEnergy: Double = 0, exerciseMinutes: Int = 0,
          standMinutes: Int = 0, distanceMeters: Double = 0, flightsClimbed: Int = 0,
          restingHR: Double = 0, heartRateAvg: Double = 0, heartRateMin: Double = 0,
          heartRateMax: Double = 0, hrv: Double = 0, oxygenSaturation: Double = 0,
          sleepTotal: TimeInterval = 0, sleepDeep: TimeInterval = 0, sleepREM: TimeInterval = 0,
          sleepCore: TimeInterval = 0, sleepAwake: TimeInterval = 0,
-         sleepStart: Date? = nil, sleepEnd: Date? = nil,
+         sleepStart: Date? = nil, sleepEnd: Date? = nil, sleepSegments: [SleepSegmentValue] = [],
          mindfulMinutes: Int = 0, workoutCount: Int = 0, workoutMinutes: Int = 0,
          workoutEnergy: Double = 0, updatedAt: Date = .distantPast) {
         self.date = date
         self.steps = steps
+        self.hourlySteps = hourlySteps
+        self.sleepSegments = sleepSegments
         self.activeEnergy = activeEnergy
         self.exerciseMinutes = exerciseMinutes
         self.standMinutes = standMinutes

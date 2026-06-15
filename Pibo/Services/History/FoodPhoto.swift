@@ -17,13 +17,19 @@ final class FoodPhoto {
     /// Cut-out PNG (transparent background). Large enough to warrant external
     /// blob storage rather than inlining into the row.
     @Attribute(.externalStorage) var pngData: Data
+    /// 识图 result — best-effort display name of the photo's main subject
+    /// (`SubjectClassifier`, on-device). Nil when classification found nothing
+    /// or for photos saved before the field existed.
+    var subjectLabel: String? = nil
     var updatedAt: Date
 
-    init(id: UUID = UUID(), capturedAt: Date, pngData: Data, updatedAt: Date = .now) {
+    init(id: UUID = UUID(), capturedAt: Date, pngData: Data,
+         subjectLabel: String? = nil, updatedAt: Date = .now) {
         self.id = id
         self.day = Calendar.current.startOfDay(for: capturedAt)
         self.capturedAt = capturedAt
         self.pngData = pngData
+        self.subjectLabel = subjectLabel
         self.updatedAt = updatedAt
     }
 }

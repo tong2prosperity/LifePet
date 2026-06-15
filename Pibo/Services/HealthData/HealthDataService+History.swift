@@ -30,6 +30,7 @@ extension HealthDataService {
         }
 
         await collectSum(.stepCount, unit: .count(), start: start, anchor: today) { d, v in mutate(d) { $0.steps = Int(v) } }
+        await collectHourlySteps(start: start, anchor: today) { d, hourly in mutate(d) { $0.hourlySteps = hourly } }
         await collectSum(.activeEnergyBurned, unit: .kilocalorie(), start: start, anchor: today) { d, v in mutate(d) { $0.activeEnergy = v } }
         await collectSum(.appleExerciseTime, unit: .minute(), start: start, anchor: today) { d, v in mutate(d) { $0.exerciseMinutes = Int(v) } }
         await collectSum(.appleStandTime, unit: .minute(), start: start, anchor: today) { d, v in mutate(d) { $0.standMinutes = Int(v) } }
@@ -42,10 +43,12 @@ extension HealthDataService {
             mutate(d) { $0.heartRateAvg = avg; $0.heartRateMin = lo; $0.heartRateMax = hi }
         }
 
-        await collectSleep(start: start, now: now) { d, total, deep, rem, core, awake, sStart, sEnd in
+        await collectSleep(start: start, now: now) { d, night in
             mutate(d) {
-                $0.sleepTotal = total; $0.sleepDeep = deep; $0.sleepREM = rem
-                $0.sleepCore = core; $0.sleepAwake = awake; $0.sleepStart = sStart; $0.sleepEnd = sEnd
+                $0.sleepTotal = night.total; $0.sleepDeep = night.deep; $0.sleepREM = night.rem
+                $0.sleepCore = night.core; $0.sleepAwake = night.awake
+                $0.sleepStart = night.start; $0.sleepEnd = night.end
+                $0.sleepSegments = night.segments
             }
         }
 
@@ -89,7 +92,49 @@ extension HealthDataService {
         }
     }
 
+    /// Today's per-hour step counts (24 entries, hours not yet reached = 0).
+    /// Cheap single query — run on foreground reconcile so the 今日脚步 grass
+    /// stays fresh through the day (the full backfill only runs at launch).
+    func fetchTodayHourlySteps() async -> [Int] {
+        guard authState == .granted, HKHealthStore.isHealthDataAvailable() else { return [] }
+        let today = Calendar.current.startOfDay(for: Date())
+        var result: [Int] = []
+        await collectHourlySteps(start: today, anchor: today) { day, hourly in
+            if day == today { result = hourly }
+        }
+        return result
+    }
+
     // MARK: - Collection helpers
+
+    /// Hour-bucketed step sums grouped per day — emits one 24-entry array per
+    /// day (index = local hour). Same statistics-collection query as the daily
+    /// sums, just with a 1-hour interval.
+    private func collectHourlySteps(start: Date, anchor: Date,
+                                    emit: (Date, [Int]) -> Void) async {
+        let cal = Calendar.current
+        let type = HKQuantityType(.stepCount)
+        let predicate = HKSamplePredicate.quantitySample(
+            type: type, predicate: HKQuery.predicateForSamples(withStart: start, end: Date()))
+        let descriptor = HKStatisticsCollectionQueryDescriptor(
+            predicate: predicate, options: .cumulativeSum,
+            anchorDate: anchor, intervalComponents: DateComponents(hour: 1))
+        do {
+            let collection = try await descriptor.result(for: store)
+            var byDay: [Date: [Int]] = [:]
+            collection.enumerateStatistics(from: start, to: Date()) { stat, _ in
+                guard let q = stat.sumQuantity() else { return }
+                let day = cal.startOfDay(for: stat.startDate)
+                let hour = cal.component(.hour, from: stat.startDate)
+                var hourly = byDay[day] ?? Array(repeating: 0, count: 24)
+                if hour < 24 { hourly[hour] += Int(q.doubleValue(for: .count())) }
+                byDay[day] = hourly
+            }
+            for (day, hourly) in byDay { emit(day, hourly) }
+        } catch {
+            LPLog.healthKit.error("collectHourlySteps: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 
     private func collectSum(_ id: HKQuantityTypeIdentifier, unit: HKUnit,
                             start: Date, anchor: Date,
@@ -151,11 +196,20 @@ extension HealthDataService {
         }
     }
 
+    /// One night's aggregated sleep, as handed to `collectSleep`'s emit.
+    struct NightSleep {
+        var total: TimeInterval = 0, deep: TimeInterval = 0, rem: TimeInterval = 0
+        var core: TimeInterval = 0, awake: TimeInterval = 0
+        var start: Date?, end: Date?
+        /// Stage segments in time order, adjacent same-stage samples merged.
+        var segments: [SleepSegmentValue] = []
+    }
+
     /// Sleep bucketed per night, attributed to the wake-day (`startOfDay` of the
     /// session's end). Prefers stage samples; falls back to legacy `.asleep` only
     /// on days with no stage data (avoids the multi-source double count).
     private func collectSleep(start: Date, now: Date,
-                              emit: @escaping (Date, TimeInterval, TimeInterval, TimeInterval, TimeInterval, TimeInterval, Date?, Date?) -> Void) async {
+                              emit: @escaping (Date, NightSleep) -> Void) async {
         let predicate = HKSamplePredicate.categorySample(
             type: HKCategoryType(.sleepAnalysis),
             predicate: HKQuery.predicateForSamples(withStart: start, end: now))
@@ -169,30 +223,46 @@ extension HealthDataService {
 
             for (day, daySamples) in byDay {
                 let hasStages = daySamples.contains { isStage(HKCategoryValueSleepAnalysis(rawValue: $0.value)) }
-                var total: TimeInterval = 0, deep: TimeInterval = 0, rem: TimeInterval = 0
-                var core: TimeInterval = 0, awake: TimeInterval = 0
-                var minStart: Date?, maxEnd: Date?
+                var night = NightSleep()
                 for s in daySamples {
                     let v = HKCategoryValueSleepAnalysis(rawValue: s.value)
                     let dur = s.endDate.timeIntervalSince(s.startDate)
                     var asleep = true
+                    var stage: SleepStage?
                     switch v {
-                    case .some(.asleepDeep):        deep += dur;  total += dur
-                    case .some(.asleepREM):         rem += dur;   total += dur
-                    case .some(.asleepCore):        core += dur;  total += dur
-                    case .some(.asleepUnspecified): total += dur
-                    case .some(.asleep):            if hasStages { asleep = false } else { total += dur }
-                    default:                        asleep = false; if v == .some(.awake) { awake += dur }
+                    case .some(.asleepDeep):        night.deep += dur;  night.total += dur; stage = .deep
+                    case .some(.asleepREM):         night.rem += dur;   night.total += dur; stage = .rem
+                    case .some(.asleepCore):        night.core += dur;  night.total += dur; stage = .core
+                    case .some(.asleepUnspecified): night.total += dur; stage = .core
+                    case .some(.asleep):
+                        if hasStages { asleep = false } else { night.total += dur; stage = .core }
+                    default:
+                        asleep = false
+                        if v == .some(.awake) { night.awake += dur; stage = .awake }
                     }
                     if asleep {
-                        minStart = min(minStart ?? s.startDate, s.startDate)
-                        maxEnd = max(maxEnd ?? s.endDate, s.endDate)
+                        night.start = min(night.start ?? s.startDate, s.startDate)
+                        night.end = max(night.end ?? s.endDate, s.endDate)
                     }
+                    if let stage { appendSegment(&night.segments, s.startDate, s.endDate, stage) }
                 }
-                if total > 0 { emit(day, total, deep, rem, core, awake, minStart, maxEnd) }
+                if night.total > 0 { emit(day, night) }
             }
         } catch {
             LPLog.healthKit.error("collectSleep: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Append one sample to the night's segment list, merging into the previous
+    /// segment when it continues the same stage (≤60s gap) — watch data writes
+    /// many back-to-back samples per stage.
+    private func appendSegment(_ segments: inout [SleepSegmentValue],
+                               _ start: Date, _ end: Date, _ stage: SleepStage) {
+        if let last = segments.last, last.stage == stage,
+           start.timeIntervalSince(last.end) <= 60 {
+            segments[segments.count - 1].end = max(last.end, end)
+        } else {
+            segments.append(SleepSegmentValue(start: start, end: end, stage: stage))
         }
     }
 

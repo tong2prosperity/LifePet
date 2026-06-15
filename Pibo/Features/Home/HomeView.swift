@@ -454,20 +454,21 @@ struct HomeView: View {
         show(PiboSpeechLine(text: grade.piboLines.randomElement() ?? "...给...你..."))
     }
 
-    private func handlePhotoSaved(_ image: UIImage?) {
+    private func handlePhotoSaved(_ image: UIImage?, _ subjectLabel: String?) {
         // 拍照 = 认知能量. Nudge the head 毛 + let Pibo react (spec §4.3).
         energyToken = UUID()
         if Bool.random() {
             show(PiboSpeechLine(text: PiboCameraView.genericComments.randomElement() ?? "...颜色...记..."))
         }
-        // Persist a background-removed (抠图) copy as a 今日记录 food photo so it
-        // lands on the 历史数据页 (home spec §4). Heavy Vision work runs off-main.
+        // Persist a background-removed (抠图) + 镶边框 copy, tagged with the 识图
+        // label, as a 今日记录 food photo so it lands on the 历史数据页 (home
+        // spec §4). Heavy Vision work runs off-main.
         guard let image else { return }
         let capturedAt = Date()
         Task {
-            let png = await Task.detached { SubjectCutout.cutoutPNG(image) }.value
+            let png = await Task.detached { SubjectCutout.stickerPNG(image) }.value
             guard let png else { return }
-            history.addFoodPhoto(pngData: png, capturedAt: capturedAt)
+            history.addFoodPhoto(pngData: png, capturedAt: capturedAt, subjectLabel: subjectLabel)
         }
     }
 

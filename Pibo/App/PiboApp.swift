@@ -98,7 +98,15 @@ struct PiboApp: App {
                         store.applyDecayCatchup()
                         if health.authState == .granted {
                             LPLog.app.debug("Foreground reconcile triggered")
-                            Task { await health.reconcile() }
+                            Task {
+                                await health.reconcile()
+                                // Keep today's hourly-step grass fresh; the full
+                                // history backfill only runs once at launch.
+                                let hourly = await health.fetchTodayHourlySteps()
+                                if !hourly.isEmpty {
+                                    history.upsert(day: .now) { $0.hourlySteps = hourly }
+                                }
+                            }
                         }
                     }
                 }
