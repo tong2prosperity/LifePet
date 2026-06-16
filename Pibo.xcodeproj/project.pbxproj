@@ -549,6 +549,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Pibo 想认识地球：用相机拍下你的食物，这份记录会变成它头上那株花的能量。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pibo 需要听见你呼唤它的名字，才能确认降临。";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pibo 使用语音识别确认你是否呼唤了它的名字。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -588,6 +590,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Pibo 想认识地球：用相机拍下你的食物，这份记录会变成它头上那株花的能量。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pibo 需要听见你呼唤它的名字，才能确认降临。";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pibo 使用语音识别确认你是否呼唤了它的名字。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

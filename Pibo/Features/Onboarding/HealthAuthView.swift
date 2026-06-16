@@ -1,5 +1,9 @@
 import SwiftUI
 import os
+import UIKit
+import Darwin
+import AVFoundation
+import Speech
 
 /// First-launch onboarding for the 魔丸态 prototype. This ports the 0603 HTML
 /// flow into SwiftUI: Pibo falls to Earth, finds light through the camera,
@@ -15,10 +19,19 @@ struct HealthAuthView: View {
     @State private var speech: String?
     @State private var callPulse = false
     @State private var lightCaptured = false
+    @State private var lightCaptureAttempts = 0
+    @State private var cameraMessage = "点击屏幕任意位置模拟拍照"
+    @State private var cameraIsChecking = false
     @State private var authRequested = false
     @State private var energyProgress: CGFloat = 0
     @State private var pluckOffset: CGFloat = 0
+    @State private var pluckDragX: CGFloat = 0
+    @State private var pluckCompleted = false
     @State private var piboTapCount = 0
+    @State private var voiceInput = OnboardingVoiceInputController()
+    @State private var voiceStatus: VoiceInputStatus = .idle
+    @State private var recognizedCallText = ""
+    @State private var isHoldingVoiceInput = false
 
     /// Called by `RootView` when the gate should close.
     let onContinue: () -> Void
@@ -34,6 +47,7 @@ struct HealthAuthView: View {
         }
         .preferredColorScheme(.light)
         .onAppear {
+            restoreOnboardingSceneIfNeeded()
             if petNameDraft.isEmpty { petNameDraft = store.petName }
             if scene == .intro { startIntro() }
         }
@@ -67,10 +81,14 @@ struct HealthAuthView: View {
             awakenScene
         case .name:
             nameScene
+        case .nameResponse:
+            nameResponseScene
         case .call:
             callScene
         case .glitch:
             glitchScene
+        case .contractFailure:
+            contractFailureScene
         case .auth:
             authScene
         case .energy:
@@ -99,11 +117,7 @@ struct HealthAuthView: View {
                     endPoint: .bottom
                 )
             case .glitch:
-                LinearGradient(
-                    colors: [Color(hex: 0x1A1016), Color(hex: 0x07070A)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+                RedGlitchIonFlowView()
             case .home:
                 LinearGradient(
                     colors: [Color(hex: 0xF5FAF6), Color(hex: 0xE7F2EA)],
@@ -114,9 +128,16 @@ struct HealthAuthView: View {
         }
         .ignoresSafeArea()
         .overlay {
-            if scene == .glitch {
+            if scene.usesIdentityBackground {
+                Image("onboarding_identity_bg")
+                    .resizable()
+                    .scaledToFill()
+                    .ignoresSafeArea()
+                    .overlay(Color.black.opacity(0.28))
+            }
+            if scene == .glitch || scene == .contractFailure {
                 GlitchNoiseView()
-                    .opacity(0.35)
+                    .opacity(0.48)
                     .ignoresSafeArea()
             }
         }
@@ -183,23 +204,32 @@ struct HealthAuthView: View {
                             Text("检测到光")
                                 .lpText(LP.Typography.b1Medium)
                                 .foregroundStyle(Color.black.opacity(0.72))
+                        } else if cameraIsChecking {
+                            VStack(spacing: LP.Spacing.s) {
+                                ProgressView()
+                                    .tint(.white)
+                                Text("Pibo 正在看…")
+                                    .lpText(LP.Typography.c1Regular)
+                            }
+                            .foregroundStyle(Color.white.opacity(0.72))
                         } else {
                             VStack(spacing: LP.Spacing.s) {
                                 Image(systemName: "camera.viewfinder")
                                     .font(.system(size: 34, weight: .medium))
-                                Text("点击屏幕任意位置模拟拍照")
+                                Text(cameraMessage)
                                     .lpText(LP.Typography.c1Regular)
+                                    .multilineTextAlignment(.center)
                             }
                             .foregroundStyle(Color.white.opacity(0.64))
                         }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
-            .frame(maxHeight: 520)
+            .frame(maxHeight: 500)
             .contentShape(Rectangle())
             .onTapGesture { captureLight() }
 
-            onboardingButton(lightCaptured ? "继续" : "捕捉一点光", kind: .light) {
+            onboardingButton(lightCaptured ? "继续" : (lightCaptureAttempts == 0 ? "捕捉一点光" : "再拍一次"), kind: .light) {
                 lightCaptured ? go(.awaken) : captureLight()
             }
         }
@@ -208,12 +238,12 @@ struct HealthAuthView: View {
     private var awakenScene: some View {
         VStack(spacing: LP.Spacing.xl) {
             Spacer()
-            PiboOnboardingBlob(headItem: .mystery, isDark: false, speech: speech ?? "…亮…#@!%")
-                .overlay(alignment: .top) {
-                    LightBeamView()
-                        .offset(y: -46)
-                        .allowsHitTesting(false)
-                }
+            PiboOnboardingBlob(
+                headItem: .mystery,
+                isDark: false,
+                speech: speech ?? "…亮…#@!%",
+                showOverhead: false
+            )
             Text("…我的花…在地球上…能开吗…")
                 .lpText(LP.Typography.b1Regular)
                 .multilineTextAlignment(.center)
@@ -242,15 +272,25 @@ struct HealthAuthView: View {
                     .padding(.vertical, LP.Spacing.m)
                     .background(RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous).fill(.white))
                     .overlay(RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous).strokeBorder(Color.white.opacity(0.28)))
-                Text("前两周它只会喊你「人」。第 15 天起，它会试着喊你的名字。")
-                    .lpText(LP.Typography.c1Regular)
-                    .foregroundStyle(LP.Content.invertTertiary)
             }
             Spacer()
             onboardingButton("确认", kind: .light) {
                 commitName()
-                go(.call)
+                go(.nameResponse)
             }
+        }
+    }
+
+    private var nameResponseScene: some View {
+        VStack(spacing: LP.Spacing.xl) {
+            Spacer()
+            PiboOnboardingBlob(
+                headItem: .mystery,
+                isDark: false,
+                speech: nameResponseSpeech
+            )
+            Spacer()
+            onboardingButton("继续", kind: .light) { go(.call) }
         }
     }
 
@@ -270,21 +310,29 @@ struct HealthAuthView: View {
             Text("呼唤 \"Pibo\" 的名字")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.88))
-            Spacer()
-            onboardingButton("我叫了", kind: .light) {
-                callPulse = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    callPulse = false
-                    go(.glitch)
-                }
+            VStack(spacing: LP.Spacing.s) {
+                holdToSpeakButton
+                Text(voiceStatus.message(recognizedText: recognizedCallText))
+                    .lpText(LP.Typography.c1Regular)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(LP.Content.invertTertiary)
+                    .frame(minHeight: 34)
             }
+            Spacer()
         }
+        .onDisappear { voiceInput.stop() }
     }
 
     private var glitchScene: some View {
         VStack(spacing: LP.Spacing.xl) {
             Spacer()
-            PiboOnboardingBlob(headItem: .mystery, isDark: true, speech: "…能…量…#@!%…不足…", isGlitching: true)
+            PiboOnboardingBlob(
+                headItem: .mystery,
+                isDark: true,
+                speech: "…能…量…#@!%…不足…",
+                isGlitching: true,
+                isFlickering: true
+            )
             VStack(spacing: LP.Spacing.m) {
                 warningToast("Pibo 需要你的运动能量才能稳定存在")
                 warningToast("你去运动，Pibo 的花才有活力")
@@ -292,6 +340,7 @@ struct HealthAuthView: View {
             Spacer()
             onboardingButton("签订能量契约", kind: .danger) { go(.auth) }
         }
+        .onAppear { LPHaptics.glitchSurge() }
     }
 
     private var authScene: some View {
@@ -330,12 +379,27 @@ struct HealthAuthView: View {
                     default:
                         onboardingButton(authRequested ? "正在连接…" : "签订契约，让 Pibo 连上你", kind: .primary, action: connect)
                         onboardingButton("用 Demo 数据继续", kind: .secondary, action: continueWithDemoEnergy)
-                        onboardingButton("以后再说", kind: .ghost, action: continueWithDemoEnergy)
+                        onboardingButton("以后再说", kind: .ghost, action: showContractFailure)
                     }
                 }
             }
             .padding(.vertical, LP.Spacing.l)
         }
+    }
+
+    private var contractFailureScene: some View {
+        VStack(spacing: LP.Spacing.xl) {
+            Spacer()
+            Text("检测到·····能量不足······pibo降临失败")
+                .font(.system(size: 26, weight: .semibold))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Color(hex: 0xFF2A35))
+                .shadow(color: Color(hex: 0xFF2A35).opacity(0.42), radius: 18)
+                .padding(.horizontal, LP.Spacing.l)
+            Spacer()
+            onboardingButton("退出 App", kind: .danger) { exitAfterContractFailure() }
+        }
+        .onAppear { LPHaptics.glitchSurge() }
     }
 
     private var energyScene: some View {
@@ -387,25 +451,39 @@ struct HealthAuthView: View {
             }
             Spacer()
             ZStack(alignment: .top) {
-                PiboOnboardingBlob(headItem: .sprout, isDark: false, speech: nil)
+                PiboOnboardingBlob(
+                    headItem: .mystery,
+                    isDark: false,
+                    speech: nil,
+                    showHead: false,
+                    showOverhead: false
+                )
                     .padding(.top, 38)
-                PiboHeadItemView(item: .sprout, size: 70)
-                    .offset(y: -pluckOffset)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                pluckOffset = max(0, min(110, -value.translation.height))
-                            }
-                            .onEnded { _ in
-                                if pluckOffset >= 76 {
-                                    finishPluck()
-                                } else {
-                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.68)) {
-                                        pluckOffset = 0
+                if !pluckCompleted {
+                    PiboOnboardingHeadSprite(growth: .sprouted, height: 74)
+                        .rotationEffect(.radians(Self.hairDragAngle(dx: pluckDragX)))
+                        .scaleEffect(x: 1, y: Self.hairDragScale(up: pluckOffset), anchor: .bottom)
+                        .offset(x: Self.rubberBand(pluckDragX, limit: 110) * 0.18,
+                                y: 78 - pluckOffset)
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    pluckDragX = value.translation.width
+                                    pluckOffset = max(0, min(110, -value.translation.height))
+                                }
+                                .onEnded { value in
+                                    let pull = hypot(value.translation.width, value.translation.height)
+                                    if pluckOffset >= 76 || pull > 82 {
+                                        finishPluck()
+                                    } else {
+                                        withAnimation(.spring(response: 0.32, dampingFraction: 0.68)) {
+                                            pluckOffset = 0
+                                            pluckDragX = 0
+                                        }
                                     }
                                 }
-                            }
-                    )
+                        )
+                }
             }
             Spacer()
             onboardingButton("已经拔下来了", kind: .secondary) { finishPluck() }
@@ -423,7 +501,7 @@ struct HealthAuthView: View {
                     .foregroundStyle(LP.Content.primary)
             }
             Spacer()
-            PiboOnboardingBlob(headItem: .sprout, isDark: false, speech: completeSpeech)
+            PiboOnboardingBlob(headItem: .mystery, isDark: false, speech: completeSpeech, showHead: false, showOverhead: false)
                 .onTapGesture { piboTapCount += 1 }
             VStack(alignment: .leading, spacing: LP.Spacing.s) {
                 Text("Pibo 每天会从你这里获取能量，结出一株幼苗")
@@ -449,11 +527,17 @@ struct HealthAuthView: View {
         withAnimation(.easeInOut(duration: 0.28)) { scene = next }
     }
 
+    private func restoreOnboardingSceneIfNeeded() {
+        guard UserDefaults.standard.bool(forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth) else { return }
+        UserDefaults.standard.removeObject(forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth)
+        scene = .auth
+    }
+
     private func startIntro() {
         Task { @MainActor in
             for index in Self.introLines.indices {
                 guard scene == .intro else { return }
-                withAnimation(.easeInOut(duration: 0.65)) { introIndex = index }
+                withAnimation(.easeInOut(duration: 0.95)) { introIndex = index }
                 try? await Task.sleep(for: .milliseconds(Self.introLines[index].pause))
             }
             if scene == .intro { go(.falling, haptics: false) }
@@ -461,9 +545,22 @@ struct HealthAuthView: View {
     }
 
     private func captureLight() {
+        guard !cameraIsChecking else { return }
         LPHaptics.tap()
-        withAnimation(.easeOut(duration: 0.18)) { lightCaptured = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { go(.awaken, haptics: false) }
+        lightCaptureAttempts += 1
+        cameraIsChecking = true
+        let frame = Self.simulatedLightFrame(isBright: lightCaptureAttempts > 1)
+        let hasEnoughLight = LightCaptureVerifier.hasEnoughWhite(frame)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            cameraIsChecking = false
+            if hasEnoughLight {
+                cameraMessage = "检测到光"
+                withAnimation(.easeOut(duration: 0.18)) { lightCaptured = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { go(.awaken, haptics: false) }
+            } else {
+                cameraMessage = "还是好黑，pibo看不见"
+            }
+        }
     }
 
     private func connect() {
@@ -486,6 +583,23 @@ struct HealthAuthView: View {
         go(.energy)
     }
 
+    private func showContractFailure() {
+        LPLog.onboarding.notice("User chose: onboarding later/failure")
+        UserDefaults.standard.set(true, forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth)
+        go(.contractFailure)
+    }
+
+    private func exitAfterContractFailure() {
+        UserDefaults.standard.set(true, forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth)
+        LPHaptics.glitchSurge()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            UIApplication.shared.perform(Selector(("suspend")))
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) {
+            Darwin.exit(0)
+        }
+    }
+
     private func startEnergyRead() {
         energyProgress = 0
         Task { @MainActor in
@@ -498,8 +612,12 @@ struct HealthAuthView: View {
     }
 
     private func finishPluck() {
+        guard !pluckCompleted else { return }
+        LPHaptics.success()
         withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
             pluckOffset = 112
+            pluckDragX = 0
+            pluckCompleted = true
         }
         store.growthStage = .sprouted
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { go(.complete, haptics: false) }
@@ -516,7 +634,38 @@ struct HealthAuthView: View {
         store.petName = trimmed.isEmpty ? "PIBO" : String(trimmed.prefix(16))
     }
 
+    private var nameResponseSpeech: String {
+        let trimmed = petNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmed.isEmpty ? store.petName : String(trimmed.prefix(16))
+        return "···\(name)·····嗯，有点复杂·····你好，人"
+    }
+
     // MARK: Pieces
+
+    private var holdToSpeakButton: some View {
+        Text(isHoldingVoiceInput ? "松开结束" : "按住呼唤")
+            .lpText(LP.Typography.b1Medium)
+            .foregroundStyle(isHoldingVoiceInput ? Color.white : Color.black.opacity(0.82))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, LP.Spacing.l)
+            .background(
+                Capsule().fill(isHoldingVoiceInput ? Color(hex: 0xFF2A35) : .white)
+            )
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.32), lineWidth: LP.BorderWidth.regular))
+            .scaleEffect(isHoldingVoiceInput ? 1.03 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.78), value: isHoldingVoiceInput)
+            .contentShape(Capsule())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !isHoldingVoiceInput else { return }
+                        beginVoiceCall()
+                    }
+                    .onEnded { _ in
+                        endVoiceCall()
+                    }
+            )
+    }
 
     private func onboardingButton(_ title: String, kind: OnboardingButtonKind, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -550,6 +699,71 @@ struct HealthAuthView: View {
         .padding(LP.Spacing.l)
         .background(RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous).fill(LP.Fill.bgContainer))
         .overlay(RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous).strokeBorder(LP.Separator.primary))
+    }
+
+    private func beginVoiceCall() {
+        isHoldingVoiceInput = true
+        recognizedCallText = ""
+        voiceStatus = .requestingPermission
+        LPHaptics.confirm()
+        voiceInput.start(
+            onText: { text in
+                recognizedCallText = text
+                voiceStatus = .listening
+                if Self.isPiboCall(text) {
+                    completeVoiceCall()
+                }
+            },
+            onReady: {
+                voiceStatus = .listening
+            },
+            onDenied: {
+                isHoldingVoiceInput = false
+                voiceStatus = .permissionDenied
+            },
+            onError: {
+                isHoldingVoiceInput = false
+                voiceStatus = .failed
+            }
+        )
+    }
+
+    private func endVoiceCall() {
+        guard isHoldingVoiceInput else { return }
+        isHoldingVoiceInput = false
+        voiceInput.stop()
+        if Self.isPiboCall(recognizedCallText) {
+            completeVoiceCall()
+        } else if !recognizedCallText.isEmpty {
+            voiceStatus = .notRecognized
+        } else if voiceStatus != .permissionDenied {
+            voiceStatus = .idle
+        }
+    }
+
+    private func completeVoiceCall() {
+        guard scene == .call else { return }
+        isHoldingVoiceInput = false
+        voiceInput.stop()
+        voiceStatus = .recognized
+        callPulse = true
+        LPHaptics.success()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            callPulse = false
+            go(.glitch)
+        }
+    }
+
+    private static func isPiboCall(_ text: String) -> Bool {
+        let normalized = text
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "。", with: "")
+            .replacingOccurrences(of: "，", with: "")
+        return normalized.contains("pibo")
+            || normalized.contains("皮波")
+            || normalized.contains("屁波")
+            || normalized.contains("啵啵")
     }
 
     private func detectionCard(title: String, status: String, icon: String) -> some View {
@@ -615,17 +829,41 @@ struct HealthAuthView: View {
     }
 
     private static let introLines: [(text: String, pause: Int, highlight: Bool)] = [
-        ("一只精灵掉到了地球上", 900, false),
-        ("它不会说人话", 650, false),
-        ("不认识你", 600, false),
-        ("也不认识这个世界", 900, false),
-        ("但——", 900, true),
-        ("你真的认识自己的身体吗？", 1100, false),
-        ("你真的认识周围的世界吗？", 1100, false),
-        ("帮它种一朵花", 700, false),
-        ("也是帮你自己", 700, false),
-        ("重新看一看", 1100, false),
+        ("一只精灵掉到了地球上", 1400, false),
+        ("它不会说人话", 1100, false),
+        ("不认识你", 1050, false),
+        ("也不认识这个世界", 1400, false),
+        ("但——", 1350, true),
+        ("你真的认识自己的身体吗？", 1650, false),
+        ("你真的认识周围的世界吗？", 1650, false),
+        ("帮它种一朵花", 1150, false),
+        ("也是帮你自己", 1150, false),
+        ("重新看一看", 1650, false),
     ]
+
+    private static func simulatedLightFrame(isBright: Bool) -> UIImage {
+        let size = CGSize(width: 64, height: 64)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { ctx in
+            UIColor.black.setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+            let whiteWidth = isBright ? size.width * 0.72 : size.width * 0.32
+            UIColor.white.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: whiteWidth, height: size.height))
+        }
+    }
+
+    private static func rubberBand(_ value: CGFloat, limit: CGFloat) -> CGFloat {
+        limit * value / (abs(value) + limit)
+    }
+
+    private static func hairDragAngle(dx: CGFloat) -> CGFloat {
+        -0.55 * rubberBand(dx, limit: 110) / 110
+    }
+
+    private static func hairDragScale(up: CGFloat) -> CGFloat {
+        1 + 0.28 * rubberBand(up, limit: 130) / 130
+    }
 }
 
 private enum OnboardingScene {
@@ -635,8 +873,10 @@ private enum OnboardingScene {
     case camera
     case awaken
     case name
+    case nameResponse
     case call
     case glitch
+    case contractFailure
     case auth
     case energy
     case pluck
@@ -646,14 +886,158 @@ private enum OnboardingScene {
 
     var palette: Palette {
         switch self {
-        case .intro, .falling, .darkness, .camera, .awaken, .name, .call:
+        case .intro, .falling, .darkness, .camera, .awaken, .name, .nameResponse, .call:
             return .dark
-        case .glitch:
+        case .glitch, .contractFailure:
             return .glitch
         case .auth, .energy, .pluck:
             return .paper
         case .complete:
             return .home
+        }
+    }
+
+    var usesIdentityBackground: Bool {
+        switch self {
+        case .awaken, .name, .nameResponse:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+private enum VoiceInputStatus: Equatable {
+    case idle
+    case requestingPermission
+    case listening
+    case recognized
+    case notRecognized
+    case permissionDenied
+    case failed
+
+    func message(recognizedText: String) -> String {
+        switch self {
+        case .idle:
+            return "按住按钮，对着它说出 Pibo"
+        case .requestingPermission:
+            return "正在请求语音权限…"
+        case .listening:
+            return recognizedText.isEmpty ? "正在听…" : "听到了：\(recognizedText)"
+        case .recognized:
+            return "…听见了…"
+        case .notRecognized:
+            return "它没听清，再喊一次 Pibo"
+        case .permissionDenied:
+            return "需要开启麦克风和语音识别权限"
+        case .failed:
+            return "语音出了点问题，再试一次"
+        }
+    }
+}
+
+@MainActor
+private final class OnboardingVoiceInputController {
+    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh_CN"))
+    private let audioEngine = AVAudioEngine()
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var task: SFSpeechRecognitionTask?
+    private var reportsErrors = true
+
+    func start(
+        onText: @escaping (String) -> Void,
+        onReady: @escaping () -> Void,
+        onDenied: @escaping () -> Void,
+        onError: @escaping () -> Void
+    ) {
+        requestPermissions { [weak self] allowed in
+            guard allowed else {
+                onDenied()
+                return
+            }
+            self?.startRecognition(onText: onText, onReady: onReady, onError: onError)
+        }
+    }
+
+    func stop() {
+        reportsErrors = false
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        request?.endAudio()
+        task?.cancel()
+        task = nil
+        request = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+    }
+
+    private func requestPermissions(_ completion: @escaping (Bool) -> Void) {
+        SFSpeechRecognizer.requestAuthorization { speechStatus in
+            DispatchQueue.main.async {
+                guard speechStatus == .authorized else {
+                    completion(false)
+                    return
+                }
+                AVAudioSession.sharedInstance().requestRecordPermission { allowed in
+                    DispatchQueue.main.async { completion(allowed) }
+                }
+            }
+        }
+    }
+
+    private func startRecognition(
+        onText: @escaping (String) -> Void,
+        onReady: @escaping () -> Void,
+        onError: @escaping () -> Void
+    ) {
+        stop()
+        reportsErrors = true
+        guard let recognizer, recognizer.isAvailable else {
+            onError()
+            return
+        }
+
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            onError()
+            return
+        }
+
+        let nextRequest = SFSpeechAudioBufferRecognitionRequest()
+        nextRequest.shouldReportPartialResults = true
+        request = nextRequest
+
+        let inputNode = audioEngine.inputNode
+        let format = inputNode.outputFormat(forBus: 0)
+        inputNode.removeTap(onBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak nextRequest] buffer, _ in
+            nextRequest?.append(buffer)
+        }
+
+        audioEngine.prepare()
+        do {
+            try audioEngine.start()
+            onReady()
+        } catch {
+            onError()
+            return
+        }
+
+        task = recognizer.recognitionTask(with: nextRequest) { [weak self] result, error in
+            if let result {
+                Task { @MainActor in
+                    onText(result.bestTranscription.formattedString)
+                }
+            }
+            if error != nil {
+                Task { @MainActor in
+                    if self?.reportsErrors == true {
+                        onError()
+                    }
+                }
+            }
         }
     }
 }
@@ -709,40 +1093,160 @@ private struct PiboOnboardingBlob: View {
     let headItem: PiboHeadItem
     let isDark: Bool
     let speech: String?
+    var showHead: Bool = true
+    var showOverhead: Bool = true
     var isGlitching: Bool = false
+    var isFlickering: Bool = false
+
+    private var growth: PiboGrowthStage {
+        headItem == .sprout ? .sprouted : .mystery
+    }
+
+    private var usesDarkSpeechStyle: Bool {
+        !isGlitching
+    }
 
     var body: some View {
         VStack(spacing: LP.Spacing.m) {
             if let speech {
                 Text(speech)
                     .lpText(LP.Typography.b2Medium)
-                    .foregroundStyle(isGlitching ? Color(hex: 0xFF7A7A) : (isDark ? LP.Content.invertSecondary : LP.Content.primary))
+                    .foregroundStyle(isGlitching ? Color(hex: 0xFF7A7A) : (usesDarkSpeechStyle ? LP.Content.invertSecondary : LP.Content.primary))
+                    .multilineTextAlignment(.center)
                     .padding(.horizontal, LP.Spacing.m)
                     .padding(.vertical, LP.Spacing.s)
-                    .background(Capsule().fill((isDark ? Color.white : Color.black).opacity(0.10)))
+                    .frame(maxWidth: 260)
+                    .background(Capsule().fill((usesDarkSpeechStyle ? Color.white : Color.black).opacity(0.10)))
                     .overlay(Capsule().strokeBorder((isGlitching ? Color(hex: 0xFF7A7A) : Color.white).opacity(0.25)))
+                    .padding(.bottom, LP.Spacing.s)
             }
 
-            ZStack(alignment: .top) {
-                Capsule(style: .continuous)
-                    .fill(isDark ? Color(hex: 0x222222) : .white)
-                    .frame(width: 116, height: 132)
-                    .overlay(Capsule(style: .continuous).strokeBorder(isDark ? Color.white.opacity(0.12) : Color(hex: 0xDADADA), lineWidth: 2))
-                    .shadow(color: .black.opacity(isDark ? 0.35 : 0.12), radius: 16, y: 8)
-                    .overlay {
-                        HStack(spacing: 24) {
-                            Ellipse().fill(isDark ? Color.white.opacity(0.22) : Color(hex: 0x1F1F1F)).frame(width: 8, height: 10)
-                            Ellipse().fill(isDark ? Color.white.opacity(0.22) : Color(hex: 0x1F1F1F)).frame(width: 8, height: 10)
-                        }
-                        .offset(y: 10)
-                    }
-                PiboHeadItemView(item: headItem, size: 42)
-                    .offset(y: -26)
-            }
-            .rotationEffect(.degrees(isGlitching ? -2 : 0))
-            .offset(x: isGlitching ? -3 : 0)
+            figure
+                .rotationEffect(.degrees(isGlitching ? -2 : 0))
+                .offset(x: isGlitching ? -3 : 0)
         }
+        .padding(.vertical, LP.Spacing.s)
         .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var figure: some View {
+        if isFlickering {
+            TimelineView(.animation) { timeline in
+                figureContent
+                    .opacity(Self.flickerOpacity(at: timeline.date.timeIntervalSinceReferenceDate))
+                    .offset(x: Self.flickerOffset(at: timeline.date.timeIntervalSinceReferenceDate))
+            }
+        } else {
+            figureContent
+        }
+    }
+
+    private var figureContent: some View {
+        ZStack(alignment: .top) {
+                if growth == .mystery, showOverhead {
+                    Image("demon_hole")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 128)
+                        .offset(y: 0)
+                }
+
+                if showHead {
+                    PiboOnboardingHeadSprite(growth: growth, height: 54)
+                        .offset(y: growth == .mystery ? 23 : 14)
+                }
+
+                Image("pibo_body")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 154)
+                    .offset(y: 58)
+                    .shadow(color: .black.opacity(isDark ? 0.32 : 0.14), radius: 16, y: 8)
+            }
+            .frame(width: 180, height: 220)
+            .saturation(isDark ? 0.2 : 1)
+            .brightness(isDark ? -0.18 : 0)
+            .opacity(isDark ? 0.78 : 1)
+    }
+
+    private static func flickerOpacity(at time: TimeInterval) -> Double {
+        let pulse = sin(time * 38)
+        let snap = sin(time * 91) > 0.86
+        return snap ? 0.18 : (pulse > 0.18 ? 0.92 : 0.46)
+    }
+
+    private static func flickerOffset(at time: TimeInterval) -> CGFloat {
+        sin(time * 73) > 0.72 ? -5 : 3
+    }
+}
+
+private enum LightCaptureVerifier {
+    /// Returns true when at least half the sampled pixels are close to white.
+    /// This is intentionally strict: all RGB channels must be bright, so a
+    /// saturated colored surface does not masquerade as usable light.
+    static func hasEnoughWhite(_ image: UIImage, threshold: CGFloat = 0.5) -> Bool {
+        whiteCoverage(in: image) >= threshold
+    }
+
+    static func whiteCoverage(in image: UIImage) -> CGFloat {
+        guard let cgImage = image.cgImage else { return 0 }
+
+        let width = 32
+        let height = 32
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var pixels = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+
+        let didDraw = pixels.withUnsafeMutableBytes { rawBuffer -> Bool in
+            guard let context = CGContext(
+                data: rawBuffer.baseAddress,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
+                return false
+            }
+
+            context.interpolationQuality = .low
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard didDraw else { return 0 }
+
+        var whitePixels = 0
+        for offset in stride(from: 0, to: pixels.count, by: bytesPerPixel) {
+            let r = pixels[offset]
+            let g = pixels[offset + 1]
+            let b = pixels[offset + 2]
+            if r >= 220, g >= 220, b >= 220 { whitePixels += 1 }
+        }
+
+        return CGFloat(whitePixels) / CGFloat(width * height)
+    }
+}
+
+private struct PiboOnboardingHeadSprite: View {
+    let growth: PiboGrowthStage
+    var height: CGFloat
+
+    private var imageName: String {
+        switch growth {
+        case .mystery:
+            return "demon_curl"
+        case .sprouted:
+            return "demon_curl_sprouted"
+        }
+    }
+
+    var body: some View {
+        Image(imageName)
+            .resizable()
+            .scaledToFit()
+            .frame(height: height)
     }
 }
 
@@ -758,6 +1262,73 @@ private struct LightBeamView: View {
                 .frame(width: 120, height: 120)
         }
         .blur(radius: 0.4)
+    }
+}
+
+private struct RedGlitchIonFlowView: View {
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate * 4
+            Canvas { ctx, size in
+                let rect = CGRect(origin: .zero, size: size)
+                ctx.fill(
+                    Path { $0.addRect(rect) },
+                    with: .linearGradient(
+                        Gradient(colors: [
+                            Color(hex: 0x210408),
+                            Color(hex: 0x070207),
+                            Color(hex: 0x31070D)
+                        ]),
+                        startPoint: CGPoint(x: 0, y: 0),
+                        endPoint: CGPoint(x: size.width, y: size.height)
+                    )
+                )
+
+                for index in 0..<28 {
+                    let lane = CGFloat(index) / 28
+                    let speed = 0.09 + Double(index % 7) * 0.018
+                    let travel = CGFloat((time * speed + Double(index) * 0.137).truncatingRemainder(dividingBy: 1.35))
+                    let baseX = (lane * 1.25 - 0.14) * size.width
+                    let baseY = (travel - 0.18) * size.height
+                    let length = size.height * CGFloat([0.14, 0.22, 0.31, 0.18, 0.26][index % 5])
+                    let wobble = sin(time * (1.8 + Double(index % 4)) + Double(index)) * 18
+                    var stream = Path()
+                    stream.move(to: CGPoint(x: baseX + wobble, y: baseY))
+                    stream.addLine(to: CGPoint(x: baseX - length * 0.42 + wobble, y: baseY + length))
+                    let hot = index % 4 == 0
+                    ctx.stroke(
+                        stream,
+                        with: .color(Color(hex: hot ? 0xFF2A35 : 0xB10E22).opacity(hot ? 0.72 : 0.38)),
+                        style: StrokeStyle(lineWidth: hot ? 3.0 : 1.4, lineCap: .round)
+                    )
+                }
+
+                for index in 0..<46 {
+                    let speed = 0.16 + Double(index % 9) * 0.021
+                    let phase = CGFloat((time * speed + Double(index) * 0.071).truncatingRemainder(dividingBy: 1))
+                    let x = CGFloat((Double(index * 37 % 100) / 100.0)) * size.width
+                    let y = phase * size.height
+                    let radius = CGFloat([1.2, 1.8, 2.4, 1.4][index % 4])
+                    let glow = CGRect(x: x, y: y, width: radius, height: radius)
+                    ctx.fill(
+                        Path(ellipseIn: glow),
+                        with: .color(Color(hex: 0xFF465A).opacity(0.55))
+                    )
+                }
+            }
+            .overlay(
+                RadialGradient(
+                    colors: [
+                        Color(hex: 0xFF1C2E).opacity(0.26),
+                        Color.clear,
+                        Color.black.opacity(0.52)
+                    ],
+                    center: .center,
+                    startRadius: 24,
+                    endRadius: 520
+                )
+            )
+        }
     }
 }
 

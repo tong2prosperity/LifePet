@@ -4,6 +4,7 @@ import os
 nonisolated enum PiboPersistenceKeys {
     enum Defaults {
         static let onboardingDone = "pibo.onboardingDone.v1"
+        static let onboardingResumeAuth = "pibo.onboarding.resumeAuth.v1"
         static let hatched = "pibo.hatched.v1"
         static let appLanguage = "pibo.appLanguage.v1"
 
