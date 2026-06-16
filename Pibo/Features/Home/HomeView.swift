@@ -18,9 +18,6 @@ import os
 /// what's on screen.
 @Observable final class FloorModel {
     var progress: CGFloat = 0
-    /// Pibo's 下半身 handle — shown only once the 二楼 is fully open, dropping in
-    /// from behind the status bar. Toggled on settle, never mid-drag.
-    var feetShown: Bool = false
 
     @ObservationIgnored private var settleTask: Task<Void, Never>? = nil
     /// True while a settle spring is flying — a drag may catch it from anywhere.
@@ -69,13 +66,11 @@ import os
 /// settle and the tap-to-open/close paths so they stay identical).
 enum FloorAnim {
     /// Panel settle spring constants — consumed by `FloorModel.settle`'s
-    /// model-driven spring (the feel of the old `.spring(0.46, 0.86)`).
+    /// model-driven spring (the feel of the old `.spring(0.46, 0.86)`). The whole
+    /// pull — panel · chrome fade · content reveal · dome crown · stage parallax —
+    /// rides this *one* spring off `progress`; there is no second motion track.
     static let panelResponse: CGFloat = 0.46
     static let panelDamping: CGFloat = 0.86
-    static let feetIn  = Animation.spring(response: 0.52, dampingFraction: 0.6)   // emerge w/ slight overshoot
-    static let feetOut = Animation.spring(response: 0.26, dampingFraction: 0.85)
-    /// Delay before the feet drop, so they arrive *after* the panel has settled.
-    static let feetDelay: TimeInterval = 0.24
 }
 
 /// Pibo home (魔丸态) — the SpriteKit stage fills the screen; SwiftUI overlays
@@ -143,9 +138,9 @@ struct HomeView: View {
                 content: {
                     PiboHistoryView()
                         .environment(store)
-                        // ⌄ back to the home floor (Figma plant frames) — also
-                        // the accessible close path (the drag isn't reachable
-                        // via VoiceOver; the up-chevron opens but nothing closed).
+                        // ⌄ close handle (Figma `1374:1454`) — also the VoiceOver
+                        // close path, since drag-to-close isn't reachable by
+                        // VoiceOver (the grab band's action only opens).
                         .overlay(alignment: .top) { closeHandle }
                 }
             )
@@ -226,31 +221,17 @@ struct HomeView: View {
         }
     }
 
-    /// The 二楼 surface — a domed crown over the cool grey-blue panel. Rendered
-    /// behind (and risen with) the data content, so the content can fade in on
-    /// top of an already-opaque surface.
+    /// The 二楼 surface — a domed crown over a uniform cool grey-blue panel
+    /// (fill-bg-surface-secondary), faithful to the latest Figma (`1374:1454`):
+    /// no spherical highlight cap — that earlier detail only existed to sit behind
+    /// Pibo's now-removed hanging feet. Rendered behind (and risen with) the data
+    /// content, so the content can fade in on top of an already-opaque surface.
     private var secondFloorPanel: some View {
         FloorDome(rise: 54)
-            .fill(Color(hex: 0xEAEEEF))
-            // 球状 lighter dome (Figma Ellipse 24, x−180 / y−655 / 749²): its bottom
-            // cap reads as a soft lighter dome behind Pibo's hanging lower body at the
-            // top of the opened 二楼 (#F4F8F9 vs the #EAEEEF panel).
-            .overlay(alignment: .top) {
-                Circle()
-                    .fill(LP.Fill.bgSurface)   // #F4F8F9 = grey 100
-                    .frame(width: 749, height: 749)
-                    .offset(y: -655)
-            }
-            // CLIP to the dome — without this the 749² circle bleeds far above the
-            // crown and paints #F4F8F9 over the whole home scene whenever the panel
-            // is only partway up (holding the pull mid-way hid Pibo behind a big
-            // light circle). Clipped, the lighter cap only ever shows *inside* the
-            // panel, so Pibo stays visible and is submerged from the feet up.
-            .clipShape(FloorDome(rise: 54))
+            .fill(LP.Fill.bgSurfaceSecondary)   // #E8EEF1 — identical to the closed 上滑区域 dome, so the pull is a seamless same-colour handoff
             // Crown legibility: panel over the near-white home bg is white-on-white —
-            // a soft upward shadow on the clipped dome crown gives the rising edge
-            // contrast so the pull reads as "二楼 rising", not "the screen turning white".
-            .compositingGroup()
+            // a soft upward shadow on the dome crown gives the rising edge contrast
+            // so the pull reads as "二楼 rising", not "the screen turning white".
             .shadow(color: .black.opacity(0.10), radius: 14, y: -3)
             .ignoresSafeArea()
     }
@@ -296,7 +277,8 @@ struct HomeView: View {
     // MARK: Bottom controls
 
     /// 露珠相机 floats in the lower third (Figma `74:6178`, 88pt @ ~80% height),
-    /// with the grab-bar chevron pinned to the very bottom — they're not stacked.
+    /// floating just above the 上滑区域 dome — the dome + its ʌ are drawn by
+    /// `FloorContainer` (so they crossfade into the rising 二楼 panel), not here.
     private var bottomControls: some View {
         VStack(spacing: 0) {
             if store.pluckAvailable {
@@ -304,8 +286,9 @@ struct HomeView: View {
                 Spacer().frame(height: LP.Spacing.m)
             }
             cameraButton
-            Spacer().frame(height: 60)
-            upArrowHandle
+            // Reserve the 上滑区域 dome band below the 相机 (was a 60pt spacer +
+            // 28pt chevron; the chevron now lives on the dome in `FloorContainer`).
+            Spacer().frame(height: 88)
         }
         .padding(.bottom, LP.Spacing.s)
     }
@@ -319,7 +302,10 @@ struct HomeView: View {
                 .font(.system(size: 26, weight: .regular))
                 .foregroundStyle(LP.Content.secondary)
                 .frame(width: 84, height: 84)
-                .background(.ultraThinMaterial, in: Circle())
+                // Figma 509:2659: a solid fill-bg-container (#FBFCFC) disc, *not*
+                // a translucent material — over the themed stage the near-white
+                // body + elevation2 shadow keep it cleanly distinct from the bg.
+                .background(LP.Fill.bgContainer, in: Circle())
                 .overlay(Circle().strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair))
                 .lpShadow(LP.Shadow.elevation2)
         }
@@ -346,26 +332,15 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    private var upArrowHandle: some View {
-        Button(action: openDashboard) {
-            Image(systemName: "chevron.up")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(LP.Content.tertiary)
-                .frame(width: 44, height: 28)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(AppLocalization.text("上滑查看数据"))
-    }
-
-    /// ⌄ on the 二楼, mirroring the home's ʌ — sits between Pibo's hanging feet
-    /// and the date strip. (拖拽尾巴/下划 also close: the page-wide drag arms
-    /// from anywhere while the floor is open, including over the feet.)
+    /// ⌄ close handle at the top of the 二楼 (Figma `1374:1454`) — mirrors the
+    /// home's bottom ʌ in style (compact chevron · content/quarternary). Sits below
+    /// the status bar, above the 历史 header. (下划 also closes: the page-wide drag
+    /// arms from anywhere while the floor is open.)
     private var closeHandle: some View {
         Button(action: closeFloor) {
-            Image(systemName: "chevron.down")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(LP.Content.tertiary)
+            Image(systemName: "chevron.compact.down")
+                .font(.system(size: 30, weight: .medium))
+                .foregroundStyle(LP.Content.quarternary)
                 .frame(width: 44, height: 28)
                 .contentShape(Rectangle())
         }
@@ -482,20 +457,12 @@ struct HomeView: View {
     }
 
     // MARK: Floor
-
-    private func openDashboard() {
-        LPHaptics.tap()
-        // Pause only when the panel has actually covered the stage — pausing up
-        // front froze Pibo mid-bob in plain sight for the whole rise. The
-        // completion is skipped if a drag catches the panel mid-flight.
-        floor.settle(to: 1) { stagePaused = true }
-        withAnimation(FloorAnim.feetIn.delay(FloorAnim.feetDelay)) { floor.feetShown = true }
-    }
+    // Opening is owned by `FloorContainer` (the 上滑区域 dome's tap / drag /
+    // VoiceOver action) — see `FloorContainer.open`. Only closing lives here.
 
     private func closeFloor() {
         LPHaptics.tap()
         stagePaused = false   // resume before anything is revealed
-        withAnimation(FloorAnim.feetOut) { floor.feetShown = false }
         floor.settle(to: 0)
     }
 
@@ -564,9 +531,9 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
 
     /// The dome grab band pinned to the very bottom — the only place a pull can
     /// *open* the 二楼. Sized to stay clear of the 露珠相机 button (its bottom
-    /// edge sits 96pt above the safe-area bottom: 60pt spacer + 28pt chevron +
-    /// `LP.Spacing.s`). (Computed, not stored: `FloorContainer` is generic, and
-    /// Swift forbids static stored properties in generic types.)
+    /// edge sits 96pt above the safe-area bottom: an 88pt spacer + `LP.Spacing.s`).
+    /// (Computed, not stored: `FloorContainer` is generic, and Swift forbids
+    /// static stored properties in generic types.)
     private static var grabBandHeight: CGFloat { 88 }
 
     var body: some View {
@@ -577,9 +544,9 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
             let cF = Self.chromeFade(p)
             ZStack {
                 // Pibo (+ themed stage) holds place with a hair of parallax; the
-                // rising panel *submerges* it from the feet up, so its 下半身 is the
-                // first thing covered — never left dangling mid-screen. They always
-                // overlap, so there's no uncovered (black) gap.
+                // rising panel *submerges* it bottom-up, so its 下半身 is covered
+                // first — never left dangling mid-screen. They always overlap, so
+                // there's no uncovered (black) gap.
                 stage
                     .offset(y: -p * h * 0.06)
 
@@ -587,18 +554,45 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
                     .opacity(cF)
                     .allowsHitTesting(p < 0.08)
 
-                // 抓手区 — the bottom dome below the 露珠相机. While the floor is
-                // closed this band carries the *only* pull-up gesture (see the
-                // container gesture's mask below), and a tap anywhere on it opens
-                // the 二楼. It sits above the chrome so a drag starting exactly on
-                // the ʌ chevron isn't eaten by the button (which stays underneath
-                // as the VoiceOver path).
+                // 上滑区域 dome (Figma 509:2658) — the closed-state grab affordance:
+                // a domed lip of the 二楼 surface peeking up at the bottom in
+                // fill-bg-surface-secondary (#E8EEF1), so the pull-up reads as a
+                // distinct ledge over the home stage (the demon ground is a near-grey,
+                // so the soft upward shadow does the separating). Same colour as the
+                // rising `panel`, so the panel climbs over it as a seamless handoff;
+                // fades with the chrome and is occluded by the panel from ~p=0.11.
+                // Purely visual — the clear grab band below owns gesture + VoiceOver.
+                FloorDome(rise: 54)
+                    .fill(LP.Fill.bgSurfaceSecondary)
+                    .frame(height: 42)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .overlay(alignment: .bottom) {
+                        Image(systemName: "chevron.compact.up")
+                            .font(.system(size: 30, weight: .medium))
+                            .foregroundStyle(LP.Content.quarternary)
+                            .padding(.bottom, 62)
+                    }
+                    .compositingGroup()
+                    .shadow(color: .black.opacity(0.08), radius: 12, y: -3)
+                    .ignoresSafeArea()
+                    .opacity(cF)
+                    .allowsHitTesting(false)
+
+                // 抓手区 — the invisible grab band over the 上滑区域 dome. While the
+                // floor is closed this band carries the *only* pull-up gesture (see
+                // the container gesture's mask below), a tap anywhere on it opens the
+                // 二楼, and it is the VoiceOver "上滑查看数据" button. Sits above the
+                // dome so the gesture is never eaten by anything underneath.
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture(perform: open)
                     .gesture(drag(height: h, fromBand: true))
                     .frame(height: Self.grabBandHeight)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .accessibilityElement()
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel(AppLocalization.text("上滑查看数据"))
+                    .accessibilityAction(.default) { open() }
                     .allowsHitTesting(p < 0.08)
 
                 // 二楼 surface: domed panel, rises with the finger, fully opaque.
@@ -627,22 +621,6 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
             .gesture(drag(height: h, fromBand: false),
                      including: dragActive || p > 0.5 || floor.isSettling ? .all : .subviews)
         }
-        // Pibo 下半身 crown — a full-screen overlay that *actually* ignores the safe
-        // area (the earlier per-layer `.ignoresSafeArea` inside the GeometryReader
-        // didn't push the body up — it sat at the safe-area top). Now the body
-        // bleeds up behind the status bar / dynamic island like the Figma. Hidden
-        // through the pull; drops in from behind the status bar after the floor opens.
-        .overlay {
-            VStack(spacing: 0) {
-                feet
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .offset(y: floor.feetShown ? -16 : -176)
-            .opacity(floor.feetShown ? 1 : 0)
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-        }
         // A system interruption (call banner, app switcher) can cancel the drag
         // without `onEnded` ever firing — snap to the nearest floor so the pull
         // never strands half-open with the chrome faded and unreachable.
@@ -668,25 +646,10 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
         let target: CGFloat = floor.progress > 0.5 ? 1 : 0
         if target == 0 {
             onRevealing()
-            withAnimation(FloorAnim.feetOut) { floor.feetShown = false }
             floor.settle(to: 0)
         } else {
-            withAnimation(FloorAnim.feetIn.delay(FloorAnim.feetDelay)) { floor.feetShown = true }
             floor.settle(to: 1) { onCovered() }
         }
-    }
-
-    /// The hanging lower-body + feet — `pibo_lower`, the exact Figma 二楼 Pibo
-    /// (Group 70 render, 226×110): a wide body tapering to two feet. Rendered at
-    /// the Figma width (226pt) so the silhouette matches; `pibo_body` is a
-    /// different (rounder) shape and can't be scaled to fit.
-    private var feet: some View {
-        Image("pibo_lower")
-            .resizable()
-            .scaledToFit()
-            .frame(width: 226)
-            .compositingGroup()
-            .shadow(color: .black.opacity(0.10), radius: 9, y: 6)
     }
 
     /// Late-weighted smoothstep — content stays hidden through the first ~45% of
@@ -705,12 +668,12 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
         return 1 - t * t * (3 - 2 * t)
     }
 
-    /// Tap on the grab band — same choreography as the chevron's `openDashboard`
-    /// up in `HomeView` (the band covers the chevron button, so taps land here).
+    /// Open the 二楼 — tap / VoiceOver action on the 上滑区域 grab band. A pure
+    /// settle-to-1 (the same spring a drag-release uses), so every open path feels
+    /// identical.
     private func open() {
         LPHaptics.tap()
         floor.settle(to: 1) { onCovered() }
-        withAnimation(FloorAnim.feetIn.delay(FloorAnim.feetDelay)) { floor.feetShown = true }
     }
 
     /// Finger-tracking pull; snaps to the nearer floor (or follows a flick) on
@@ -736,10 +699,6 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
                 let base = dragBase ?? floor.progress
                 let np = min(1, max(0, base + (-v.translation.height) / h))
                 floor.progress = np
-                // Retract the feet as soon as a pull-down starts from the open floor.
-                if floor.feetShown && np < 0.92 {
-                    withAnimation(FloorAnim.feetOut) { floor.feetShown = false }
-                }
             }
             .onEnded { v in
                 defer { dragBase = nil; dragActive = false }
@@ -754,11 +713,6 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
                 if target == 0 { onRevealing() }
                 floor.settle(to: target, velocity: releaseVelocity) {
                     if target == 1 { onCovered() }
-                }
-                if target > 0.5 {
-                    withAnimation(FloorAnim.feetIn.delay(FloorAnim.feetDelay)) { floor.feetShown = true }
-                } else {
-                    withAnimation(FloorAnim.feetOut) { floor.feetShown = false }
                 }
             }
     }

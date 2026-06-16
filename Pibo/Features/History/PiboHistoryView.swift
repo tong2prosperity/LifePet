@@ -31,7 +31,7 @@ struct PiboHistoryView: View {
                 cardsStack(day)
                 Color.clear.frame(height: LP.Spacing.xxl)
             }
-            .padding(.top, 64)   // clear the hanging-feet / ⌄ close handle
+            .padding(.top, 64)   // clear the ⌄ close handle + dome crown
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

@@ -12,16 +12,16 @@ import SwiftUI
 // designer has now filled the color variables, so these are the *real* tokens,
 // not the earlier mockup-derived guesses. `content-*` / `fill-mask-*` are the
 // brand ink (`grey 900` = #171D22) at fixed alphas; `line-*` / `border-*` are
-// pure black at low alpha. Two values are still inferred (Figma label exists but
-// no variable was published) and flagged inline: `bgSurfaceSecondary` and
-// `Border.secondary`.
+// pure black at low alpha. `bgSurfaceSecondary` was published later (synced
+// 2026-06-16); one value is still inferred (Figma label exists but no variable
+// was published) and flagged inline: `Border.secondary`.
 
 extension LP {
     /// Background / surface / accent / mask fills. `fill-*` in Figma.
     enum Fill {
         // — bg: stacking surfaces, base → most elevated —
         static let bgSurface          = LP.Neutral.grey100  // fill-bg-surface-primary — app / page base
-        static let bgSurfaceSecondary = LP.Neutral.grey50   // fill-bg-surface-secondary — inferred (no var); between container & surface
+        static let bgSurfaceSecondary = Color(hex: 0xE8EEF1)  // fill-bg-surface-secondary (published var, synced 2026-06-16) — cool grey-blue a step *darker* than surface; the 上滑二楼 / dome ground
         static let bgContainer        = LP.Neutral.grey25   // fill-bg-container — card / clickable container
         static let bgPop              = LP.Neutral.grey0    // fill-bg-pop — popover / elevated (pairs w/ shadow)
 
