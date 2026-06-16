@@ -56,7 +56,11 @@ import os
                     completion?()
                     return
                 }
-                self.progress = x
+                // Clamp the *visible* progress to [0,1] (the spring's internal `x`
+                // keeps its momentum, so the feel is unchanged) — a slightly
+                // underdamped flick used to overshoot p>1, lifting the panel off the
+                // bottom edge and flashing a hairline gap under it.
+                self.progress = min(1, max(0, x))
             }
         }
     }
@@ -138,10 +142,11 @@ struct HomeView: View {
                 content: {
                     PiboHistoryView()
                         .environment(store)
-                        // ⌄ close handle (Figma `1374:1454`) — also the VoiceOver
-                        // close path, since drag-to-close isn't reachable by
-                        // VoiceOver (the grab band's action only opens).
-                        .overlay(alignment: .top) { closeHandle }
+                        // ⌄ close affordance — fades in WITH the data content (mirrors
+                        // the home's bottom ʌ fading out). The #E8EEF1 ceiling ledge it
+                        // sits on is the opaque `secondFloorPanel`; drag/tap/VoiceOver
+                        // close live on `FloorContainer`'s top grab band.
+                        .overlay(alignment: .top) { floorCloseChevron }
                 }
             )
 
@@ -221,19 +226,29 @@ struct HomeView: View {
         }
     }
 
-    /// The 二楼 surface — a domed crown over a uniform cool grey-blue panel
-    /// (fill-bg-surface-secondary), faithful to the latest Figma (`1374:1454`):
-    /// no spherical highlight cap — that earlier detail only existed to sit behind
-    /// Pibo's now-removed hanging feet. Rendered behind (and risen with) the data
-    /// content, so the content can fade in on top of an already-opaque surface.
+    /// The 二楼 surface — a single *opaque* rising sheet carrying the whole two-tone:
+    /// a light #F4F8F9 body (fill-bg-surface) under a darker #E8EEF1 `FloorCap` (Figma
+    /// 上划区域 `1496:4410`). The cap's **convex-up top** is the rising leading edge —
+    /// the SAME dome (`rise: 54`) as the closed bottom grab band, so the rounded shape
+    /// you grab travels straight up and hands off seamlessly (same shape AND colour),
+    /// then tucks behind the status bar when open. The cap's **convex-down bottom lip**
+    /// is the open-state ledge over the lighter body — the 背景区分. Keeping BOTH tones
+    /// in this one opaque panel (opacity 1 the entire pull) means the drag rides a
+    /// single surface — no mid-pull dome jump. The data content (transparent) fades in
+    /// on top.
     private var secondFloorPanel: some View {
-        FloorDome(rise: 54)
-            .fill(LP.Fill.bgSurfaceSecondary)   // #E8EEF1 — identical to the closed 上滑区域 dome, so the pull is a seamless same-colour handoff
-            // Crown legibility: panel over the near-white home bg is white-on-white —
-            // a soft upward shadow on the dome crown gives the rising edge contrast
-            // so the pull reads as "二楼 rising", not "the screen turning white".
-            .shadow(color: .black.opacity(0.10), radius: 14, y: -3)
-            .ignoresSafeArea()
+        ZStack(alignment: .top) {
+            LP.Fill.bgSurface                       // #F4F8F9 page body
+            FloorCap(rise: 54, drop: 22)
+                .fill(LP.Fill.bgSurfaceSecondary)   // #E8EEF1 cap: rising dome + ledge lip
+                .frame(height: 92)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .compositingGroup()
+                // Soft upward shadow so the rising dome reads as "二楼 rising" over the
+                // near-white home; the ledge itself reads via the body/cap colour step.
+                .shadow(color: .black.opacity(0.10), radius: 14, y: -3)
+        }
+        .ignoresSafeArea()
     }
 
     // MARK: Header
@@ -332,21 +347,17 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// ⌄ close handle at the top of the 二楼 (Figma `1374:1454`) — mirrors the
-    /// home's bottom ʌ in style (compact chevron · content/quarternary). Sits below
-    /// the status bar, above the 历史 header. (下划 also closes: the page-wide drag
-    /// arms from anywhere while the floor is open.)
-    private var closeHandle: some View {
-        Button(action: closeFloor) {
-            Image(systemName: "chevron.compact.down")
-                .font(.system(size: 30, weight: .medium))
-                .foregroundStyle(LP.Content.quarternary)
-                .frame(width: 44, height: 28)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.top, 36)
-        .accessibilityLabel(AppLocalization.text("回到Pibo"))
+    /// The ⌄ painted at the top of the 二楼 dome ceiling (Figma 上划区域 `1496:4410`)
+    /// — visual only, fading in with the data content (so it appears as the floor
+    /// settles, mirroring the home's bottom ʌ fading out). Close itself is driven by
+    /// `FloorContainer`'s top grab band; the #E8EEF1 ledge is the `secondFloorPanel`.
+    private var floorCloseChevron: some View {
+        Image(systemName: "chevron.compact.down")
+            .font(.system(size: 30, weight: .medium))
+            .foregroundStyle(LP.Content.quarternary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 44)
+            .allowsHitTesting(false)
     }
 
     // MARK: 拍一拍
@@ -536,6 +547,11 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
     /// static stored properties in generic types.)
     private static var grabBandHeight: CGFloat { 88 }
 
+    /// The *open*-state grab band over the 二楼 dome ceiling — drag-down here closes
+    /// (the history `ScrollView` would otherwise eat the close-drag) and a tap returns
+    /// home. Sized to the ceiling crown so normal list scrolling below it is untouched.
+    private static var topGrabBandHeight: CGFloat { 100 }
+
     var body: some View {
         GeometryReader { geo in
             let h = max(geo.size.height, 1)
@@ -605,6 +621,23 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
                 content
                     .offset(y: (1 - p) * h + CGFloat(1 - cT) * 14)
                     .opacity(cT)
+                    .allowsHitTesting(p > 0.9)
+
+                // 顶部抓手区 — the invisible grab band over the 二楼 dome ceiling. While
+                // the floor is open this band carries drag-to-close + tap-to-close + the
+                // VoiceOver "回到Pibo" action. It sits ABOVE the history ScrollView so the
+                // close-drag isn't eaten by the list's scroll (the root cause of the dome
+                // feeling un-draggable). Mirrors the bottom grab band; armed only when open.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: close)
+                    .gesture(drag(height: h, fromBand: true))
+                    .frame(height: Self.topGrabBandHeight)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .accessibilityElement()
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel(AppLocalization.text("回到Pibo"))
+                    .accessibilityAction(.default) { close() }
                     .allowsHitTesting(p > 0.9)
             }
             .contentShape(Rectangle())
@@ -676,6 +709,15 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
         floor.settle(to: 1) { onCovered() }
     }
 
+    /// Close the 二楼 — tap / VoiceOver action on the top dome ceiling grab band
+    /// (drag-down closes through the shared `drag` path). Mirrors `open()`; resume the
+    /// stage *before* anything is revealed so Pibo is never seen frozen.
+    private func close() {
+        LPHaptics.tap()
+        onRevealing()
+        floor.settle(to: 0)
+    }
+
     /// Finger-tracking pull; snaps to the nearer floor (or follows a flick) on
     /// release. `minimumDistance` lets taps reach the band's tap-to-open and the
     /// 二楼 controls.
@@ -719,10 +761,14 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
 }
 
 #Preview {
-    let container = try! ModelContainer(
-        for: HealthDayRecord.self,
-        configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-    return HomeView()
+    // Reuse `HistoryPreviewData` (the long-lived, disk-backed, all-three-models store
+    // shared with PiboHistoryView's preview). HomeView embeds PiboHistoryView (the 二
+    // 楼), whose `makeDay` fetches WorkoutRecord + FoodPhoto — so the preview needs the
+    // SAME guarantees: (1) all 3 @Model types in the schema (a partial schema traps on
+    // the fetch), and (2) a container that OUTLIVES the #Preview closure (a local `let`
+    // deallocates → the context's rows invalidate → SwiftData traps on the next
+    // re-layout/animation frame). An inline in-memory container hit both traps.
+    HomeView()
         .environment(PetStateStore(demoMode: true))
-        .environment(HealthHistoryStore(context: container.mainContext))
+        .environment(HistoryPreviewData.store)
 }

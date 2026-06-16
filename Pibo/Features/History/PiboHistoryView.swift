@@ -31,9 +31,14 @@ struct PiboHistoryView: View {
                 cardsStack(day)
                 Color.clear.frame(height: LP.Spacing.xxl)
             }
-            .padding(.top, 64)   // clear the ⌄ close handle + dome crown
+            .padding(.top, 76)   // clear the #E8EEF1 dome ceiling crown
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Transparent — the two-tone surface (light #F4F8F9 body + darker #E8EEF1
+        // ceiling crown) IS the opaque rising panel behind this (HomeView
+        // `secondFloorPanel`), so the whole pull rides one surface. Giving this
+        // ScrollView its own opaque bg made it a *second* surface fading in over the
+        // panel mid-pull → the dome-region jump. Cards carry their own fills.
     }
 
     // MARK: Header
@@ -238,6 +243,31 @@ struct FloorDome: Shape {
     }
 }
 
+/// The 二楼's #E8EEF1 cap — a lens-section band carrying BOTH the rising leading edge
+/// and the open-state ledge. Its **top** edge bulges UP by `rise` (a convex dome
+/// identical to the closed-state bottom grab dome, so the rounded shape "travels up" as
+/// the rising panel's leading edge during the pull, then tucks behind the status bar
+/// once open); its **bottom** edge bulges DOWN by `drop` (the convex lip ledge over the
+/// lighter #F4F8F9 page — the 背景区分). Figma 上划区域 `1496:4410`. Top-aligned +
+/// `ignoresSafeArea` so the top dome bleeds off-screen exactly like the bottom dome.
+struct FloorCap: Shape {
+    var rise: CGFloat = 54
+    var drop: CGFloat = 22
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        // Convex-up top: shoulders at minY, apex `rise` above (control = 2·apex − shoulder).
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        p.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.minY),
+                       control: CGPoint(x: rect.midX, y: rect.minY - 2 * rise))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        // Convex-down bottom lip: shoulders at maxY, apex `drop` below.
+        p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY),
+                       control: CGPoint(x: rect.midX, y: rect.maxY + 2 * drop))
+        p.closeSubpath()
+        return p
+    }
+}
+
 #Preview {
     PiboHistoryView()
         .background(Color(hex: 0xEAEEEF).ignoresSafeArea())
@@ -245,17 +275,18 @@ struct FloorDome: Shape {
         .environment(HistoryPreviewData.store)
 }
 
-/// Preview-only SwiftData host. The container + store live in `static let`s so
-/// they survive the whole preview process: a container scoped *inside* the
-/// `#Preview` closure deallocates once the closure returns its view, which
-/// invalidates the fetched `@Model` rows (`WorkoutRecord` / `FoodPhoto`) — the
-/// next body render then traps inside SwiftData when a `ForEach` reads them
-/// (`EXC_BREAKPOINT` in `DynamicViewList.updateValue`). The real app is immune
-/// because its `ModelContainer` is a long-lived `PiboApp` stored property.
+/// Preview-only SwiftData host, **shared by the `PiboHistoryView` and `HomeView`
+/// previews** (HomeView embeds PiboHistoryView, so its preview hits the same SwiftData
+/// paths). The container + store live in `static let`s so they survive the whole
+/// preview process: a container scoped *inside* a `#Preview` closure deallocates once
+/// the closure returns its view, which invalidates the fetched `@Model` rows
+/// (`WorkoutRecord` / `FoodPhoto`) — the next body render then traps inside SwiftData
+/// (`EXC_BREAKPOINT`, e.g. a `ForEach` reading rows, or a re-layout re-fetching). The
+/// real app is immune because its `ModelContainer` is a long-lived `PiboApp` property.
 ///
 /// Disk-backed (a fresh per-process temp store), not `isStoredInMemoryOnly`,
 /// since `FoodPhoto.pngData` is `@Attribute(.externalStorage)`.
-private enum HistoryPreviewData {
+enum HistoryPreviewData {
     static let container: ModelContainer = {
         let url = URL.temporaryDirectory.appending(path: "pibo_history_preview_\(UUID().uuidString).store")
         return try! ModelContainer(
