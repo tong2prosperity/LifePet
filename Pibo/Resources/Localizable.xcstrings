@@ -449,6 +449,9 @@
     "%lld" : {
 
     },
+    "%lld步" : {
+
+    },
     "→ 心绪回声（后台）" : {
       "extractionState" : "manual",
       "localizations" : {

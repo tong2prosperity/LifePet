@@ -2,6 +2,7 @@ import SwiftUI
 import Observation
 import AVFoundation
 import UIKit
+import os
 
 /// 拍照页 / 记录饮食 (Figma `488:1337` §拍照页). Opened from the home 露珠相机 button.
 ///
@@ -281,6 +282,7 @@ struct PiboCameraView: View {
 
     private func shutter() {
         LPHaptics.tap()
+        LPLog.camera.notice("shutter tapped (aspect=\(aspect.label, privacy: .public))")
         capturedAt = Date()
         tilt = Double.random(in: -5...5)
         withAnimation(.linear(duration: 0.06)) { flash = true }
@@ -298,11 +300,17 @@ struct PiboCameraView: View {
     /// once Vision answers. Best-effort: a nil result simply shows no tag.
     private func classify(_ image: UIImage?) {
         subjectLabel = nil
-        guard let image else { return }
+        guard let image else {
+            LPLog.classify.info("识图 skipped — no captured image (placeholder device)")
+            return
+        }
         Task {
             let label = await Task.detached { SubjectClassifier.classify(image) }.value
             // Drop a stale answer if the user already retook the shot.
-            guard stage == .preview, shot === image else { return }
+            guard stage == .preview, shot === image else {
+                LPLog.classify.debug("识图 result dropped — shot changed before classify returned")
+                return
+            }
             withAnimation(.spring(response: 0.32, dampingFraction: 0.75)) { subjectLabel = label }
         }
     }
@@ -315,6 +323,7 @@ struct PiboCameraView: View {
 
     private func save() {
         LPHaptics.tap()
+        LPLog.camera.notice("保存 photo (hasShot=\(shot != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public))")
         if let shot {
             PiboPhotoStore.saveLatest(shot)
             lastThumb = shot
@@ -373,11 +382,19 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
         case .notDetermined: granted = await AVCaptureDevice.requestAccess(for: .video)
         default:             granted = false
         }
-        guard granted else { return }
+        guard granted else {
+            LPLog.camera.notice("camera access not granted — using placeholder viewfinder")
+            return
+        }
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             queue.async {
                 let ok = self.buildSession()
-                if ok { self.session.startRunning() }
+                if ok {
+                    self.session.startRunning()
+                    LPLog.camera.notice("capture session ready")
+                } else {
+                    LPLog.camera.error("capture session build failed — no usable camera input")
+                }
                 Task { @MainActor in self.isReady = ok }
                 cont.resume()
             }
@@ -400,7 +417,11 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
     }
 
     func capturePhoto() async -> UIImage? {
-        guard isReady else { return nil }
+        guard isReady else {
+            LPLog.camera.info("capturePhoto skipped — session not ready (placeholder device)")
+            return nil
+        }
+        LPLog.camera.debug("capturePhoto requested")
         return await withCheckedContinuation { cont in
             pending = cont
             queue.async {
@@ -417,6 +438,13 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
                                  didFinishProcessingPhoto photo: AVCapturePhoto,
                                  error: Error?) {
         let image = photo.fileDataRepresentation().flatMap { UIImage(data: $0) }
+        if let error {
+            LPLog.camera.error("photo capture failed: \(error.localizedDescription, privacy: .public)")
+        } else if let image {
+            LPLog.camera.info("photo captured \(Int(image.size.width), privacy: .public)×\(Int(image.size.height), privacy: .public)@\(Double(image.scale), format: .fixed(precision: 1), privacy: .public)x")
+        } else {
+            LPLog.camera.error("photo captured but image decode failed (no fileDataRepresentation)")
+        }
         Task { @MainActor in
             self.pending?.resume(returning: image)
             self.pending = nil

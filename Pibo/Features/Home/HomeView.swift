@@ -3,6 +3,7 @@ import SwiftData
 import Observation
 import QuartzCore
 import UIKit
+import os
 
 /// Drives the 上滑二楼 pull. Owned by `HomeView` for its lifetime but read **only**
 /// by `FloorContainer`, so mutating `progress` during a drag re-renders just the
@@ -456,6 +457,7 @@ struct HomeView: View {
 
     private func handlePhotoSaved(_ image: UIImage?, _ subjectLabel: String?) {
         // 拍照 = 认知能量. Nudge the head 毛 + let Pibo react (spec §4.3).
+        LPLog.cutout.notice("photo saved → post-processing (hasImage=\(image != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public))")
         energyToken = UUID()
         if Bool.random() {
             show(PiboSpeechLine(text: PiboCameraView.genericComments.randomElement() ?? "...颜色...记..."))
@@ -463,12 +465,19 @@ struct HomeView: View {
         // Persist a background-removed (抠图) + 镶边框 copy, tagged with the 识图
         // label, as a 今日记录 food photo so it lands on the 历史数据页 (home
         // spec §4). Heavy Vision work runs off-main.
-        guard let image else { return }
+        guard let image else {
+            LPLog.cutout.info("no captured image (placeholder device) — skipping 抠图/persist")
+            return
+        }
         let capturedAt = Date()
         Task {
             let png = await Task.detached { SubjectCutout.stickerPNG(image) }.value
-            guard let png else { return }
+            guard let png else {
+                LPLog.cutout.error("贴纸 PNG nil — FoodPhoto not persisted")
+                return
+            }
             history.addFoodPhoto(pngData: png, capturedAt: capturedAt, subjectLabel: subjectLabel)
+            LPLog.cutout.notice("FoodPhoto persisted \(png.count / 1024, privacy: .public)KB label=\(subjectLabel ?? "—", privacy: .public) at \(LPLog.dateFormatter.string(from: capturedAt), privacy: .public)")
         }
     }
 

@@ -45,6 +45,13 @@ nonisolated enum LPLog {
     /// without drowning the rest of `HealthKit`'s output.
     static let sleep        = Logger(subsystem: subsystem, category: "HealthKit.Sleep")
     static let workout      = Logger(subsystem: subsystem, category: "HealthKit.Workout")
+    /// 拍照 pipeline. `camera` = capture session + shutter + save; the two
+    /// on-device Vision passes are split — `Vision.Classify` (识图 subject
+    /// label) and `Vision.Cutout` (抠图 mask + 贴纸白描边 + persist) — so each
+    /// verbose dump can be filtered apart from the other.
+    static let camera       = Logger(subsystem: subsystem, category: "Camera")
+    static let classify     = Logger(subsystem: subsystem, category: "Vision.Classify")
+    static let cutout       = Logger(subsystem: subsystem, category: "Vision.Cutout")
 
     /// Shared "MM-dd HH:mm:ss" formatter for log timestamps. Local-time
     /// output reads more naturally than `Date`'s default UTC `description`.
@@ -55,4 +62,15 @@ nonisolated enum LPLog {
         fmt.timeZone = .current
         return fmt
     }()
+
+    /// Monotonic elapsed milliseconds since `start`, for timing the Vision
+    /// passes (the heavy part of the 拍照 pipeline). `ContinuousClock` is
+    /// immune to wall-clock / NTP jumps, so a logged duration never goes
+    /// negative or spikes. Format at the call site, e.g.
+    /// `\(LPLog.elapsedMs(since: start), format: .fixed(precision: 1))`.
+    static func elapsedMs(since start: ContinuousClock.Instant) -> Double {
+        let d = ContinuousClock().now - start
+        return Double(d.components.seconds) * 1_000
+            + Double(d.components.attoseconds) / 1_000_000_000_000_000
+    }
 }

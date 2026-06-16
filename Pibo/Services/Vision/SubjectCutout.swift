@@ -2,6 +2,7 @@ import UIKit
 import Vision
 import CoreImage
 import CoreVideo
+import os
 
 /// 抠图 — background removal for captured food photos. Uses Vision's
 /// foreground-instance mask (`VNGenerateForegroundInstanceMaskRequest`, iOS 17+)
@@ -17,21 +18,36 @@ enum SubjectCutout {
     /// original image unchanged when no subject is found or Vision fails — the
     /// flow never blocks on a perfect cut.
     nonisolated static func cutout(_ image: UIImage) -> UIImage {
-        guard let cg = image.cgImage else { return image }
+        let start = ContinuousClock().now
+        guard let cg = image.cgImage else {
+            LPLog.cutout.error("抠图 abort — image has no cgImage; returning original")
+            return image
+        }
+        LPLog.cutout.debug("抠图 start \(cg.width, privacy: .public)×\(cg.height, privacy: .public)")
         let handler = VNImageRequestHandler(cgImage: cg, orientation: cgOrientation(image.imageOrientation))
         let request = VNGenerateForegroundInstanceMaskRequest()
         do {
             try handler.perform([request])
-            guard let result = request.results?.first else { return image }
+            guard let result = request.results?.first else {
+                // Common, not a failure — a photo with no clear subject just
+                // keeps its full frame (the sticker degrades to a framed photo).
+                LPLog.cutout.info("抠图 no foreground subject — returning original (\(LPLog.elapsedMs(since: start), format: .fixed(precision: 1), privacy: .public)ms)")
+                return image
+            }
             let masked = try result.generateMaskedImage(
                 ofInstances: result.allInstances,
                 from: handler,
                 croppedToInstancesExtent: true)
             let ci = CIImage(cvPixelBuffer: masked)
             let ctx = CIContext()
-            guard let out = ctx.createCGImage(ci, from: ci.extent) else { return image }
+            guard let out = ctx.createCGImage(ci, from: ci.extent) else {
+                LPLog.cutout.error("抠图 CIContext.createCGImage failed — returning original")
+                return image
+            }
+            LPLog.cutout.debug("抠图 ok instances=\(result.allInstances.count, privacy: .public) extent=\(Int(ci.extent.width), privacy: .public)×\(Int(ci.extent.height), privacy: .public) (\(LPLog.elapsedMs(since: start), format: .fixed(precision: 1), privacy: .public)ms)")
             return UIImage(cgImage: out)
         } catch {
+            LPLog.cutout.error("抠图 mask request failed: \(error.localizedDescription, privacy: .public) — returning original")
             return image
         }
     }
@@ -47,10 +63,18 @@ enum SubjectCutout {
     /// The full 今日记录 treatment: cutout → downscale → 镶嵌白色贴纸边框 → PNG.
     /// Border width scales with the final image so every record reads the same.
     nonisolated static func stickerPNG(_ image: UIImage, maxDimension: CGFloat = 1024) -> Data? {
+        let start = ContinuousClock().now
+        LPLog.cutout.debug("贴纸生成 start in=\(Int(image.size.width), privacy: .public)×\(Int(image.size.height), privacy: .public)@\(Double(image.scale), format: .fixed(precision: 1), privacy: .public)x maxDim=\(Int(maxDimension), privacy: .public)")
         let lifted = cutout(image)
         let scaled = downscale(lifted, maxDimension: maxDimension)
         let border = max(8, min(scaled.size.width, scaled.size.height) * 0.035)
-        return stickerize(scaled, border: border).pngData()
+        let sticker = stickerize(scaled, border: border)
+        guard let png = sticker.pngData() else {
+            LPLog.cutout.error("贴纸生成 pngData() returned nil — nothing to persist")
+            return nil
+        }
+        LPLog.cutout.info("贴纸生成 ok border=\(Int(border), privacy: .public)pt out=\(Int(sticker.size.width), privacy: .public)×\(Int(sticker.size.height), privacy: .public) png=\(png.count / 1024, privacy: .public)KB (\(LPLog.elapsedMs(since: start), format: .fixed(precision: 1), privacy: .public)ms total)")
+        return png
     }
 
     /// 镶嵌边框 — draw a white sticker outline hugging the subject's silhouette

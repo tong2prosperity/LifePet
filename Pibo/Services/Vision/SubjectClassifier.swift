@@ -1,5 +1,6 @@
 import UIKit
 import Vision
+import os
 
 /// 识图 — best-effort recognition of the photo's main subject using Vision's
 /// on-device taxonomy classifier (`VNClassifyImageRequest`, no network, no
@@ -13,24 +14,47 @@ enum SubjectClassifier {
     /// identifier is in our mapping, the prettified English identifier
     /// otherwise, `nil` when nothing clears the precision filter.
     nonisolated static func classify(_ image: UIImage) -> String? {
-        guard let cg = image.cgImage else { return nil }
+        let start = ContinuousClock().now
+        guard let cg = image.cgImage else {
+            LPLog.classify.error("识图 abort — image has no cgImage")
+            return nil
+        }
+        LPLog.classify.debug("识图 start \(cg.width, privacy: .public)×\(cg.height, privacy: .public) orient=\(image.imageOrientation.rawValue, privacy: .public)")
         let handler = VNImageRequestHandler(
             cgImage: cg, orientation: SubjectCutout.cgOrientation(image.imageOrientation))
         let request = VNClassifyImageRequest()
         do {
             try handler.perform([request])
-            guard let results = request.results else { return nil }
+            guard let results = request.results else {
+                LPLog.classify.info("识图 → (no results) \(LPLog.elapsedMs(since: start), format: .fixed(precision: 1), privacy: .public)ms")
+                return nil
+            }
             // Keep observations the model itself rates precise; results arrive
             // sorted by confidence.
             let confident = results.filter { $0.hasMinimumRecall(0.01, forPrecision: 0.9) }
-            guard !confident.isEmpty else { return nil }
+            // High-volume detail — the leading candidate + how many cleared the
+            // precision filter. .debug: hidden from Console's default view.
+            if let top = confident.first {
+                LPLog.classify.debug("识图 candidates total=\(results.count, privacy: .public) confident=\(confident.count, privacy: .public) top=\(top.identifier, privacy: .public)@\(Double(top.confidence), format: .fixed(precision: 2), privacy: .public)")
+            } else {
+                LPLog.classify.debug("识图 candidates total=\(results.count, privacy: .public) confident=0")
+            }
+            guard !confident.isEmpty else {
+                LPLog.classify.info("识图 → (none) \(LPLog.elapsedMs(since: start), format: .fixed(precision: 1), privacy: .public)ms")
+                return nil
+            }
             // Prefer the most confident label we can show in 中文; otherwise
             // fall back to the top identifier as-is.
-            if let mapped = confident.lazy.compactMap({ Self.zhNames[$0.identifier.lowercased()] }).first {
+            if let hit = confident.first(where: { Self.zhNames[$0.identifier.lowercased()] != nil }) {
+                let mapped = Self.zhNames[hit.identifier.lowercased()]!
+                LPLog.classify.info("识图 → \(mapped, privacy: .public) (zh ← \(hit.identifier, privacy: .public)@\(Double(hit.confidence), format: .fixed(precision: 2), privacy: .public), \(LPLog.elapsedMs(since: start), format: .fixed(precision: 1), privacy: .public)ms)")
                 return mapped
             }
-            return prettify(confident[0].identifier)
+            let label = prettify(confident[0].identifier)
+            LPLog.classify.info("识图 → \(label, privacy: .public) (en, \(LPLog.elapsedMs(since: start), format: .fixed(precision: 1), privacy: .public)ms)")
+            return label
         } catch {
+            LPLog.classify.error("识图 request failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
