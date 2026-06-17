@@ -17,7 +17,7 @@ struct RootView: View {
                 // No bottom tab bar: the home is the only floor; swiping the grab
                 // bar up reveals the 数据二楼 (see `HomeView`). 图鉴 / 一起 are not
                 // wired to an entry point yet — re-surface later (二楼 or a menu).
-                HomeView()
+                HistoryFloorView().background(LP.Fill.bgSurface.ignoresSafeArea())  // TEMP-VERIFY
             } else {
                 HealthAuthView(onContinue: { onboardingDone = true })
             }

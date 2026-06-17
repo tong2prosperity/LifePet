@@ -140,7 +140,9 @@ struct HomeView: View {
                 chrome: { chromeContent },
                 panel: { secondFloorPanel },
                 content: {
-                    PiboHistoryView()
+                    // The 二楼 content is now a tab container (数据 / 自定义 Pibo);
+                    // the bottom tab bar lets the user enter the customization page.
+                    HistoryFloorView()
                         .environment(store)
                         // ⌄ close affordance — fades in WITH the data content (mirrors
                         // the home's bottom ʌ fading out). The #E8EEF1 ceiling ledge it

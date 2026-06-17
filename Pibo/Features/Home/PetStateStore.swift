@@ -317,6 +317,15 @@ final class PetStateStore {
         didSet { UserDefaults.standard.set(growthStage.rawValue, forKey: Self.growthStageKey) }
     }
 
+    private static let appearanceKey = "pibo.appearance.v1"
+    /// User-customized 形象 DNA — the component-separated look edited in
+    /// `CustomPiboPage` and rendered by `PiboPortraitView`. Persisted as JSON;
+    /// loaded in `init`, wiped by `reset()` (per-pet). Defaults to the Figma
+    /// `1855:4343` 魔丸 look so a fresh pet already matches the design spec.
+    var appearance: PiboAppearance = .default {
+        didSet { UserDefaults.standard.set(appearance.encoded, forKey: Self.appearanceKey) }
+    }
+
     /// First 运动能量 collected — the 毛 sprouts its leaf. Idempotent.
     func markSprouted() {
         guard growthStage == .mystery else { return }
@@ -473,6 +482,7 @@ final class PetStateStore {
         self.selectedThemeID = UserDefaults.standard.string(forKey: Self.selectedThemeKey)
         self.growthStage = PiboGrowthStage(
             rawValue: UserDefaults.standard.string(forKey: Self.growthStageKey) ?? "") ?? .mystery
+        self.appearance = PiboAppearance.decoded(from: UserDefaults.standard.data(forKey: Self.appearanceKey))
         LPLog.petState.notice("PetStateStore init demoMode=\(demoMode, privacy: .public) eventsBound=\(events != nil, privacy: .public) day=\(identity.daysSinceBirth, privacy: .public)")
 
         // Cold-launch rollover catch-up. If the app was killed across one or
@@ -654,6 +664,8 @@ final class PetStateStore {
         // New pet = back to 魔丸 D1: 「?」卷芽, default theme, fresh story.
         growthStage = .mystery
         UserDefaults.standard.removeObject(forKey: Self.growthStageKey)
+        appearance = .default
+        UserDefaults.standard.removeObject(forKey: Self.appearanceKey)
         selectedThemeID = nil
         story.reset()
         // New pet UUID + name + birth=today. Hackathon semantics: reset means
