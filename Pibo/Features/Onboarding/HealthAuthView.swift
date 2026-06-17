@@ -1,8 +1,9 @@
 import SwiftUI
 import os
+import AVFoundation
+import Observation
 import UIKit
 import Darwin
-import AVFoundation
 import Speech
 
 /// First-launch onboarding for the 魔丸态 prototype. This ports the 0603 HTML
@@ -22,6 +23,7 @@ struct HealthAuthView: View {
     @State private var lightCaptureAttempts = 0
     @State private var cameraMessage = "点击屏幕任意位置模拟拍照"
     @State private var cameraIsChecking = false
+    @State private var camera = OnboardingCameraController()
     @State private var authRequested = false
     @State private var energyProgress: CGFloat = 0
     @State private var pluckOffset: CGFloat = 0
@@ -197,6 +199,11 @@ struct HealthAuthView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(Color.black)
+                    .overlay {
+                        if camera.isReady {
+                            OnboardingCameraPreview(session: camera.session)
+                        }
+                    }
                     .overlay(cameraGrid.opacity(0.45))
                     .overlay {
                         if lightCaptured {
@@ -227,12 +234,14 @@ struct HealthAuthView: View {
             }
             .frame(maxHeight: 500)
             .contentShape(Rectangle())
-            .onTapGesture { captureLight() }
+            .onTapGesture { Task { await captureLight() } }
 
             onboardingButton(lightCaptured ? "继续" : (lightCaptureAttempts == 0 ? "捕捉一点光" : "再拍一次"), kind: .light) {
-                lightCaptured ? go(.awaken) : captureLight()
+                lightCaptured ? go(.awaken) : Task { await captureLight() }
             }
         }
+        .task { await camera.configure() }
+        .onDisappear { camera.stop() }
     }
 
     private var awakenScene: some View {
@@ -544,12 +553,12 @@ struct HealthAuthView: View {
         }
     }
 
-    private func captureLight() {
+    private func captureLight() async {
         guard !cameraIsChecking else { return }
         LPHaptics.tap()
         lightCaptureAttempts += 1
         cameraIsChecking = true
-        let frame = Self.simulatedLightFrame(isBright: lightCaptureAttempts > 1)
+        let frame = await camera.capturePhoto() ?? Self.simulatedLightFrame(isBright: lightCaptureAttempts > 1)
         let hasEnoughLight = LightCaptureVerifier.hasEnoughWhite(frame)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
             cameraIsChecking = false
@@ -1178,6 +1187,102 @@ private struct PiboOnboardingBlob: View {
 
     private static func flickerOffset(at time: TimeInterval) -> CGFloat {
         sin(time * 73) > 0.72 ? -5 : 3
+    }
+}
+
+@Observable
+private final class OnboardingCameraController: NSObject, AVCapturePhotoCaptureDelegate {
+    @ObservationIgnored let session = AVCaptureSession()
+    @ObservationIgnored private let output = AVCapturePhotoOutput()
+    @ObservationIgnored private let queue = DispatchQueue(label: "fun.tiebao.co.Pibo.onboarding.camera.session")
+    @ObservationIgnored private var pending: CheckedContinuation<UIImage?, Never>?
+
+    var isReady = false
+
+    override init() { super.init() }
+
+    func configure() async {
+        guard !isReady else { return }
+        let granted: Bool
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            granted = true
+        case .notDetermined:
+            granted = await AVCaptureDevice.requestAccess(for: .video)
+        default:
+            granted = false
+        }
+        guard granted else { return }
+
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            queue.async {
+                let ok = self.buildSession()
+                if ok { self.session.startRunning() }
+                Task { @MainActor in
+                    self.isReady = ok
+                    cont.resume()
+                }
+            }
+        }
+    }
+
+    private nonisolated func buildSession() -> Bool {
+        session.beginConfiguration()
+        defer { session.commitConfiguration() }
+        session.sessionPreset = .photo
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+                ?? AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: device),
+              session.canAddInput(input),
+              session.canAddOutput(output)
+        else {
+            return false
+        }
+        session.addInput(input)
+        session.addOutput(output)
+        return true
+    }
+
+    func capturePhoto() async -> UIImage? {
+        guard isReady else { return nil }
+        return await withCheckedContinuation { cont in
+            pending = cont
+            queue.async {
+                self.output.capturePhoto(with: AVCapturePhotoSettings(), delegate: self)
+            }
+        }
+    }
+
+    func stop() {
+        queue.async { if self.session.isRunning { self.session.stopRunning() } }
+    }
+
+    nonisolated func photoOutput(_ output: AVCapturePhotoOutput,
+                                 didFinishProcessingPhoto photo: AVCapturePhoto,
+                                 error: Error?) {
+        let image = photo.fileDataRepresentation().flatMap { UIImage(data: $0) }
+        Task { @MainActor in
+            self.pending?.resume(returning: image)
+            self.pending = nil
+        }
+    }
+}
+
+private struct OnboardingCameraPreview: UIViewRepresentable {
+    let session: AVCaptureSession
+
+    func makeUIView(context: Context) -> PreviewView {
+        let view = PreviewView()
+        view.previewLayer.session = session
+        view.previewLayer.videoGravity = .resizeAspectFill
+        return view
+    }
+
+    func updateUIView(_ uiView: PreviewView, context: Context) {}
+
+    final class PreviewView: UIView {
+        override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+        var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
     }
 }
 
