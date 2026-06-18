@@ -60,17 +60,16 @@ struct PiboPortraitView: View {
                     .rotationEffect(.degrees(a.plant.sway))
                     .position(P(112.07, -38.97))
 
-                // 手 — behind the body, perfectly mirrored about the body center.
-                // The raw Figma arm nodes are placed slightly asymmetrically (the
-                // left one reads as tucked-in/stubby), so both arms now mirror the
-                // well-formed right arm's offset + height.
+                // 手 — behind the body, hugging its sides. Both arms share the same
+                // base path; the 左臂 (Vector 16) is un-flipped, sits low and pokes a
+                // small nub down-left; the 右臂 (Vector 17) is flipped-X and tucked up
+                // into the body's wide right shoulder so the forearm hangs along — and
+                // stays in contact with — the body contour (no floating gap).
                 if a.arms.visible {
                     let armDY = (a.arms.drop - 0.18) * 120
-                    let armOffset: CGFloat = 112.79
-                    let armY: CGFloat = 117.5 + armDY
-                    arm(at: P(bodyCenter.x - armOffset, armY), scale: scale, length: a.arms.length,
+                    arm(at: P(18.63, 123.5 + armDY), scale: scale, length: a.arms.length,
                         color: pal.limb.color, mirror: false)
-                    arm(at: P(bodyCenter.x + armOffset, armY), scale: scale, length: a.arms.length,
+                    arm(at: P(212, 108 + armDY), scale: scale, length: a.arms.length,
                         color: pal.limb.color, mirror: true)
                 }
 
@@ -131,13 +130,22 @@ struct PiboPortraitView: View {
     }
 
     private func arm(at p: CGPoint, scale: CGFloat, length: CGFloat, color: Color, mirror: Bool) -> some View {
-        PiboArmShape()
-            .stroke(color, style: StrokeStyle(lineWidth: PiboArmShape.nativeWidth * scale,
-                                              lineCap: .round, lineJoin: .round))
-            .frame(width: PiboArmShape.viewBox.width * scale,
-                   height: PiboArmShape.viewBox.height * scale * length)
-            .scaleEffect(x: mirror ? -1 : 1)
-            .position(p)
+        let style = StrokeStyle(lineWidth: PiboArmShape.nativeWidth * scale,
+                                lineCap: .round, lineJoin: .round)
+        return ZStack {
+            PiboArmShape().stroke(color, style: style)
+            // Whisper of shading only at the very shoulder (where the arm meets the
+            // body), fading out fast — Figma's arm MaskGroup, kept subtle so it
+            // reads as depth, not a gap.
+            PiboArmShape().stroke(
+                LinearGradient(colors: [Color(hex: 0xC2CCD3).opacity(0.4), .clear],
+                               startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.32)),
+                style: style)
+        }
+        .frame(width: PiboArmShape.viewBox.width * scale,
+               height: PiboArmShape.viewBox.height * scale * length)
+        .scaleEffect(x: mirror ? -1 : 1)
+        .position(p)
     }
 
     private func eye(at p: CGPoint, w: CGFloat, h: CGFloat,

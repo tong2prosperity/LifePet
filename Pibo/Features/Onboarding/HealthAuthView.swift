@@ -37,13 +37,19 @@ struct HealthAuthView: View {
     let onContinue: () -> Void
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topTrailing) {
             background
             currentScene
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, LP.Spacing.l)
                 .padding(.vertical, LP.Spacing.xl)
                 .transition(.opacity.combined(with: .scale(scale: 0.985)))
+            if scene.showsSkip {
+                skipButton
+                    .padding(.top, LP.Spacing.s)
+                    .padding(.trailing, LP.Spacing.l)
+                    .transition(.opacity)
+            }
         }
         .preferredColorScheme(.light)
         .onAppear {
@@ -161,7 +167,7 @@ struct HealthAuthView: View {
             }
             .frame(maxWidth: 340)
             Spacer()
-            Button(AppLocalization.text("跳过")) { go(.falling) }
+            Button(AppLocalization.text("跳过开场")) { go(.falling) }
                 .font(.system(size: 12, weight: .medium))
                 .tracking(2)
                 .foregroundStyle(Color.white.opacity(0.42))
@@ -629,6 +635,49 @@ struct HealthAuthView: View {
         onContinue()
     }
 
+    /// Bail out of the whole onboarding flow straight to Home. Commits whatever
+    /// name was entered (defaults to PIBO) and stops any in-flight voice capture.
+    private func skipOnboarding() {
+        LPLog.onboarding.notice("User skipped onboarding")
+        voiceInput.stop()
+        commitName()
+        onContinue()
+    }
+
+    /// Persistent top-right "跳过" control — skips the entire onboarding stage.
+    private var skipButton: some View {
+        Button(action: skipOnboarding) {
+            HStack(spacing: 3) {
+                Text(AppLocalization.text("跳过"))
+                    .lpText(LP.Typography.c1Medium)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .foregroundStyle(skipForeground)
+            .padding(.horizontal, LP.Spacing.m)
+            .padding(.vertical, LP.Spacing.s)
+            .background(Capsule().fill(skipBackground))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Skip-button colors track the scene palette so it stays legible on the
+    /// dark / glitch / paper backdrops.
+    private var skipForeground: Color {
+        switch scene.palette {
+        case .dark, .glitch: return Color.white.opacity(0.6)
+        case .paper, .home:  return LP.Content.tertiary
+        }
+    }
+
+    private var skipBackground: Color {
+        switch scene.palette {
+        case .dark, .glitch: return Color.white.opacity(0.12)
+        case .paper, .home:  return Color.black.opacity(0.05)
+        }
+    }
+
     private func commitName() {
         let trimmed = petNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         store.petName = trimmed.isEmpty ? "PIBO" : String(trimmed.prefix(16))
@@ -903,6 +952,17 @@ private enum OnboardingScene {
             return true
         default:
             return false
+        }
+    }
+
+    /// Whether the global "跳过" control shows. Hidden on the contract-failure
+    /// dead-end (its own exit flow) and the final hand-off screen.
+    var showsSkip: Bool {
+        switch self {
+        case .contractFailure, .complete:
+            return false
+        default:
+            return true
         }
     }
 }

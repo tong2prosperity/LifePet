@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Partial Info.plist for the Pibo iOS app, MERGED with the keys generated from the
+  `INFOPLIST_KEY_*` build settings (GENERATE_INFOPLIST_FILE stays YES). It only
+  carries keys that have no `INFOPLIST_KEY_` build-setting form — here, the
+  `location` background mode that lets the 地图涂鸦 walk keep recording GPS while
+  the app is backgrounded / the screen is locked.
+-->
+<plist version="1.0">
+<dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+</dict>
+</plist>

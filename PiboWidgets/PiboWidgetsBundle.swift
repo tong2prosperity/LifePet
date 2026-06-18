@@ -13,5 +13,6 @@ struct PiboWidgetsBundle: WidgetBundle {
     var body: some Widget {
         PiboWidgets()
         PiboWidgetsLiveActivity()
+        WalkDoodleLiveActivity()
     }
 }

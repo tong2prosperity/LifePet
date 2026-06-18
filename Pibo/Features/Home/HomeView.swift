@@ -97,6 +97,7 @@ struct HomeView: View {
     /// (not per frame), so the stage is never re-rendered mid-drag.
     @State private var stagePaused = false
     @State private var showCamera = false
+    @State private var showWalkDoodle = false
     @State private var showSettings = false
     @State private var energyToken: UUID? = nil
     @State private var pluckToken: PluckToken? = nil
@@ -138,18 +139,9 @@ struct HomeView: View {
                     .ignoresSafeArea()
                 },
                 chrome: { chromeContent },
-                panel: { secondFloorPanel },
-                content: {
-                    // The 二楼 content is now a tab container (数据 / 自定义 Pibo);
-                    // the bottom tab bar lets the user enter the customization page.
-                    HistoryFloorView()
-                        .environment(store)
-                        // ⌄ close affordance — fades in WITH the data content (mirrors
-                        // the home's bottom ʌ fading out). The #E8EEF1 ceiling ledge it
-                        // sits on is the opaque `secondFloorPanel`; drag/tap/VoiceOver
-                        // close live on `FloorContainer`'s top grab band.
-                        .overlay(alignment: .top) { floorCloseChevron }
-                }
+                // The 二楼 content (数据 / 自定义 Pibo tab container) rides inside
+                // FloorContainer's single rising drawer, under the #E8EEF1 crown.
+                content: { HistoryFloorView().environment(store) }
             )
 
             // 发芽 close-up captions, synced to the stage phases.
@@ -192,6 +184,9 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showCamera) {
             PiboCameraView(onPhotoSaved: handlePhotoSaved).environment(store)
         }
+        .fullScreenCover(isPresented: $showWalkDoodle) {
+            WalkDoodleView(onSaved: handleDoodleSaved)
+        }
         .sheet(isPresented: $showSettings) {
             SettingsSheet(onReset: performReset).environment(store)
         }
@@ -226,31 +221,6 @@ struct HomeView: View {
             .opacity(closeupActive ? 0 : 1)
             .allowsHitTesting(!closeupActive)
         }
-    }
-
-    /// The 二楼 surface — a single *opaque* rising sheet carrying the whole two-tone:
-    /// a light #F4F8F9 body (fill-bg-surface) under a darker #E8EEF1 `FloorCap` (Figma
-    /// 上划区域 `1496:4410`). The cap's **convex-up top** is the rising leading edge —
-    /// the SAME dome (`rise: 54`) as the closed bottom grab band, so the rounded shape
-    /// you grab travels straight up and hands off seamlessly (same shape AND colour),
-    /// then tucks behind the status bar when open. The cap's **convex-down bottom lip**
-    /// is the open-state ledge over the lighter body — the 背景区分. Keeping BOTH tones
-    /// in this one opaque panel (opacity 1 the entire pull) means the drag rides a
-    /// single surface — no mid-pull dome jump. The data content (transparent) fades in
-    /// on top.
-    private var secondFloorPanel: some View {
-        ZStack(alignment: .top) {
-            LP.Fill.bgSurface                       // #F4F8F9 page body
-            FloorCap(rise: 54, drop: 22)
-                .fill(LP.Fill.bgSurfaceSecondary)   // #E8EEF1 cap: rising dome + ledge lip
-                .frame(height: 92)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .compositingGroup()
-                // Soft upward shadow so the rising dome reads as "二楼 rising" over the
-                // near-white home; the ledge itself reads via the body/cap colour step.
-                .shadow(color: .black.opacity(0.10), radius: 14, y: -3)
-        }
-        .ignoresSafeArea()
     }
 
     // MARK: Header
@@ -298,6 +268,9 @@ struct HomeView: View {
     /// `FloorContainer` (so they crossfade into the rising 二楼 panel), not here.
     private var bottomControls: some View {
         VStack(spacing: 0) {
+            // Pibo 在主界面给用户布置的任务 — 出门走一幅地图涂鸦 (运动能量).
+            WalkDoodleTaskCard { showWalkDoodle = true }
+            Spacer().frame(height: LP.Spacing.m)
             if store.pluckAvailable {
                 pluckButton
                 Spacer().frame(height: LP.Spacing.m)
@@ -347,19 +320,6 @@ struct HomeView: View {
             .lpShadow(LP.Shadow.elevation2)
         }
         .buttonStyle(.plain)
-    }
-
-    /// The ⌄ painted at the top of the 二楼 dome ceiling (Figma 上划区域 `1496:4410`)
-    /// — visual only, fading in with the data content (so it appears as the floor
-    /// settles, mirroring the home's bottom ʌ fading out). Close itself is driven by
-    /// `FloorContainer`'s top grab band; the #E8EEF1 ledge is the `secondFloorPanel`.
-    private var floorCloseChevron: some View {
-        Image(systemName: "chevron.compact.down")
-            .font(.system(size: 30, weight: .medium))
-            .foregroundStyle(LP.Content.quarternary)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.top, 44)
-            .allowsHitTesting(false)
     }
 
     // MARK: 拍一拍
@@ -469,6 +429,17 @@ struct HomeView: View {
         }
     }
 
+    // MARK: 地图涂鸦 (walk doodle — see Features/WalkDoodle)
+
+    /// Walk doodle saved (运动能量) — persist it for the 足迹涂鸦 history card,
+    /// nudge the head 毛, and let Pibo grumble a line (spec §3.4 energy lineage).
+    private func handleDoodleSaved(_ result: WalkDoodleResult) {
+        history.addWalkDoodle(result)
+        energyToken = UUID()
+        show(PiboSpeechLine(text: WalkDoodleCopy.savedLines.randomElement() ?? "...画...完了..."))
+        LPLog.app.notice("walk doodle saved: \(Int(result.distanceMeters), privacy: .public)m \(Int(result.areaSquareMeters), privacy: .public)m²")
+    }
+
     // MARK: Floor
     // Opening is owned by `FloorContainer` (the 上滑区域 dome's tap / drag /
     // VoiceOver action) — see `FloorContainer.open`. Only closing lives here.
@@ -510,13 +481,17 @@ struct HomeView: View {
 
 // MARK: - Floor container (pull-up coordinator)
 
-/// Owns the 上滑 `progress` + the drag, applying offset/opacity to three subtrees
-/// that `HomeView` builds once. Only this view reads `floor.progress`, so a drag
-/// re-renders just this thin shell — the stage / chrome / 二楼 bodies are not
-/// re-evaluated per frame (they update only when their own inputs change).
-private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: View>: View {
+/// Owns the 上滑 `progress` + the drag. The 数据二楼 is **one** rising drawer — a
+/// single #E8EEF1 `FloorDome` surface (convex-up domed top, fills down) with the
+/// content on top — that translates as a unit, so the domed leading edge travels
+/// continuously from a bottom peek (closed) to the ceiling (open). One colour + one
+/// shape means no two-tone boundary / floating "lens" mid-drag. Only this view reads
+/// `floor.progress`, so a drag re-renders just this thin shell — the stage / chrome /
+/// 二楼 bodies are not re-evaluated per frame (they update only when their own inputs
+/// change).
+private struct FloorContainer<Stage: View, Chrome: View, Content: View>: View {
     let floor: FloorModel
-    /// Fired when a settle-to-open lands (the panel fully covers the stage) —
+    /// Fired when a settle-to-open lands (the drawer fully covers the stage) —
     /// the moment it's safe to pause the SpriteKit loop. Never fires for a
     /// settle that was caught mid-flight.
     var onCovered: () -> Void = {}
@@ -526,7 +501,6 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
     var onRevealing: () -> Void = {}
     @ViewBuilder let stage: Stage
     @ViewBuilder let chrome: Chrome
-    @ViewBuilder let panel: Panel
     @ViewBuilder let content: Content
 
     @Environment(\.scenePhase) private var scenePhase
@@ -554,12 +528,30 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
     /// home. Sized to the ceiling crown so normal list scrolling below it is untouched.
     private static var topGrabBandHeight: CGFloat { 100 }
 
+    /// How much of the rising drawer's #E8EEF1 crown peeks above the bottom edge
+    /// when closed (the rest of the dome arc bleeds up via the cap's `rise`). The
+    /// drawer translates by `(1 − p)·(h − crownReveal)`, so the crown travels
+    /// continuously from this bottom peek (closed) to the ceiling (open) — one
+    /// surface, no handoff. 42 + `rise` 54 lands the closed apex ~96pt above the
+    /// bottom (matching the old closed dome).
+    private static var crownReveal: CGFloat { 42 }
+
     var body: some View {
         GeometryReader { geo in
             let h = max(geo.size.height, 1)
             let p = floor.progress
             let cT = Self.contentReveal(p)
             let cF = Self.chromeFade(p)
+            // The drawer `ignoresSafeArea`, so its travel is in *full-screen* px
+            // (h is only the safe-area height). `travel` = full height − the closed
+            // crown peek; the drag normalizes by it too, so the finger tracks the
+            // crown 1:1. Degrades correctly when insets are 0.
+            let travel = h + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom - Self.crownReveal
+            // Grab handle screen-Y, lerped from the closed bottom dome (~64pt above
+            // the very bottom) to the open ceiling (~just below the status bar). In
+            // the GeometryReader's space y=0 sits at the top safe-area edge.
+            let closedHandleY = h + geo.safeAreaInsets.bottom - 64
+            let handleY = closedHandleY + (14 - closedHandleY) * p
             ZStack {
                 // Pibo (+ themed stage) holds place with a hair of parallax; the
                 // rising panel *submerges* it bottom-up, so its 下半身 is covered
@@ -572,39 +564,47 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
                     .opacity(cF)
                     .allowsHitTesting(p < 0.08)
 
-                // 上滑区域 dome (Figma 509:2658) — the closed-state grab affordance:
-                // a domed lip of the 二楼 surface peeking up at the bottom in
-                // fill-bg-surface-secondary (#E8EEF1), so the pull-up reads as a
-                // distinct ledge over the home stage (the demon ground is a near-grey,
-                // so the soft upward shadow does the separating). Same colour as the
-                // rising `panel`, so the panel climbs over it as a seamless handoff;
-                // fades with the chrome and is occluded by the panel from ~p=0.11.
-                // Purely visual — the clear grab band below owns gesture + VoiceOver.
-                FloorDome(rise: 54)
-                    .fill(LP.Fill.bgSurfaceSecondary)
-                    .frame(height: 42)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .overlay(alignment: .bottom) {
-                        Image(systemName: "chevron.compact.up")
-                            .font(.system(size: 30, weight: .medium))
-                            .foregroundStyle(LP.Content.quarternary)
-                            .padding(.bottom, 62)
-                    }
-                    .compositingGroup()
-                    .shadow(color: .black.opacity(0.08), radius: 12, y: -3)
-                    .ignoresSafeArea()
-                    .opacity(cF)
+                // === 数据二楼：单一上升抽屉（body + 历史内容 + #E8EEF1 顶盖 crown）===
+                // 整体平移 (1−p)·(h−crownReveal)：关闭时 crown 从底部探头、打开时
+                // crown 抵达顶部 —— 一路连续，没有「关闭态 dome + 上升 panel」两段
+                // 交接（修复衔接生硬）。crown 在 content 之上绘制，TabView 的不透明
+                // 背景再也盖不住它（修复二楼顶部 dome 消失）。
+                ZStack(alignment: .top) {
+                    // 单一 #E8EEF1 抽屉面：convex-up 圆顶引导边 + 向下填满。一种颜色、
+                    // 一个形状 → 上滑全程是连续上升的整面，没有双色边界、也没有缓慢
+                    // 关闭时那块"悬浮圆角透镜"（旧 FloorCap 下唇离开底边造成的，与
+                    // 最终关闭态不一致）。圆顶下方就是页底，内容（透明）叠在其上。
+                    FloorDome(rise: 54)
+                        .fill(LP.Fill.bgSurfaceSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .shadow(color: .black.opacity(0.10), radius: 14, y: -3)
+                    content
+                        .opacity(cT)                           // 晚加权淡入（materialize）
+                        .offset(y: CGFloat(1 - cT) * 12)       // 比抽屉略晚落位的小沉降
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .offset(y: (1 - p) * travel)
+                .ignoresSafeArea()
+
+                // 抓手箭头：唯一、全程可见的把手，跟着 crown 从「底部 dome」滑到
+                // 「顶部 ceiling」（screen-Y 在闭/开两处线性插值），p<0.5 显示 ʌ(上滑)、
+                // 否则 ⌄(下拉关闭)。它绑在「在动的 crown」上而非会淡出的图层，所以
+                // 拖动中途绝不消失（修复上滑时箭头丢失）。纯视觉，不拦手势。
+                Image(systemName: p < 0.5 ? "chevron.compact.up" : "chevron.compact.down")
+                    .font(.system(size: 30, weight: .medium))
+                    .foregroundStyle(LP.Content.quarternary)
+                    .position(x: geo.size.width / 2, y: handleY)
                     .allowsHitTesting(false)
 
-                // 抓手区 — the invisible grab band over the 上滑区域 dome. While the
-                // floor is closed this band carries the *only* pull-up gesture (see
-                // the container gesture's mask below), a tap anywhere on it opens the
-                // 二楼, and it is the VoiceOver "上滑查看数据" button. Sits above the
-                // dome so the gesture is never eaten by anything underneath.
+                // 抓手区 — invisible grab band over the closed-state crown peek. While
+                // closed it carries the *only* pull-up gesture (the container gesture is
+                // masked off then), a tap opens, and it's the VoiceOver "上滑查看数据"
+                // button. Sits ABOVE the drawer so its taps win over the (hit-disabled)
+                // peeking crown; armed only when closed via allowsHitTesting(p < 0.08).
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture(perform: open)
-                    .gesture(drag(height: h, fromBand: true))
+                    .gesture(drag(height: travel, fromBand: true))
                     .frame(height: Self.grabBandHeight)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .accessibilityElement()
@@ -613,27 +613,14 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
                     .accessibilityAction(.default) { open() }
                     .allowsHitTesting(p < 0.08)
 
-                // 二楼 surface: domed panel, rises with the finger, fully opaque.
-                panel
-                    .offset(y: (1 - p) * h)
-                    .opacity(p > 0.001 ? 1 : 0)
-
-                // 二楼 data: rises with the panel but *materializes* via a
-                // late-weighted fade (+ a tiny settle) — never a rigid fly-in.
-                content
-                    .offset(y: (1 - p) * h + CGFloat(1 - cT) * 14)
-                    .opacity(cT)
-                    .allowsHitTesting(p > 0.9)
-
-                // 顶部抓手区 — the invisible grab band over the 二楼 dome ceiling. While
-                // the floor is open this band carries drag-to-close + tap-to-close + the
-                // VoiceOver "回到Pibo" action. It sits ABOVE the history ScrollView so the
-                // close-drag isn't eaten by the list's scroll (the root cause of the dome
-                // feeling un-draggable). Mirrors the bottom grab band; armed only when open.
+                // 顶部抓手区 — invisible grab band over the open-state ceiling crown:
+                // drag-down closes (above the history ScrollView so the close-drag isn't
+                // eaten by list scrolling) + tap-to-close + VoiceOver "回到Pibo". Armed
+                // only when open (p > 0.9).
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture(perform: close)
-                    .gesture(drag(height: h, fromBand: true))
+                    .gesture(drag(height: travel, fromBand: true))
                     .frame(height: Self.topGrabBandHeight)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .accessibilityElement()
@@ -653,7 +640,7 @@ private struct FloorContainer<Stage: View, Chrome: View, Panel: View, Content: V
             // p = 0.5 would otherwise flip the mask mid-gesture and the system
             // would cancel the drag on the spot — no onEnded, no settle, floor
             // stranded half-open with every control unreachable.
-            .gesture(drag(height: h, fromBand: false),
+            .gesture(drag(height: travel, fromBand: false),
                      including: dragActive || p > 0.5 || floor.isSettling ? .all : .subviews)
         }
         // A system interruption (call banner, app switcher) can cancel the drag

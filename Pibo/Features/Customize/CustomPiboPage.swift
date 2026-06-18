@@ -36,7 +36,7 @@ struct CustomPiboPage: View {
                 .padding(.top, LP.Spacing.m)
             }
         }
-        .padding(.top, 60)   // clear the status bar / 二楼 close chevron
+        .padding(.top, 88)   // clear the #E8EEF1 二楼 ceiling crown (drawn on top)
         .confirmationDialog("恢复默认外形？", isPresented: $showResetConfirm, titleVisibility: .visible) {
             Button("恢复默认", role: .destructive) {
                 LPHaptics.tap()

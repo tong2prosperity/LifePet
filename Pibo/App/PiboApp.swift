@@ -46,11 +46,11 @@ struct PiboApp: App {
         _store = State(initialValue: s)
 
         do {
-            modelContainer = try ModelContainer(for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self)
+            modelContainer = try ModelContainer(for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self, WalkDoodleRecord.self)
         } catch {
             // In-memory fallback so a corrupt store never blocks launch.
             modelContainer = try! ModelContainer(
-                for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self,
+                for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self, WalkDoodleRecord.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: true))
             LPLog.app.error("History store failed, using in-memory: \(error.localizedDescription, privacy: .public)")
         }

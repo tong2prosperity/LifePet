@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Observation
+import CoreLocation
 #if DEBUG
 import UIKit
 #endif
@@ -209,6 +210,33 @@ final class HealthHistoryStore {
         return photo
     }
 
+    // MARK: - Walk doodles (足迹涂鸦 card)
+
+    /// Walk doodles traced on `day`, earliest first.
+    func walkDoodles(on day: Date) -> [WalkDoodleRecord] {
+        let key = Calendar.current.startOfDay(for: day)
+        let d = FetchDescriptor<WalkDoodleRecord>(
+            predicate: #Predicate { $0.day == key },
+            sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+        return (try? context.fetch(d)) ?? []
+    }
+
+    /// Persist a finished walk doodle. Bumps `revision`.
+    @discardableResult
+    func addWalkDoodle(_ result: WalkDoodleResult, createdAt: Date = .now) -> WalkDoodleRecord {
+        let record = WalkDoodleRecord(
+            createdAt: createdAt,
+            coordinates: result.coordinates,
+            distanceMeters: result.distanceMeters,
+            areaSquareMeters: result.areaSquareMeters,
+            durationSeconds: result.duration,
+            title: result.title)
+        context.insert(record)
+        try? context.save()
+        revision += 1
+        return record
+    }
+
     #if DEBUG
     /// Dev-only: seed ~5 weeks of plausible history so the 二楼 is demonstrable on
     /// a simulator with no HealthKit data. Compiled out of Release; on a real
@@ -262,6 +290,41 @@ final class HealthHistoryStore {
         seedSampleWorkoutsIfEmpty(days: days)
         seedSampleFoodIfEmpty()
         upgradeSeededFood()
+        seedSampleDoodlesIfEmpty()
+    }
+
+    /// Dev-only: one synthetic walk doodle on *today* — a hand-wobbled loop — so the
+    /// 足迹涂鸦 card demos on a simulator with no GPS history. Re-rendered offline
+    /// from its points like a real capture.
+    private func seedSampleDoodlesIfEmpty() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        guard walkDoodles(on: today).isEmpty else { return }
+        let centerLat = 37.7749, centerLon = -122.4194
+        let radiusM = 90.0
+        let mPerDegLat = 111_320.0
+        let mPerDegLon = 111_320.0 * cos(centerLat * .pi / 180)
+        let start = cal.date(bySettingHour: 8, minute: 12, second: 0, of: today) ?? today
+        let segments = 28
+        var coords: [DoodleCoordinate] = []
+        for i in 0...segments {
+            let a = Double(i) / Double(segments) * 2 * .pi
+            let r = radiusM * (1 + 0.12 * sin(a * 3))      // wobble — not a perfect circle
+            let lat = centerLat + (r * sin(a)) / mPerDegLat
+            let lon = centerLon + (r * cos(a)) / mPerDegLon
+            coords.append(DoodleCoordinate(latitude: lat, longitude: lon,
+                                           timestamp: start.addingTimeInterval(Double(i) * 14)))
+        }
+        let cl = coords.map(\.coordinate)
+        let record = WalkDoodleRecord(
+            createdAt: start,
+            coordinates: coords,
+            distanceMeters: DoodleGeometry.pathLength(cl),
+            areaSquareMeters: DoodleGeometry.enclosedArea(cl),
+            durationSeconds: Double(segments) * 14)
+        context.insert(record)
+        try? context.save()
+        revision += 1
     }
 
     /// Dev-only: rows seeded by an older build predate `hourlySteps` /

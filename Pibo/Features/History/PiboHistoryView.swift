@@ -31,14 +31,14 @@ struct PiboHistoryView: View {
                 cardsStack(day)
                 Color.clear.frame(height: LP.Spacing.xxl)
             }
-            .padding(.top, 76)   // clear the #E8EEF1 dome ceiling crown
+            .padding(.top, 88)   // clear the #E8EEF1 dome ceiling crown (drawn on top)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Transparent — the two-tone surface (light #F4F8F9 body + darker #E8EEF1
-        // ceiling crown) IS the opaque rising panel behind this (HomeView
-        // `secondFloorPanel`), so the whole pull rides one surface. Giving this
-        // ScrollView its own opaque bg made it a *second* surface fading in over the
-        // panel mid-pull → the dome-region jump. Cards carry their own fills.
+        // Transparent — the opaque rising surface is `FloorContainer`'s single drawer
+        // (one #E8EEF1 `FloorDome` surface: convex-up domed top, fills down), which
+        // this content rides on top of. Giving this ScrollView its own opaque bg would
+        // make it a *second* surface fading in mid-pull → a dome-region jump. Cards
+        // carry their own fills.
     }
 
     // MARK: Header
@@ -102,6 +102,7 @@ struct PiboHistoryView: View {
                     hrv: day.hrv, oxygen: day.oxygen)
             }
             HistoryFoodCard(foods: day.foods)
+            HistoryDoodleCard(doodles: day.doodles)
         }
         .padding(.horizontal, LP.Spacing.xl)
     }
@@ -130,11 +131,13 @@ struct PiboHistoryView: View {
         var oxygen: Double          // fraction 0–1
         var workouts: [WorkoutRecord]
         var foods: [FoodPhoto]
+        var doodles: [WalkDoodleRecord]
     }
 
     private func makeDay(_ date: Date) -> HistoryDay {
         let workouts = history.workouts(on: date)
         let foods = history.foodPhotos(on: date)
+        let doodles = history.walkDoodles(on: date)
         if cal.isDateInToday(date) {
             let sleepH = store.rawSleepHours
             let start = store.rawSleepStart
@@ -158,7 +161,7 @@ struct PiboHistoryView: View {
                 restingHR: store.rawRestingHR,
                 hrv: store.rawHRV,
                 oxygen: store.rawOxygen,
-                workouts: workouts, foods: foods)
+                workouts: workouts, foods: foods, doodles: doodles)
         }
         let r = history.record(on: date)
         return HistoryDay(
@@ -178,7 +181,7 @@ struct PiboHistoryView: View {
             restingHR: r?.restingHR ?? 0,
             hrv: r?.hrv ?? 0,
             oxygen: r?.oxygenSaturation ?? 0,
-            workouts: workouts, foods: foods)
+            workouts: workouts, foods: foods, doodles: doodles)
     }
 
     /// 相识总天数 (header "陪你走过的 N 天").
@@ -219,50 +222,24 @@ struct PiboHistoryView: View {
 
 // MARK: - Domed crown
 
-/// The 二楼 panel's domed top — a wide, shallow convex arc (≈ Figma Ellipse 24, a
-/// 749-pt circle). The apex bleeds `rise` pt **above** the frame, so at rest
-/// (panel offset 0) the dome sits off-screen and the top fills flat; during the
-/// pull-up the panel rides down and the crown sweeps into view.
-///
-/// Lives here (not `HomeView`) because the 二楼 surface is the history page's
-/// crown — `HomeView.secondFloorPanel` fills + clips this shape.
+/// The 二楼 drawer's #E8EEF1 surface shape — a convex-up domed top (apex `rise`
+/// above the frame) over a rectangle that fills all the way to the bottom. **One
+/// shape, one colour**: the rising drawer reads as a single continuous surface with
+/// a domed leading edge, so there's no two-tone band / convex-down lip to surface a
+/// floating "lens" mid-drag (the bug where the closing transition didn't match the
+/// closed state). The only on-screen edge is the top dome curve + its upward shadow;
+/// the flat bottom always sits off-screen below the drawer. Filled by
+/// `FloorContainer`'s drawer as the page background, with the content on top.
 struct FloorDome: Shape {
     var rise: CGFloat = 54
     func path(in rect: CGRect) -> Path {
         var p = Path()
-        let shoulderY = rect.minY
-        let apexY = rect.minY - rise
         p.move(to: CGPoint(x: rect.minX, y: rect.maxY))
-        p.addLine(to: CGPoint(x: rect.minX, y: shoulderY))
-        // Quadratic whose apex lands at `apexY`: control = 2·apex − shoulder.
-        p.addQuadCurve(to: CGPoint(x: rect.maxX, y: shoulderY),
-                       control: CGPoint(x: rect.midX, y: 2 * apexY - shoulderY))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        p.closeSubpath()
-        return p
-    }
-}
-
-/// The 二楼's #E8EEF1 cap — a lens-section band carrying BOTH the rising leading edge
-/// and the open-state ledge. Its **top** edge bulges UP by `rise` (a convex dome
-/// identical to the closed-state bottom grab dome, so the rounded shape "travels up" as
-/// the rising panel's leading edge during the pull, then tucks behind the status bar
-/// once open); its **bottom** edge bulges DOWN by `drop` (the convex lip ledge over the
-/// lighter #F4F8F9 page — the 背景区分). Figma 上划区域 `1496:4410`. Top-aligned +
-/// `ignoresSafeArea` so the top dome bleeds off-screen exactly like the bottom dome.
-struct FloorCap: Shape {
-    var rise: CGFloat = 54
-    var drop: CGFloat = 22
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
         // Convex-up top: shoulders at minY, apex `rise` above (control = 2·apex − shoulder).
-        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
         p.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.minY),
                        control: CGPoint(x: rect.midX, y: rect.minY - 2 * rise))
         p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        // Convex-down bottom lip: shoulders at maxY, apex `drop` below.
-        p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY),
-                       control: CGPoint(x: rect.midX, y: rect.maxY + 2 * drop))
         p.closeSubpath()
         return p
     }
@@ -290,7 +267,7 @@ enum HistoryPreviewData {
     static let container: ModelContainer = {
         let url = URL.temporaryDirectory.appending(path: "pibo_history_preview_\(UUID().uuidString).store")
         return try! ModelContainer(
-            for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self,
+            for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self, WalkDoodleRecord.self,
             configurations: ModelConfiguration(url: url))
     }()
 

@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "" : {
+
+    },
     " 只" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -140,6 +143,15 @@
     "?" : {
 
     },
+    "…我的花…在地球上…能开吗…" : {
+
+    },
+    "...用脚...画一个圈...啵" : {
+
+    },
+    "…让…我…感受…你的…心跳…#@!%" : {
+
+    },
     "· 今天 ·" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -238,6 +250,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "/ %d 人"
+          }
+        }
+      }
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
           }
         }
       }
@@ -1183,9 +1205,6 @@
         }
       }
     },
-    "PIBO" : {
-
-    },
     "PIBO · 契约唤醒" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1253,6 +1272,52 @@
           }
         }
       }
+    },
+    "Pibo 正在看…" : {
+
+    },
+    "Pibo 正在获取你的能量数据…" : {
+
+    },
+    "Pibo 每天会从你这里获取能量，结出一株幼苗" : {
+
+    },
+    "Pibo 的任务" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo's task"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo 的任务"
+          }
+        }
+      }
+    },
+    "Pibo 的任务：出门走一幅地图涂鸦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo's task: walk a map doodle"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo 的任务：出门走一幅地图涂鸦"
+          }
+        }
+      }
+    },
+    "Pibo 读取了你的能量…" : {
+
     },
     "SICK 突变" : {
       "extractionState" : "manual",
@@ -1645,6 +1710,9 @@
         }
       }
     },
+    "但它需要你呼唤它的名字，才能完全想起自己" : {
+
+    },
     "位宠物主人" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1849,6 +1917,23 @@
         }
       }
     },
+    "保存" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        }
+      }
+    },
     "健身房" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1998,6 +2083,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "关键时刻"
+          }
+        }
+      }
+    },
+    "关闭" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
           }
         }
       }
@@ -2155,6 +2257,23 @@
         }
       }
     },
+    "出门走一幅画 · 圈一块花田" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walk out and draw · claim a flower patch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出门走一幅画 · 圈一块花田"
+          }
+        }
+      }
+    },
     "分享" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2236,6 +2355,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "卡路里"
+          }
+        }
+      }
+    },
+    "去设置打开定位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings to enable location"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "去设置打开定位"
           }
         }
       }
@@ -2359,6 +2495,15 @@
         }
       }
     },
+    "告诉它你的名字" : {
+
+    },
+    "呼唤 \"Pibo\" 的名字" : {
+
+    },
+    "和 Pibo 一起的早晨" : {
+
+    },
     "喂养 %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2389,6 +2534,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "喂养 %@，应用本次运动的体力增益"
+          }
+        }
+      }
+    },
+    "回到我的位置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recenter"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回到我的位置"
           }
         }
       }
@@ -2457,6 +2619,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "圆满升天"
+          }
+        }
+      }
+    },
+    "圈一块花田" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claim a flower patch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圈一块花田"
+          }
+        }
+      }
+    },
+    "圈地" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Area"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圈地"
           }
         }
       }
@@ -2580,6 +2776,9 @@
         }
       }
     },
+    "契约已签订" : {
+
+    },
     "契约已经稳定一周。Pibo 找回了一件来自旧世界的东西。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2682,6 +2881,12 @@
         }
       }
     },
+    "它在地球上长出了第一株芽" : {
+
+    },
+    "它好像想起了什么…" : {
+
+    },
     "它开始缩回星壳。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2698,6 +2903,9 @@
           }
         }
       }
+    },
+    "它很想要花开，需要你给它注入能量" : {
+
     },
     "它是四月中旬来的那只。你刚跑完步的时候它跳得最高，你工作开会的时候它就安静地守着。它还年轻，还在学你的节奏。" : {
       "extractionState" : "manual",
@@ -2729,6 +2937,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "它的故事"
+          }
+        }
+      }
+    },
+    "完成" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
           }
         }
       }
@@ -3090,6 +3315,23 @@
         }
       }
     },
+    "开始涂鸦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start doodling"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始涂鸦"
+          }
+        }
+      }
+    },
     "异地恋" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3157,6 +3399,9 @@
           }
         }
       }
+    },
+    "往上拔，帮它种进花田里" : {
+
     },
     "很久以前，Pibo 们在没有太阳的地方等待光。它们不记得自己从哪里来，只记得契约会在黑暗里发亮。" : {
       "extractionState" : "manual",
@@ -3293,6 +3538,12 @@
           }
         }
       }
+    },
+    "恢复默认" : {
+
+    },
+    "恢复默认外形？" : {
+
     },
     "想你了" : {
       "extractionState" : "manual",
@@ -3566,6 +3817,9 @@
         }
       }
     },
+    "找光源" : {
+
+    },
     "持续危险" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3582,6 +3836,9 @@
           }
         }
       }
+    },
+    "按住呼唤" : {
+
     },
     "挚友" : {
       "extractionState" : "manual",
@@ -3684,6 +3941,26 @@
           }
         }
       }
+    },
+    "放弃" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放弃"
+          }
+        }
+      }
+    },
+    "数据" : {
+
     },
     "无名星壳" : {
       "extractionState" : "manual",
@@ -4229,6 +4506,15 @@
         }
       }
     },
+    "松开结束" : {
+
+    },
+    "检测到·····能量不足······pibo降临失败" : {
+
+    },
+    "检测到光" : {
+
+    },
     "橘子" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4688,6 +4974,23 @@
         }
       }
     },
+    "用时" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用时"
+          }
+        }
+      }
+    },
     "用来穿过长夜的旧布。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4926,6 +5229,9 @@
         }
       }
     },
+    "第 1 天" : {
+
+    },
     "第一周已经完成。接下来可以扩展饰品、归巢和更多记忆碎片。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4994,6 +5300,9 @@
         }
       }
     },
+    "签订能量契约" : {
+
+    },
     "精力" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5010,6 +5319,12 @@
           }
         }
       }
+    },
+    "结束当前的地图涂鸦" : {
+
+    },
+    "结束涂鸦" : {
+
     },
     "给 %@ 留言" : {
       "extractionState" : "manual",
@@ -5095,6 +5410,12 @@
           }
         }
       }
+    },
+    "能量不足时，Pibo 会变得暴躁…" : {
+
+    },
+    "自定义" : {
+
     },
     "记得吃早饭 🥣" : {
       "extractionState" : "manual",
@@ -5249,6 +5570,23 @@
         }
       }
     },
+    "足迹涂鸦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walk Doodle"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "足迹涂鸦"
+          }
+        }
+      }
+    },
     "跑步" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5262,6 +5600,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跑步"
+          }
+        }
+      }
+    },
+    "距离" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distance"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "距离"
           }
         }
       }
@@ -5436,6 +5791,23 @@
         }
       }
     },
+    "还没有涂鸦，让 Pibo 带你出门画一幅" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No doodles yet — let Pibo take you out to draw one"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有涂鸦，让 Pibo 带你出门画一幅"
+          }
+        }
+      }
+    },
     "连续 5 天冥想 · 心情峰值" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5534,6 +5906,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重置后会回到首启流程"
+          }
+        }
+      }
+    },
+    "重走" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walk again"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重走"
           }
         }
       }
@@ -5653,6 +6042,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "陪伴过 "
+          }
+        }
+      }
+    },
+    "需要定位权限才能画地图涂鸦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location access is needed to draw a map doodle"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要定位权限才能画地图涂鸦"
           }
         }
       }
