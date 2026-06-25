@@ -82,7 +82,10 @@ struct PiboHistoryView: View {
             HistoryActivityCard(
                 kcal: Int(day.activeEnergy.rounded()),
                 exerciseMinutes: day.exerciseMinutes,
-                standHours: day.standHours)
+                standHours: day.standHours,
+                moveGoal: day.moveGoal,
+                exerciseGoal: day.exerciseGoal,
+                standGoal: day.standGoal)
             HistoryStepsCard(
                 steps: day.steps,
                 hourlySteps: day.hourlySteps,
@@ -117,6 +120,9 @@ struct PiboHistoryView: View {
         var activeEnergy: Double
         var exerciseMinutes: Int
         var standHours: Int
+        var moveGoal: Double
+        var exerciseGoal: Int
+        var standGoal: Int
         var steps: Int
         var hourlySteps: [Int]
         var sleepTotal: TimeInterval
@@ -149,6 +155,9 @@ struct PiboHistoryView: View {
                 activeEnergy: store.rawActiveEnergy,
                 exerciseMinutes: store.rawExerciseMinutes,
                 standHours: Int((Double(store.rawStandMinutes) / 60).rounded()),
+                moveGoal: r?.moveGoal ?? 0,
+                exerciseGoal: r?.exerciseGoal ?? 0,
+                standGoal: r?.standGoal ?? 0,
                 steps: store.rawSteps,
                 hourlySteps: r?.hourlySteps ?? [],
                 sleepTotal: sleepH * 3600,
@@ -169,6 +178,9 @@ struct PiboHistoryView: View {
             activeEnergy: r?.activeEnergy ?? 0,
             exerciseMinutes: r?.exerciseMinutes ?? 0,
             standHours: Int((Double(r?.standMinutes ?? 0) / 60).rounded()),
+            moveGoal: r?.moveGoal ?? 0,
+            exerciseGoal: r?.exerciseGoal ?? 0,
+            standGoal: r?.standGoal ?? 0,
             steps: r?.steps ?? 0,
             hourlySteps: r?.hourlySteps ?? [],
             sleepTotal: r?.sleepTotal ?? 0,

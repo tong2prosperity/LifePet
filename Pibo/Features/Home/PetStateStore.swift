@@ -326,6 +326,19 @@ final class PetStateStore {
         didSet { UserDefaults.standard.set(appearance.encoded, forKey: Self.appearanceKey) }
     }
 
+    private static let weatherKey = "pibo.weather.v1"
+    /// 当前天气 — 驱动首页 SpriteKit 场景的氛围(雨幕 / 地面水花 / 滴在 Pibo 上)。
+    /// v1 由设置页的 DEBUG 开关手动切换;接入 WeatherKit 后改由 WeatherService 写入
+    /// (`WeatherCondition.piboWeather`,见 `PiboWeather.swift`)。持久化便于演示跨重启
+    /// 保持;`reset()` 清回 `.clear`。
+    var weather: PiboWeather = .clear {
+        didSet {
+            guard weather != oldValue else { return }
+            UserDefaults.standard.set(weather.rawValue, forKey: Self.weatherKey)
+            LPLog.petState.notice("weather → \(self.weather.rawValue, privacy: .public)")
+        }
+    }
+
     /// First 运动能量 collected — the 毛 sprouts its leaf. Idempotent.
     func markSprouted() {
         guard growthStage == .mystery else { return }
@@ -483,6 +496,7 @@ final class PetStateStore {
         self.growthStage = PiboGrowthStage(
             rawValue: UserDefaults.standard.string(forKey: Self.growthStageKey) ?? "") ?? .mystery
         self.appearance = PiboAppearance.decoded(from: UserDefaults.standard.data(forKey: Self.appearanceKey))
+        self.weather = PiboWeather(rawValue: UserDefaults.standard.string(forKey: Self.weatherKey) ?? "") ?? .clear
         LPLog.petState.notice("PetStateStore init demoMode=\(demoMode, privacy: .public) eventsBound=\(events != nil, privacy: .public) day=\(identity.daysSinceBirth, privacy: .public)")
 
         // Cold-launch rollover catch-up. If the app was killed across one or
@@ -666,6 +680,8 @@ final class PetStateStore {
         UserDefaults.standard.removeObject(forKey: Self.growthStageKey)
         appearance = .default
         UserDefaults.standard.removeObject(forKey: Self.appearanceKey)
+        weather = .clear
+        UserDefaults.standard.removeObject(forKey: Self.weatherKey)
         selectedThemeID = nil
         story.reset()
         // New pet UUID + name + birth=today. Hackathon semantics: reset means

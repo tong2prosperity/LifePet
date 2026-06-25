@@ -57,6 +57,12 @@ final class HealthDayRecord {
     var standMinutes: Int
     var distanceMeters: Double        // walking + running
     var flightsClimbed: Int
+    /// Apple Activity ring goals for the day (`HKActivitySummary`). 0 = unknown /
+    /// unset → the 活动 card falls back to a sensible default. Move = kcal,
+    /// exercise = min, stand = hours.
+    var moveGoal: Double = 0
+    var exerciseGoal: Int = 0
+    var standGoal: Int = 0
 
     // — Heart —
     var restingHR: Double             // bpm
@@ -91,6 +97,7 @@ final class HealthDayRecord {
     init(date: Date,
          steps: Int = 0, hourlySteps: [Int] = [], activeEnergy: Double = 0, exerciseMinutes: Int = 0,
          standMinutes: Int = 0, distanceMeters: Double = 0, flightsClimbed: Int = 0,
+         moveGoal: Double = 0, exerciseGoal: Int = 0, standGoal: Int = 0,
          restingHR: Double = 0, heartRateAvg: Double = 0, heartRateMin: Double = 0,
          heartRateMax: Double = 0, hrv: Double = 0, oxygenSaturation: Double = 0,
          sleepTotal: TimeInterval = 0, sleepDeep: TimeInterval = 0, sleepREM: TimeInterval = 0,
@@ -107,6 +114,9 @@ final class HealthDayRecord {
         self.standMinutes = standMinutes
         self.distanceMeters = distanceMeters
         self.flightsClimbed = flightsClimbed
+        self.moveGoal = moveGoal
+        self.exerciseGoal = exerciseGoal
+        self.standGoal = standGoal
         self.restingHR = restingHR
         self.heartRateAvg = heartRateAvg
         self.heartRateMin = heartRateMin

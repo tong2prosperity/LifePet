@@ -125,7 +125,10 @@ final class HealthDataService {
         authState = .requesting
         LPLog.healthKit.notice("Requesting auth for \(self.metrics.count, privacy: .public) metric types")
         do {
-            try await store.requestAuthorization(toShare: [], read: metrics.hkReadTypes)
+            // 活动环目标 (`HKActivitySummary`) 不是 `HealthMetric`，单独并入读权限集。
+            try await store.requestAuthorization(
+                toShare: [],
+                read: metrics.hkReadTypes.union([HKObjectType.activitySummaryType()]))
             authState = .granted
             Self.persistAuthorizedFlag(true)
             LPLog.healthKit.notice("Auth granted (HK doesn't disclose per-type grants — verify via query results)")

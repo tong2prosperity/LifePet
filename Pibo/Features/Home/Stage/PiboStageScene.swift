@@ -32,6 +32,8 @@ final class PiboStageScene: SKScene {
     private(set) var theme: PiboTheme = .sprout
     private(set) var activityState: PiboActivityState = .idle
     private(set) var growth: PiboGrowthStage = .mystery
+    /// 当前天气 — 驱动雨幕 / 地面水花 / 滴在 Pibo 上（见「Weather」段）。
+    private(set) var weather: PiboWeather = .clear
     /// Fired on a tap that lands on Pibo's body (拍一拍).
     var onPat: (() -> Void)?
     /// Fired when the head 毛 is dragged past the pull threshold and released —
@@ -50,6 +52,8 @@ final class PiboStageScene: SKScene {
     private var headNode = SKSpriteNode()
     private let overheadNode = SKSpriteNode()  // 魔丸黑洞 — floats above the head
     private let fx = SKNode()            // transient effects layer
+    private let rainBack = SKNode()      // 雨幕(Pibo 之后 — 景深层)
+    private let rainFront = SKNode()     // 水花 + 滴在 Pibo(Pibo 之前)
     private let cam = SKCameraNode()
 
     private var built = false
@@ -89,8 +93,17 @@ final class PiboStageScene: SKScene {
         // A theme may switch between art and procedural Pibo, so rebuild the body
         // group (not just the backdrop/head) when the theme changes.
         if themeChanged { rebuildBackdrop(); rebuildPibo() }
-        else if growthChanged { rebuildHead() }
+        else if growthChanged { rebuildHead(); if weather.isRainy { rebuildPiboSurface() } }
         if stateChanged || themeChanged { applyState(animated: true) }
+    }
+
+    /// 设置天气 — 开/关下雨三件套。场景未建好时只记录,建好后(`buildIfNeeded`
+    /// → `layoutAll`)会据 `weather` 自动渲染。
+    func setWeather(_ newWeather: PiboWeather) {
+        guard newWeather != weather else { return }
+        weather = newWeather
+        guard built else { return }
+        applyWeather()
     }
 
     /// 能量收集 — the head 毛 senses new energy: shake → grow → settle, with a
@@ -353,6 +366,10 @@ final class PiboStageScene: SKScene {
         addChild(overheadNode)
         addChild(fx)
         fx.zPosition = 40
+        rainBack.zPosition = 5      // 介于 backdrop(0–2) 与 pibo(10) 之间
+        addChild(rainBack)
+        rainFront.zPosition = 41    // pibo / fx 之上 — 水花落在 Pibo 前面
+        addChild(rainFront)
         cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
         addChild(cam)
         camera = cam
@@ -652,6 +669,10 @@ final class PiboStageScene: SKScene {
             cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
             cam.setScale(1)
         }
+        // Rain spread / ground line depend on size — rebuild on relayout (rare:
+        // size settle / theme change, never per-frame; the pull-up offsets the
+        // SpriteView without resizing the scene). No-op when not raining.
+        if weather.isRainy { applyWeather() }
     }
 
     private func positionHead() {
@@ -780,6 +801,238 @@ final class PiboStageScene: SKScene {
             s.run(.sequence([.group([move, .fadeOut(withDuration: 0.7)]), .removeFromParent()]))
         }
     }
+
+    // MARK: - Weather (下雨三件套)
+    //
+    // 三层,分工明确:
+    //   1. 雨幕 — 一个 `SKEmitterNode` 挂在 `rainBack`(z=5,Pibo 之后),GPU 批处理,
+    //      撑起整片下落的雨 + 景深 + 风斜。粒子不与节点碰撞,纯氛围。
+    //   2. 地面水花 — `rainFront`(z=41,Pibo 之前)上一个重复 spawner,沿名义地面线
+    //      `groundLineY` 随机点生成"皇冠环 + 回弹水珠 + 溅滴"(脚本碰撞,复用
+    //      WaterSurface 的 impact 造型语言)。
+    //   3. 滴在 Pibo 上 — 同样在 `rainFront`,每隔一阵在 Pibo 顶部轮廓随机点投下一滴
+    //      (实时读 `pibo.position.y`,跟着 idle bob 一起动),落点炸出同款水花。
+    //
+    // 性能:不上物理引擎(脚本落点已够"滴在地面/Pibo 上"的识别度);二楼拉开时
+    // `SpriteView(isPaused:)`(p>0.98)会暂停整个场景 → 雨与水花自动停转,无需额外闸。
+
+    /// 名义地面线(场景坐标,y 向上)。程序化主题 = 地面带顶;图片主题地面烘焙在
+    /// 背景图里,这里用同一高度近似(后续可按主题加 `groundLineY` 微调)。
+    private var groundLineY: CGFloat { groundTopY }
+
+    /// Pibo 顶面轮廓采样点(pibo-local 偏移)。雨滴只落在这些点上 → 顺着蛋形 + 毛的
+    /// 真实轮廓滴,而不是一条水平线。滴落时加 `pibo.position` 换算到场景坐标,跟随
+    /// idle bob。由 `rebuildPiboSurface()` 在雨开始 / 布局 / 发芽换头时重建并缓存。
+    private var piboSurface: [CGPoint] = []
+
+    /// 应用当前天气:清掉旧雨层,雨天则重建三层。
+    private func applyWeather() {
+        rainBack.removeAllChildren();  rainBack.removeAllActions()
+        rainFront.removeAllChildren(); rainFront.removeAllActions()
+        guard weather.isRainy else { return }
+        buildRainCurtain()
+        startGroundSplashes()
+        startPiboDrips()
+    }
+
+    /// 雨幕 — 顶部一个全宽发射器,粒子加速下落(雷雨更密更快、风更斜)。
+    private func buildRainCurtain() {
+        let storm = weather == .thunderstorm
+        let e = SKEmitterNode()
+        e.particleTexture = Self.rainTexture
+        e.position = CGPoint(x: size.width / 2, y: size.height + 24)
+        e.particlePositionRange = CGVector(dx: size.width * 1.15, dy: 0)
+        e.particleBirthRate = storm ? 240 : 130
+        e.particleLifetime = size.height / 480 + 0.6
+        e.particleLifetimeRange = 0.3
+        e.emissionAngle = -.pi / 2          // 垂直向下(SpriteKit:角度自 +x 逆时针)
+        e.emissionAngleRange = 0.05
+        e.particleSpeed = storm ? 720 : 560
+        e.particleSpeedRange = 140
+        e.yAcceleration = -420              // 重力加速下落
+        e.xAcceleration = storm ? -130 : -40   // 轻微风斜
+        e.particleAlpha = 0.55
+        e.particleAlphaRange = 0.2
+        e.particleAlphaSpeed = -0.12
+        e.particleScale = storm ? 0.55 : 0.42
+        e.particleScaleRange = 0.2
+        e.particleColor = Self.rainTint
+        e.particleColorBlendFactor = 1
+        e.particleBlendMode = .alpha
+        e.advanceSimulationTime(1.6)        // 出现即在下雨,而非从顶部抹下来
+        rainBack.addChild(e)
+    }
+
+    /// 地面水花 — 沿 `groundLineY` 持续随机点炸水花。
+    private func startGroundSplashes() {
+        let storm = weather == .thunderstorm
+        let interval = storm ? 0.05 : 0.11
+        rainFront.run(.repeatForever(.sequence([
+            .wait(forDuration: interval, withRange: interval * 0.8),
+            .run { [weak self] in self?.spawnGroundSplash() },
+        ])), withKey: "groundSplash")
+    }
+
+    /// 滴在 Pibo 上 — 沿真实轮廓随机点持续投滴(频率比地面低)。
+    private func startPiboDrips() {
+        rebuildPiboSurface()
+        let storm = weather == .thunderstorm
+        let interval = storm ? 0.35 : 0.6
+        rainFront.run(.repeatForever(.sequence([
+            .wait(forDuration: interval, withRange: interval * 0.7),
+            .run { [weak self] in self?.spawnPiboDrip() },
+        ])), withKey: "piboDrip")
+    }
+
+    private func spawnGroundSplash() {
+        let x = CGFloat.random(in: size.width * 0.04 ... size.width * 0.96)
+        let y = groundLineY + CGFloat.random(in: -6 ... 10)
+        makeSplash(at: CGPoint(x: x, y: y), scale: CGFloat.random(in: 0.8 ... 1.3), flatten: 0.42)
+    }
+
+    /// 一滴从上方落到 Pibo **真实轮廓**上的某点 → 触身炸水花。落点来自
+    /// `piboSurface`(蛋形 / 毛的顶面采样),加 `pibo.position` 实时跟随 idle bob。
+    private func spawnPiboDrip() {
+        guard built, let local = piboSurface.randomElement() else { return }
+        let land = CGPoint(x: pibo.position.x + local.x + CGFloat.random(in: -2 ... 2),
+                           y: pibo.position.y + local.y + CGFloat.random(in: -2 ... 3))
+        // 入射水滴(最后 ~46pt,因为雨幕在 Pibo 之后,需要一颗"落在 Pibo 前面"的滴)。
+        let drop = SKShapeNode(ellipseOf: CGSize(width: 3, height: 11))
+        drop.fillColor = Self.rainTint
+        drop.strokeColor = .clear
+        drop.position = CGPoint(x: land.x, y: land.y + 46)
+        rainFront.addChild(drop)
+        let fall = SKAction.moveTo(y: land.y, duration: 0.14)
+        fall.timingMode = .easeIn
+        drop.run(.sequence([
+            fall,
+            .run { [weak self] in self?.makeSplash(at: land, scale: 0.7, flatten: 0.62) },
+            .removeFromParent(),
+        ]))
+    }
+
+    /// 重建 Pibo 顶面轮廓采样点:身体(图片主题采纹理 alpha 轮廓,程序化用椭圆顶)
+    /// + 头顶毛(采 alpha)。于是雨滴顺着蛋形 + 毛的真实轮廓滴,不再排成一条水平线。
+    private func rebuildPiboSurface() {
+        guard built, size.width > 1 else { return }
+        var pts: [CGPoint] = []
+
+        // 身体:图片主题采纹理 alpha;失败 / 程序化 → 椭圆顶解析轮廓。
+        if usesArt, let name = theme.bodyImage {
+            pts += topSurfacePoints(imageNamed: name, center: bodySprite?.position ?? .zero,
+                                    size: CGSize(width: bodyWidth, height: bodyHeight), columns: 26)
+        }
+        if pts.isEmpty {
+            let halfW = bodyWidth * 0.5, topY = bodyHeight * 0.5
+            for i in 0..<26 {
+                let u = CGFloat(i) / 25 * 2 - 1                  // -1...1
+                let y = topY * pow(max(0, 1 - u * u), 0.62)      // 椭圆顶(略压扁)
+                pts.append(CGPoint(x: u * halfW * 0.9, y: y))
+            }
+        }
+
+        // 头顶毛:选用主题的 head 都是图片(卷芽 / 桃花枝 / 海草)。
+        if !headNode.isHidden, let head = theme.resolvedHead(for: growth).head {
+            pts += topSurfacePoints(imageNamed: head.image, center: headNode.position,
+                                    size: headNode.size, columns: 10)
+        }
+
+        piboSurface = pts
+    }
+
+    /// 采样一张图片资源每列"最高不透明像素",换算成 sprite-local 顶面点。重绘到
+    /// RGBA8(premultipliedLast)缓冲稳妥读 alpha;缓冲 row 0 = 图像底部(CG y 向上),
+    /// row 越大越靠上 → sprite-local y 越大。空白列(该列没有 Pibo)跳过。
+    private func topSurfacePoints(imageNamed name: String, center: CGPoint,
+                                  size: CGSize, columns: Int) -> [CGPoint] {
+        guard size.width > 1, size.height > 1,
+              let cg = UIImage(named: name)?.cgImage, cg.width > 1, cg.height > 1 else { return [] }
+        let w = cg.width, h = cg.height
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &buf, width: w, height: h, bitsPerComponent: 8,
+                                  bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return [] }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+
+        var pts: [CGPoint] = []
+        let threshold: UInt8 = 30
+        for c in 0..<columns {
+            let col = min(w - 1, Int((CGFloat(c) + 0.5) / CGFloat(columns) * CGFloat(w)))
+            var topRow = -1
+            var r = h - 1
+            while r >= 0 {
+                if buf[(r * w + col) * 4 + 3] > threshold { topRow = r; break }
+                r -= 1
+            }
+            guard topRow >= 0 else { continue }
+            let fx = (CGFloat(col) + 0.5) / CGFloat(w)
+            let fy = (CGFloat(topRow) + 0.5) / CGFloat(h)
+            pts.append(CGPoint(x: center.x - size.width * 0.5 + fx * size.width,
+                               y: center.y - size.height * 0.5 + fy * size.height))
+        }
+        return pts
+    }
+
+    /// 触水水花 — 皇冠扁环(快速外扩淡出)+ 回弹水珠(Rayleigh jet)+ 两侧溅滴。
+    /// 复用 `WaterSurface.impact` 的造型语言,移植成 SpriteKit 节点。
+    private func makeSplash(at p: CGPoint, scale s: CGFloat, flatten: CGFloat) {
+        // 皇冠扁环。
+        let ring = SKShapeNode(ellipseOf: CGSize(width: 11 * s, height: 11 * s * flatten))
+        ring.position = p
+        ring.strokeColor = Self.rainTint.withAlphaComponent(0.75)
+        ring.lineWidth = 1.4
+        ring.fillColor = .clear
+        ring.zPosition = 1
+        rainFront.addChild(ring)
+        ring.run(.sequence([
+            .group([.scale(to: 2.6, duration: 0.34), .fadeOut(withDuration: 0.34)]),
+            .removeFromParent(),
+        ]))
+        // 回弹水珠 — 升起再落下。
+        let bead = SKShapeNode(circleOfRadius: 1.7 * s)
+        bead.fillColor = Self.rainTint
+        bead.strokeColor = .clear
+        bead.position = p
+        bead.zPosition = 1
+        rainFront.addChild(bead)
+        let up = SKAction.moveBy(x: 0, y: 11 * s, duration: 0.16);   up.timingMode = .easeOut
+        let down = SKAction.moveBy(x: 0, y: -11 * s, duration: 0.16); down.timingMode = .easeIn
+        bead.run(.sequence([
+            .group([.sequence([up, down]), .fadeOut(withDuration: 0.32)]),
+            .removeFromParent(),
+        ]))
+        // 两侧溅滴。
+        for sign in [-1.0, 1.0] {
+            let d = SKShapeNode(circleOfRadius: 1.3 * s)
+            d.fillColor = Self.rainTint
+            d.strokeColor = .clear
+            d.position = p
+            d.zPosition = 1
+            rainFront.addChild(d)
+            d.run(.sequence([
+                .group([.moveBy(x: CGFloat(sign) * 12 * s, y: 9 * s, duration: 0.18),
+                        .fadeOut(withDuration: 0.22)]),
+                .removeFromParent(),
+            ]))
+        }
+    }
+
+    /// 雨滴贴图 — 一道柔和的竖直水痕(自上而下渐显)。建一次复用。
+    private static let rainTint = SKColor(red: 0.62, green: 0.78, blue: 0.92, alpha: 1)
+    private static let rainTexture: SKTexture = {
+        let sz = CGSize(width: 4, height: 18)
+        let img = UIGraphicsImageRenderer(size: sz).image { ctx in
+            let cg = ctx.cgContext
+            cg.addPath(CGPath(roundedRect: CGRect(origin: .zero, size: sz),
+                              cornerWidth: 2, cornerHeight: 2, transform: nil))
+            cg.clip()
+            let colors = [SKColor.white.withAlphaComponent(0).cgColor, SKColor.white.cgColor] as CFArray
+            guard let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                     colors: colors, locations: [0, 1]) else { return }
+            cg.drawLinearGradient(g, start: CGPoint(x: 2, y: 0), end: CGPoint(x: 2, y: 18), options: [])
+        }
+        return SKTexture(image: img)
+    }()
 
     // MARK: Helpers
 

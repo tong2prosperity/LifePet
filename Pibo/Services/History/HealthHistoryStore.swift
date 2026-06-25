@@ -17,6 +17,9 @@ struct HealthDayValues: Sendable {
     var standMinutes = 0
     var distanceMeters = 0.0
     var flightsClimbed = 0
+    var moveGoal = 0.0          // Apple Move ring goal, kcal (0 = unknown)
+    var exerciseGoal = 0        // Exercise ring goal, min
+    var standGoal = 0           // Stand ring goal, hours
     var restingHR = 0.0
     var heartRateAvg = 0.0
     var heartRateMin = 0.0
@@ -127,6 +130,9 @@ final class HealthHistoryStore {
         record.standMinutes = v.standMinutes
         record.distanceMeters = v.distanceMeters
         record.flightsClimbed = v.flightsClimbed
+        record.moveGoal = v.moveGoal
+        record.exerciseGoal = v.exerciseGoal
+        record.standGoal = v.standGoal
         record.restingHR = v.restingHR
         record.heartRateAvg = v.heartRateAvg
         record.heartRateMin = v.heartRateMin
@@ -263,6 +269,7 @@ final class HealthHistoryStore {
                 exerciseMinutes: (doy * 5) % 65,
                 standMinutes: 120 + (doy % 8) * 30,   // ~2–5 stand-hours when /60
                 distanceMeters: Double(steps) * 0.72,
+                moveGoal: 500, exerciseGoal: 30, standGoal: 12,   // 标准三环目标（占位演示）
                 restingHR: 56 + Double(doy % 12),
                 heartRateAvg: 72 + Double(doy % 18),
                 hrv: 30 + Double(doy % 45),
@@ -343,6 +350,10 @@ final class HealthHistoryStore {
             }
             if r.sleepSegments.isEmpty, r.sleepTotal > 0, let start = r.sleepStart {
                 r.sleepSegments = Self.seedSleepSegments(start: start, hours: r.sleepTotal / 3600, seed: doy)
+                changed = true
+            }
+            if r.moveGoal == 0 {
+                r.moveGoal = 500; r.exerciseGoal = 30; r.standGoal = 12
                 changed = true
             }
         }

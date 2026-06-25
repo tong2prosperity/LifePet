@@ -6,74 +6,76 @@ import UIKit
 import os
 
 /// Drives the 上滑二楼 pull. Owned by `HomeView` for its lifetime but read **only**
-/// by `FloorContainer`, so mutating `progress` during a drag re-renders just the
-/// thin transform shell — never the stage / chrome / 二楼 subtrees.
+/// by `FloorContainer`, so mutating `progress` re-renders just the thin transform
+/// shell — never the stage / chrome / 二楼 subtrees.
 ///
-/// The settle is a **model-driven spring** (`settle(to:)` writes `progress`
-/// every frame) rather than `withAnimation`: the model always equals the visual
-/// position, so a finger can catch the panel mid-flight without a jump
-/// (`withAnimation` snaps the model to the target instantly and only the
-/// presentation lags), the spring can be seeded with the release velocity, and
-/// hit-testing — which SwiftUI resolves against model values — always matches
-/// what's on screen.
+/// 点击和拖动是**两个独立交互**，刻意区别对待：
+///   • 拖动时 `progress` 由手指逐帧直接写入（1:1 跟手），没有动画。
+///   • 点击 / 松手走 `animate(to:duration:)` —— 一段**固定时长 + ease-out 缓动**的
+///     转场，而**不是**从静止出发的物理弹簧。物理弹簧那种「缓起步 + 长滑行收尾」的
+///     性格，用在一次干脆的点击上会显得飘、没头没尾；固定时长缓动则是干脆、确定的
+///     转场手感。我们不需要「中途接住」「释放速度连续」这些需求，所以这里没有弹簧
+///     物理、没有速度种子，只有一条确定的曲线。
+///
+/// 仍用 `CADisplayLink` 驱动（对齐 vsync、无 `Task.sleep` 抖动 / 无定时器唤醒抖动），
+/// 并且**每帧把 `progress` 更新为真实的屏幕位置** —— 于是 stage 暂停阈值
+/// (`p > coverThreshold`)、手势掩码 (`p > 0.5`)、命中测试始终与画面一致，无需任何
+/// 额外补偿（这也顺带让拖动可以从动画中途无跳变地接管，是白送的，不是需求）。
 @Observable final class FloorModel {
     var progress: CGFloat = 0
 
-    // Spring state, advanced once per display refresh by a `CADisplayLink` so the
-    // settle is **vsync-aligned** — no `Task.sleep` drift, and no wake-up jitter
-    // when the main thread is busy rendering (which is exactly when a timer-driven
-    // spring stutters).
+    // Tween state, advanced once per display refresh by a `CADisplayLink`.
     @ObservationIgnored private var link: CADisplayLink?
-    @ObservationIgnored private var springTarget: CGFloat = 0
-    @ObservationIgnored private var springVelocity: CGFloat = 0
-    /// Unclamped spring state — `progress` is its `[0,1]` clamp. Kept separate so a
-    /// slightly-underdamped flick keeps its momentum instead of sticking at the edge.
-    @ObservationIgnored private var springCurrent: CGFloat = 0
-    @ObservationIgnored private var springCompletion: (() -> Void)?
+    @ObservationIgnored private var from: CGFloat = 0
+    @ObservationIgnored private var to: CGFloat = 0
+    /// Stamped from the link clock on the first frame (so the tween starts cleanly
+    /// even if the first vsync is a beat late). `< 0` = not yet started.
+    @ObservationIgnored private var startTime: CFTimeInterval = -1
+    @ObservationIgnored private var duration: CFTimeInterval = FloorAnim.tap
+    @ObservationIgnored private var completion: (() -> Void)?
 
-    /// True while a settle spring is flying — a drag may catch it from anywhere.
-    var isSettling: Bool { link != nil }
+    /// True while a tween is running.
+    var isAnimating: Bool { link != nil }
 
-    /// A finger took over: stop the spring exactly where it visually is.
-    func beginInteraction() {
+    /// Stop any in-flight tween, leaving `progress` exactly where it visually is
+    /// (a finger taking over the drag, or a new tween replacing this one).
+    func stop() {
         link?.invalidate()
         link = nil
-        springCompletion = nil
+        completion = nil
     }
 
-    /// Spring `progress` toward 0/1. `velocity` is the finger's release speed in
-    /// progress-units/s so a flick hands its momentum to the spring seamlessly.
-    /// `completion` fires only when the spring lands naturally — never when it was
-    /// caught by a new drag or replaced by another settle. CADisplayLink-driven, so
-    /// reading `progress` mid-flight still equals the visual position (a finger can
-    /// catch the panel without a jump).
-    func settle(to target: CGFloat, velocity: CGFloat = 0, completion: (() -> Void)? = nil) {
-        beginInteraction()
-        springTarget = target
-        springVelocity = velocity
-        springCurrent = progress
-        springCompletion = completion
-        let proxy = FloorDisplayLinkProxy { [weak self] link in self?.stepSpring(link) }
+    /// Animate `progress` to `target` over a **fixed duration** with an ease-out
+    /// curve — a discrete transition, not a physical spring. `completion` fires only
+    /// when the tween lands naturally (never when stopped or replaced).
+    func animate(to target: CGFloat, duration: CFTimeInterval = FloorAnim.tap,
+                 completion: (() -> Void)? = nil) {
+        stop()
+        from = progress
+        to = target
+        self.duration = max(0.01, duration)
+        self.completion = completion
+        startTime = -1
+        let proxy = FloorDisplayLinkProxy { [weak self] link in self?.step(link) }
         let link = CADisplayLink(target: proxy, selector: #selector(FloorDisplayLinkProxy.handle(_:)))
         link.add(to: .main, forMode: .common)
         self.link = link
     }
 
-    /// One vsync step of the damped-spring integration (semi-implicit Euler).
-    private func stepSpring(_ link: CADisplayLink) {
-        let dt = CGFloat(max(0, min(link.targetTimestamp - link.timestamp, 1.0 / 30.0)))
-        let omega = 2 * CGFloat.pi / FloorAnim.panelResponse
-        let zeta = FloorAnim.panelDamping
-        springVelocity += (-(omega * omega) * (springCurrent - springTarget) - 2 * zeta * omega * springVelocity) * dt
-        springCurrent += springVelocity * dt
-        if abs(springCurrent - springTarget) < 0.001, abs(springVelocity) < 0.02 {
-            progress = springTarget
-            let done = springCompletion
-            beginInteraction()
+    /// One vsync step of the fixed-duration ease-out tween.
+    private func step(_ link: CADisplayLink) {
+        if startTime < 0 { startTime = link.timestamp }
+        let t = min(1, max(0, (link.timestamp - startTime) / duration))
+        // ease-out cubic: responds immediately to the tap, then settles softly —
+        // the opposite of the old from-rest spring's slow start.
+        let eased = 1 - pow(1 - t, 3)
+        progress = from + (to - from) * CGFloat(eased)
+        if t >= 1 {
+            progress = to
+            let done = completion
+            stop()
             done?()
-            return
         }
-        progress = min(1, max(0, springCurrent))
     }
 }
 
@@ -89,15 +91,23 @@ private final class FloorDisplayLinkProxy: NSObject {
     @objc func handle(_ link: CADisplayLink) { onFrame(link) }
 }
 
-/// Shared spring timings for the 上滑二楼 choreography (used by both the drag
-/// settle and the tap-to-open/close paths so they stay identical).
+/// Fixed durations for the 上滑二楼 transitions (no spring physics). `tap` for a
+/// discrete tap-to-open/close; `release` for the snap after a drag — slightly
+/// quicker, since the finger has already done most of the travel. The whole pull
+/// (panel · content · dome crown · stage parallax) rides this *one* `progress`
+/// tween; there is no second motion track. Tune here.
 enum FloorAnim {
-    /// Panel settle spring constants — consumed by `FloorModel.settle`'s
-    /// model-driven spring (the feel of the old `.spring(0.46, 0.86)`). The whole
-    /// pull — panel · chrome fade · content reveal · dome crown · stage parallax —
-    /// rides this *one* spring off `progress`; there is no second motion track.
-    static let panelResponse: CGFloat = 0.46
-    static let panelDamping: CGFloat = 0.86
+    static let tap: CFTimeInterval = 0.42
+    static let release: CFTimeInterval = 0.30
+}
+
+extension EnvironmentValues {
+    /// 二楼是否完全打开（`p > coverThreshold`）。由 `FloorContainer` 写入 content
+    /// 子树，历史页里的 `WaterSurface` 据此门控水面着色器 / `TimelineView` —— 合上
+    /// 即停转，零开销。阈值翻转才变化（不是每帧），所以只在跨阈值那一刻让读它的
+    /// `WaterSurface` 失效，不会让历史页逐帧重渲染。默认 `true`：未托管在
+    /// `FloorContainer` 时（如 `PiboHistoryView` 预览）水面照常播放。
+    @Entry var floorIsOpen: Bool = true
 }
 
 /// Pibo home (魔丸态) — the SpriteKit stage fills the screen; SwiftUI overlays
@@ -150,6 +160,7 @@ struct HomeView: View {
                         theme: store.currentTheme,
                         state: store.activityState,
                         growth: store.growthStage,
+                        weather: store.weather,
                         onPat: handlePat,
                         onHairPulled: handleHairPull,
                         energyGainToken: energyToken,
@@ -463,16 +474,6 @@ struct HomeView: View {
         LPLog.app.notice("walk doodle saved: \(Int(result.distanceMeters), privacy: .public)m \(Int(result.areaSquareMeters), privacy: .public)m²")
     }
 
-    // MARK: Floor
-    // Opening is owned by `FloorContainer` (the 上滑区域 dome's tap / drag /
-    // VoiceOver action) — see `FloorContainer.open`. Only closing lives here.
-
-    private func closeFloor() {
-        LPHaptics.tap()
-        stagePaused = false   // resume before anything is revealed
-        floor.settle(to: 0)
-    }
-
     // MARK: Speech plumbing
 
     private func show(_ line: PiboSpeechLine) {
@@ -607,11 +608,25 @@ private struct FloorContainer<Stage: View, Chrome: View, Content: View>: View {
                         .shadow(color: .black.opacity(0.10), radius: 14, y: -3)
                     // 历史页随不透明抽屉整体升起、自然露出 —— 不再用 .opacity 渐变，
                     // 省掉每帧把整页历史画到离屏缓冲再做 alpha 合成的开销（卡顿主因）。
+                    // 把「二楼是否打开」写进 content 子树：水面着色器据此停转。`p` 每帧
+                    // 在变，但传下去的是阈值布尔，只在跨 0.98 那一刻翻转，故不会逐帧
+                    // 重渲染历史页 —— 仅读它的 `WaterSurface` 会响应。
                     content
+                        .environment(\.floorIsOpen, p > Self.coverThreshold)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .offset(y: (1 - p) * travel)
+                // `.ignoresSafeArea()` must wrap the frame *before* the offset, so the
+                // surface is resolved to the full screen (incl. both insets) and only
+                // then render-shifted. Applying the offset first defeated the bottom
+                // extension — SwiftUI clamped the fill at the safe-area bottom, leaving
+                // the ~34pt home-indicator inset painted in the window's #FFFFFF (the
+                // "dome 被截断 / 上下底色不一致" gap). Offset is a pure transform here; it
+                // never re-clips, so the full-bleed surface stays full-bleed at any p.
                 .ignoresSafeArea()
+                .offset(y: (1 - p) * travel)
+                // 历史页可见时（已上楼），VoiceOver 两指 Z「escape」手势可从任意位置
+                // 关闭二楼 —— 滚进卡片后也能关闭，补上原本只在顶/底抓手区的关闭入口。
+                .accessibilityAction(.escape) { close() }
 
                 // 抓手箭头：唯一、全程可见的把手，跟着 crown 从「底部 dome」滑到
                 // 「顶部 ceiling」（screen-Y 在闭/开两处线性插值），p<0.5 显示 ʌ(上滑)、
@@ -668,7 +683,7 @@ private struct FloorContainer<Stage: View, Chrome: View, Content: View>: View {
             // would cancel the drag on the spot — no onEnded, no settle, floor
             // stranded half-open with every control unreachable.
             .gesture(drag(height: travel, fromBand: false),
-                     including: dragActive || p > 0.5 || floor.isSettling ? .all : .subviews)
+                     including: dragActive || p > 0.5 || floor.isAnimating ? .all : .subviews)
             // Pause the SpriteKit stage whenever it's fully hidden by the drawer —
             // threshold-driven so it also pauses when the user drag-*holds* the floor
             // open (not just on a settle-to-open landing), and resumes the instant a
@@ -684,9 +699,7 @@ private struct FloorContainer<Stage: View, Chrome: View, Content: View>: View {
         // never strands half-open with the chrome faded and unreachable.
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active, dragActive else { return }
-            dragBase = nil
-            dragActive = false
-            settleAfterInterruption()
+            cancelDragAndSettle()
         }
         // Same guarantee for any *in-app* cancellation: GestureState resets when
         // the gesture ends for ANY reason. A normal release clears `dragActive`
@@ -694,32 +707,41 @@ private struct FloorContainer<Stage: View, Chrome: View, Content: View>: View {
         // then the floor must settle itself or it strands half-open.
         .onChange(of: dragTracking) { _, tracking in
             guard !tracking, dragActive else { return }
-            dragBase = nil
-            dragActive = false
-            settleAfterInterruption()
+            cancelDragAndSettle()
         }
     }
 
-    /// Snap to the nearer floor after a cancelled drag. Stage pause/resume is driven
-    /// by the `p > coverThreshold` onChange, so this just re-launches the spring.
-    private func settleAfterInterruption() {
-        floor.settle(to: floor.progress > 0.5 ? 1 : 0)
+    /// A drag died without an `onEnded` (system interruption, or any GestureState
+    /// reset). Clear the drag state and snap to the nearer floor so the pull never
+    /// strands half-open. Single-sources the C6 robustness contract shared by the
+    /// `scenePhase` and `dragTracking` cancellation paths.
+    private func cancelDragAndSettle() {
+        dragBase = nil
+        dragActive = false
+        settleAfterInterruption()
     }
 
-    /// Open the 二楼 — tap / VoiceOver action on the 上滑区域 grab band. A pure
-    /// settle-to-1 (the same spring a drag-release uses), so every open path feels
-    /// identical.
+    /// Snap to the nearer floor after a cancelled drag. Stage pause/resume is driven
+    /// by the `p > coverThreshold` onChange, so this just re-launches the tween.
+    private func settleAfterInterruption() {
+        floor.animate(to: floor.progress > 0.5 ? 1 : 0, duration: FloorAnim.release)
+    }
+
+    /// Open the 二楼 — tap / VoiceOver action on the 上滑区域 grab band. A fixed-
+    /// duration ease-out transition (`FloorAnim.tap`), distinct from a drag-release:
+    /// a discrete tap deserves a discrete, decisive transition rather than a from-rest
+    /// physical spring (which read as floaty).
     private func open() {
         LPHaptics.tap()
-        floor.settle(to: 1)
+        floor.animate(to: 1, duration: FloorAnim.tap)
     }
 
     /// Close the 二楼 — tap / VoiceOver action on the top dome ceiling grab band
-    /// (drag-down closes through the shared `drag` path). Mirrors `open()`; resume the
-    /// stage *before* anything is revealed so Pibo is never seen frozen.
+    /// (drag-down closes through the shared `drag` path). Mirrors `open()`; stage
+    /// resume rides the `p > coverThreshold` onChange as the tween retreats.
     private func close() {
         LPHaptics.tap()
-        floor.settle(to: 0)
+        floor.animate(to: 0, duration: FloorAnim.tap)
     }
 
     /// Finger-tracking pull; snaps to the nearer floor (or follows a flick) on
@@ -736,9 +758,9 @@ private struct FloorContainer<Stage: View, Chrome: View, Content: View>: View {
             .updating($dragTracking) { _, tracking, _ in tracking = true }
             .onChanged { v in
                 if !dragActive {
-                    guard fromBand || floor.progress > 0.5 || floor.isSettling else { return }
-                    floor.beginInteraction()   // catch the spring where it visually is
-                    dragBase = floor.progress  // == on-screen position (model-driven)
+                    guard fromBand || floor.progress > 0.5 || floor.isAnimating else { return }
+                    floor.stop()               // take over an in-flight tween where it visually is
+                    dragBase = floor.progress  // == on-screen position (updated live every frame)
                     dragActive = true
                 }
                 let base = dragBase ?? floor.progress
@@ -750,12 +772,13 @@ private struct FloorContainer<Stage: View, Chrome: View, Content: View>: View {
                 guard dragActive else { return }
                 let base = dragBase ?? floor.progress
                 let p = min(1, max(0, base + (-v.translation.height) / h))
+                // A quick flick commits to that direction even if short; otherwise
+                // snap to the nearer floor. Either way the snap is a fixed-duration
+                // tween — no release-velocity handoff (not a requirement).
                 let flickUp = -v.predictedEndTranslation.height > 150
                 let flickDown = v.predictedEndTranslation.height > 150
                 let target: CGFloat = flickUp ? 1 : (flickDown ? 0 : (p > 0.5 ? 1 : 0))
-                // Hand the finger's speed to the spring (progress-units/s, up = +).
-                let releaseVelocity = -v.velocity.height / h
-                floor.settle(to: target, velocity: releaseVelocity)
+                floor.animate(to: target, duration: FloorAnim.release)
             }
     }
 }

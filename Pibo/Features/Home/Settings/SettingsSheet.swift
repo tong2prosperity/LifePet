@@ -176,12 +176,44 @@ struct SettingsSheet: View {
                     debugRow("回到未发芽（「?」卷芽）")
                 }
                 .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                weatherDebugRow
             }
             .background(
                 RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
                     .fill(LP.Fill.bgContainer)
             )
         }
+    }
+
+    /// 天气切换 — 驱动首页场景下雨三件套(雨幕 / 地面水花 / 滴在 Pibo 上)。
+    /// 接入 WeatherKit 前用它演示;选中即写 `store.weather` → 场景实时响应。
+    private var weatherDebugRow: some View {
+        HStack(spacing: LP.Spacing.s) {
+            Text("天气")
+                .lpText(LP.Typography.b3Medium)
+                .foregroundStyle(LP.Content.secondary)
+            Spacer(minLength: 0)
+            ForEach([PiboWeather.clear, .rain, .thunderstorm, .snow], id: \.self) { w in
+                let on = store.weather == w
+                Button {
+                    LPHaptics.tap()
+                    store.weather = w
+                } label: {
+                    Text(w.displayName)
+                        .lpText(LP.Typography.c1Regular)
+                        .foregroundStyle(on ? LP.Fill.foundationOnAccent : LP.Content.secondary)
+                        .padding(.horizontal, LP.Spacing.s)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule().fill(on ? LP.Fill.foundationAccent : LP.Fill.bgSurfaceSecondary)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, LP.Spacing.m)
+        .padding(.vertical, LP.Spacing.s + 2)
     }
 
     private func debugRow(_ title: String) -> some View {

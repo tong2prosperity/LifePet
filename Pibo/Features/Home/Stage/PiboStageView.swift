@@ -9,6 +9,8 @@ struct PiboStageView: View {
     let state: PiboActivityState
     /// 魔丸 head growth (「?」卷芽 ⇄ 发芽带叶) — drives which head sprite shows.
     var growth: PiboGrowthStage = .sprouted
+    /// 当前天气 — 开/关下雨三件套(雨幕 / 地面水花 / 滴在 Pibo 上)。
+    var weather: PiboWeather = .clear
     var onPat: () -> Void = {}
     /// Fired when the head 毛 is dragged past the pull threshold (the 拔毛 gesture).
     var onHairPulled: () -> Void = {}
@@ -42,6 +44,7 @@ struct PiboStageView: View {
                     scene.onPat = onPat
                     scene.onHairPulled = onHairPulled
                     scene.apply(theme: theme, state: state, growth: growth)
+                    scene.setWeather(weather)
                 }
                 .onChange(of: geo.size) { _, newSize in
                     if newSize.width > 1, newSize.height > 1 { scene.size = newSize }
@@ -49,6 +52,7 @@ struct PiboStageView: View {
                 .onChange(of: theme.id) { _, _ in scene.apply(theme: theme, state: state, growth: growth) }
                 .onChange(of: state) { _, _ in scene.apply(theme: theme, state: state, growth: growth) }
                 .onChange(of: growth) { _, _ in scene.apply(theme: theme, state: state, growth: growth) }
+                .onChange(of: weather) { _, w in scene.setWeather(w) }
                 .onChange(of: energyGainToken) { _, token in
                     if token != nil { scene.playEnergyGain() }
                 }
