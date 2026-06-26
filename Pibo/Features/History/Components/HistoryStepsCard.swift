@@ -124,10 +124,27 @@ struct HistoryStepsCard: View {
 /// hills, a scattered pebble ground, and fireflies. The stage→height scale is
 /// **fixed across days** so the field reads as data (a 高株 ≈ a near-max hour).
 /// On today, columns still ahead render dimmed.
+///
+/// 入场生长动画 (matches the reference clip): on each 二楼 open the field
+/// **grows in left→right** — the mint hills + 碎石 sweep in under a moving
+/// reveal mask, each hour's plant 冒头 (bottom-anchored spring pop) staggered to
+/// fire as the sweep reaches its column, then the 萤火虫 fade in last. Driven by
+/// `floorIsOpen` (flips at the open threshold), so it replays every open and the
+/// card subtree only invalidates on that one boolean — no per-frame cost during
+/// the pull. Closed / preview defaults keep it grown.
 private struct GrassField: View {
     /// Per-hour steps for hours `HistoryStepsCard.startHour …` (one per column).
     let columns: [Int]
     let isToday: Bool
+
+    /// Drives replay: the 二楼 reaching its open threshold restarts the grow-in.
+    @Environment(\.floorIsOpen) private var floorIsOpen
+    /// `false` = field hidden/un-grown; `true` = grown. Animated transitions read
+    /// off this single flag (per-column delays live on each element's `.animation`).
+    @State private var grown = false
+
+    /// Wall-clock of the full left→right sweep; plant pops stagger across ~80% of it.
+    private static let sweepDuration: Double = 1.05
 
     /// Pebble ground scatter — x-fraction across the field (Figma 碎石地面).
     private static let pebbleSpots: [CGFloat] = [0.05, 0.19, 0.33, 0.5, 0.66, 0.8, 0.94]
@@ -141,27 +158,52 @@ private struct GrassField: View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             ZStack(alignment: .bottom) {
-                Image("walk_hills")
-                    .resizable()
-                    .aspectRatio(355.203 / 100.307, contentMode: .fill)
-                    .frame(width: w, height: h, alignment: .bottom)
+                // 山丘 + 碎石：一道从左往右扫掠的遮罩铺开（reveal wipe）。
+                ZStack(alignment: .bottom) {
+                    Image("walk_hills")
+                        .resizable()
+                        .aspectRatio(355.203 / 100.307, contentMode: .fill)
+                        .frame(width: w, height: h, alignment: .bottom)
+                    pebbles(w: w, h: h)
+                }
+                .mask(alignment: .leading) {
+                    Rectangle()
+                        .frame(width: grown ? w + 4 : 0)
+                        .animation(.easeOut(duration: Self.sweepDuration), value: grown)
+                }
 
-                pebbles(w: w, h: h)
+                // 植物：每列随扫掠到达而「冒头」，底部锚点弹簧上弹。
                 plantRow(h: h)
+
+                // 萤火虫：最后淡入。
                 fireflies(w: w, h: h)
+                    .opacity(grown ? 1 : 0)
+                    .animation(.easeIn(duration: 0.5).delay(Self.sweepDuration * 0.7), value: grown)
             }
             .frame(width: w, height: h, alignment: .bottom)
+            // 每次二楼打开重放：先瞬时归零（无动画），下一拍再生长。关闭/预览(默认 true)即长成。
+            .onChange(of: floorIsOpen, initial: true) { _, open in
+                guard open else { grown = false; return }
+                grown = false
+                DispatchQueue.main.async { grown = true }
+            }
         }
     }
 
     private func plantRow(h: CGFloat) -> some View {
         let currentHour = Calendar.current.component(.hour, from: .now)
+        let count = max(columns.count - 1, 1)
         return HStack(alignment: .bottom, spacing: 1) {
             ForEach(columns.indices, id: \.self) { i in
                 let hour = HistoryStepsCard.startHour + i
                 let stage = PlantStage.forHourSteps(columns[i])
+                // Pop right as the sweep edge reaches this column (delay = x-fraction).
+                let delay = Double(i) / Double(count) * Self.sweepDuration * 0.8
                 PlantView(stage: stage, fieldHeight: h, dimmed: isToday && hour > currentHour)
                     .frame(maxWidth: .infinity)
+                    .scaleEffect(grown ? 1 : 0.15, anchor: .bottom)
+                    .opacity(grown ? 1 : 0)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.6).delay(delay), value: grown)
             }
         }
     }
