@@ -21,6 +21,11 @@ struct PiboApp: App {
     /// Sole consumer of `health.events`. The store is the only thing that
     /// mutates pet state; views observe it via `@Environment`.
     @State private var store: PetStateStore
+    /// Backend auth + economy clients (pibo-server). App-owned so any screen can
+    /// drive login / sync via `@Environment`. The demo runs without a server;
+    /// these only do work once the user logs in (see `BackendLoginView`).
+    @State private var auth = AuthService()
+    @State private var economy = EconomyService()
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -64,6 +69,8 @@ struct PiboApp: App {
                 .environment(health)
                 .environment(store)
                 .environment(history)
+                .environment(auth)
+                .environment(economy)
                 .modelContainer(modelContainer)
                 .preferredColorScheme(.light)   // LP palette is light-only paper
                 .task {
