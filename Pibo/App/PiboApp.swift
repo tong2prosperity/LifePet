@@ -24,8 +24,10 @@ struct PiboApp: App {
     /// Backend auth + economy clients (pibo-server). App-owned so any screen can
     /// drive login / sync via `@Environment`. The demo runs without a server;
     /// these only do work once the user logs in (see `BackendLoginView`).
-    @State private var auth = AuthService()
-    @State private var economy = EconomyService()
+    @State private var auth: AuthService
+    @State private var economy: EconomyService
+    /// Bridges the HealthKit history into `EconomyService.sync` (today's samples).
+    @State private var coordinator: EconomySyncCoordinator
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -59,7 +61,14 @@ struct PiboApp: App {
                 configurations: ModelConfiguration(isStoredInMemoryOnly: true))
             LPLog.app.error("History store failed, using in-memory: \(error.localizedDescription, privacy: .public)")
         }
-        _history = State(initialValue: HealthHistoryStore(context: modelContainer.mainContext))
+        let hist = HealthHistoryStore(context: modelContainer.mainContext)
+        _history = State(initialValue: hist)
+
+        let a = AuthService()
+        let e = EconomyService()
+        _auth = State(initialValue: a)
+        _economy = State(initialValue: e)
+        _coordinator = State(initialValue: EconomySyncCoordinator(auth: a, economy: e, history: hist))
     }
 
     var body: some Scene {
@@ -71,6 +80,7 @@ struct PiboApp: App {
                 .environment(history)
                 .environment(auth)
                 .environment(economy)
+                .environment(coordinator)
                 .modelContainer(modelContainer)
                 .preferredColorScheme(.light)   // LP palette is light-only paper
                 .task {
@@ -86,6 +96,16 @@ struct PiboApp: App {
                         let workouts = await health.fetchWorkoutHistory()
                         history.ingestWorkouts(workouts)
                     }
+                    // If already logged in, push today's health to the server.
+                    if auth.phase == .loggedIn {
+                        await coordinator.syncToday()
+                    }
+                    #if DEBUG
+                    // Headless connectivity check (launch arg -PiboBackendSelfTest).
+                    if BackendSelfTest.isEnabled {
+                        await BackendSelfTest.run(auth: auth, economy: economy, coordinator: coordinator)
+                    }
+                    #endif
                 }
                 .onChange(of: scenePhase) { _, phase in
                     LPLog.app.debug("scenePhase → \(String(describing: phase), privacy: .public)")
@@ -103,6 +123,11 @@ struct PiboApp: App {
                         // at "today's HK reality, minus elapsed pressure").
                         store.checkDayRollover()
                         store.applyDecayCatchup()
+                        // Server-side reconciliation: push today's health so the
+                        // server re-mints any bo earned while we were away.
+                        if auth.phase == .loggedIn {
+                            Task { await coordinator.syncToday() }
+                        }
                         if health.authState == .granted {
                             LPLog.app.debug("Foreground reconcile triggered")
                             Task {

@@ -13,5 +13,13 @@
 	<array>
 		<string>location</string>
 	</array>
+	<!-- Allow cleartext HTTP to localhost / .local hosts so the app can reach a
+	     locally-run pibo-server (http://localhost:8080) during development. This
+	     does NOT permit arbitrary cleartext loads. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>
