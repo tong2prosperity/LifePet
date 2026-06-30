@@ -4,3 +4,32 @@ HarmonyLifePet
 
 # 周边 web 小游戏(独立 git 仓库,不随主仓库追踪)
 festival-web-game/
+
+# ---- Xcode / 构建产物 ----
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Package.resolved
+
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ---- 编辑器 / 临时文件 ----
+*.swp
+*~

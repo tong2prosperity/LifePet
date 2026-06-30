@@ -3,19 +3,18 @@ import SwiftData
 import UIKit
 import os
 
-// The 上滑二楼 pull-up subsystem now lives in `Features/Home/Floor/`:
-//   • `FloorModel`  — the CADisplayLink-driven `progress` tween + `FloorAnim` + the
-//                     `floorIsOpen` environment value (read by the history WaterSurface).
-//   • `FloorContainer` — the pull-up coordinator view embedded by `HomeView` below.
-//   • `FloorDome`   — the #E8EEF1 drawer surface shape.
-// HomeView only owns a `FloorModel` and hands closures to `FloorContainer`.
-
-/// Pibo home (魔丸态) — the SpriteKit stage fills the screen; SwiftUI overlays
-/// the chrome: greeting + 与Pibo相识第 N 天, the 露珠相机 button, the 上滑
-/// Dashboard handle, 拍一拍 speech, 拔毛, and the 能量收集 flow.
+/// Pibo home (魔丸态) — a horizontally-pannable SpriteKit world (旅行青蛙-style):
+/// drag left/right to roam between zones (照相馆 · Pibo 的栖息地 · 游戏场), tap a
+/// zone to enter its feature. The home zone keeps 拍一拍 / 拔毛 / 能量收集. SwiftUI
+/// overlays only the chrome: greeting + 与Pibo相识第 N 天, the 足迹 (history) +
+/// settings icons, the contextual 拔毛 button, zone dots, and the 拍一拍 speech /
+/// 发芽 flow.
 ///
-/// Per the home spec, there are no stat bars / step cards / star-light — Pibo's
-/// state and the head-flower come straight off raw HealthKit + time of day
+/// Feature entries are in-world now (home spec lineage, redesigned 2026-06-27):
+/// 照相馆 → 露珠相机, 游戏场 → 健康小游戏列表 (`GameListView`, walk doodle 等),
+/// 足迹 icon → 历史数据页. The old 上滑数据二楼 (FloorModel/FloorContainer) is retired.
+///
+/// Pibo's state and the head-flower come straight off raw HealthKit + time of day
 /// (see `PetStateStore+Mowan`).
 struct HomeView: View {
     @Environment(PetStateStore.self) private var store
@@ -23,13 +22,12 @@ struct HomeView: View {
 
     @State private var speech: PiboSpeechLine? = nil
     @State private var speechClear: Task<Void, Never>? = nil
-    /// 上滑二楼 state — 0 = home floor, 1 = data 二楼. Lives in a model HomeView
-    /// owns but does not read, so the drag only re-renders `FloorContainer`.
-    @State private var floor = FloorModel()
-    /// Pause the stage's 60fps loop while parked on the 二楼. Toggled on settle
-    /// (not per frame), so the stage is never re-rendered mid-drag.
-    @State private var stagePaused = false
+    /// Which zone the camera is parked on (`StageZone.rawValue`) — gates the
+    /// contextual 拔毛 button and lights the zone dots.
+    @State private var currentZone: Int = StageZone.home.rawValue
     @State private var showCamera = false
+    @State private var showGames = false
+    @State private var showHistory = false
     @State private var showWalkDoodle = false
     @State private var showSettings = false
     @State private var energyToken: UUID? = nil
@@ -39,44 +37,37 @@ struct HomeView: View {
     /// pibo头顶动画 → 能量已收集 pop). See `EnergySproutFlow.swift`.
     @State private var sproutToken: UUID? = nil
     @State private var sproutPhase: SproutFlowPhase = .idle
-    /// Greeting / day-label cached once (they're "drawn once per day"): keeps the
-    /// header off the per-frame Calendar path while the 二楼 pull-up drags.
+    /// Greeting / day-label cached once (they're "drawn once per day").
     @State private var greetingText: String = ""
     @State private var dayLabelText: String = ""
 
     @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
 
+    /// Pause the 60fps stage loop while a full-screen feature covers it.
+    private var stagePaused: Bool { showCamera || showGames || showHistory || showWalkDoodle }
+
     var body: some View {
         ZStack {
-            FloorContainer(
-                floor: floor,
-                // Pause only once the panel actually covers the stage; resume
-                // the moment a closing interaction could reveal it — so Pibo
-                // never visibly freezes mid-bob or thaws with a pop.
-                onCovered: { stagePaused = true },
-                onRevealing: { stagePaused = false },
-                stage: {
-                    PiboStageView(
-                        theme: store.currentTheme,
-                        state: store.activityState,
-                        growth: store.growthStage,
-                        weather: store.weather,
-                        onPat: handlePat,
-                        onHairPulled: handleHairPull,
-                        energyGainToken: energyToken,
-                        pluckToken: pluckToken,
-                        turnAwayToken: turnAwayToken,
-                        sproutToken: sproutToken,
-                        onSproutPhase: handleSproutPhase,
-                        isPaused: stagePaused
-                    )
-                    .ignoresSafeArea()
-                },
-                chrome: { chromeContent },
-                // The 二楼 content (数据 / 自定义 Pibo tab container) rides inside
-                // FloorContainer's single rising drawer, under the #E8EEF1 crown.
-                content: { HistoryFloorView().environment(store) }
+            PiboStageView(
+                theme: store.currentTheme,
+                state: store.activityState,
+                growth: store.growthStage,
+                weather: store.weather,
+                onPat: handlePat,
+                onHairPulled: handleHairPull,
+                onEnterCamera: { showCamera = true },
+                onEnterGames: { showGames = true },
+                onZoneChanged: { currentZone = $0 },
+                energyGainToken: energyToken,
+                pluckToken: pluckToken,
+                turnAwayToken: turnAwayToken,
+                sproutToken: sproutToken,
+                onSproutPhase: handleSproutPhase,
+                isPaused: stagePaused
             )
+            .ignoresSafeArea()
+
+            chromeContent
 
             // 发芽 close-up captions, synced to the stage phases.
             if sproutPhase == .collecting || sproutPhase == .sprouted {
@@ -94,17 +85,10 @@ struct HomeView: View {
                 EnergyCollectedPop(onDismiss: dismissEnergyPop)
             }
         }
-        // No subtree-wide `.animation(value:)` here: an ambient animation that
-        // fires while the user is dragging would capture that frame's
-        // `floor.progress` change too and make the panel lag the finger for a
-        // beat. Speech / sprout transitions animate via explicit `withAnimation`
-        // at their mutation sites instead (`show`, `setSproutPhase`).
         .task { await idleMutterLoop() }
         .onAppear {
             greetingText = store.mowanGreeting
             dayLabelText = store.relationshipDayLabel
-            // Cold launch with a restored fresh workout (app opened right after
-            // a run): give the stage a beat to build, then play the flow.
             if store.pendingWorkout != nil {
                 Task {
                     try? await Task.sleep(for: .seconds(0.7))
@@ -118,6 +102,16 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showCamera) {
             PiboCameraView(onPhotoSaved: handlePhotoSaved).environment(store)
         }
+        .fullScreenCover(isPresented: $showGames) {
+            GameListView(onWalkDoodleSaved: handleDoodleSaved)
+                .environment(store)
+                .environment(history)
+        }
+        .fullScreenCover(isPresented: $showHistory) {
+            HistoryScreen()
+                .environment(store)
+                .environment(history)
+        }
         .fullScreenCover(isPresented: $showWalkDoodle) {
             WalkDoodleView(onSaved: handleDoodleSaved)
         }
@@ -126,43 +120,42 @@ struct HomeView: View {
         }
     }
 
-    // MARK: Chrome (home greeting / speech / controls)
+    // MARK: Chrome
 
     /// Whether the 发芽 close-up owns the screen (chrome hides, captions show).
     private var closeupActive: Bool {
         sproutPhase == .collecting || sproutPhase == .sprouted
     }
 
-    /// All the home-floor overlay built as one subtree. `FloorContainer` fades it
-    /// out as the 二楼 rises, so it has no per-progress logic of its own.
+    /// Whether Pibo's home zone is the one on screen — gates the 拔毛 button and
+    /// the home greeting line (other zones speak for themselves via in-scene signage).
+    private var onHomeZone: Bool { currentZone == StageZone.home.rawValue }
+
     private var chromeContent: some View {
-        GeometryReader { geo in
-            ZStack {
-                // Speech bubble floats just above Pibo's head (~30% down).
-                if let speech {
+        ZStack {
+            // Speech bubble floats just above Pibo's head (~30% down) — only on home.
+            if let speech, onHomeZone {
+                GeometryReader { geo in
                     PiboSpeechBubbleView(line: speech)
                         .position(x: geo.size.width / 2, y: geo.size.height * 0.30)
                         .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
-
-                VStack(spacing: 0) {
-                    header
-                    Spacer()
-                    bottomControls
-                }
-                .padding(.horizontal, LP.Spacing.l)
+                .allowsHitTesting(false)
             }
-            .opacity(closeupActive ? 0 : 1)
-            .allowsHitTesting(!closeupActive)
+
+            VStack(spacing: 0) {
+                header
+                Spacer()
+                bottomControls
+            }
+            .padding(.horizontal, LP.Spacing.l)
         }
+        .opacity(closeupActive ? 0 : 1)
+        .allowsHitTesting(!closeupActive)
     }
 
     // MARK: Header
 
-    /// Header — faithful to Figma `HomeHeader` (76:6662): the `b4Medium` greeting
-    /// (14pt) over the `uiH4` 与Pibo相识的第 N 天 line (28pt), both
-    /// `LP.Content.secondary`. Themed homes (Figma 74:6101) slot the 主题名
-    /// (桃花时节 / 阿那亚的海风里) between them; the 魔丸 default has none.
     private var header: some View {
         HStack(alignment: .top, spacing: LP.Spacing.s) {
             VStack(alignment: .leading, spacing: LP.Spacing.s) {
@@ -178,63 +171,90 @@ struct HomeView: View {
                     .lpText(LP.Typography.uiH4)
                     .foregroundStyle(LP.Content.secondary)
             }
+            .opacity(onHomeZone ? 1 : 0)   // greeting belongs to Pibo's zone
+
             Spacer(minLength: 0)
-            Button {
-                LPHaptics.tap()
-                showSettings = true
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 20, weight: .regular))
-                    .foregroundStyle(LP.Content.secondary)
-                    .frame(width: 28, height: 28)
-                    .padding(LP.Spacing.xs)
+
+            // Fixed corner icons (旅行青蛙-style) — 足迹 history + settings.
+            VStack(spacing: LP.Spacing.s) {
+                historyButton
+                settingsButton
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(AppLocalization.text("设置"))
         }
         .padding(.top, LP.Spacing.s)
     }
 
-    // MARK: Bottom controls
-
-    /// 露珠相机 floats in the lower third (Figma `74:6178`, 88pt @ ~80% height),
-    /// floating just above the 上滑区域 dome — the dome + its ʌ are drawn by
-    /// `FloorContainer` (so they crossfade into the rising 二楼 panel), not here.
-    private var bottomControls: some View {
-        VStack(spacing: 0) {
-            // Pibo 在主界面给用户布置的任务 — 出门走一幅地图涂鸦 (运动能量).
-            WalkDoodleTaskCard { showWalkDoodle = true }
-            Spacer().frame(height: LP.Spacing.m)
-            if store.pluckAvailable {
-                pluckButton
-                Spacer().frame(height: LP.Spacing.m)
-            }
-            cameraButton
-            // Reserve the 上滑区域 dome band below the 相机 (was a 60pt spacer +
-            // 28pt chevron; the chevron now lives on the dome in `FloorContainer`).
-            Spacer().frame(height: 88)
-        }
-        .padding(.bottom, LP.Spacing.s)
-    }
-
-    private var cameraButton: some View {
+    /// Hand-drawn 「足迹」 icon → the 历史数据页. A soft paper card, lightly tilted,
+    /// so it reads as a hand-placed keepsake rather than a system chrome button.
+    private var historyButton: some View {
         Button {
             LPHaptics.tap()
-            showCamera = true
+            showHistory = true
         } label: {
-            Image(systemName: "camera")
-                .font(.system(size: 26, weight: .regular))
-                .foregroundStyle(LP.Content.secondary)
-                .frame(width: 84, height: 84)
-                // Figma 509:2659: a solid fill-bg-container (#FBFCFC) disc, *not*
-                // a translucent material — over the themed stage the near-white
-                // body + elevation2 shadow keep it cleanly distinct from the bg.
-                .background(LP.Fill.bgContainer, in: Circle())
-                .overlay(Circle().strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair))
-                .lpShadow(LP.Shadow.elevation2)
+            VStack(spacing: 2) {
+                Image(systemName: "book.closed")
+                    .font(.system(size: 18, weight: .regular))
+                Text(AppLocalization.text("足迹"))
+                    .lpText(LP.Typography.c2Medium)
+            }
+            .foregroundStyle(LP.Content.secondary)
+            .frame(width: 48, height: 48)
+            .background(
+                RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
+                    .fill(LP.Fill.bgContainer))
+            .overlay(
+                RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
+                    .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair))
+            .lpShadow(LP.Shadow.elevation2)
+            .rotationEffect(.degrees(-3))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(AppLocalization.text("拍照"))
+        .accessibilityLabel(AppLocalization.text("足迹 · 历史数据"))
+    }
+
+    private var settingsButton: some View {
+        Button {
+            LPHaptics.tap()
+            showSettings = true
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: 20, weight: .regular))
+                .foregroundStyle(LP.Content.secondary)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(LP.Fill.bgContainer.opacity(0.9)))
+                .lpShadow(LP.Shadow.elevation1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppLocalization.text("设置"))
+    }
+
+    // MARK: Bottom controls
+
+    private var bottomControls: some View {
+        VStack(spacing: LP.Spacing.m) {
+            if onHomeZone, store.pluckAvailable {
+                pluckButton
+            }
+            zoneDots
+        }
+        .padding(.bottom, LP.Spacing.l)
+    }
+
+    /// Zone indicator dots (照相馆 · home · 游戏场) — lights the current one. Swipe
+    /// the world to move between zones.
+    private var zoneDots: some View {
+        HStack(spacing: 8) {
+            ForEach(StageZone.allCases, id: \.rawValue) { z in
+                Circle()
+                    .fill(z.rawValue == currentZone ? LP.Content.secondary : LP.Content.quarternary)
+                    .frame(width: z.rawValue == currentZone ? 8 : 6,
+                           height: z.rawValue == currentZone ? 8 : 6)
+            }
+        }
+        .padding(.horizontal, LP.Spacing.m)
+        .padding(.vertical, LP.Spacing.s)
+        .background(Capsule().fill(LP.Fill.bgContainer.opacity(0.6)))
+        .accessibilityHidden(true)
     }
 
     private var pluckButton: some View {
@@ -265,10 +285,8 @@ struct HomeView: View {
         if let line = response.line { show(line) }
     }
 
-    /// 拖毛 released past the pull threshold (scene's `onHairPulled`). Inside
-    /// the 22:00–02:00 window this IS the 拔毛 collection; outside it Pibo just
-    /// hates having its 毛 yanked and turns away — no speech, doesn't touch the
-    /// pat caps.
+    /// 拖毛 released past the pull threshold. Inside 22:00–02:00 this IS 拔毛
+    /// collection; outside it Pibo just hates it and turns away.
     private func handleHairPull() {
         LPHaptics.tap()
         if store.pluckAvailable {
@@ -280,22 +298,18 @@ struct HomeView: View {
 
     // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)
 
-    /// Workout detected (app open / push while foregrounded): play the 发芽
-    /// close-up if the head can still sprout, otherwise the small in-place
-    /// shake — both end on the 能量已收集 pop.
     private func maybeStartEnergyFlow() {
         guard store.pendingWorkout != nil, sproutPhase == .idle else { return }
         let canSprout = store.growthStage == .mystery
             && store.currentTheme.sproutedHeadSprite != nil
-            && floor.progress < 0.5    // parked on the 二楼 → skip the theater
+            && onHomeZone   // the theater only reads on Pibo's home zone
         if canSprout {
             switch SproutAnimationStyle.current {
             case .stagePlaceholder:
                 setSproutPhase(.collecting)
                 sproutToken = UUID()
             case .lottie:
-                // TODO(design): full-screen Lottie player once the asset lands;
-                // until then the stage placeholder carries the sequence.
+                // TODO(design): full-screen Lottie player once the asset lands.
                 setSproutPhase(.collecting)
                 sproutToken = UUID()
             }
@@ -308,9 +322,9 @@ struct HomeView: View {
     private func handleSproutPhase(_ phase: SproutCloseupPhase) {
         switch phase {
         case .shaking:
-            break   // caption already up
+            break
         case .sprouted:
-            store.markSprouted()   // pibo头顶发生变化 — persists the new head
+            store.markSprouted()
             setSproutPhase(.sprouted)
         case .finished:
             setSproutPhase(.pop)
@@ -323,8 +337,6 @@ struct HomeView: View {
         setSproutPhase(.idle)
     }
 
-    /// Animates the flow-phase transitions locally — scoped here instead of a
-    /// subtree-wide `.animation(value:)` so mid-drag frames are never captured.
     private func setSproutPhase(_ phase: SproutFlowPhase) {
         withAnimation(.spring(response: 0.36, dampingFraction: 0.84)) { sproutPhase = phase }
     }
@@ -344,9 +356,6 @@ struct HomeView: View {
         if Bool.random() {
             show(PiboSpeechLine(text: PiboCameraView.genericComments.randomElement() ?? "...颜色...记..."))
         }
-        // Persist a background-removed (抠图) + 镶边框 copy, tagged with the 识图
-        // label, as a 今日记录 food photo so it lands on the 历史数据页 (home
-        // spec §4). Heavy Vision work runs off-main.
         guard let image else {
             LPLog.cutout.info("no captured image (placeholder device) — skipping 抠图/persist")
             return
@@ -388,12 +397,12 @@ struct HomeView: View {
         }
     }
 
-    /// Idle self-mutter loop (spec §3.3) — every 15–30s, ~20% chance Pibo
-    /// drifts a line on its own. Cancelled automatically when the view leaves.
+    /// Idle self-mutter loop (spec §3.3) — every 15–30s, ~20% chance Pibo drifts a
+    /// line on its own. Only mutters on the home zone.
     private func idleMutterLoop() async {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(Double.random(in: 15...30)))
-            if speech == nil, sproutPhase == .idle, let line = store.idleMutter() { show(line) }
+            if speech == nil, sproutPhase == .idle, onHomeZone, let line = store.idleMutter() { show(line) }
         }
     }
 
@@ -404,13 +413,6 @@ struct HomeView: View {
 }
 
 #Preview {
-    // Reuse `HistoryPreviewData` (the long-lived, disk-backed, all-three-models store
-    // shared with PiboHistoryView's preview). HomeView embeds PiboHistoryView (the 二
-    // 楼), whose `makeDay` fetches WorkoutRecord + FoodPhoto — so the preview needs the
-    // SAME guarantees: (1) all 3 @Model types in the schema (a partial schema traps on
-    // the fetch), and (2) a container that OUTLIVES the #Preview closure (a local `let`
-    // deallocates → the context's rows invalidate → SwiftData traps on the next
-    // re-layout/animation frame). An inline in-memory container hit both traps.
     HomeView()
         .environment(PetStateStore(demoMode: true))
         .environment(HistoryPreviewData.store)

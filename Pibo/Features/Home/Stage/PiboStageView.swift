@@ -14,6 +14,12 @@ struct PiboStageView: View {
     var onPat: () -> Void = {}
     /// Fired when the head 毛 is dragged past the pull threshold (the 拔毛 gesture).
     var onHairPulled: () -> Void = {}
+    /// 点击「照相馆」区域 → 弹出露珠相机。
+    var onEnterCamera: () -> Void = {}
+    /// 点击「游戏场」区域 → 弹出健康小游戏列表。
+    var onEnterGames: () -> Void = {}
+    /// 相机平移落定到新区域时回调（`StageZone.rawValue`），驱动 chrome 的区域圆点。
+    var onZoneChanged: (Int) -> Void = { _ in }
     /// Bump to fire the 能量收集 头顶毛 animation.
     var energyGainToken: UUID? = nil
     /// Set to drop a 拔毛 seed of the given color.
@@ -43,6 +49,9 @@ struct PiboStageView: View {
                     scene.size = geo.size
                     scene.onPat = onPat
                     scene.onHairPulled = onHairPulled
+                    scene.onEnterCamera = onEnterCamera
+                    scene.onEnterGames = onEnterGames
+                    scene.onZoneChanged = onZoneChanged
                     scene.apply(theme: theme, state: state, growth: growth)
                     scene.setWeather(weather)
                 }

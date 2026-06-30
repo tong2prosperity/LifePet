@@ -13,6 +13,10 @@ The product is **Pibo · Life is Vibe**. The project, schemes, bundle identifier
 
 The original plan had the watch streaming live samples over `WCSession`. **That `WCSession` direction is cut** — no watch session, no `WCSession.sendMessage` feeding the phone; iOS treats HealthKit as the sole input. Genuine dead code from that era still lingers and should not be extended: `Shared/Connectivity/`, `Pibo/Services/Connectivity/`, the `Generation` / `Playback` / `Session` iOS features, `SessionStore`, the `LiveCoding` / `MusicGeneration` / `Visualization` services, and the watch's older `Recording` / `Start` features + `WatchConnectivitySender`. The CRC breathing feature is the exception — it is current. Old `Shared/Models/Vital*` wire-format types are also slated for replacement.
 
+### Backend (pibo-server)
+
+The Pibo backend lives in a **separate local git repo at `/Users/trevorlink/Project/hackathon/pibo-server`** (sibling of this iOS repo, NOT a subfolder). One Go binary embeds the auth service + a bo-economy module on one Chi router + one PostgreSQL; it consumes `auth_service` (`/Users/trevorlink/Project/interesting/modules/auth_service/srv`) via a `go.mod` replace. The iOS client layer that talks to it is `Pibo/Services/Backend/`. See the `pibo-server-backend` memory for the full architecture, local-dev setup, and verification notes.
+
 ## Core Product Logic (0603 rework + home spec — source of truth)
 
 The product direction is set by two docs under `product-web-prototype/`, both newer than the original PRD:
@@ -47,14 +51,24 @@ HealthKit data maps **directly** onto Pibo's state and the head-flower's conditi
 
 ### Home screen IA (home spec §1)
 
+> **超越上滑二楼 — 横向逛场景 (2026-06-27 重构, source of truth for navigation).** The home is no longer a single vertical floor with a 上滑数据二楼. It is now a **horizontally-pannable SpriteKit world** (旅行青蛙-style diorama): the user **drags left/right inside the main scene** to roam between three zones, and **taps a zone to enter its feature**. The 上滑 pull-up (`FloorModel` / `FloorContainer` / `FloorDome`) is **retired and deleted**; feature entries are now in-world.
+>
+> ```
+> 照相馆 (studio)  ←   Pibo 的栖息地 (home, 默认居中)   →   游戏场 (gym)
+>   tap → 露珠相机        拍一拍 / 拔毛 / 能量收集            tap → 健康小游戏列表
+> ```
+> The three zones are `StageZone { studio=0, home=1, gym=2 }` laid out along x in **one large continuous scene** (worldWidth = `zoneCount · width`); a `SKCameraNode` free-pans over it like dragging a map — **no snap, no inertia**. The drag follows the finger 1:1, **hard-clamped** to the map bounds (`clampCamX`, no overscroll), and the camera **stops dead wherever the finger releases** (can rest between zones, split-screen). "Current zone" (for chrome greeting/dots) is judged **continuously** from the camera center (`updateZoneFromCamera`), not a discrete snap event. (A release-inertia glide was built then removed per product direction 2026-06-27 — the camera does not coast.) Touch arbitration (one SpriteKit touch system, no SwiftUI/SpriteView gesture war): a touch on the 毛 (home only) → 拖毛 drag; a horizontal drag dominant over vertical → **world pan** (translation tracked in **view** coords, camera-independent — scene coords move with the camera and would feed back); a tap routes by zone (home body → 拍一拍, studio → `onEnterCamera`, gym → `onEnterGames`). `HomeView` is now full-screen `PiboStageView` + overlay chrome only: greeting (shown on home zone, hidden off-home), the **hand-drawn 「足迹」 icon** (tilted paper card, top-right) → `HistoryScreen` (the 历史数据页 as a `fullScreenCover`, 数据/自定义 tabs intact), the settings gear, a contextual 拔毛 button (home + window-open), and **zone dots**. Health 小游戏 live in `Features/Games/GameListView` (`fullScreenCover`) — every game is 健康相关 (the worldview demands it); the first is **地图涂鸦 (walk doodle)** = 运动能量, plus a 敬请期待 placeholder. The retired pull-up's `floorIsOpen` env value now lives in `Features/History/HistoryEnvironment.swift` (defaults `true` — the history `WaterSurface` / `HistoryStepsCard` animate whenever the cover is on screen). **No game engine runtime** — SpriteKit covers the diorama, camera pan, hit-testing, and (future) 2D minigames; minigames are separate `SKScene`s / SwiftUI screens.
+
+The original (superseded) spec text, kept for lineage:
+
 ```
 1. 首页打招呼文案区 — 时间问候 + 与Pibo相识的第 N 天 + Pibo 日记  (display only)
 2. Pibo 活动区     — Pibo 形象 + 拍一拍 (pat) + 拔毛 (pluck seeds)
-3. 上滑数据二楼     — grab-bar 上滑 → 数据二楼 (当日/历史健康可视化)
+3. 上滑数据二楼     — grab-bar 上滑 → 数据二楼 (当日/历史健康可视化)   ← 已被横向逛场景取代
 4. 拍照交互        — 露珠相机 → 拍摄 → 预览 + Pibo 弹幕 → 保存
 ```
 
-The old **能量球 (energy ball) component is removed** — daily/historical health viz now lives behind the **pull-up 数据二楼**. **As of 2026-06-09 the bottom `TabView` is gone** — `RootView` shows `HomeView` directly. The home is a **single floor**; the bottom **grab bar** pulls up the 数据二楼 via an inline coordinated animation — a **single rising drawer** (one `@Observable FloorModel` progress) — a single #E8EEF1 `FloorDome` surface (convex-up domed top, one colour, fills down) whose domed leading edge travels continuously from a closed bottom peek to the open ceiling (one shape + one colour → no two-tone boundary / floating-lens mid-drag; one always-visible grab chevron lerps with it) — **not** a `.sheet`. The 二楼's *content* is the **历史数据页 `PiboHistoryView`** — its own feature at `Features/History` (the pull-up animation is home chrome; the page is the content). The pull-up is implemented with an `@Observable FloorModel` (progress) read only by a thin `FloorContainer` shell, so the drag re-renders just the shell, not the stage/chrome/二楼 (see the perf note in the SpriteKit framework bullet). **图鉴 (`Catalog`) / 一起 (`Together`) were removed 2026-06-13** — the new design no longer depends on them. The floating **中/EN language switch button was also removed** (language still follows the stored `appLanguage`).
+The old **能量球 (energy ball) component is removed**. **As of 2026-06-09 the bottom `TabView` is gone** — `RootView` shows `HomeView` directly. **图鉴 (`Catalog`) / 一起 (`Together`) were removed 2026-06-13**. The floating **中/EN language switch button was also removed** (language still follows the stored `appLanguage`). The 历史数据页 `PiboHistoryView` (its own feature at `Features/History`) is unchanged as *content* — only its entry moved from the pull-up drawer to the 足迹 icon's cover.
 
 ### Greeting copy (home spec §2 — the only locked copy)
 

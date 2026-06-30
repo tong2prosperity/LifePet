@@ -26,6 +26,14 @@ enum SproutCloseupPhase {
     case finished   // 缩回主页面 — show the 能量已收集 pop
 }
 
+/// 主场景里横向排布的三个区域（像旅行青蛙那样在一个连续立体场景里左右逛）。
+/// 相机沿 x 轴在区域间平移；点击非 home 区域即进入对应功能。
+enum StageZone: Int, CaseIterable {
+    case studio = 0   // 照相馆 — 点击进入露珠相机
+    case home   = 1   // Pibo 的栖息地（默认居中）— 拍一拍 / 拔毛
+    case gym    = 2   // 游戏场 — 点击进入健康小游戏列表
+}
+
 final class PiboStageScene: SKScene {
 
     // — Inputs (set by the SwiftUI wrapper) —
@@ -34,12 +42,30 @@ final class PiboStageScene: SKScene {
     private(set) var growth: PiboGrowthStage = .mystery
     /// 当前天气 — 驱动雨幕 / 地面水花 / 滴在 Pibo 上（见「Weather」段）。
     private(set) var weather: PiboWeather = .clear
+    /// 相机当前停靠的区域（home 默认）。横向平移落定后更新并回调 `onZoneChanged`。
+    private(set) var currentZone: StageZone = .home
     /// Fired on a tap that lands on Pibo's body (拍一拍).
     var onPat: (() -> Void)?
     /// Fired when the head 毛 is dragged past the pull threshold and released —
     /// the 拔毛 gesture. The scene plays the local snap-back; the SwiftUI layer
     /// decides what the pull *means* (collect the seed / an annoyed turn-away).
     var onHairPulled: (() -> Void)?
+    /// 点击「照相馆」区域 — SwiftUI 层弹出露珠相机。
+    var onEnterCamera: (() -> Void)?
+    /// 点击「游戏场」区域 — SwiftUI 层弹出健康小游戏列表。
+    var onEnterGames: (() -> Void)?
+    /// 相机平移落定到新区域时回调（区域 rawValue），驱动 chrome 的区域圆点 / 标题。
+    var onZoneChanged: ((Int) -> Void)?
+
+    // — Zone geometry —
+    private var zoneCount: Int { StageZone.allCases.count }
+    private var worldWidth: CGFloat { size.width * CGFloat(zoneCount) }
+    /// home 区域的左边缘 x（Pibo 与天气都以此为原点）。
+    private var homeOriginX: CGFloat { CGFloat(StageZone.home.rawValue) * size.width }
+    private func zoneCenterX(_ z: StageZone) -> CGFloat { (CGFloat(z.rawValue) + 0.5) * size.width }
+    private func zone(atWorldX x: CGFloat) -> StageZone {
+        StageZone(rawValue: min(max(Int(x / size.width), 0), zoneCount - 1)) ?? .home
+    }
 
     // — Nodes —
     private let backdrop = SKNode()      // sky + ground
@@ -144,7 +170,7 @@ final class PiboStageScene: SKScene {
         let zoomIn = SKAction.group([.move(to: focus, duration: 0.55), .scale(to: 0.45, duration: 0.55)])
         zoomIn.timingMode = .easeInEaseOut
         let zoomOut = SKAction.group([
-            .move(to: CGPoint(x: size.width / 2, y: size.height / 2), duration: 0.55),
+            .move(to: CGPoint(x: zoneCenterX(.home), y: size.height / 2), duration: 0.55),
             .scale(to: 1.0, duration: 0.55),
         ])
         zoomOut.timingMode = .easeInEaseOut
@@ -281,6 +307,25 @@ final class PiboStageScene: SKScene {
     /// Past this pull distance a release counts as a real 拔 (vs a poke).
     private static let hairPullThreshold: CGFloat = 30
 
+    // — 横向逛场景 (world pan) drag state —
+    private var panTouch: UITouch?
+    /// Pan start in **view** coordinates (camera-independent). Scene coords move
+    /// with the camera as we pan, so a scene-space delta feeds back on itself —
+    /// the view-space x is the stable reference for the translation.
+    private var panStartViewPoint: CGPoint = .zero
+    private var panStartCamX: CGFloat = 0
+    /// True once the candidate touch has moved far enough horizontally to count as
+    /// a world pan (vs a tap that routes to 拍一拍 / 区域入口).
+    private var isPanning = false
+    /// A horizontal move past this (and dominant over vertical) arms the pan.
+    private static let panThreshold: CGFloat = 14
+
+    /// World pan bounds — the camera center can't leave the map. The drag follows
+    /// the finger 1:1 within these and **stops dead on release** (no inertia glide).
+    private var minCamX: CGFloat { size.width / 2 }
+    private var maxCamX: CGFloat { worldWidth - size.width / 2 }
+    private func clampCamX(_ x: CGFloat) -> CGFloat { min(max(x, minCamX), maxCamX) }
+
     /// Asymptotic rubber-band: approaches ±`limit` as |v| grows, so the 毛
     /// resists harder the further it's dragged and can never over-rotate.
     private static func rubberBand(_ v: CGFloat, limit: CGFloat) -> CGFloat {
@@ -288,44 +333,122 @@ final class PiboStageScene: SKScene {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard built, !closeupActive, hairTouch == nil, let t = touches.first else { return }
+        guard built, !closeupActive, hairTouch == nil, panTouch == nil,
+              let t = touches.first else { return }
         let p = t.location(in: self)
-        switch hitRegion(at: p) {
-        case .hair:
+        // A touch that lands on the 毛 (only reachable when home is centered) owns
+        // the gesture as a 拖毛 drag; everything else is a pan/tap candidate.
+        if currentZone == .home, hitRegion(at: p) == .hair {
             hairTouch = t
             hairDragOrigin = p
             headNode.removeAction(forKey: "headIdle")
             headNode.removeAction(forKey: "hairSettle")
-        case .body:
-            bouncePibo()
-            onPat?()
-        case .none:
-            break
+            return
         }
+        panTouch = t
+        panStartViewPoint = view.map { t.location(in: $0) } ?? p
+        panStartCamX = cam.position.x
+        isPanning = false
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let t = hairTouch, touches.contains(t) else { return }
-        let p = t.location(in: self)
-        // Bend toward the finger with rubber-band resistance; pulling upward
-        // also stretches the 毛 a little, like it's really being tugged.
-        let dx = p.x - hairDragOrigin.x
-        let up = max(0, p.y - hairDragOrigin.y)
-        headNode.zRotation = -0.55 * Self.rubberBand(dx, limit: 110) / 110
-        headNode.yScale = 1 + 0.28 * Self.rubberBand(up, limit: 130) / 130
+        if let t = hairTouch, touches.contains(t) {
+            let p = t.location(in: self)
+            // Bend toward the finger with rubber-band resistance; pulling upward
+            // also stretches the 毛 a little, like it's really being tugged.
+            let dx = p.x - hairDragOrigin.x
+            let up = max(0, p.y - hairDragOrigin.y)
+            headNode.zRotation = -0.55 * Self.rubberBand(dx, limit: 110) / 110
+            headNode.yScale = 1 + 0.28 * Self.rubberBand(up, limit: 130) / 130
+            return
+        }
+        guard let t = panTouch, touches.contains(t), let view else { return }
+        // Translation in view space (stable under camera motion). Scene size tracks
+        // the view 1:1 (resizeFill), so view points ≈ scene points.
+        let vp = t.location(in: view)
+        let dx = vp.x - panStartViewPoint.x
+        let dy = vp.y - panStartViewPoint.y
+        if !isPanning, abs(dx) > Self.panThreshold, abs(dx) > abs(dy) {
+            isPanning = true
+        }
+        guard isPanning else { return }
+        // Drag right reveals the zone to the left → camera moves opposite the finger.
+        // Hard-clamped to the map bounds; the camera simply stays where the finger
+        // leaves it on release (no inertia).
+        cam.position.x = clampCamX(panStartCamX - dx)
+        updateZoneFromCamera()
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let t = hairTouch, touches.contains(t) else { return }
+        if let t = hairTouch, touches.contains(t) {
+            let p = t.location(in: self)
+            let pull = hypot(p.x - hairDragOrigin.x, p.y - hairDragOrigin.y)
+            finishHairDrag(pulled: pull > Self.hairPullThreshold)
+            return
+        }
+        guard let t = panTouch, touches.contains(t) else { return }
         let p = t.location(in: self)
-        let pull = hypot(p.x - hairDragOrigin.x, p.y - hairDragOrigin.y)
-        finishHairDrag(pulled: pull > Self.hairPullThreshold)
+        let wasPanning = isPanning
+        panTouch = nil
+        isPanning = false
+        // No inertia: the camera already sits where the finger left it. A tap (no
+        // pan) routes to 拍一拍 / 区域入口.
+        if !wasPanning { handleTap(at: p) }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        // System interruption (call banner, app switcher) — release without a pull.
-        guard let t = hairTouch, touches.contains(t) else { return }
-        finishHairDrag(pulled: false)
+        // System interruption (call banner, app switcher).
+        if let t = hairTouch, touches.contains(t) {
+            finishHairDrag(pulled: false)
+            return
+        }
+        if let t = panTouch, touches.contains(t) {
+            panTouch = nil
+            isPanning = false
+        }
+    }
+
+    // MARK: Pan zone tracking / tap routing
+
+    /// Continuous "which zone is the camera centered over" — drives the chrome
+    /// greeting / dots while panning (judged from the camera center, no snap event).
+    private func updateZoneFromCamera() {
+        let z = zone(atWorldX: cam.position.x)
+        if z != currentZone {
+            currentZone = z
+            onZoneChanged?(z.rawValue)
+        }
+    }
+
+    /// Programmatically pan the camera to a zone (kept for potential chrome-dot taps;
+    /// not used by the free-pan path).
+    func moveCamera(to z: StageZone, animated: Bool) {
+        let target = CGPoint(x: zoneCenterX(z), y: size.height / 2)
+        cam.removeAction(forKey: "zonePan")
+        if animated {
+            let move = SKAction.move(to: target, duration: 0.32)
+            move.timingMode = .easeOut
+            cam.run(move, withKey: "zonePan")
+        } else {
+            cam.position = target
+        }
+        if z != currentZone {
+            currentZone = z
+            onZoneChanged?(z.rawValue)
+        }
+    }
+
+    /// A tap (no significant pan) — route by the zone under the finger: 拍一拍 in
+    /// home (body only), or enter 照相馆 / 游戏场.
+    private func handleTap(at p: CGPoint) {
+        switch zone(atWorldX: p.x) {
+        case .home:
+            if hitRegion(at: p) == .body { bouncePibo(); onPat?() }
+        case .studio:
+            onEnterCamera?()
+        case .gym:
+            onEnterGames?()
+        }
     }
 
     /// Snap the 毛 back — a springy overshoot when it was really pulled, a tiny
@@ -370,7 +493,7 @@ final class PiboStageScene: SKScene {
         addChild(rainBack)
         rainFront.zPosition = 41    // pibo / fx 之上 — 水花落在 Pibo 前面
         addChild(rainFront)
-        cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        cam.position = CGPoint(x: zoneCenterX(.home), y: size.height / 2)
         addChild(cam)
         camera = cam
 
@@ -517,36 +640,124 @@ final class PiboStageScene: SKScene {
 
     // MARK: Backdrop (sky + ground)
 
+    /// Rebuild all three zones side by side. Each zone lives in its own container
+    /// pinned at its world origin (`x = zoneIndex · width`), so every builder draws
+    /// in local 0…width coords. home is the theme backdrop; 照相馆 / 游戏场 are
+    /// procedural scenery + signage (our own style — no game-room art assets yet).
     private func rebuildBackdrop() {
         backdrop.removeAllChildren()
-        let scene = theme.scene
+        for z in StageZone.allCases {
+            let c = SKNode()
+            c.position = CGPoint(x: CGFloat(z.rawValue) * size.width, y: 0)
+            c.zPosition = 0
+            backdrop.addChild(c)
+            switch z {
+            case .home:   buildHomeBackdrop(into: c)
+            case .studio: buildZoneScene(into: c, kind: .studio)
+            case .gym:    buildZoneScene(into: c, kind: .gym)
+            }
+        }
+    }
 
-        // Art path: one full-bleed backdrop sprite (sky + grass + ground baked in).
+    /// home 区域背景 = 当前主题（图片主题一张全幅图，程序化主题天空渐变 + 地面带）。
+    private func buildHomeBackdrop(into parent: SKNode) {
+        let scene = theme.scene
         if let bg = scene.backgroundImage {
             let sprite = SKSpriteNode(texture: SKTexture(imageNamed: bg))
             sprite.zPosition = 0
             sprite.position = CGPoint(x: size.width / 2, y: size.height / 2)
             sprite.size = size
-            backdrop.addChild(sprite)
+            parent.addChild(sprite)
             return
         }
-
-        // Sky gradient.
         let sky = SKSpriteNode(texture: Self.gradientTexture(
             size: size, top: SKColor(scene.skyTop), bottom: SKColor(scene.skyBottom)))
         sky.anchorPoint = .zero
         sky.position = .zero
         sky.zPosition = 0
-        backdrop.addChild(sky)
+        parent.addChild(sky)
 
-        // Ground per terrain.
         let ground = SKShapeNode(path: groundPath(scene.terrain))
         ground.fillColor = SKColor(scene.ground)
         ground.strokeColor = .clear
         ground.zPosition = 1
-        backdrop.addChild(ground)
+        parent.addChild(ground)
 
-        addGroundDetail(scene)
+        addGroundDetail(scene, into: parent)
+    }
+
+    // MARK: 照相馆 / 游戏场 procedural scenes
+
+    private enum ZoneKind { case studio, gym }
+
+    /// A procedural zone scene: a soft sky-gradient, a ground band, a signature
+    /// "building" (相机暗箱 / 游戏拱门) and a tappable label so the user reads it as
+    /// an entrance. Styled with the LP palette; replace with real art later.
+    private func buildZoneScene(into parent: SKNode, kind: ZoneKind) {
+        let w = size.width, h = size.height
+        let top = groundTopY
+        let (skyTop, skyBottom, groundC, accent, title, hint): (UInt32, UInt32, UInt32, UInt32, String, String)
+        switch kind {
+        case .studio:
+            (skyTop, skyBottom, groundC, accent, title, hint) =
+                (0xFBF3EC, 0xF3E2D2, 0xE6D2BC, 0xC98F63, "照相馆", "轻点 · 给世界拍张照")
+        case .gym:
+            (skyTop, skyBottom, groundC, accent, title, hint) =
+                (0xEAF1F6, 0xD6E6F2, 0xC3D6E2, 0x6E97B8, "游戏场", "轻点 · 陪 Pibo 动一动")
+        }
+
+        let sky = SKSpriteNode(texture: Self.gradientTexture(
+            size: size, top: SKColor(Color(hex: skyTop)), bottom: SKColor(Color(hex: skyBottom))))
+        sky.anchorPoint = .zero; sky.position = .zero; sky.zPosition = 0
+        parent.addChild(sky)
+
+        let ground = SKShapeNode(rect: CGRect(x: 0, y: 0, width: w, height: top))
+        ground.fillColor = SKColor(Color(hex: groundC))
+        ground.strokeColor = .clear
+        ground.zPosition = 1
+        parent.addChild(ground)
+
+        // Signature building — a rounded plinth + a roof, sitting on the ground.
+        let bw = w * 0.5, bh = h * 0.22
+        let bx = w / 2, by = top + bh * 0.5 - h * 0.01
+        let building = SKShapeNode(rect: CGRect(x: -bw / 2, y: -bh / 2, width: bw, height: bh), cornerRadius: 18)
+        building.fillColor = SKColor(Color(hex: accent)).withAlphaComponent(0.92)
+        building.strokeColor = SKColor(white: 1, alpha: 0.5)
+        building.lineWidth = 2
+        building.position = CGPoint(x: bx, y: by)
+        building.zPosition = 3
+        parent.addChild(building)
+
+        // A little icon glyph on the building face (camera / controller-ish).
+        let glyph = SKLabelNode(text: kind == .studio ? "📷" : "🎮")
+        glyph.fontSize = bw * 0.28
+        glyph.verticalAlignmentMode = .center
+        glyph.position = CGPoint(x: bx, y: by + bh * 0.08)
+        glyph.zPosition = 4
+        parent.addChild(glyph)
+
+        // Roof sign with the zone title.
+        let titleNode = SKLabelNode(text: title)
+        titleNode.fontName = "PingFangSC-Semibold"
+        titleNode.fontSize = 26
+        titleNode.fontColor = SKColor(Color(hex: 0x2B3338))
+        titleNode.verticalAlignmentMode = .center
+        titleNode.position = CGPoint(x: bx, y: by + bh * 0.5 + 30)
+        titleNode.zPosition = 4
+        parent.addChild(titleNode)
+
+        // Tap hint, pulsing gently.
+        let hintNode = SKLabelNode(text: hint)
+        hintNode.fontName = "PingFangSC-Regular"
+        hintNode.fontSize = 14
+        hintNode.fontColor = SKColor(Color(hex: 0x2B3338)).withAlphaComponent(0.6)
+        hintNode.verticalAlignmentMode = .center
+        hintNode.position = CGPoint(x: bx, y: by - bh * 0.5 - 26)
+        hintNode.zPosition = 4
+        hintNode.run(.repeatForever(.sequence([
+            .fadeAlpha(to: 0.3, duration: 1.0), .fadeAlpha(to: 0.75, duration: 1.0),
+        ])))
+        parent.addChild(hintNode)
     }
 
     private func groundPath(_ terrain: PiboScene.Terrain) -> CGPath {
@@ -578,7 +789,7 @@ final class PiboStageScene: SKScene {
         return p
     }
 
-    private func addGroundDetail(_ scene: PiboScene) {
+    private func addGroundDetail(_ scene: PiboScene, into parent: SKNode) {
         let w = size.width, top = groundTopY
         switch scene.terrain {
         case .meadow:
@@ -589,21 +800,21 @@ final class PiboStageScene: SKScene {
                 petal.strokeColor = .clear
                 petal.position = CGPoint(x: p.x * w, y: (top - 10) * (1 - p.y))
                 petal.zPosition = 2
-                backdrop.addChild(petal)
+                parent.addChild(petal)
             }
         case .beach:
             let sea = SKShapeNode(rect: CGRect(x: 0, y: top - 18, width: w, height: size.height * 0.14))
             sea.fillColor = SKColor(scene.groundAccent)
             sea.strokeColor = .clear
             sea.zPosition = 0.5
-            backdrop.addChild(sea)
+            parent.addChild(sea)
         case .platform:
             let edge = SKShapeNode(rect: CGRect(x: w * 0.21, y: top - size.height * 0.095,
                                                 width: w * 0.72, height: size.height * 0.04))
             edge.fillColor = SKColor(scene.groundAccent)
             edge.strokeColor = .clear
             edge.zPosition = 0.9
-            backdrop.addChild(edge)
+            parent.addChild(edge)
         }
     }
 
@@ -656,17 +867,17 @@ final class PiboStageScene: SKScene {
         guard built else { return }
         rebuildBackdrop()
         if usesArt {
-            // Place the body sprite at the theme's design-frame body center;
-            // size it to the mapped body box.
+            // Place the body sprite at the theme's design-frame body center within
+            // the home zone (offset by `homeOriginX`); size it to the mapped box.
             bodySprite?.size = CGSize(width: bodyWidth, height: bodyHeight)
-            pibo.position = CGPoint(x: size.width * (theme.bodyCenterX / 393.0),
+            pibo.position = CGPoint(x: homeOriginX + size.width * (theme.bodyCenterX / 393.0),
                                     y: size.height * (1 - theme.bodyCenterY / 852.0))
         } else {
-            pibo.position = CGPoint(x: size.width / 2, y: groundTopY + bodyHeight * 0.18)
+            pibo.position = CGPoint(x: homeOriginX + size.width / 2, y: groundTopY + bodyHeight * 0.18)
         }
         positionHead()
         if !closeupActive {
-            cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
+            cam.position = CGPoint(x: zoneCenterX(currentZone), y: size.height / 2)
             cam.setScale(1)
         }
         // Rain spread / ground line depend on size — rebuild on relayout (rare:
@@ -840,7 +1051,8 @@ final class PiboStageScene: SKScene {
         let storm = weather == .thunderstorm
         let e = SKEmitterNode()
         e.particleTexture = Self.rainTexture
-        e.position = CGPoint(x: size.width / 2, y: size.height + 24)
+        // Rain is home-zone ambiance (where Pibo stands) — center it on the home zone.
+        e.position = CGPoint(x: zoneCenterX(.home), y: size.height + 24)
         e.particlePositionRange = CGVector(dx: size.width * 1.15, dy: 0)
         e.particleBirthRate = storm ? 240 : 130
         e.particleLifetime = size.height / 480 + 0.6
@@ -885,7 +1097,7 @@ final class PiboStageScene: SKScene {
     }
 
     private func spawnGroundSplash() {
-        let x = CGFloat.random(in: size.width * 0.04 ... size.width * 0.96)
+        let x = homeOriginX + CGFloat.random(in: size.width * 0.04 ... size.width * 0.96)
         let y = groundLineY + CGFloat.random(in: -6 ... 10)
         makeSplash(at: CGPoint(x: x, y: y), scale: CGFloat.random(in: 0.8 ... 1.3), flatten: 0.42)
     }
