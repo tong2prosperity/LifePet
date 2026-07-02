@@ -1,0 +1,91 @@
+{
+  "identifier" : "8D3F2A6E-1C4B-4E9A-9F0D-7B5A2C8E1D43",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_developerTeamID" : "4626WN8J3B",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "zh_CN",
+    "_storefront" : "CHN",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21470001",
+      "localizations" : [
+
+      ],
+      "name" : "Pibo 会员",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "12.00",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "31470001",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "按月自动续期的 Pibo 会员",
+              "displayName" : "月度会员",
+              "locale" : "zh_CN"
+            }
+          ],
+          "productID" : "fun.tiebao.co.Pibo.membership.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pibo 会员（月）",
+          "subscriptionGroupID" : "21470001",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "88.00",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "31470002",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "按年自动续期的 Pibo 会员",
+              "displayName" : "年度会员",
+              "locale" : "zh_CN"
+            }
+          ],
+          "productID" : "fun.tiebao.co.Pibo.membership.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Pibo 会员（年）",
+          "subscriptionGroupID" : "21470001",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

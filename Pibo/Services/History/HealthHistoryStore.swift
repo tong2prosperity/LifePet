@@ -206,14 +206,34 @@ final class HealthHistoryStore {
         return (try? context.fetch(d)) ?? []
     }
 
+    /// The latest food photo captured for `mealType` on `day`, if any.
+    func foodPhoto(on day: Date, mealType: MealType) -> FoodPhoto? {
+        let raw = mealType.rawValue
+        return foodPhotos(on: day).last { $0.mealTypeRaw == raw }
+    }
+
     /// Persist a freshly captured (and cut-out) food photo. Bumps `revision`.
     @discardableResult
-    func addFoodPhoto(pngData: Data, capturedAt: Date = .now, subjectLabel: String? = nil) -> FoodPhoto {
-        let photo = FoodPhoto(capturedAt: capturedAt, pngData: pngData, subjectLabel: subjectLabel)
+    func addFoodPhoto(pngData: Data, capturedAt: Date = .now, subjectLabel: String? = nil,
+                      mealType: MealType? = nil) -> FoodPhoto {
+        let photo = FoodPhoto(capturedAt: capturedAt, pngData: pngData,
+                              subjectLabel: subjectLabel, mealType: mealType)
         context.insert(photo)
         try? context.save()
         revision += 1
         return photo
+    }
+
+    /// Mutate an existing food photo (e.g. attach the backend calorie analysis).
+    /// Bumps `revision` so the meal modal re-renders. No-op if the id is gone.
+    func updateFoodPhoto(id: UUID, apply: (FoodPhoto) -> Void) {
+        var d = FetchDescriptor<FoodPhoto>(predicate: #Predicate { $0.id == id })
+        d.fetchLimit = 1
+        guard let photo = try? context.fetch(d).first else { return }
+        apply(photo)
+        photo.updatedAt = .now
+        try? context.save()
+        revision += 1
     }
 
     // MARK: - Walk doodles (足迹涂鸦 card)

@@ -52,6 +52,8 @@ nonisolated enum LPLog {
     static let camera       = Logger(subsystem: subsystem, category: "Camera")
     static let classify     = Logger(subsystem: subsystem, category: "Vision.Classify")
     static let cutout       = Logger(subsystem: subsystem, category: "Vision.Cutout")
+    /// 拍照识别卡路里 — the backend Kimi VLM round-trip for meal photos.
+    static let food         = Logger(subsystem: subsystem, category: "Food")
 
     /// Shared "MM-dd HH:mm:ss" formatter for log timestamps. Local-time
     /// output reads more naturally than `Date`'s default UTC `description`.

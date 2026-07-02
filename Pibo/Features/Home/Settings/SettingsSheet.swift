@@ -5,19 +5,25 @@ import SwiftUI
 /// off the gear button).
 struct SettingsSheet: View {
     @Environment(PetStateStore.self) private var store
+    @Environment(MembershipService.self) private var membership
     @Environment(\.dismiss) private var dismiss
 
     /// Performs the actual reset (store wipe + onboarding flag) — owned by
     /// `HomeView` because the onboarding flag lives there.
     var onReset: () -> Void
+    /// DEBUG-only: run the full 拍餐识别 path with a synthetic photo (the
+    /// simulator has no camera). Owned by `HomeView` (holds recognizer + history).
+    var onSimulateMeal: (MealType) -> Void = { _ in }
 
     @State private var showResetConfirm = false
+    @State private var showMembership = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LP.Spacing.xl) {
                 header
                 themeSection
+                membershipSection
                 dangerSection
                 #if DEBUG
                 debugSection
@@ -28,6 +34,9 @@ struct SettingsSheet: View {
         .background(LP.Fill.bgSurface)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showMembership) {
+            MembershipSheet()
+        }
         .confirmationDialog(
             AppLocalization.text("重置后会回到首启流程"),
             isPresented: $showResetConfirm,
@@ -123,6 +132,42 @@ struct SettingsSheet: View {
         )
     }
 
+    // MARK: 会员
+
+    private var membershipSection: some View {
+        VStack(alignment: .leading, spacing: LP.Spacing.s) {
+            Text(AppLocalization.text("会员"))
+                .lpText(LP.Typography.c1Regular)
+                .foregroundStyle(LP.Content.tertiary)
+
+            Button {
+                LPHaptics.tap()
+                showMembership = true
+            } label: {
+                HStack(spacing: LP.Spacing.m) {
+                    Text(AppLocalization.text("Pibo 会员"))
+                        .lpText(LP.Typography.b2Medium)
+                        .foregroundStyle(LP.Content.primary)
+                    Spacer(minLength: 0)
+                    Text(membership.isMember ? AppLocalization.text("已开通") : AppLocalization.text("未开通"))
+                        .lpText(LP.Typography.c1Regular)
+                        .foregroundStyle(membership.isMember ? LP.Fill.foundationAccent : LP.Content.tertiary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(LP.Content.quarternary)
+                }
+                .padding(.horizontal, LP.Spacing.m)
+                .padding(.vertical, LP.Spacing.s + 2)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .background(
+                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                    .fill(LP.Fill.bgContainer)
+            )
+        }
+    }
+
     // MARK: 重置
 
     private var dangerSection: some View {
@@ -174,6 +219,14 @@ struct SettingsSheet: View {
                     store.growthStage = .mystery
                 } label: {
                     debugRow("回到未发芽（「?」卷芽）")
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                Button {
+                    onSimulateMeal(.lunch)
+                    dismiss()
+                } label: {
+                    debugRow("模拟拍一张午餐（走后台 Kimi 识别）")
                 }
                 .buttonStyle(.plain)
                 Divider().overlay(LP.Separator.primary)
@@ -233,4 +286,5 @@ struct SettingsSheet: View {
 #Preview {
     SettingsSheet(onReset: {})
         .environment(PetStateStore(demoMode: true))
+        .environment(MembershipService())
 }

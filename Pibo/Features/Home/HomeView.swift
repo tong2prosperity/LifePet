@@ -30,6 +30,11 @@ struct HomeView: View {
     @State private var showHistory = false
     @State private var showWalkDoodle = false
     @State private var showSettings = false
+    /// 拍照识别卡路里: which meal the pending camera capture belongs to (nil = a
+    /// free 照相馆 shot with no recognition), and which meal's detail modal is up.
+    @State private var pendingMeal: MealType? = nil
+    @State private var detailMeal: MealType? = nil
+    @State private var recognizer = FoodRecognitionService()
     @State private var energyToken: UUID? = nil
     @State private var pluckToken: PluckToken? = nil
     @State private var turnAwayToken: UUID? = nil
@@ -55,7 +60,7 @@ struct HomeView: View {
                 weather: store.weather,
                 onPat: handlePat,
                 onHairPulled: handleHairPull,
-                onEnterCamera: { showCamera = true },
+                onEnterCamera: { pendingMeal = nil; showCamera = true },
                 onEnterGames: { showGames = true },
                 onZoneChanged: { currentZone = $0 },
                 energyGainToken: energyToken,
@@ -89,6 +94,11 @@ struct HomeView: View {
         .onAppear {
             greetingText = store.mowanGreeting
             dayLabelText = store.relationshipDayLabel
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-PiboSimulateMeal") {
+                Task { try? await Task.sleep(for: .seconds(1)); debugSimulateMeal(.lunch) }
+            }
+            #endif
             if store.pendingWorkout != nil {
                 Task {
                     try? await Task.sleep(for: .seconds(0.7))
@@ -100,7 +110,14 @@ struct HomeView: View {
             if id != nil { maybeStartEnergyFlow() }
         }
         .fullScreenCover(isPresented: $showCamera) {
-            PiboCameraView(onPhotoSaved: handlePhotoSaved).environment(store)
+            PiboCameraView(onPhotoSaved: { image, label in
+                handlePhotoSaved(image, label, meal: pendingMeal)
+            }).environment(store)
+        }
+        .sheet(item: $detailMeal) { meal in
+            MealDetailView(meal: meal, onRecapture: startMealCapture)
+                .environment(history)
+                .environment(recognizer)
         }
         .fullScreenCover(isPresented: $showGames) {
             GameListView(onWalkDoodleSaved: handleDoodleSaved)
@@ -116,7 +133,13 @@ struct HomeView: View {
             WalkDoodleView(onSaved: handleDoodleSaved)
         }
         .sheet(isPresented: $showSettings) {
-            SettingsSheet(onReset: performReset).environment(store)
+            #if DEBUG
+            SettingsSheet(onReset: performReset, onSimulateMeal: debugSimulateMeal)
+                .environment(store)
+            #else
+            SettingsSheet(onReset: performReset)
+                .environment(store)
+            #endif
         }
     }
 
@@ -235,9 +258,66 @@ struct HomeView: View {
             if onHomeZone, store.pluckAvailable {
                 pluckButton
             }
+            if onHomeZone {
+                mealIconsRow
+            }
             zoneDots
         }
         .padding(.bottom, LP.Spacing.l)
+    }
+
+    /// 早 / 中 / 晚 — three meal icons. Tap an empty one to shoot that meal (→
+    /// camera → Kimi 卡路里 识别); tap a filled one to reopen its detail modal.
+    private var mealIconsRow: some View {
+        // Depend on history writes so a fresh capture / analysis relights the icon.
+        let _ = history.revision
+        // One fetch for all three icons — not one query per icon per body eval.
+        let photos = history.foodPhotos(on: Date())
+        return HStack(spacing: LP.Spacing.s) {
+            ForEach(MealType.allCases) { meal in
+                mealIcon(meal, photos: photos)
+            }
+        }
+        .padding(.horizontal, LP.Spacing.m)
+        .padding(.vertical, LP.Spacing.s)
+        .background(Capsule().fill(LP.Fill.bgContainer.opacity(0.85)))
+        .lpShadow(LP.Shadow.elevation1)
+    }
+
+    private func mealIcon(_ meal: MealType, photos: [FoodPhoto]) -> some View {
+        let photo = photos.last { $0.mealTypeRaw == meal.rawValue }
+        let analyzing = photo.map { recognizer.isAnalyzing($0.id) } ?? false
+        let kcal = photo?.totalCalories
+        let filled = photo != nil
+        return Button {
+            LPHaptics.tap()
+            if filled { detailMeal = meal } else { startMealCapture(meal) }
+        } label: {
+            VStack(spacing: 2) {
+                ZStack {
+                    Image(systemName: meal.symbol)
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(filled ? LP.Fill.foundationAccent : LP.Content.tertiary)
+                    if analyzing {
+                        ProgressView().controlSize(.mini)
+                            .offset(x: 12, y: -12)
+                    }
+                }
+                .frame(height: 20)
+                if let kcal {
+                    Text("\(kcal)")
+                        .lpText(LP.Typography.c2Medium)
+                        .foregroundStyle(LP.Content.secondary)
+                } else {
+                    Text(AppLocalization.text(meal.shortLabel))
+                        .lpText(LP.Typography.c2Medium)
+                        .foregroundStyle(filled ? LP.Content.secondary : LP.Content.tertiary)
+                }
+            }
+            .frame(width: 44, height: 40)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(meal.title) \(kcal.map { "\($0) kcal" } ?? "")")
     }
 
     /// Zone indicator dots (照相馆 · home · 游戏场) — lights the current one. Swipe
@@ -349,11 +429,19 @@ struct HomeView: View {
         show(PiboSpeechLine(text: grade.piboLines.randomElement() ?? "...给...你..."))
     }
 
-    private func handlePhotoSaved(_ image: UIImage?, _ subjectLabel: String?) {
+    /// Open the camera for a specific meal slot (早/中/晚) — the saved photo goes
+    /// to the backend for 卡路里 recognition and its detail modal pops up.
+    private func startMealCapture(_ meal: MealType) {
+        pendingMeal = meal
+        showCamera = true
+    }
+
+    private func handlePhotoSaved(_ image: UIImage?, _ subjectLabel: String?, meal: MealType? = nil) {
         // 拍照 = 认知能量. Nudge the head 毛 + let Pibo react (spec §4.3).
-        LPLog.cutout.notice("photo saved → post-processing (hasImage=\(image != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public))")
+        LPLog.cutout.notice("photo saved → post-processing (hasImage=\(image != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public) meal=\(meal?.rawValue ?? "—", privacy: .public))")
+        pendingMeal = nil
         energyToken = UUID()
-        if Bool.random() {
+        if meal == nil, Bool.random() {
             show(PiboSpeechLine(text: PiboCameraView.genericComments.randomElement() ?? "...颜色...记..."))
         }
         guard let image else {
@@ -362,13 +450,26 @@ struct HomeView: View {
         }
         let capturedAt = Date()
         Task {
+            // Show the user the Vision-processed cut-out; send the FULL frame to the VLM.
             let png = await Task.detached { SubjectCutout.stickerPNG(image) }.value
             guard let png else {
                 LPLog.cutout.error("贴纸 PNG nil — FoodPhoto not persisted")
                 return
             }
-            history.addFoodPhoto(pngData: png, capturedAt: capturedAt, subjectLabel: subjectLabel)
+            let photo = history.addFoodPhoto(pngData: png, capturedAt: capturedAt,
+                                             subjectLabel: subjectLabel, mealType: meal)
             LPLog.cutout.notice("FoodPhoto persisted \(png.count / 1024, privacy: .public)KB label=\(subjectLabel ?? "—", privacy: .public) at \(LPLog.dateFormatter.string(from: capturedAt), privacy: .public)")
+
+            // Meal capture → 卡路里 识别. Pop the modal (spinner), analyze async.
+            guard let meal else { return }
+            // The camera fullScreenCover may still be animating out; presenting a
+            // sheet mid-dismissal can get silently dropped. Wait out the flag plus
+            // a short grace for the dismiss animation.
+            while showCamera { try? await Task.sleep(for: .milliseconds(80)) }
+            try? await Task.sleep(for: .milliseconds(420))
+            detailMeal = meal
+            await recognizer.analyze(photoID: photo.id, fullImage: image,
+                                     hint: subjectLabel, meal: meal, history: history)
         }
     }
 
@@ -410,6 +511,31 @@ struct HomeView: View {
         store.reset()
         onboardingDone = false
     }
+
+#if DEBUG
+    /// DEV: exercise the full 拍餐识别 path without a camera — render a food emoji
+    /// as the "captured" frame and run it through `handlePhotoSaved`.
+    private func debugSimulateMeal(_ meal: MealType) {
+        let img = Self.debugFoodImage("🍜")
+        handlePhotoSaved(img, nil, meal: meal)
+    }
+
+    private static func debugFoodImage(_ emoji: String, size: CGFloat = 512) -> UIImage {
+        let s = CGSize(width: size, height: size)
+        let fmt = UIGraphicsImageRendererFormat.default()
+        fmt.opaque = true
+        return UIGraphicsImageRenderer(size: s, format: fmt).image { ctx in
+            UIColor.white.setFill()
+            ctx.fill(CGRect(origin: .zero, size: s))
+            let str = emoji as NSString
+            let font = UIFont.systemFont(ofSize: size * 0.6)
+            let attrs: [NSAttributedString.Key: Any] = [.font: font]
+            let ts = str.size(withAttributes: attrs)
+            str.draw(at: CGPoint(x: (size - ts.width) / 2, y: (size - ts.height) / 2),
+                     withAttributes: attrs)
+        }
+    }
+#endif
 }
 
 #Preview {

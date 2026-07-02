@@ -35,9 +35,12 @@ actor APIClient {
         return try decode(data)
     }
 
-    func post<B: Encodable, T: Decodable>(_ path: String, body: B, authed: Bool) async throws -> T {
+    /// `timeout` overrides the default 60s request timeout — needed for the slow
+    /// VLM food-recognition call (kimi-k2.6 can take 1–2 min).
+    func post<B: Encodable, T: Decodable>(_ path: String, body: B, authed: Bool,
+                                          timeout: TimeInterval? = nil) async throws -> T {
         let bodyData = try encode(body)
-        let data = try await requestData(path: path, method: "POST", bodyData: bodyData, authed: authed)
+        let data = try await requestData(path: path, method: "POST", bodyData: bodyData, authed: authed, timeout: timeout)
         return try decode(data)
     }
 
@@ -51,13 +54,13 @@ actor APIClient {
 
     // MARK: - Core request with 401 refresh-and-retry
 
-    private func requestData(path: String, method: String, bodyData: Data?, authed: Bool, isRetry: Bool = false) async throws -> Data {
+    private func requestData(path: String, method: String, bodyData: Data?, authed: Bool, isRetry: Bool = false, timeout: TimeInterval? = nil) async throws -> Data {
         let bearer = authed ? tokens.accessToken : nil
-        let (data, http) = try await perform(path: path, method: method, bodyData: bodyData, bearer: bearer)
+        let (data, http) = try await perform(path: path, method: method, bodyData: bodyData, bearer: bearer, timeout: timeout)
 
         if http.statusCode == 401 && authed && !isRetry && tokens.refreshToken != nil {
             try await refreshTokens()
-            return try await requestData(path: path, method: method, bodyData: bodyData, authed: true, isRetry: true)
+            return try await requestData(path: path, method: method, bodyData: bodyData, authed: true, isRetry: true, timeout: timeout)
         }
 
         guard (200..<300).contains(http.statusCode) else {
@@ -73,12 +76,13 @@ actor APIClient {
         return data
     }
 
-    private func perform(path: String, method: String, bodyData: Data?, bearer: String?) async throws -> (Data, HTTPURLResponse) {
+    private func perform(path: String, method: String, bodyData: Data?, bearer: String?, timeout: TimeInterval? = nil) async throws -> (Data, HTTPURLResponse) {
         guard let url = URL(string: path, relativeTo: config.baseURL) else {
             throw APIError.invalidRequest
         }
         var req = URLRequest(url: url)
         req.httpMethod = method
+        if let timeout { req.timeoutInterval = timeout }
         if let bodyData {
             req.httpBody = bodyData
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")

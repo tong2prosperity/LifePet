@@ -28,6 +28,8 @@ struct PiboApp: App {
     @State private var economy: EconomyService
     /// Bridges the HealthKit history into `EconomyService.sync` (today's samples).
     @State private var coordinator: EconomySyncCoordinator
+    /// StoreKit 2 会员订阅 (Pibo 会员 monthly/yearly) + server registration.
+    @State private var membership: MembershipService
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -52,15 +54,7 @@ struct PiboApp: App {
         _health = State(initialValue: h)
         _store = State(initialValue: s)
 
-        do {
-            modelContainer = try ModelContainer(for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self, WalkDoodleRecord.self)
-        } catch {
-            // In-memory fallback so a corrupt store never blocks launch.
-            modelContainer = try! ModelContainer(
-                for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self, WalkDoodleRecord.self,
-                configurations: ModelConfiguration(isStoredInMemoryOnly: true))
-            LPLog.app.error("History store failed, using in-memory: \(error.localizedDescription, privacy: .public)")
-        }
+        modelContainer = Self.makeModelContainer()
         let hist = HealthHistoryStore(context: modelContainer.mainContext)
         _history = State(initialValue: hist)
 
@@ -69,6 +63,77 @@ struct PiboApp: App {
         _auth = State(initialValue: a)
         _economy = State(initialValue: e)
         _coordinator = State(initialValue: EconomySyncCoordinator(auth: a, economy: e, history: hist))
+        _membership = State(initialValue: MembershipService())
+    }
+
+    /// Build the on-disk history store. If the store can't open (usually an
+    /// incompatible schema left by an older build — SwiftData can't always
+    /// lightweight-migrate), delete the store files and recreate it fresh on
+    /// disk so history *persists* going forward, rather than silently dropping
+    /// to an in-memory store that loses everything on every relaunch. Only if
+    /// even a fresh on-disk store fails do we use in-memory as a last resort.
+    private static func makeModelContainer() -> ModelContainer {
+        let models: [any PersistentModel.Type] = [
+            HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self, WalkDoodleRecord.self,
+        ]
+        let schema = Schema(models)
+        // Explicit store URL under Application Support — created up front, because
+        // SwiftData's default configuration can fail with `loadIssueModelContainer`
+        // when that directory doesn't yet exist in the app container.
+        let storeURL = Self.historyStoreURL()
+        Self.migrateLegacyDefaultStoreIfNeeded(to: storeURL)
+        let config = ModelConfiguration(schema: schema, url: storeURL)
+        do {
+            return try ModelContainer(for: schema, configurations: config)
+        } catch {
+            LPLog.app.error("History store open failed, resetting on-disk store: \(String(reflecting: error), privacy: .public)")
+            Self.removeStoreFiles(at: storeURL)
+            do {
+                return try ModelContainer(for: schema, configurations: config)
+            } catch {
+                LPLog.app.error("History store still failing, using in-memory: \(String(reflecting: error), privacy: .public)")
+                return try! ModelContainer(for: schema,
+                    configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            }
+        }
+    }
+
+    /// The on-disk history store URL, with its parent directory created.
+    private static func historyStoreURL() -> URL {
+        let fm = FileManager.default
+        let base = (try? fm.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                appropriateFor: nil, create: true))
+            ?? URL.applicationSupportDirectory
+        try? fm.createDirectory(at: base, withIntermediateDirectories: true)
+        return base.appending(path: "PiboHistory.store")
+    }
+
+    /// One-time adoption of SwiftData's old default-location store. Earlier
+    /// builds used the default configuration (Application Support/default.store);
+    /// on devices where that store opened fine it holds real history. Copy it to
+    /// the new explicit URL rather than orphaning it — if the copy turns out
+    /// schema-incompatible, the delete-and-retry path above resets only the copy,
+    /// leaving the legacy files untouched.
+    private static func migrateLegacyDefaultStoreIfNeeded(to url: URL) {
+        let fm = FileManager.default
+        guard !fm.fileExists(atPath: url.path) else { return }
+        let dir = url.deletingLastPathComponent()
+        let legacy = dir.appending(path: "default.store")
+        guard fm.fileExists(atPath: legacy.path) else { return }
+        for suffix in ["", "-wal", "-shm"] {
+            try? fm.copyItem(at: dir.appending(path: "default.store" + suffix),
+                             to: dir.appending(path: url.lastPathComponent + suffix))
+        }
+        LPLog.app.notice("migrated legacy default.store → \(url.lastPathComponent, privacy: .public)")
+    }
+
+    /// Delete a SwiftData store (+ its -wal / -shm sidecars).
+    private static func removeStoreFiles(at url: URL) {
+        let fm = FileManager.default
+        for suffix in ["", "-wal", "-shm"] {
+            try? fm.removeItem(at: url.deletingLastPathComponent()
+                .appending(path: url.lastPathComponent + suffix))
+        }
     }
 
     var body: some Scene {
@@ -81,9 +146,12 @@ struct PiboApp: App {
                 .environment(auth)
                 .environment(economy)
                 .environment(coordinator)
+                .environment(membership)
                 .modelContainer(modelContainer)
                 .preferredColorScheme(.light)   // LP palette is light-only paper
                 .task {
+                    // Lifetime StoreKit transaction listener + entitlement hydrate.
+                    membership.start()
                     // Backfill the SwiftData history once per launch. On a real
                     // authorized device this is HK data; on a simulator with no
                     // HK, DEBUG-seed so the 二楼 is demonstrable.
