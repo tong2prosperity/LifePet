@@ -16,10 +16,20 @@ enum HealthEvent: Sendable, Equatable {
     case activeEnergy(Double)
     /// Today's stand minutes.
     case standMinutes(Int)
-    /// Latest single HR reading, bpm. Used as a stability proxy.
-    case heartRate(Double)
+    /// Latest single HR reading, bpm. Used as a stability proxy + the live
+    /// modulation term of the 压力卡. `measuredAt` is the sample's own time (not
+    /// ingest time) so the derived-stress card can drop a stale HR — e.g. a
+    /// workout peak still sitting as the "latest" sample minutes after the
+    /// wearer went back to rest — instead of reading it as current tension.
+    case heartRate(value: Double, measuredAt: Date)
     /// Latest HRV (SDNN), milliseconds.
     case hrv(Double)
+    /// Latest RMSSD (ms) computed from the newest heartbeat series — Pibo's own
+    /// HRV, *not* Apple's SDNN. Drives the 压力卡 + high-stress notification.
+    /// `measuredAt` is the series' own start time (when the watch actually took
+    /// the reading — can be hours old), *not* the ingest time, so the card's
+    /// "测于 N 分钟前" freshness line stays honest.
+    case hrvRMSSD(value: Double, measuredAt: Date)
     /// Latest resting HR, bpm. Slow-changing baseline.
     case restingHR(Double)
     /// Latest blood-oxygen (SpO2) reading as a fraction 0–1 (HK `.percent()`).

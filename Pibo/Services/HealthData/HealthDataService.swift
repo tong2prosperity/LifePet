@@ -76,6 +76,10 @@ final class HealthDataService {
     /// on it to gate the second fetch. Tracking UUIDs we've already yielded
     /// makes the dedup robust no matter how the two callers interleave.
     private var emittedWorkoutUUIDs: Set<UUID> = []
+    /// Last resting-HR reading, cached so `postStress()` can factor it into the
+    /// stress tier even on a background heartbeat-series wake (where no fresh
+    /// RHR fetch has run). Updated whenever we post a `.restingHR` snapshot.
+    private var lastRestingHR: Double = 0
     /// Guards `startObservers()` so cold-launch restoration + a subsequent
     /// `requestAuthorization()` (e.g. user re-runs onboarding after reset)
     /// don't end up double-registering observer queries.
@@ -201,10 +205,11 @@ final class HealthDataService {
         case .exerciseMinutes: await postSum(.appleExerciseTime,   unit: .minute(),                   as: HealthEvent.exerciseMinutes, cast: { Int($0) })
         case .activeEnergy:    await postSum(.activeEnergyBurned,  unit: .kilocalorie(),              as: HealthEvent.activeEnergy,    cast: { $0 })
         case .standMinutes:    await postSum(.appleStandTime,      unit: .minute(),                   as: HealthEvent.standMinutes,    cast: { Int($0) })
-        case .heartRate:       await postLatest(.heartRate,        unit: .count().unitDivided(by: .minute()), as: HealthEvent.heartRate)
-        case .hrv:             await postLatest(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), as: HealthEvent.hrv)
-        case .restingHR:       await postLatest(.restingHeartRate, unit: .count().unitDivided(by: .minute()), as: HealthEvent.restingHR)
-        case .oxygen:          await postLatest(.oxygenSaturation, unit: .percent(), as: HealthEvent.oxygen)
+        case .heartRate:       await postLatest(.heartRate,        unit: .count().unitDivided(by: .minute()), as: { v, at in .heartRate(value: v, measuredAt: at) })
+        case .hrv:             await postLatest(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), as: { v, _ in .hrv(v) })
+        case .heartbeatSeries: await postStress()
+        case .restingHR:       await postLatest(.restingHeartRate, unit: .count().unitDivided(by: .minute()), as: { v, _ in self.lastRestingHR = v; return .restingHR(v) })
+        case .oxygen:          await postLatest(.oxygenSaturation, unit: .percent(), as: { v, _ in .oxygen(v) })
         case .sleep:           await postSleep()
         case .mindful:         await postMindful()
         case .workout:         await postWorkouts()
@@ -247,7 +252,7 @@ final class HealthDataService {
     private func postLatest(
         _ id: HKQuantityTypeIdentifier,
         unit: HKUnit,
-        as wrap: (Double) -> HealthEvent
+        as wrap: (Double, Date) -> HealthEvent
     ) async {
         let type = HKQuantityType(id)
         let descriptor = HKSampleQueryDescriptor(
@@ -262,10 +267,77 @@ final class HealthDataService {
             }
             let value = sample.quantity.doubleValue(for: unit)
             LPLog.healthKit.debug("postLatest \(id.rawValue, privacy: .public)=\(value, privacy: .public) at \(LPLog.dateFormatter.string(from: sample.startDate), privacy: .public)")
-            continuation.yield(wrap(value))
+            continuation.yield(wrap(value, sample.startDate))
         } catch {
             LPLog.healthKit.error("postLatest \(id.rawValue, privacy: .public) threw: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    // MARK: - Stress (RMSSD from heartbeat series)
+
+    /// Compute RMSSD from the newest heartbeat series (Pibo's own HRV, not
+    /// Apple's SDNN), fold it into the personal baseline, classify stress, drive
+    /// the high-stress notification, and post the RMSSD upstream for the 压力卡.
+    ///
+    /// Runs on background HK wakes too — the notifier only reads system auth, so
+    /// a stress spike can push even while the app is backgrounded. No-ops on the
+    /// simulator / any device without a readable heartbeat series (RMSSD `nil`).
+    private func postStress() async {
+        guard let sample = await HeartbeatSeriesReader.latestSample(store: store) else {
+            LPLog.healthKit.debug("postStress: no readable heartbeat series")
+            return
+        }
+        // Dedup: the observer (fires on registration) and every foreground
+        // `reconcile()` both re-fetch this same newest series. Re-recording it
+        // would over-weight it in the day's baseline median and append a
+        // duplicate stress-log row each time, so process each series once. The
+        // marker is App-Group-persisted so the dedup also holds across a
+        // background-wake process being killed before the next foreground.
+        // Check + set are synchronous with no `await` between them, so the
+        // observer/reconcile pair can't both pass on the MainActor.
+        guard sample.seriesID != StressLogStore.lastProcessedSeriesID else {
+            LPLog.healthKit.debug("postStress: series already processed, skipping")
+            return
+        }
+        StressLogStore.lastProcessedSeriesID = sample.seriesID
+        // Only resting readings fold into the personal baseline; active-time HRV
+        // is naturally low and would poison it. Non-resting readings still get
+        // classified + logged (against the existing baseline) for display.
+        let baseline = StressBaselineStore.record(
+            rmssd: sample.rmssd, isResting: sample.isResting, date: sample.date)
+        let rawLevel = StressModel.level(rmssd: sample.rmssd, baseline: baseline, restingHR: lastRestingHR)
+        // N=2 hysteresis: a lone noisy spike/dip must not move the *alert* tier.
+        // Always fold the reading in (tracks the stream even in diagnostic mode);
+        // the confirmed tier drives the smart push, the raw tier drives the log
+        // and the every-reading diagnostic (which reports the actual measurement).
+        let confirmedLevel = StressHysteresis.confirm(rawLevel)
+        LPLog.healthKit.debug("postStress rmssd=\(sample.rmssd, privacy: .public)ms resting=\(sample.isResting, privacy: .public) raw=\(rawLevel.displayName, privacy: .public) confirmed=\(confirmedLevel.displayName, privacy: .public)")
+        // Only *fresh* readings warrant a smart push. `latestSeries` returns the
+        // newest series across all time, so on a cold launch / after the app was
+        // off for a while it can surface a series measured hours ago (even
+        // overnight). A "你压力偏高，歇会儿" push about a stale reading reads as
+        // wrong, so a series older than the anchor-freshness bound still records
+        // to the baseline + log but skips the transition notification. (The
+        // common background-delivery path always has a fresh series, so this only
+        // suppresses the stale-catch-up case.) The diagnostic "每次测量都提醒"
+        // mode is exempt: it reports the raw RMSSD of *every* computation (a
+        // measurement readout, not a "stressed now" alert), so a stale catch-up
+        // is exactly the kind of compute it exists to surface.
+        let everyMode = StressNotifier.shared.notifyEveryReading
+        let notifyLevel = everyMode ? rawLevel : confirmedLevel
+        let fresh = Date().timeIntervalSince(sample.date) <= DerivedStressModel.maxAnchorAge
+        let notified = (fresh || everyMode)
+            ? await StressNotifier.shared.maybeNotify(level: notifyLevel, rmssd: sample.rmssd)
+            : false
+        if !fresh {
+            LPLog.healthKit.debug("postStress: series is stale (\(Int(Date().timeIntervalSince(sample.date) / 60), privacy: .public)min old) — recorded, smart-notify skipped")
+        }
+        // Log every computation (even quiet ones) so the user can confirm the
+        // background measure ran — the "有没有在算" question the log view answers.
+        // The log records the *raw* measured tier (what was actually measured).
+        StressLogStore.record(rmssd: sample.rmssd, baseline: baseline, level: rawLevel,
+                              notified: notified, isResting: sample.isResting)
+        continuation.yield(.hrvRMSSD(value: sample.rmssd, measuredAt: sample.date))
     }
 
     // MARK: - Sleep

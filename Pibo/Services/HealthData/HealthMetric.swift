@@ -10,6 +10,7 @@ enum HealthMetric: String, CaseIterable, Sendable {
     case standMinutes      // 体力
     case heartRate         // 心情 (stability proxy)
     case hrv               // 心情 (SDNN)
+    case heartbeatSeries   // 压力 — 逐拍心搏序列，自算 RMSSD (非 Apple SDNN)
     case restingHR         // 心情 baseline
     case oxygen            // 体征 血氧 (SpO2)
     case sleep             // 精力
@@ -27,6 +28,7 @@ enum HealthMetric: String, CaseIterable, Sendable {
         case .standMinutes:    return HKQuantityType(.appleStandTime)
         case .heartRate:       return HKQuantityType(.heartRate)
         case .hrv:             return HKQuantityType(.heartRateVariabilitySDNN)
+        case .heartbeatSeries: return HKSeriesType.heartbeat()
         case .restingHR:       return HKQuantityType(.restingHeartRate)
         case .oxygen:          return HKQuantityType(.oxygenSaturation)
         case .sleep:           return HKCategoryType(.sleepAnalysis)

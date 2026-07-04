@@ -23,9 +23,12 @@ final class WorkoutSessionManager: NSObject {
     private static let readTypes: Set<HKSampleType> = [
         HKQuantityType(.heartRate),
         HKQuantityType(.oxygenSaturation),
+        // Beat-to-beat series → post-session authoritative RMSSD (CRC trainer).
+        HKSeriesType.heartbeat(),
     ]
     private static let shareTypes: Set<HKSampleType> = [
         HKObjectType.workoutType(),
+        HKCategoryType(.mindfulSession),
     ]
 
     func requestAuthorization() async throws {
@@ -93,6 +96,28 @@ final class WorkoutSessionManager: NSObject {
         current = nil
         self.session = nil
         self.builder = nil
+    }
+
+    /// Authoritative RMSSD (ms) over the session window, from the real
+    /// heartbeat series the watch recorded — the post-session companion to the
+    /// live RSA estimate. `nil` when no usable series was captured.
+    func sessionRMSSD(start: Date, end: Date) async -> Double? {
+        await CRCHeartbeatSeriesReader.sessionRMSSD(store: healthStore, start: start, end: end)
+    }
+
+    /// Best-effort log of the completed breathing session as Apple Health mindful minutes.
+    /// Silently no-ops if the user didn't grant mindful-session sharing.
+    func saveMindfulSession(start: Date, end: Date) async {
+        guard end > start else { return }
+        let type = HKCategoryType(.mindfulSession)
+        guard healthStore.authorizationStatus(for: type) == .sharingAuthorized else { return }
+        let sample = HKCategorySample(
+            type: type,
+            value: HKCategoryValue.notApplicable.rawValue,
+            start: start,
+            end: end
+        )
+        try? await healthStore.save(sample)
     }
 }
 

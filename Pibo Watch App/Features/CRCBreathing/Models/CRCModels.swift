@@ -15,33 +15,19 @@ nonisolated enum CRCConstants {
     static let exhaleRatio: Double = 0.55
 }
 
-enum CRCFlowStep: Int, CaseIterable, Identifiable {
-    case welcome = 1
-    case preparation
+enum CRCFlowStep {
+    case intro
     case baseline
     case coreTraining
     case report
     case error
-
-    var id: Int { rawValue }
-
-    var title: String {
-        switch self {
-        case .welcome: return "心呼耦合训练"
-        case .preparation: return "准备就绪"
-        case .baseline: return "今日节律建立"
-        case .coreTraining: return "核心训练"
-        case .report: return "训练完成"
-        case .error: return "需要重新准备"
-        }
-    }
 }
 
-/// Lightweight states layered on top of `coreTraining` as overlays (not flow steps).
+/// Lightweight state layered on top of `coreTraining` as an overlay (not a flow step).
+/// `menu` merges the old paused + endConfirm into one exit sheet.
 enum CRCTransientState {
     case none
-    case paused
-    case endConfirm
+    case menu
     case unstable
 }
 
@@ -113,6 +99,14 @@ struct CRCTrainingReport: Sendable {
     var syncStability: Double
     var duration: TimeInterval
     var recommendation: String
+    /// Warm, tsundere Pibo close-out shown in place of a clinical score.
+    var piboLine: String
+    /// Authoritative post-session RMSSD (ms) from the recorded heartbeat series —
+    /// `nil` when the watch captured no usable series this session.
+    var sessionRMSSD: Double?
+    /// Session-average of the live RSA/HRV estimate (ms) — the honest fallback
+    /// shown when `sessionRMSSD` is nil (or alongside it as the live read).
+    var liveHRVAverage: Double?
 }
 
 extension Double {

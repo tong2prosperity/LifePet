@@ -104,6 +104,10 @@ struct PiboHistoryView: View {
                     heartRate: day.heartRate, restingHR: day.restingHR,
                     hrv: day.hrv, oxygen: day.oxygen)
             }
+            // 压力 — today only. 派生分随每分钟心率刷新（HRV 锚点 + 心率调制）。
+            if day.isToday, let stress = store.derivedStress {
+                HistoryStressCard(stress: stress, rmssd: store.rmssd, baseline: store.stressBaseline)
+            }
             HistoryFoodCard(foods: day.foods)
             HistoryDoodleCard(doodles: day.doodles)
         }

@@ -1,4 +1,7 @@
 import SwiftUI
+#if DEBUG
+import HealthKit
+#endif
 
 /// Settings, behind the home gear (Figma headers 76:6662 / 245:1742): pick a
 /// 关于毛的主题 and start over. Reset lives here now (it used to hang directly
@@ -6,6 +9,7 @@ import SwiftUI
 struct SettingsSheet: View {
     @Environment(PetStateStore.self) private var store
     @Environment(MembershipService.self) private var membership
+    @Environment(StressNotifier.self) private var notifier
     @Environment(\.dismiss) private var dismiss
 
     /// Performs the actual reset (store wipe + onboarding flag) — owned by
@@ -17,6 +21,11 @@ struct SettingsSheet: View {
 
     @State private var showResetConfirm = false
     @State private var showMembership = false
+    @State private var showStressLog = false
+    #if DEBUG
+    @State private var showStressProbe = false
+    @State private var stressProbeText = ""
+    #endif
 
     var body: some View {
         ScrollView {
@@ -24,6 +33,7 @@ struct SettingsSheet: View {
                 header
                 themeSection
                 membershipSection
+                notifySection
                 dangerSection
                 #if DEBUG
                 debugSection
@@ -37,6 +47,16 @@ struct SettingsSheet: View {
         .sheet(isPresented: $showMembership) {
             MembershipSheet()
         }
+        .sheet(isPresented: $showStressLog) {
+            StressLogView()
+        }
+        #if DEBUG
+        .alert("压力诊断", isPresented: $showStressProbe) {
+            Button("好") {}
+        } message: {
+            Text(stressProbeText)
+        }
+        #endif
         .confirmationDialog(
             AppLocalization.text("重置后会回到首启流程"),
             isPresented: $showResetConfirm,
@@ -168,6 +188,91 @@ struct SettingsSheet: View {
         }
     }
 
+    // MARK: 高压力提醒
+
+    private var notifySection: some View {
+        VStack(alignment: .leading, spacing: LP.Spacing.s) {
+            Text(AppLocalization.text("提醒"))
+                .lpText(LP.Typography.c1Regular)
+                .foregroundStyle(LP.Content.tertiary)
+
+            VStack(spacing: 0) {
+                HStack(spacing: LP.Spacing.m) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(AppLocalization.text("压力提醒"))
+                            .lpText(LP.Typography.b2Medium)
+                            .foregroundStyle(LP.Content.primary)
+                        Text(AppLocalization.text("压力偏高、缓过来或状态很好时 Pibo 都会说一声"))
+                            .lpText(LP.Typography.c2Regular)
+                            .foregroundStyle(LP.Content.tertiary)
+                    }
+                    Spacer(minLength: 0)
+                    Toggle("", isOn: Binding(
+                        get: { notifier.pushEnabled },
+                        set: { on in
+                            LPHaptics.tap()
+                            notifier.pushEnabled = on
+                            if on { Task { await notifier.requestAuthorization() } }
+                        }))
+                        .labelsHidden()
+                        .tint(LP.Fill.foundationAccent)
+                }
+                .padding(.horizontal, LP.Spacing.m)
+                .padding(.vertical, LP.Spacing.s + 2)
+
+                Divider().overlay(LP.Separator.primary)
+
+                HStack(spacing: LP.Spacing.m) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(AppLocalization.text("每次测量都提醒"))
+                            .lpText(LP.Typography.b2Medium)
+                            .foregroundStyle(notifier.pushEnabled ? LP.Content.primary : LP.Content.quarternary)
+                        Text(AppLocalization.text("诊断用：每次 HRV 计算都推一条（含 RMSSD），会很频繁"))
+                            .lpText(LP.Typography.c2Regular)
+                            .foregroundStyle(LP.Content.tertiary)
+                    }
+                    Spacer(minLength: 0)
+                    Toggle("", isOn: Binding(
+                        get: { notifier.notifyEveryReading },
+                        set: { on in
+                            LPHaptics.tap()
+                            notifier.notifyEveryReading = on
+                        }))
+                        .labelsHidden()
+                        .tint(LP.Fill.foundationAccent)
+                        .disabled(!notifier.pushEnabled)
+                }
+                .padding(.horizontal, LP.Spacing.m)
+                .padding(.vertical, LP.Spacing.s + 2)
+
+                Divider().overlay(LP.Separator.primary)
+
+                Button {
+                    LPHaptics.tap()
+                    showStressLog = true
+                } label: {
+                    HStack(spacing: LP.Spacing.m) {
+                        Text(AppLocalization.text("压力测量记录"))
+                            .lpText(LP.Typography.b2Medium)
+                            .foregroundStyle(LP.Content.primary)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(LP.Content.quarternary)
+                    }
+                    .padding(.horizontal, LP.Spacing.m)
+                    .padding(.vertical, LP.Spacing.s + 2)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                    .fill(LP.Fill.bgContainer)
+            )
+        }
+    }
+
     // MARK: 重置
 
     private var dangerSection: some View {
@@ -230,6 +335,35 @@ struct SettingsSheet: View {
                 }
                 .buttonStyle(.plain)
                 Divider().overlay(LP.Separator.primary)
+                Button {
+                    store.debugInjectStress()
+                    dismiss()
+                } label: {
+                    debugRow("模拟高压力（超载 + 本地通知）")
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                Button {
+                    Task { await runStressProbe() }
+                } label: {
+                    debugRow("诊断压力测量（心跳系列是否可读）")
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                Button {
+                    Task { await reauthorizeHealth() }
+                } label: {
+                    debugRow("补授权健康（含心跳系列）")
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                Button {
+                    Task { await runNotifSelfCheck() }
+                } label: {
+                    debugRow("通知自检（发一条测试通知）")
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
                 weatherDebugRow
             }
             .background(
@@ -280,6 +414,74 @@ struct SettingsSheet: View {
         .padding(.vertical, LP.Spacing.s + 2)
         .contentShape(Rectangle())
     }
+
+    // MARK: 压力诊断 (DEV)
+
+    /// Probe the stress data path and surface a plain-language verdict, so a
+    /// tester can tell whether the heartbeat series is readable at all.
+    private func runStressProbe() async {
+        let p = await HeartbeatSeriesReader.diagnose(store: HKHealthStore())
+        stressProbeText = Self.formatProbe(p)
+        showStressProbe = true
+    }
+
+    /// Re-request read auth for the full metric set. HealthKit only prompts for
+    /// types the user has *never* answered — so this补的正是后加的「心跳系列」。
+    private func reauthorizeHealth() async {
+        let read = Set(HealthMetric.allCases).hkReadTypes
+            .union([HKObjectType.activitySummaryType()])
+        try? await HKHealthStore().requestAuthorization(toShare: [], read: read)
+        stressProbeText = "已重新请求健康授权。若刚才弹出授权页，请把「心率 / 心跳系列」等全部打开，然后彻底退出并重启 App（让后台投递重新注册）。"
+        showStressProbe = true
+    }
+
+    /// Dump every notification gate + fire a bare test push, so a tester can
+    /// tell "通知没发" apart into: unauthorized / provisional-silent / throttled
+    /// / just-normal-so-nothing-to-say.
+    private func runNotifSelfCheck() async {
+        let diag = await notifier.notificationDiagnostics()
+        let sent = await notifier.sendTestNotification()
+        let logged = StressLogStore.entries
+        let notifiedCount = logged.filter(\.notified).count
+        let testLine = sent
+            ? "测试通知：已投递 ✅（留意横幅或下拉通知中心；若只进通知中心不横幅，多为『临时授权』）"
+            : "测试通知：投递失败 ❌（未授权——先开『高压力提醒』总开关触发授权，或去系统设置手动开启）"
+        let logLine = "测量记录：\(logged.count) 条 · 其中已通知 \(notifiedCount) 条"
+        let hint = notifiedCount == 0
+            ? "提示：0 条通知很正常——智能模式只在档位变化（注意/超载/回复/优秀）时才推，一直『正常』不推。想每次都推就开『每次测量都提醒』，或用『模拟高压力』验证一次。"
+            : ""
+        stressProbeText = [diag, testLine, logLine, hint]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
+        showStressProbe = true
+    }
+
+    private static func formatProbe(_ p: HeartbeatSeriesReader.StressProbe) -> String {
+        let df = DateFormatter()
+        df.dateFormat = "M-d HH:mm"
+        func d(_ x: Date?) -> String { x.map { df.string(from: $0) } ?? "无" }
+        let rmssd = p.rmssd.map { String(format: "%.0f ms", $0) } ?? "无"
+        let stats = [
+            "HealthKit 可用: \(p.healthAvailable ? "是" : "否")",
+            "HRV(SDNN) 近30天: \(p.hrvCount) 条 · 最新 \(d(p.hrvLatest))",
+            "心跳系列 近30天: \(p.seriesCount) 条 · 最新 \(d(p.seriesLatest))",
+            "最新系列: \(p.rrCount) 拍 · RMSSD \(rmssd)",
+        ].joined(separator: "\n")
+
+        let verdict: String
+        if !p.healthAvailable {
+            verdict = "→ 此设备无健康数据（模拟器？）。需真机 + 已配对 Apple Watch。"
+        } else if p.seriesCount > 0 && p.rmssd != nil {
+            verdict = "→ 数据链路正常。记录仍空多为后台投递未触发：把 App 切到前台停留几秒会走 reconcile 补算。"
+        } else if p.seriesCount == 0 && p.hrvCount > 0 {
+            verdict = "→ ⚠️ 极可能「心跳系列」未授权（HRV 有数据但系列为 0）。点『补授权健康』，弹窗里全部打开，再重启 App。"
+        } else if p.seriesCount == 0 {
+            verdict = "→ 这 30 天手表没测到 HRV / 心跳系列。Apple 后台 HRV 很稀疏；在手表『正念』做一次 1–2 分钟呼吸可立刻生成一条，再来诊断。"
+        } else {
+            verdict = "→ 系列存在但拍数不足以算 RMSSD（<2）。等一次更完整的测量。"
+        }
+        return stats + "\n\n" + verdict
+    }
     #endif
 }
 
@@ -287,4 +489,5 @@ struct SettingsSheet: View {
     SettingsSheet(onReset: {})
         .environment(PetStateStore(demoMode: true))
         .environment(MembershipService())
+        .environment(StressNotifier.shared)
 }

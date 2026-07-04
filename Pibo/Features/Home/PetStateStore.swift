@@ -157,11 +157,22 @@ private struct RawMetrics {
     var activeEnergy: Double = 0
     var standMinutes: Int = 0
     var heartRate: Double = 0
+    /// When `heartRate` was measured (sample time, not ingest). Lets the derived
+    /// stress card drop a stale HR (e.g. a workout peak lingering as the latest
+    /// sample) instead of reading it as current tension.
+    var heartRateAt: Date? = nil
     var hrv: Double = 0
     /// 7-day rolling baseline for HRV. `nil` until we accumulate enough
     /// readings — until then we treat today's HRV as its own baseline so
     /// 心情 sits at its 50 floor instead of swinging on a single sample.
     var hrvBaseline: Double? = nil
+    /// Latest RMSSD (ms) Pibo computes itself from the heartbeat series — the
+    /// 压力卡's source, distinct from `hrv` (Apple SDNN). `nil` until a real
+    /// reading lands (no simulator data).
+    var rmssd: Double? = nil
+    /// When `rmssd` was last measured — drives the "测于 N 分钟前" freshness
+    /// label on the derived stress card.
+    var rmssdAt: Date? = nil
     var restingHR: Double = 0
     var sleepTotal: TimeInterval = 0
     var sleepDeep: TimeInterval = 0
@@ -358,6 +369,42 @@ final class PetStateStore {
             id: UUID(), kind: .run, label: AppLocalization.text("跑步"),
             durationMin: 24, kcal: 186, endedAt: Date(), gainVitality: 18)
     }
+
+    /// Dev/demo (settings): inject a low RMSSD so the 压力卡 flips to 超载 and the
+    /// high-stress notification path runs end-to-end without a worn watch. Does
+    /// not pollute the baseline window (classifies against the current baseline).
+    func debugInjectStress() {
+        let low = 14.0   // below any plausible baseline → 超载
+        raw.rmssd = low
+        raw.rmssdAt = Date()
+        let level = StressModel.level(rmssd: low,
+                                      baseline: StressBaselineStore.baseline,
+                                      restingHR: raw.restingHR)
+        Task {
+            await StressNotifier.shared.requestAuthorization()
+            let notified = await StressNotifier.shared.maybeNotify(level: level, rmssd: low)
+            StressLogStore.record(rmssd: low, baseline: StressBaselineStore.baseline,
+                                  level: level, notified: notified, synthetic: true)
+        }
+    }
+
+    /// Dev/demo: seed a plausible baseline + a normal current reading so the
+    /// 压力卡 renders on the simulator (no heartbeat series there).
+    func debugSeedStressIfNeeded() {
+        StressBaselineStore.seedIfEmpty()
+        StressLogStore.seedIfEmpty()
+        if raw.rmssd == nil {
+            raw.rmssd = 44
+            raw.rmssdAt = Date().addingTimeInterval(-32 * 60)   // "32 分钟前测"
+        }
+        // Seed HR/RHR too so the derived (HR-modulated) card demos on the
+        // simulator, which has no live heart-rate stream.
+        if raw.restingHR == 0 { raw.restingHR = 60 }
+        if raw.heartRate == 0 {
+            raw.heartRate = 74
+            raw.heartRateAt = Date()   // fresh, so the HR term applies on the sim
+        }
+    }
     #endif
 
     // Raw HealthKit readings, exposed for the direct-data UI (state machine +
@@ -368,6 +415,40 @@ final class PetStateStore {
     var rawStandMinutes: Int { raw.standMinutes }
     var rawHeartRate: Double { raw.heartRate }
     var rawHRV: Double { raw.hrv }
+    /// Pibo-computed HRV (RMSSD, ms) from the latest heartbeat series — `nil`
+    /// until a real reading lands. Distinct from `rawHRV` (Apple SDNN).
+    var rmssd: Double? { raw.rmssd }
+    /// Four-tier stress derived from `rmssd` vs the personal baseline + resting
+    /// HR. `nil` when no RMSSD reading yet. **Display-only** — deliberately not
+    /// fed into the mood formula / `recompute()`.
+    var stressLevel: StressLevel? {
+        guard let rmssd = raw.rmssd, rmssd > 0 else { return nil }
+        return StressModel.level(rmssd: rmssd,
+                                 baseline: StressBaselineStore.baseline,
+                                 restingHR: raw.restingHR)
+    }
+    /// **Display-only** stress that refreshes with every per-minute heart-rate
+    /// update, not just on the sparse HRV cadence. Sparse RMSSD is the anchor;
+    /// current HR over resting is the high-frequency modulation. Because this
+    /// reads `raw.heartRate` (updated ~每分钟 by the HR observer) and the store
+    /// is `@Observable`, any view showing it re-renders as HR lands — no timer,
+    /// no extra battery. Movement suppresses the HR term so exercise isn't read
+    /// as stress. Never drives notifications (see `DerivedStress`).
+    var derivedStress: DerivedStress? {
+        let moving = activityState == .active || pendingWorkout != nil
+        return DerivedStressModel.compute(
+            rmssd: raw.rmssd,
+            baseline: StressBaselineStore.baseline,
+            restingHR: raw.restingHR,
+            currentHR: raw.heartRate,
+            currentHRAt: raw.heartRateAt,
+            rmssdAt: raw.rmssdAt,
+            isMoving: moving)
+    }
+    /// The wearer's personal HRV baseline (ln-mean / ln-SD / covered days), so
+    /// the 压力卡 can surface "基线 46ms · 已学 15 天" and honestly flag冷启动.
+    /// `nil` until a baseline exists.
+    var stressBaseline: StressBaseline? { StressBaselineStore.baseline }
     var rawRestingHR: Double { raw.restingHR }
     /// Latest blood-oxygen (SpO2) as a fraction 0–1 (0 when none recorded).
     var rawOxygen: Double { raw.oxygen }
@@ -684,6 +765,11 @@ final class PetStateStore {
         UserDefaults.standard.removeObject(forKey: Self.weatherKey)
         selectedThemeID = nil
         story.reset()
+        // Stress is per-pet too — drop the RMSSD baseline window + the measure
+        // log so the new pet starts clean (raw.rmssd was already cleared above).
+        StressBaselineStore.reset()
+        StressLogStore.reset()
+        StressHysteresis.reset()
         // New pet UUID + name + birth=today. Hackathon semantics: reset means
         // "start fresh" — when snapshot persistence ships, the previous pet's
         // history will still be addressable via its old `currentPetId`.
@@ -1128,12 +1214,17 @@ final class PetStateStore {
         case .standMinutes(let m):
             raw.standMinutes = m
             LPLog.petState.debug("ingest standMinutes=\(m, privacy: .public)")
-        case .heartRate(let hr):
+        case .heartRate(let hr, let measuredAt):
             raw.heartRate = hr
+            raw.heartRateAt = measuredAt
             LPLog.petState.debug("ingest heartRate=\(hr, privacy: .public)")
         case .hrv(let ms):
             raw.hrv = ms
             LPLog.petState.debug("ingest hrv=\(ms, privacy: .public)ms")
+        case .hrvRMSSD(let ms, let measuredAt):
+            raw.rmssd = ms
+            raw.rmssdAt = measuredAt
+            LPLog.petState.debug("ingest rmssd=\(ms, privacy: .public)ms measuredAt=\(LPLog.dateFormatter.string(from: measuredAt), privacy: .public)")
         case .restingHR(let rhr):
             raw.restingHR = rhr
             LPLog.petState.debug("ingest restingHR=\(rhr, privacy: .public)")

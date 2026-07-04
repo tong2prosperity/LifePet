@@ -147,16 +147,23 @@ struct PiboApp: App {
                 .environment(economy)
                 .environment(coordinator)
                 .environment(membership)
+                .environment(StressNotifier.shared)
                 .modelContainer(modelContainer)
                 .preferredColorScheme(.light)   // LP palette is light-only paper
                 .task {
                     // Lifetime StoreKit transaction listener + entitlement hydrate.
                     membership.start()
+                    // Set up foreground presentation + quiet provisional auth so
+                    // passive users are covered without a prompt.
+                    await StressNotifier.shared.start()
                     // Backfill the SwiftData history once per launch. On a real
                     // authorized device this is HK data; on a simulator with no
                     // HK, DEBUG-seed so the 二楼 is demonstrable.
                     #if DEBUG
-                    if health.authState != .granted { history.seedSampleAllIfEmpty() }
+                    if health.authState != .granted {
+                        history.seedSampleAllIfEmpty()
+                        store.debugSeedStressIfNeeded()
+                    }
                     #endif
                     if health.authState == .granted {
                         let values = await health.fetchDailyHistory()

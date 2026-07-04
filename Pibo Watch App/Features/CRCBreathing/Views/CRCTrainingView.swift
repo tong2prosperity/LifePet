@@ -15,15 +15,9 @@ struct CRCTrainingView: View {
     @ViewBuilder
     private var screen: some View {
         switch viewModel.step {
-        case .welcome:
+        case .intro:
             CRCFixedScreen {
-                CRCWelcomeScreen {
-                    viewModel.showPreparation()
-                }
-            }
-        case .preparation:
-            CRCScrollableScreen {
-                CRCPreparationScreen(viewModel: viewModel) {
+                CRCIntroScreen(companionDay: viewModel.companionDay) {
                     Task { await viewModel.startDetection() }
                 }
             }
@@ -35,11 +29,9 @@ struct CRCTrainingView: View {
             }
         case .coreTraining:
             CRCFixedScreen {
-                CRCCoreTrainingScreen(
-                    viewModel: viewModel,
-                    onPause: { viewModel.pauseTraining() },
-                    onEnd: { viewModel.requestEnd() }
-                )
+                CRCCoreTrainingScreen(viewModel: viewModel) {
+                    viewModel.openMenu()
+                }
             }
         case .report:
             CRCScrollableScreen {
@@ -49,9 +41,11 @@ struct CRCTrainingView: View {
             }
         case .error:
             CRCFixedScreen {
-                CRCErrorScreen(message: viewModel.errorMessage ?? "请重新开始检测") {
-                    viewModel.reset()
-                }
+                CRCErrorScreen(
+                    message: viewModel.errorMessage ?? "…再试一次…啵",
+                    onRetry: { Task { await viewModel.startDetection() } },
+                    onBack: { viewModel.reset() }
+                )
             }
         }
     }
@@ -61,15 +55,10 @@ struct CRCTrainingView: View {
         switch viewModel.transient {
         case .none:
             EmptyView()
-        case .paused:
-            CRCPauseOverlay(
+        case .menu:
+            CRCMenuOverlay(
                 onResume: { viewModel.resumeTraining() },
-                onEnd: { viewModel.requestEnd() }
-            )
-        case .endConfirm:
-            CRCEndConfirmOverlay(
                 onSave: { Task { await viewModel.stopTraining() } },
-                onContinue: { viewModel.resumeTraining() },
                 onDiscard: { Task { await viewModel.discardTraining() } }
             )
         case .unstable:
@@ -80,13 +69,20 @@ struct CRCTrainingView: View {
     }
 }
 
+// MARK: - Palette
+
+private enum CRCPalette {
+    /// Pibo's flower — a soft glowing mint-green that reads as a living plant on the dark watch.
+    static let flower = Color(red: 0.40, green: 0.92, blue: 0.74)
+}
+
 private struct CRCWatchBackground: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             RadialGradient(
                 colors: [
-                    Color(red: 0.03, green: 0.28, blue: 0.38).opacity(0.55),
+                    Color(red: 0.05, green: 0.26, blue: 0.24).opacity(0.55),
                     .clear
                 ],
                 center: .top,
@@ -97,6 +93,8 @@ private struct CRCWatchBackground: View {
         }
     }
 }
+
+// MARK: - Screen containers
 
 private struct CRCFixedScreen<Content: View>: View {
     @ViewBuilder var content: Content
@@ -124,69 +122,46 @@ private struct CRCScrollableScreen<Content: View>: View {
     }
 }
 
+/// Minimal titled container — no step badge, no redundant clock (the watch already shows time).
 private struct CRCScaffold<Content: View>: View {
-    let step: Int?
     let title: String
     var subtitle: String?
+    var stopTitle: String?
     var onStop: (() -> Void)?
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        if let step {
-                            Text("\(step)")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .frame(width: 22, height: 22)
-                                .background(Circle().fill(Color.blue))
-                        }
-                        Text(title)
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.72)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .layoutPriority(1)
-                    }
-
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.62))
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.82)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .layoutPriority(1)
-
-                Spacer(minLength: 6)
-
-                Text(Date.now, format: .dateTime.hour().minute())
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             content
                 .frame(maxWidth: .infinity)
 
-            if let onStop {
-                Button {
-                    onStop()
-                } label: {
-                    Label("结束", systemImage: "stop.fill")
+            if let onStop, let stopTitle {
+                Button(action: onStop) {
+                    Text(stopTitle)
                         .font(.system(size: 12, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.white)
+                .foregroundStyle(.white.opacity(0.85))
                 .frame(height: 28)
                 .background(Color.white.opacity(0.12), in: Capsule())
             }
@@ -196,307 +171,157 @@ private struct CRCScaffold<Content: View>: View {
     }
 }
 
-private struct CRCWelcomeScreen: View {
-    let onStart: () -> Void
+// MARK: - The flower (shared breathing visual)
+
+/// Procedural blooming flower. `bloom` 0 = closed bud, 1 = fully open.
+private struct CRCFlowerView: View {
+    var bloom: Double
+    var petalCount: Int = 7
+    var accent: Color = CRCPalette.flower
 
     var body: some View {
         GeometryReader { proxy in
-            let layout = CRCWelcomeLayout(size: proxy.size)
+            let side = min(proxy.size.width, proxy.size.height)
+            let b = max(0, min(1, bloom))
 
-            VStack(spacing: layout.spacing) {
-                CRCHeroAnimationView()
-                    .frame(width: layout.heroHeight * 1.08, height: layout.heroHeight)
+            ZStack {
+                Circle()
+                    .fill(accent.opacity(0.08 + 0.12 * b))
+                    .frame(width: side * (0.70 + 0.24 * b), height: side * (0.70 + 0.24 * b))
+                    .blur(radius: side * 0.04)
 
-                VStack(spacing: layout.titleSpacing) {
-                    Text("心呼耦合训练")
-                        .font(.system(size: layout.titleFontSize, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.68)
-                    Text("呼吸与心率同步训练")
-                        .font(.system(size: layout.subtitleFontSize, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.62))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-                }
-
-                Button(action: onStart) {
-                    Text("开始训练")
-                        .font(.system(size: layout.buttonFontSize, weight: .bold, design: .rounded))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                        .frame(width: layout.buttonWidth, height: layout.buttonHeight)
-                        .background(
+                ForEach(0..<petalCount, id: \.self) { index in
+                    let angle = Double(index) / Double(petalCount) * 360
+                    Capsule()
+                        .fill(
                             LinearGradient(
-                                colors: [
-                                    Color(red: 0.28, green: 0.32, blue: 1.0),
-                                    Color(red: 0.20, green: 0.70, blue: 1.0)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ),
-                            in: Capsule()
+                                colors: [accent.opacity(0.92), accent.opacity(0.32)],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
                         )
+                        .frame(width: side * (0.155 - 0.02 * b), height: side * (0.22 + 0.18 * b))
+                        // Expand into a full-size box pinned to top so rotation orbits the flower center.
+                        .frame(width: side, height: side, alignment: .top)
+                        .rotationEffect(.degrees(angle))
+                        .opacity(0.45 + 0.45 * b)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white)
 
-                Text("开启身心协同训练之旅")
-                    .font(.system(size: layout.footnoteFontSize, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.52))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .frame(maxWidth: .infinity)
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [.white.opacity(0.95), accent, accent.opacity(0.3)],
+                            center: .center,
+                            startRadius: 1,
+                            endRadius: side * (0.15 + 0.05 * b)
+                        )
+                    )
+                    .frame(width: side * (0.26 + 0.05 * b), height: side * (0.26 + 0.05 * b))
+                    .shadow(color: accent.opacity(0.45 + 0.3 * b), radius: side * 0.06)
             }
-            .padding(.horizontal, layout.horizontalPadding)
-            .padding(.vertical, layout.verticalPadding)
-            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .scaleEffect(0.9 + 0.1 * b)
         }
     }
 }
 
-private struct CRCWelcomeLayout {
-    let size: CGSize
+/// Flower driven by the engine's breathing phase — the core-training hero.
+/// Animates continuously off phase flips (the same source the haptics fire on) so it glides
+/// across the whole inhale/exhale instead of stepping once per 1 Hz snapshot.
+private struct CRCBreathingFlower: View {
+    let snapshot: CRCSnapshot?
 
-    var horizontalPadding: CGFloat {
-        clamp(size.width * 0.07, 10, 16)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var bloom: Double = 0.2
+
+    private var phase: CRCBreathingPhase { snapshot?.phase ?? .inhale }
+
+    private var guidedRate: Double {
+        max(snapshot?.guidedBreathingRate ?? CRCConstants.initialGuidedBreathingRate, 0.1)
     }
 
-    var verticalPadding: CGFloat {
-        clamp(size.height * 0.045, 7, 14)
+    private var phaseRatio: Double {
+        phase == .inhale ? CRCConstants.inhaleRatio : CRCConstants.exhaleRatio
     }
 
-    var spacing: CGFloat {
-        clamp(size.height * 0.033, 5, 10)
+    private var phaseSeconds: Double {
+        60 / guidedRate * phaseRatio
     }
 
-    var titleSpacing: CGFloat {
-        clamp(size.height * 0.012, 2, 4)
+    // Reduce Motion: keep a gentle bloom range so the pacing cue survives without large motion.
+    private var openValue: Double { reduceMotion ? 0.68 : 1.0 }
+    private var closeValue: Double { reduceMotion ? 0.42 : 0.16 }
+    private var targetBloom: Double { phase == .inhale ? openValue : closeValue }
+
+    var body: some View {
+        CRCFlowerView(bloom: bloom)
+            .onAppear { syncBreath() }
+            .onChange(of: phase) { _, _ in syncBreath() }
     }
 
-    var titleFontSize: CGFloat {
-        clamp(size.width * 0.118, 18, 23)
-    }
-
-    var subtitleFontSize: CGFloat {
-        clamp(size.width * 0.064, 10, 12)
-    }
-
-    var footnoteFontSize: CGFloat {
-        clamp(size.width * 0.056, 9, 11)
-    }
-
-    var buttonFontSize: CGFloat {
-        clamp(size.width * 0.078, 13, 16)
-    }
-
-    var buttonHeight: CGFloat {
-        clamp(size.height * 0.18, 34, 44)
-    }
-
-    var buttonWidth: CGFloat {
-        min(size.width - horizontalPadding * 2, clamp(size.width * 0.86, 124, 210))
-    }
-
-    var heroHeight: CGFloat {
-        let textHeight = titleFontSize * 1.2 + titleSpacing + subtitleFontSize * 1.2
-        let reservedHeight = verticalPadding * 2
-            + buttonHeight
-            + textHeight
-            + footnoteFontSize * 1.3
-            + spacing * 3
-        let availableHeight = max(58, size.height - reservedHeight)
-        let idealHeight = min(size.width * 0.62, size.height * 0.44)
-        return clamp(min(idealHeight, availableHeight), 58, 118)
-    }
-
-    private func clamp(_ value: CGFloat, _ lowerBound: CGFloat, _ upperBound: CGFloat) -> CGFloat {
-        min(max(value, lowerBound), upperBound)
+    private func syncBreath() {
+        withAnimation(.easeInOut(duration: phaseSeconds)) {
+            bloom = targetBloom
+        }
     }
 }
 
-private struct CRCHeroAnimationView: View {
-    var breathingRate: Double = CRCConstants.initialGuidedBreathingRate
-    var heartRate: Double = 72
+/// Gentle self-looping flower for intro / baseline (≈6 breaths per minute preview).
+private struct CRCAmbientFlower: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         TimelineView(.animation) { timeline in
             let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
-            let breathPhase = cyclicProgress(time: time, period: 60 / max(1, breathingRate))
-            let heartPhase = cyclicProgress(time: time, period: 60 / max(40, heartRate))
-            let breathEase = 0.5 - 0.5 * cos(breathPhase * .pi * 2)
-            let heartPulse = pow(max(0, sin(heartPhase * .pi)), 3)
-
-            GeometryReader { proxy in
-                let side = min(proxy.size.width, proxy.size.height)
-                let coreSize = side * (0.46 + 0.08 * breathEase)
-                let haloSize = side * (0.70 + 0.14 * breathEase)
-                let heartSize = side * (0.19 + 0.03 * heartPulse)
-
-                ZStack {
-                    CRCFlowingWave(phase: time * 0.62)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    .clear,
-                                    Color.cyan.opacity(0.45),
-                                    Color.blue.opacity(0.35),
-                                    .clear
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ),
-                            style: StrokeStyle(lineWidth: max(2, side * 0.025), lineCap: .round)
-                        )
-                        .frame(height: side * 0.30)
-                        .offset(y: side * 0.23)
-                        .opacity(reduceMotion ? 0.28 : 0.70)
-
-                    ForEach(0..<10, id: \.self) { index in
-                        let delay = Double(index) / 10
-                        let petalPhase = cyclicProgress(time: time + delay * 2.4, period: 4.8)
-                        let petalScale = 0.78 + 0.16 * breathEase + 0.06 * sin(petalPhase * .pi * 2)
-
-                        RoundedRectangle(cornerRadius: side * 0.16, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.cyan.opacity(0.13),
-                                        Color.blue.opacity(0.07)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .frame(width: side * 0.58, height: side * 0.42)
-                            .scaleEffect(reduceMotion ? 0.92 : petalScale)
-                            .rotationEffect(.degrees(Double(index) * 18 + time * 4))
-                            .opacity(0.42)
-                    }
-
-                    Circle()
-                        .stroke(Color.cyan.opacity(0.22), lineWidth: side * 0.035)
-                        .frame(width: haloSize, height: haloSize)
-                        .scaleEffect(reduceMotion ? 1 : 0.94 + 0.08 * breathEase)
-                        .blur(radius: side * 0.018)
-
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [
-                                    .white.opacity(0.98),
-                                    Color(red: 0.22, green: 0.86, blue: 1.0),
-                                    Color(red: 0.18, green: 0.36, blue: 1.0).opacity(0.82),
-                                    Color(red: 0.04, green: 0.18, blue: 0.45).opacity(0.16)
-                                ],
-                                center: .topLeading,
-                                startRadius: side * 0.02,
-                                endRadius: side * 0.42
-                            )
-                        )
-                        .frame(width: coreSize, height: coreSize)
-                        .shadow(color: .cyan.opacity(0.42 + 0.20 * breathEase), radius: side * 0.12)
-
-                    Circle()
-                        .stroke(Color.white.opacity(0.26), lineWidth: max(1, side * 0.012))
-                        .frame(width: coreSize * 0.74, height: coreSize * 0.74)
-                        .scaleEffect(1 + 0.06 * heartPulse)
-                        .opacity(0.55 + 0.25 * heartPulse)
-
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: heartSize, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white)
-                        .scaleEffect(1 + 0.10 * heartPulse)
-                        .shadow(color: .white.opacity(0.35), radius: side * 0.03)
-                        .accessibilityHidden(true)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            let phase = time.truncatingRemainder(dividingBy: 10) / 10
+            let bloom = reduceMotion ? 0.6 : 0.15 + 0.85 * (0.5 - 0.5 * cos(phase * .pi * 2))
+            CRCFlowerView(bloom: bloom)
         }
-        .accessibilityLabel("心呼耦合训练动画")
-    }
-
-    private func cyclicProgress(time: TimeInterval, period: TimeInterval) -> Double {
-        guard period > 0 else { return 0 }
-        return time.truncatingRemainder(dividingBy: period) / period
     }
 }
 
-private struct CRCFlowingWave: Shape {
-    var phase: Double
+// MARK: - Intro (welcome + preparation, merged)
 
-    var animatableData: Double {
-        get { phase }
-        set { phase = newValue }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let midY = rect.midY
-        let amplitude = rect.height * 0.28
-        path.move(to: CGPoint(x: rect.minX, y: midY))
-
-        for x in stride(from: rect.minX, through: rect.maxX, by: 2) {
-            let progress = (x - rect.minX) / max(rect.width, 1)
-            let wave = sin(progress * .pi * 4.0 + phase * .pi * 2)
-            path.addLine(to: CGPoint(x: x, y: midY + wave * amplitude))
-        }
-
-        return path
-    }
-}
-
-private struct CRCPreparationScreen: View {
-    @ObservedObject var viewModel: CRCTrainingViewModel
+private struct CRCIntroScreen: View {
+    let companionDay: Int
     let onStart: () -> Void
 
     var body: some View {
-        CRCScaffold(
-            step: 2,
-            title: "准备就绪",
-            subtitle: "做好准备，确保检测稳定"
-        ) {
-            VStack(spacing: 7) {
-                CRCChecklistRow(
-                    icon: "applewatch",
-                    tint: .blue,
-                    title: "戴稳手表",
-                    subtitle: "贴合手腕，避免松动",
-                    isReady: true
-                )
-                CRCChecklistRow(
-                    icon: "figure.mind.and.body",
-                    tint: .green,
-                    title: "保持安静坐姿",
-                    subtitle: "放松身体，专注当下",
-                    isReady: true
-                )
-                CRCChecklistRow(
-                    icon: "hand.raised.fingers.spread",
-                    tint: .orange,
-                    title: "手臂自然放置",
-                    subtitle: "靠近胸腹，减少移动",
-                    isReady: true
-                )
-                CRCChecklistRow(
-                    icon: "waveform.path.ecg",
-                    tint: .purple,
-                    title: "打开触觉引导",
-                    subtitle: "跟随振动调整呼吸",
-                    isReady: true
-                )
+        GeometryReader { proxy in
+            let flowerSide = clampValue(min(proxy.size.width * 0.5, proxy.size.height * 0.36), 62, 108)
+
+            VStack(spacing: 9) {
+                CRCAmbientFlower()
+                    .frame(width: flowerSide, height: flowerSide)
+
+                VStack(spacing: 2) {
+                    Text("陪 Pibo 呼吸")
+                        .font(.system(size: 19, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(companionDay > 0 ? "第 \(companionDay) 天 · 让花喝口气" : "让头顶的花，喝口气")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+
+                VStack(spacing: 4) {
+                    CRCHintLine(icon: "applewatch", text: "戴稳手表，安静坐好")
+                    CRCHintLine(icon: "waveform.path.ecg", text: "跟着震动，慢慢呼吸")
+                }
 
                 Button(action: onStart) {
                     Text("开始")
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.78)
+                        .minimumScaleFactor(0.72)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 40)
+                        .frame(height: 38)
                         .background(
                             LinearGradient(
-                                colors: [.blue.opacity(0.92), .cyan.opacity(0.92)],
+                                colors: [CRCPalette.flower, Color(red: 0.20, green: 0.72, blue: 0.70)],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             ),
@@ -504,12 +329,37 @@ private struct CRCPreparationScreen: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.white)
+                .foregroundStyle(.black.opacity(0.85))
                 .padding(.top, 2)
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
         }
     }
 }
+
+private struct CRCHintLine: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(CRCPalette.flower.opacity(0.85))
+                .frame(width: 16)
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.7))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+// MARK: - Baseline
 
 private struct CRCBaselineScreen: View {
     @ObservedObject var viewModel: CRCTrainingViewModel
@@ -517,32 +367,14 @@ private struct CRCBaselineScreen: View {
 
     var body: some View {
         CRCScaffold(
-            step: 3,
-            title: "今日节律建立",
-            subtitle: "正在建立今日基线",
+            title: "Pibo 在感受你",
+            subtitle: "先自然呼吸，别刻意调整",
+            stopTitle: "取消",
             onStop: onStop
         ) {
             VStack(spacing: 10) {
-                VStack(spacing: 2) {
-                    Text("先自然呼吸")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    Text("请不要刻意调整呼吸")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.62))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                }
-                .frame(maxWidth: .infinity)
-
-                CRCWaveformView(
-                    progress: viewModel.baselineProgress,
-                    color: .cyan,
-                    dotColor: .cyan
-                )
-                .frame(height: 52)
+                CRCAmbientFlower()
+                    .frame(width: 66, height: 66)
 
                 VStack(spacing: 5) {
                     GeometryReader { proxy in
@@ -550,15 +382,16 @@ private struct CRCBaselineScreen: View {
                             Capsule()
                                 .fill(Color.white.opacity(0.13))
                             Capsule()
-                                .fill(Color.cyan)
+                                .fill(CRCPalette.flower)
                                 .frame(width: proxy.size.width * viewModel.baselineProgress)
                         }
                     }
                     .frame(height: 6)
 
-                    Text("约 20–30 秒")
-                        .font(.system(size: 12, weight: .semibold))
+                    Text(viewModel.baselineRemaining > 0 ? "还需 \(viewModel.baselineRemaining) 秒" : "…好了…")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.72))
+                        .contentTransition(.numericText())
                 }
                 .padding(.horizontal, 5)
             }
@@ -566,330 +399,195 @@ private struct CRCBaselineScreen: View {
     }
 }
 
+// MARK: - Core training (score-free)
+
 private struct CRCCoreTrainingScreen: View {
     @ObservedObject var viewModel: CRCTrainingViewModel
-    let onPause: () -> Void
-    let onEnd: () -> Void
+    let onMenu: () -> Void
+
+    @State private var activeHint: String?
+    @State private var hintDeadline: Date = .distantPast
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                HStack(spacing: 4) {
-                    Image(systemName: "timer")
-                        .font(.system(size: 10, weight: .bold))
-                    Text("剩余 \(formatTime(viewModel.remainingSeconds))")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+        GeometryReader { proxy in
+            let flowerSide = clampValue(min(proxy.size.width * 0.74, proxy.size.height * 0.5), 104, 152)
+
+            VStack(spacing: 6) {
+                ZStack {
+                    CRCSessionRing(progress: sessionProgress)
+                    CRCBreathingFlower(snapshot: viewModel.snapshot)
+                        .frame(width: flowerSide * 0.82, height: flowerSide * 0.82)
                 }
-                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: flowerSide, height: flowerSide)
 
-                Spacer()
+                Text(phaseText)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .contentTransition(.opacity)
 
-                Text(Date.now, format: .dateTime.hour().minute())
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.85))
-            }
-
-            CRCBreathingOrb(snapshot: viewModel.snapshot)
-                .frame(width: 116, height: 116)
-
-            syncPill
-
-            if let hint = adaptiveHint {
-                HStack(spacing: 5) {
-                    Image(systemName: "waveform.path")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.cyan)
+                if let hint = visibleHint {
                     Text(hint)
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.78))
+                        .foregroundStyle(CRCPalette.flower.opacity(0.9))
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
+                        .transition(.opacity)
+                } else {
+                    HStack(spacing: 6) {
+                        if !remainingText.isEmpty {
+                            Text(remainingText)
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+                        // Live RSA-based estimate — marked "≈" (not clinical RMSSD),
+                        // and hidden below ~5ms where averaged BPM yields only noise.
+                        if let hrv = viewModel.liveHRV, Int(hrv.rounded()) >= 5 {
+                            Label("≈\(Int(hrv.rounded())) ms", systemImage: "waveform.path.ecg")
+                                .foregroundStyle(CRCPalette.flower.opacity(0.9))
+                                .contentTransition(.numericText())
+                                .accessibilityLabel("实时心率变异约 \(Int(hrv.rounded())) 毫秒")
+                        }
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
                 }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.10), in: Capsule())
-            }
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
-            HStack(spacing: 10) {
-                Button(action: onPause) {
-                    Text("暂停")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 30)
+                Button(action: onMenu) {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .frame(width: 44, height: 30)
                         .background(Color.white.opacity(0.14), in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
-
-                Button(action: onEnd) {
-                    Text("结束")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 30)
-                        .background(Color.white.opacity(0.14), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white)
+                .accessibilityLabel("暂停")
             }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-    }
-
-    private var syncScore: Double {
-        viewModel.snapshot?.syncScore ?? 82
-    }
-
-    private var syncTint: Color {
-        if syncScore >= 78 { return .green }
-        if syncScore >= 58 { return .cyan }
-        return .orange
-    }
-
-    private var syncLabel: String {
-        if syncScore >= 78 { return "良好" }
-        if syncScore >= 58 { return "稳定" }
-        return "调整"
-    }
-
-    private var syncPill: some View {
-        Text("同步\(syncLabel) \(Int(syncScore.rounded()))%")
-            .font(.system(size: 13, weight: .bold, design: .rounded))
-            .foregroundStyle(syncTint)
-            .lineLimit(1)
-            .minimumScaleFactor(0.78)
+            .frame(width: proxy.size.width, height: proxy.size.height)
             .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .background(syncTint.opacity(0.18), in: Capsule())
+            .padding(.vertical, 10)
+            .animation(.easeInOut(duration: 0.3), value: visibleHint)
+        }
+        .onChange(of: viewModel.elapsedSeconds) { _, _ in refreshHint() }
     }
 
-    /// One-line adaptive hint mirroring the closed-loop guided-rate adjustment.
-    private var adaptiveHint: String? {
-        guard let snapshot = viewModel.snapshot else { return nil }
+    private var sessionProgress: Double {
+        Double(viewModel.elapsedSeconds) / max(1, CRCConstants.recommendedTrainingDuration)
+    }
+
+    private var phaseText: String {
+        guard let snapshot = viewModel.snapshot else { return "准备中…" }
+        let ratio = snapshot.phase == .inhale ? CRCConstants.inhaleRatio : CRCConstants.exhaleRatio
+        let seconds = 60 / max(snapshot.guidedBreathingRate, 0.1) * ratio
+        return "\(snapshot.phase.label) · \(String(format: "%.1f", seconds)) 秒"
+    }
+
+    private var remainingText: String {
+        let remaining = viewModel.remainingSeconds
+        if remaining >= 60 { return "约剩 \(Int(ceil(Double(remaining) / 60))) 分" }
+        if remaining > 0 { return "就快好了…" }
+        return ""
+    }
+
+    private var visibleHint: String? {
+        guard let activeHint, Date() < hintDeadline else { return nil }
+        return activeHint
+    }
+
+    /// Latch a soft Pibo pace nudge for a few seconds so the 1 Hz guided-rate changes don't
+    /// make it flicker. No numbers, no scoring — just a gentle tsundere hint.
+    private func refreshHint() {
+        guard let snapshot = viewModel.snapshot else { return }
         let delta = snapshot.guidedBreathingRate - snapshot.previousGuidedBreathingRate
-        if delta < -0.05 { return "已稍微放慢节奏" }
-        if delta > 0.05 { return "已稍微加快节奏" }
-        return nil
+        if delta < -0.05 {
+            activeHint = "…再慢一点…啵"
+            hintDeadline = Date().addingTimeInterval(3.5)
+        } else if delta > 0.05 {
+            activeHint = "…别太急…笨蛋…"
+            hintDeadline = Date().addingTimeInterval(3.5)
+        }
     }
 }
+
+private struct CRCSessionRing: View {
+    let progress: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.10), lineWidth: 3)
+            Circle()
+                .trim(from: 0, to: max(0.001, min(1, progress)))
+                .stroke(
+                    CRCPalette.flower.opacity(0.8),
+                    style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .animation(.easeInOut(duration: 0.4), value: progress)
+        }
+    }
+}
+
+// MARK: - Report (Pibo-voice, non-scoring)
 
 private struct CRCReportScreen: View {
     @ObservedObject var viewModel: CRCTrainingViewModel
     let onDone: () -> Void
 
     var body: some View {
-        CRCScaffold(step: 5, title: "训练完成", subtitle: "本次训练表现") {
-            VStack(spacing: 7) {
+        CRCScaffold(title: "今天，谢谢你") {
+            VStack(spacing: 9) {
                 if let report = viewModel.report {
-                    CRCReportRow(icon: "waveform.path.ecg", title: "耦合指数", value: "\(report.couplingIndex)", tint: .cyan)
-                    CRCReportRow(icon: "heart.fill", title: "平均心率", value: "\(report.averageHeartRate) 次/分", tint: .red)
-                    CRCReportRow(icon: "swirl.circle.righthalf.filled", title: "平均呼吸频率", value: String(format: "%.1f 次/分", report.averageBreathingRate), tint: .cyan)
-                    CRCReportRow(icon: "scope", title: "稳定性", value: String(format: "%.2f %@", report.syncStability, stabilityLabel(report.syncStability)), tint: stabilityTint(report.syncStability))
-
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "star.fill")
-                            .foregroundStyle(.yellow)
-                    Text(report.recommendation)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.86))
-                        .lineLimit(4)
-                        .minimumScaleFactor(0.78)
+                    HStack(spacing: 8) {
+                        CRCAmbientFlower()
+                            .frame(width: 40, height: 40)
+                        Text(report.piboLine)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(3)
+                            .minimumScaleFactor(0.78)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(9)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.blue.opacity(0.20), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(10)
+                    .frame(maxWidth: .infinity)
+                    .background(CRCPalette.flower.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
+
+                    VStack(spacing: 6) {
+                        CRCReportRow(icon: "clock.fill", title: "陪你呼吸", value: formatTime(Int(report.duration)), tint: .mint)
+                        CRCReportRow(icon: "heart.fill", title: "平均心率", value: "\(report.averageHeartRate) 次/分", tint: .red)
+                        if let hrv = hrvValue(report) {
+                            CRCReportRow(icon: "waveform.path.ecg", title: "心率变异", value: hrv, tint: CRCPalette.flower)
+                        }
+                        if viewModel.companionDay > 0 {
+                            CRCReportRow(icon: "leaf.fill", title: "一起呼吸", value: "第 \(viewModel.companionDay) 天", tint: CRCPalette.flower)
+                        }
+                    }
                 }
 
                 Button(action: onDone) {
-                Text("完成")
-                    .font(.system(size: 14, weight: .bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .frame(maxWidth: .infinity)
+                    Text("完成")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity)
                         .frame(height: 34)
-                        .background(Color.cyan.opacity(0.9), in: Capsule())
+                        .background(CRCPalette.flower, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.black)
+                .foregroundStyle(.black.opacity(0.85))
             }
         }
     }
 
-    private func stabilityLabel(_ value: Double) -> String {
-        if value >= 0.70 { return "良好" }
-        if value >= 0.50 { return "稳定" }
-        return "偏弱"
-    }
-
-    private func stabilityTint(_ value: Double) -> Color {
-        if value >= 0.70 { return .green }
-        if value >= 0.50 { return .cyan }
-        return .orange
-    }
-}
-
-private struct CRCErrorScreen: View {
-    let message: String
-    let onDone: () -> Void
-
-    var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(.orange)
-            Text(message)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            Button("返回", action: onDone)
-                .buttonStyle(.borderedProminent)
-                .tint(.cyan)
-        }
-        .padding()
-    }
-}
-
-// MARK: - Transient overlays (layered over core training)
-
-private struct CRCOverlayScrim<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.62).ignoresSafeArea()
-            ScrollView(.vertical) {
-                VStack(spacing: 12) {
-                    content
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .frame(maxWidth: .infinity)
-            }
-            .scrollIndicators(.hidden)
-        }
-    }
-}
-
-private struct CRCOverlayButton: View {
-    let title: String
-    let background: Color
-    let foreground: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-                .frame(maxWidth: .infinity)
-                .frame(height: 34)
-                .background(background, in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(foreground)
-    }
-}
-
-private struct CRCPauseOverlay: View {
-    let onResume: () -> Void
-    let onEnd: () -> Void
-
-    var body: some View {
-        CRCOverlayScrim {
-            Image(systemName: "pause.circle.fill")
-                .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(.white)
-            Text("训练已暂停")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-            CRCOverlayButton(title: "继续", background: .blue, foreground: .white, action: onResume)
-            CRCOverlayButton(title: "结束训练", background: Color.white.opacity(0.16), foreground: .white, action: onEnd)
-        }
-    }
-}
-
-private struct CRCEndConfirmOverlay: View {
-    let onSave: () -> Void
-    let onContinue: () -> Void
-    let onDiscard: () -> Void
-
-    var body: some View {
-        CRCOverlayScrim {
-            Text("结束本次训练？")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-            CRCOverlayButton(title: "保存并结束", background: .blue, foreground: .white, action: onSave)
-            CRCOverlayButton(title: "继续训练", background: Color.white.opacity(0.16), foreground: .white, action: onContinue)
-            CRCOverlayButton(title: "丢弃", background: Color(red: 0.62, green: 0.12, blue: 0.12), foreground: .white, action: onDiscard)
-        }
-    }
-}
-
-private struct CRCUnstableOverlay: View {
-    let onContinue: () -> Void
-
-    var body: some View {
-        CRCOverlayScrim {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(.yellow)
-            Text("检测不稳定")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-            Text("请放松手腕并减少移动")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.7))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            CRCOverlayButton(title: "继续训练", background: .blue, foreground: .white, action: onContinue)
-        }
-    }
-}
-
-// MARK: - Shared components
-
-private struct CRCChecklistRow: View {
-    let icon: String
-    let tint: Color
-    let title: String
-    let subtitle: String
-    let isReady: Bool
-
-    var body: some View {
-        HStack(spacing: 9) {
-            Image(systemName: icon)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-                Text(subtitle)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.55))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.82)
-            }
-            .layoutPriority(1)
-
-            Spacer(minLength: 4)
-
-            Image(systemName: isReady ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(isReady ? .green : .white.opacity(0.35))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
+    /// Prefer the authoritative post-session RMSSD; fall back to the live RSA
+    /// average marked with "≈" so it reads as an estimate, not a measurement.
+    private func hrvValue(_ report: CRCTrainingReport) -> String? {
+        if let ms = report.sessionRMSSD { return "\(Int(ms.rounded())) ms" }
+        if let ms = report.liveHRVAverage { return "≈\(Int(ms.rounded())) ms" }
+        return nil
     }
 }
 
@@ -924,103 +622,121 @@ private struct CRCReportRow: View {
     }
 }
 
-private struct CRCBreathingOrb: View {
-    let snapshot: CRCSnapshot?
+// MARK: - Error (retry in place)
 
-    private var phase: CRCBreathingPhase {
-        snapshot?.phase ?? .inhale
-    }
-
-    private var progress: Double {
-        snapshot?.phaseProgress ?? 0.45
-    }
-
-    private var scale: CGFloat {
-        let eased = progress < 0.5
-            ? 2 * progress * progress
-            : 1 - pow(-2 * progress + 2, 2) / 2
-        switch phase {
-        case .inhale:
-            return 0.78 + CGFloat(eased) * 0.22
-        case .exhale:
-            return 1.0 - CGFloat(eased) * 0.22
-        }
-    }
+private struct CRCErrorScreen: View {
+    let message: String
+    let onRetry: () -> Void
+    let onBack: () -> Void
 
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(Color.cyan.opacity(0.14))
-                .scaleEffect(1.12)
-            Circle()
-                .stroke(Color.cyan.opacity(0.55), lineWidth: 8)
-                .scaleEffect(scale)
-                .shadow(color: .cyan.opacity(0.9), radius: 13)
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.white.opacity(0.18), Color.cyan, Color.cyan.opacity(0.25)],
-                        center: .top,
-                        startRadius: 4,
-                        endRadius: 74
-                    )
-                )
-                .scaleEffect(scale * 0.92)
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(4)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
 
-            VStack(spacing: 4) {
-                Text(phase.label)
-                    .font(.system(size: 25, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Text(String(format: "%.1f 秒", 60 / max(snapshot?.guidedBreathingRate ?? 6, 0.1) * phaseRatio))
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
+            CRCOverlayButton(title: "重试", background: CRCPalette.flower, foreground: .black.opacity(0.85), action: onRetry)
+            CRCOverlayButton(title: "返回", background: Color.white.opacity(0.16), foreground: .white, action: onBack)
         }
-        .animation(.easeInOut(duration: 0.45), value: scale)
-    }
-
-    private var phaseRatio: Double {
-        phase == .inhale ? CRCConstants.inhaleRatio : CRCConstants.exhaleRatio
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
-private struct CRCWaveformView: View {
-    let progress: Double
-    let color: Color
-    let dotColor: Color
+// MARK: - Transient overlays
+
+private struct CRCOverlayScrim<Content: View>: View {
+    @ViewBuilder var content: Content
 
     var body: some View {
-        GeometryReader { proxy in
-            let width = proxy.size.width
-            let height = proxy.size.height
-            let midY = height / 2
-            let amplitude = height * 0.34
-
-            ZStack(alignment: .leading) {
-                Path { path in
-                    path.move(to: CGPoint(x: 0, y: midY))
-                    for x in stride(from: 0, through: width, by: 2) {
-                        let phase = Double(x / max(width, 1)) * .pi * 5.5
-                        let y = midY + CGFloat(sin(phase)) * amplitude
-                        path.addLine(to: CGPoint(x: x, y: y))
-                    }
+        ZStack {
+            Color.black.opacity(0.66).ignoresSafeArea()
+            ScrollView(.vertical) {
+                VStack(spacing: 12) {
+                    content
                 }
-                .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
-
-                Circle()
-                    .fill(dotColor)
-                    .frame(width: 10, height: 10)
-                    .offset(
-                        x: width * progress.crcClampedUnit - 5,
-                        y: midY + CGFloat(sin(progress.crcClampedUnit * .pi * 5.5)) * amplitude - 5
-                    )
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity)
             }
+            .scrollIndicators(.hidden)
         }
     }
+}
+
+private struct CRCOverlayButton: View {
+    let title: String
+    let background: Color
+    let foreground: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .frame(maxWidth: .infinity)
+                .frame(height: 34)
+                .background(background, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(foreground)
+    }
+}
+
+/// Single exit sheet — merges the old pause overlay + end-confirm.
+private struct CRCMenuOverlay: View {
+    let onResume: () -> Void
+    let onSave: () -> Void
+    let onDiscard: () -> Void
+
+    var body: some View {
+        CRCOverlayScrim {
+            Text("歇一会儿？")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+            CRCOverlayButton(title: "继续", background: CRCPalette.flower, foreground: .black.opacity(0.85), action: onResume)
+            CRCOverlayButton(title: "保存并结束", background: Color.white.opacity(0.16), foreground: .white, action: onSave)
+            CRCOverlayButton(title: "丢弃", background: Color(red: 0.62, green: 0.12, blue: 0.12), foreground: .white, action: onDiscard)
+        }
+    }
+}
+
+private struct CRCUnstableOverlay: View {
+    let onContinue: () -> Void
+
+    var body: some View {
+        CRCOverlayScrim {
+            Image(systemName: "hand.raised.fill")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(.yellow)
+            Text("…手抖了…笨蛋…")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+            Text("放松手腕，别乱动")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            CRCOverlayButton(title: "继续", background: CRCPalette.flower, foreground: .black.opacity(0.85), action: onContinue)
+        }
+    }
+}
+
+// MARK: - Helpers
+
+private func clampValue(_ value: CGFloat, _ lowerBound: CGFloat, _ upperBound: CGFloat) -> CGFloat {
+    min(max(value, lowerBound), upperBound)
 }
 
 private func formatTime(_ seconds: Int) -> String {

@@ -3,12 +3,16 @@ import Foundation
 
 @MainActor
 final class CRCTrainingViewModel: ObservableObject {
-    @Published var step: CRCFlowStep = .welcome
+    @Published var step: CRCFlowStep = .intro
     @Published var baselineProgress: Double = 0
     @Published var baselineRemaining: Int = Int(CRCConstants.baselineDuration)
     @Published var elapsedSeconds: Int = 0
     @Published var latestHeartRate: CRCHeartReading?
     @Published var latestBreathReading: CRCBreathReading?
+    /// Live HRV (ms), read off the breath-driven HR swing (RSA). Refreshes with
+    /// every heart-rate sample — the real-time 心率变异 the training screen shows.
+    /// Honest proxy, not clinical RMSSD (see `CRCHRVEstimator`).
+    @Published var liveHRV: Double?
     @Published var poseAssessment = CRCPoseAssessment(
         poseConfidence: 0,
         orientationConfidence: 0,
@@ -27,6 +31,11 @@ final class CRCTrainingViewModel: ObservableObject {
     private let motionDetector = CRCMotionBreathingDetector()
     private let haptic = CRCHapticGuide()
     private var coupling = CRCCouplingEngine()
+    /// Live RSA/HRV estimator, fed every heart-rate sample.
+    private var hrvEstimator = CRCHRVEstimator()
+    /// Per-tick samples of the live HRV, averaged into the report (fallback when
+    /// no authoritative heartbeat series was captured).
+    private var liveHRVReadings: [Double] = []
     private var baselineHeartRates: [Double] = []
     private var snapshots: [CRCSnapshot] = []
     private var sessionStartedAt = Date()
@@ -36,6 +45,9 @@ final class CRCTrainingViewModel: ObservableObject {
     private var couplingTask: Task<Void, Never>?
     private var hasReceivedMotionUpdate = false
     private var hasReceivedHeartRate = false
+    /// Bumped each time a report is produced, so a late background RMSSD refine
+    /// from a previous session can't patch the current report.
+    private var reportGeneration = 0
     private var unstableTickCount = 0
     private var unstableCooldownUntil: Date?
 
@@ -51,23 +63,13 @@ final class CRCTrainingViewModel: ObservableObject {
         return usable.reduce(0, +) / Double(usable.count)
     }
 
-    var currentStepNumber: Int {
-        min(step.rawValue, CRCFlowStep.report.rawValue)
-    }
-
     /// Seconds remaining in the recommended training duration (floored at 0).
     var remainingSeconds: Int {
         max(0, Int(CRCConstants.recommendedTrainingDuration) - elapsedSeconds)
     }
 
-    func showPreparation() {
-        report = nil
-        errorMessage = nil
-        step = .preparation
-    }
-
     func startDetection() async {
-        guard step == .preparation || step == .welcome || step == .error else { return }
+        guard step == .intro || step == .error else { return }
         resetRuntime()
         guard motionDetector.isAvailable else {
             errorMessage = "当前设备无法检测腕部运动，请在支持运动传感器的 Apple Watch 上训练。"
@@ -120,7 +122,7 @@ final class CRCTrainingViewModel: ObservableObject {
     }
 
     func stopTraining() async {
-        guard step != .welcome, step != .report else { return }
+        guard step != .intro, step != .report else { return }
         isStopping = true
         transient = .none
         baselineTask?.cancel()
@@ -128,18 +130,51 @@ final class CRCTrainingViewModel: ObservableObject {
         motionDetector.stop()
         haptic.stop()
         _ = try? await workout.stop()
-        report = makeReport()
+
+        // Best-effort: log the active minutes to Apple Health as a mindful session.
+        let end = Date()
+        let start = end.addingTimeInterval(-Double(elapsedSeconds))
+        await workout.saveMindfulSession(start: start, end: end)
+        recordTrainingDay()
+
+        // Show the report immediately with the live-HRV average. The authoritative
+        // RMSSD from the recorded heartbeat series is refined in the background —
+        // those series persist asynchronously after the workout, so querying now
+        // would usually block on nothing.
+        report = makeReport(sessionRMSSD: nil)
         step = .report
         isStopping = false
+        reportGeneration += 1
+        refineSessionRMSSD(start: sessionStartedAt, end: end)
     }
 
-    /// Pause the active training: freeze the clock, stop ticks + haptics. Sensors keep running.
-    func pauseTraining() {
+    /// Poll for the session's real heartbeat-series RMSSD a little after the
+    /// workout ends (the system writes the series asynchronously), and patch it
+    /// into the visible report once it lands — upgrading the 心率变异 row from the
+    /// `≈` live estimate to the authoritative value. Silent no-op if none appears.
+    private func refineSessionRMSSD(start: Date, end: Date) {
+        let token = reportGeneration
+        Task { @MainActor [weak self] in
+            for delay in [3, 8] {
+                try? await Task.sleep(for: .seconds(delay))
+                guard let self, self.step == .report, self.reportGeneration == token else { return }
+                if let rmssd = await self.workout.sessionRMSSD(start: start, end: end) {
+                    guard self.step == .report, self.reportGeneration == token else { return }
+                    self.report?.sessionRMSSD = rmssd
+                    return
+                }
+            }
+        }
+    }
+
+    /// Open the single exit menu (merges the old pause + end-confirm): freeze the clock and
+    /// stop ticks + haptics while the sheet is up. Sensors keep running.
+    func openMenu() {
         guard step == .coreTraining, pauseStartedAt == nil else { return }
         pauseStartedAt = Date()
         couplingTask?.cancel()
         haptic.stop()
-        transient = .paused
+        transient = .menu
     }
 
     /// Resume after a pause / dismissed overlay: roll the paused gap into the offset and restart ticks.
@@ -161,18 +196,7 @@ final class CRCTrainingViewModel: ObservableObject {
         resumeTraining()
     }
 
-    /// Ask to end the session — shows the confirmation overlay and pauses the clock underneath.
-    func requestEnd() {
-        guard step == .coreTraining else { return }
-        if pauseStartedAt == nil {
-            pauseStartedAt = Date()
-            couplingTask?.cancel()
-            haptic.stop()
-        }
-        transient = .endConfirm
-    }
-
-    /// Discard the session without saving a report and return to welcome.
+    /// Discard the session without saving a report and return to the intro.
     func discardTraining() async {
         transient = .none
         baselineTask?.cancel()
@@ -180,7 +204,7 @@ final class CRCTrainingViewModel: ObservableObject {
         motionDetector.stop()
         haptic.stop()
         await workout.cancel()
-        step = .welcome
+        step = .intro
         resetRuntime()
     }
 
@@ -189,7 +213,7 @@ final class CRCTrainingViewModel: ObservableObject {
         couplingTask?.cancel()
         motionDetector.stop()
         haptic.stop()
-        step = .welcome
+        step = .intro
         resetRuntime()
     }
 
@@ -199,6 +223,9 @@ final class CRCTrainingViewModel: ObservableObject {
         elapsedSeconds = 0
         latestHeartRate = nil
         latestBreathReading = nil
+        liveHRV = nil
+        hrvEstimator.reset()
+        liveHRVReadings.removeAll(keepingCapacity: true)
         snapshot = nil
         report = nil
         errorMessage = nil
@@ -306,6 +333,7 @@ final class CRCTrainingViewModel: ObservableObject {
                 )
                 snapshot = currentSnapshot
                 snapshots.append(currentSnapshot)
+                if let hrv = hrvEstimator.rmssdMs { liveHRVReadings.append(hrv) }
                 haptic.update(
                     phase: currentSnapshot.phase,
                     syncScore: currentSnapshot.syncScore
@@ -357,6 +385,14 @@ final class CRCTrainingViewModel: ObservableObject {
             latestHeartRate = reading
             hasReceivedHeartRate = true
 
+            // Feed the live RSA/HRV estimator off every HR sample. Smooth with a
+            // light EWMA so the readout doesn't jump every sample (the raw value
+            // is noisy off averaged BPM); only advance when a fresh value exists.
+            hrvEstimator.append(bpm: sample.value, at: sample.timestamp)
+            if let raw = hrvEstimator.rmssdMs {
+                liveHRV = liveHRV.map { $0 + 0.35 * (raw - $0) } ?? raw
+            }
+
             if step == .baseline {
                 baselineHeartRates.append(sample.value)
             }
@@ -376,7 +412,7 @@ final class CRCTrainingViewModel: ObservableObject {
         return "无法开启心率监测，请检查健康权限。"
     }
 
-    private func makeReport() -> CRCTrainingReport {
+    private func makeReport(sessionRMSSD: Double? = nil) -> CRCTrainingReport {
         let usedSnapshots = snapshots
         // Active training time (pauses already excluded from elapsedSeconds).
         let duration = TimeInterval(elapsedSeconds)
@@ -394,18 +430,57 @@ final class CRCTrainingViewModel: ObservableObject {
             recommendation = "先练习腹式呼吸和姿势摆放，再逐步延长训练。"
         }
 
+        // Pibo-voice close-out — warm, tsundere, never blaming (product tone: 不问责).
+        let piboLine: String
+        if avgBreath > 0 && avgBreath <= 7.0 && avgSync >= 0.60 {
+            piboLine = "…花…喝饱了…啵。"
+        } else if avgSync >= 0.45 {
+            piboLine = "…还行吧…没让你白坐着…"
+        } else {
+            piboLine = "…下次…再陪我久一点…"
+        }
+
+        let liveHRVAverage = liveHRVReadings.isEmpty ? nil : average(liveHRVReadings)
+
         return CRCTrainingReport(
             couplingIndex: Int(avgCoupling.rounded()),
             averageHeartRate: Int(avgHeart.rounded()),
             averageBreathingRate: avgBreath,
             syncStability: avgSync,
             duration: duration,
-            recommendation: recommendation
+            recommendation: recommendation,
+            piboLine: piboLine,
+            sessionRMSSD: sessionRMSSD,
+            liveHRVAverage: liveHRVAverage
         )
     }
 
     private func average(_ values: [Double]) -> Double {
         guard !values.isEmpty else { return 0 }
         return values.reduce(0, +) / Double(values.count)
+    }
+
+    // MARK: - Companion-day tracking (mirrors the phone's 与Pibo相识第N天)
+
+    private static let firstDayKey = "pibo.crc.firstDay"
+
+    /// 1-based day count since the first ever completed session (0 before the first).
+    var companionDay: Int {
+        guard let first = UserDefaults.standard.object(forKey: Self.firstDayKey) as? Date else {
+            return 0
+        }
+        let calendar = Calendar.current
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: first),
+            to: calendar.startOfDay(for: Date())
+        ).day ?? 0
+        return max(1, days + 1)
+    }
+
+    private func recordTrainingDay() {
+        if UserDefaults.standard.object(forKey: Self.firstDayKey) == nil {
+            UserDefaults.standard.set(Date(), forKey: Self.firstDayKey)
+        }
     }
 }
