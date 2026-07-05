@@ -76,10 +76,20 @@ final class HealthDataService {
     /// on it to gate the second fetch. Tracking UUIDs we've already yielded
     /// makes the dedup robust no matter how the two callers interleave.
     private var emittedWorkoutUUIDs: Set<UUID> = []
-    /// Last resting-HR reading, cached so `postStress()` can factor it into the
-    /// stress tier even on a background heartbeat-series wake (where no fresh
-    /// RHR fetch has run). Updated whenever we post a `.restingHR` snapshot.
-    private var lastRestingHR: Double = 0
+    /// Last resting-HR reading, **App-Group-persisted** so `postStress()` can
+    /// factor it into the stress tier even on a background heartbeat-series wake
+    /// in a *fresh process* (where no `.restingHR` fetch has run this launch — an
+    /// in-memory cache would be 0 there, silently dropping the `restingHR >= 80`
+    /// tier bump and making the same reading classify one tier lower in the
+    /// background than in the foreground). Updated on every `.restingHR` snapshot.
+    private var lastRestingHR: Double {
+        get { Self.appGroupDefaults.double(forKey: Self.lastRestingHRKey) }
+        set { Self.appGroupDefaults.set(newValue, forKey: Self.lastRestingHRKey) }
+    }
+    private static let lastRestingHRKey = "pibo.stress.lastRestingHR.v1"
+    private static var appGroupDefaults: UserDefaults {
+        UserDefaults(suiteName: PiboWidgetConstants.appGroupID) ?? .standard
+    }
     /// Guards `startObservers()` so cold-launch restoration + a subsequent
     /// `requestAuthorization()` (e.g. user re-runs onboarding after reset)
     /// don't end up double-registering observer queries.

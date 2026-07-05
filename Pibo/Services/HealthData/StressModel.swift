@@ -156,9 +156,15 @@ enum StressBaselineStore {
     static func record(rmssd: Double, isResting: Bool, date: Date = Date()) -> StressBaseline? {
         guard rmssd > 0, isResting else { return baseline }
         let dayStart = Calendar.current.startOfDay(for: date)
+        // Drop readings dated **before today**. `latestSample` returns the newest
+        // series across all time, so a cold-launch / background catch-up can carry
+        // last night's series with yesterday's date. Letting it in would either
+        // prematurely finalize today's in-progress bucket or inject a single-sample
+        // historical day — both skew σ. Baseline aggregates fresh, same-day data.
+        guard dayStart >= Calendar.current.startOfDay(for: Date()) else { return baseline }
         var bucket = loadToday()
         if let existing = bucket, existing.dayStart != dayStart {
-            // Day rolled over — finalize the old bucket into the daily list.
+            // Genuine day rollover (bucket is a full previous day) — finalize it.
             finalize(existing)
             bucket = nil
         }

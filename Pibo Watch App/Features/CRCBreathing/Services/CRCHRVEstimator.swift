@@ -36,6 +36,10 @@ struct CRCHRVEstimator {
 
     mutating func reset() { samples.removeAll(keepingCapacity: true) }
 
+    /// Time of the newest sample — lets callers detect a stalled HR stream and
+    /// stop showing a frozen estimate.
+    var lastSampleTime: Date? { samples.last?.time }
+
     /// Live HRV in ms — RMSSD over the BPM-derived instantaneous RR window.
     /// `nil` until a few samples have accrued.
     var rmssdMs: Double? {

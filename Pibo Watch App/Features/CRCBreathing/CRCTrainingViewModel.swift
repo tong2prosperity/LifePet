@@ -122,7 +122,10 @@ final class CRCTrainingViewModel: ObservableObject {
     }
 
     func stopTraining() async {
-        guard step != .intro, step != .report else { return }
+        // Only the active training can be stopped-and-reported (menu-save or the
+        // auto-complete tick). Guarding on the exact step avoids ever building a
+        // zero-duration report from baseline/error if an entry point is added.
+        guard step == .coreTraining else { return }
         isStopping = true
         transient = .none
         baselineTask?.cancel()
@@ -334,6 +337,11 @@ final class CRCTrainingViewModel: ObservableObject {
                 snapshot = currentSnapshot
                 snapshots.append(currentSnapshot)
                 if let hrv = hrvEstimator.rmssdMs { liveHRVReadings.append(hrv) }
+                // Drop a frozen estimate if the HR stream stalled (signal loss) —
+                // don't keep displaying the last value as if it were live.
+                if let last = hrvEstimator.lastSampleTime, Date().timeIntervalSince(last) > 15 {
+                    liveHRV = nil
+                }
                 haptic.update(
                     phase: currentSnapshot.phase,
                     syncScore: currentSnapshot.syncScore
