@@ -3,16 +3,16 @@ import SwiftData
 import UIKit
 import os
 
-/// Pibo home (魔丸态) — a horizontally-pannable SpriteKit world (旅行青蛙-style):
-/// drag left/right to roam between zones (照相馆 · Pibo 的栖息地 · 游戏场), tap a
-/// zone to enter its feature. The home zone keeps 拍一拍 / 拔毛 / 能量收集. SwiftUI
-/// overlays only the chrome: greeting + 与Pibo相识第 N 天, the 足迹 (history) +
-/// settings icons, the contextual 拔毛 button, zone dots, and the 拍一拍 speech /
-/// 发芽 flow.
+/// Pibo home (魔丸态) — a single fixed SpriteKit home scene (no 横向逛场景 / camera
+/// pan). Pibo stands center; two 场景内 icon flank it (摄影馆 → 露珠相机, 健身房 →
+/// 健康小游戏列表), tapped in-scene to enter their feature. The scene keeps 拍一拍 /
+/// 拔毛 / 能量收集. SwiftUI overlays only the chrome: greeting + 与Pibo相识第 N 天,
+/// the 足迹 (history) + settings icons, the contextual 拔毛 button, and the 拍一拍
+/// speech / 发芽 flow.
 ///
-/// Feature entries are in-world now (home spec lineage, redesigned 2026-06-27):
-/// 照相馆 → 露珠相机, 游戏场 → 健康小游戏列表 (`GameListView`, walk doodle 等),
-/// 足迹 icon → 历史数据页. The old 上滑数据二楼 (FloorModel/FloorContainer) is retired.
+/// Feature entries are in-world (home spec lineage): 摄影馆 → 露珠相机, 健身房 →
+/// 健康小游戏列表 (`GameListView`, walk doodle 等), 足迹 icon → 历史数据页. The old
+/// 上滑数据二楼 (FloorModel/FloorContainer) is retired.
 ///
 /// Pibo's state and the head-flower come straight off raw HealthKit + time of day
 /// (see `PetStateStore+Mowan`).
@@ -22,9 +22,6 @@ struct HomeView: View {
 
     @State private var speech: PiboSpeechLine? = nil
     @State private var speechClear: Task<Void, Never>? = nil
-    /// Which zone the camera is parked on (`StageZone.rawValue`) — gates the
-    /// contextual 拔毛 button and lights the zone dots.
-    @State private var currentZone: Int = StageZone.home.rawValue
     @State private var showCamera = false
     @State private var showGames = false
     @State private var showHistory = false
@@ -62,7 +59,6 @@ struct HomeView: View {
                 onHairPulled: handleHairPull,
                 onEnterCamera: { pendingMeal = nil; showCamera = true },
                 onEnterGames: { showGames = true },
-                onZoneChanged: { currentZone = $0 },
                 energyGainToken: energyToken,
                 pluckToken: pluckToken,
                 turnAwayToken: turnAwayToken,
@@ -150,14 +146,10 @@ struct HomeView: View {
         sproutPhase == .collecting || sproutPhase == .sprouted
     }
 
-    /// Whether Pibo's home zone is the one on screen — gates the 拔毛 button and
-    /// the home greeting line (other zones speak for themselves via in-scene signage).
-    private var onHomeZone: Bool { currentZone == StageZone.home.rawValue }
-
     private var chromeContent: some View {
         ZStack {
-            // Speech bubble floats just above Pibo's head (~30% down) — only on home.
-            if let speech, onHomeZone {
+            // Speech bubble floats just above Pibo's head (~30% down).
+            if let speech {
                 GeometryReader { geo in
                     PiboSpeechBubbleView(line: speech)
                         .position(x: geo.size.width / 2, y: geo.size.height * 0.30)
@@ -194,7 +186,6 @@ struct HomeView: View {
                     .lpText(LP.Typography.uiH4)
                     .foregroundStyle(LP.Content.secondary)
             }
-            .opacity(onHomeZone ? 1 : 0)   // greeting belongs to Pibo's zone
 
             Spacer(minLength: 0)
 
@@ -255,13 +246,10 @@ struct HomeView: View {
 
     private var bottomControls: some View {
         VStack(spacing: LP.Spacing.m) {
-            if onHomeZone, store.pluckAvailable {
+            if store.pluckAvailable {
                 pluckButton
             }
-            if onHomeZone {
-                mealIconsRow
-            }
-            zoneDots
+            mealIconsRow
         }
         .padding(.bottom, LP.Spacing.l)
     }
@@ -320,23 +308,6 @@ struct HomeView: View {
         .accessibilityLabel("\(meal.title) \(kcal.map { "\($0) kcal" } ?? "")")
     }
 
-    /// Zone indicator dots (照相馆 · home · 游戏场) — lights the current one. Swipe
-    /// the world to move between zones.
-    private var zoneDots: some View {
-        HStack(spacing: 8) {
-            ForEach(StageZone.allCases, id: \.rawValue) { z in
-                Circle()
-                    .fill(z.rawValue == currentZone ? LP.Content.secondary : LP.Content.quarternary)
-                    .frame(width: z.rawValue == currentZone ? 8 : 6,
-                           height: z.rawValue == currentZone ? 8 : 6)
-            }
-        }
-        .padding(.horizontal, LP.Spacing.m)
-        .padding(.vertical, LP.Spacing.s)
-        .background(Capsule().fill(LP.Fill.bgContainer.opacity(0.6)))
-        .accessibilityHidden(true)
-    }
-
     private var pluckButton: some View {
         Button {
             LPHaptics.tap()
@@ -382,7 +353,6 @@ struct HomeView: View {
         guard store.pendingWorkout != nil, sproutPhase == .idle else { return }
         let canSprout = store.growthStage == .mystery
             && store.currentTheme.sproutedHeadSprite != nil
-            && onHomeZone   // the theater only reads on Pibo's home zone
         if canSprout {
             switch SproutAnimationStyle.current {
             case .stagePlaceholder:
@@ -499,11 +469,11 @@ struct HomeView: View {
     }
 
     /// Idle self-mutter loop (spec §3.3) — every 15–30s, ~20% chance Pibo drifts a
-    /// line on its own. Only mutters on the home zone.
+    /// line on its own.
     private func idleMutterLoop() async {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(Double.random(in: 15...30)))
-            if speech == nil, sproutPhase == .idle, onHomeZone, let line = store.idleMutter() { show(line) }
+            if speech == nil, sproutPhase == .idle, let line = store.idleMutter() { show(line) }
         }
     }
 
