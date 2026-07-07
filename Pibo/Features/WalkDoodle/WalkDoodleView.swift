@@ -158,6 +158,7 @@ struct WalkDoodleView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                 primaryButton(AppLocalization.text("开始涂鸦"), system: "scribble.variable") {
+                    Analytics.track(.walkDoodleStart, screen: "walk_doodle")
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
                         session.start()
                     }

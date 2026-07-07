@@ -89,8 +89,14 @@ final class FoodRecognitionService {
             }
             let ms = (ContinuousClock().now - started).components.seconds
             LPLog.food.notice("food recognized \(resp.dishName, privacy: .public) \(resp.totalCalories, privacy: .public)kcal in \(ms, privacy: .public)s")
+            Analytics.track(.mealRecognized, screen: "meal",
+                            ["meal": .string(meal.rawValue), "ok": true,
+                             "kcal": .int(resp.totalCalories), "duration_s": .int(Int(ms))])
         } catch {
             LPLog.food.error("food recognize failed: \(String(describing: error), privacy: .public)")
+            let ms = (ContinuousClock().now - started).components.seconds
+            Analytics.track(.mealRecognized, screen: "meal",
+                            ["meal": .string(meal.rawValue), "ok": false, "duration_s": .int(Int(ms))])
         }
     }
 }

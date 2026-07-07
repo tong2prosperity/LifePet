@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A7DA5EEC2FD0000100000001 /* DataSneaker in Frameworks */ = {isa = PBXBuildFile; productRef = A7DA5EEC2FD0000100000002 /* DataSneaker */; };
 		A7F3FD592F9B1F0200EA90A6 /* Pibo Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = A7F3FD582F9B1F0200EA90A6 /* Pibo Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A7F5C52B2FC8832A0050C48C /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A7F5C52A2FC8832A0050C48C /* WidgetKit.framework */; };
 		A7F5C52D2FC8832A0050C48C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A7F5C52C2FC8832A0050C48C /* SwiftUI.framework */; };
@@ -104,6 +105,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A7DA5EEC2FD0000100000001 /* DataSneaker in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -182,6 +184,7 @@
 			);
 			name = Pibo;
 			packageProductDependencies = (
+				A7DA5EEC2FD0000100000002 /* DataSneaker */,
 			);
 			productName = Pibo;
 			productReference = A7F3FD4B2F9B1F0100EA90A6 /* Pibo.app */;
@@ -266,6 +269,9 @@
 			);
 			mainGroup = A7F3FD422F9B1F0100EA90A6;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A7DA5EEC2FD0000100000003 /* XCLocalSwiftPackageReference "../../tiebao/utils/DataSneaker/sdk/swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A7F3FD4C2F9B1F0100EA90A6 /* Products */;
 			projectDirPath = "";
@@ -729,6 +735,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A7DA5EEC2FD0000100000003 /* XCLocalSwiftPackageReference "../../tiebao/utils/DataSneaker/sdk/swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../tiebao/utils/DataSneaker/sdk/swift;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A7DA5EEC2FD0000100000002 /* DataSneaker */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DataSneaker;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A7F3FD432F9B1F0100EA90A6 /* Project object */;
 }

@@ -62,6 +62,8 @@ final class AuthService {
             userId = result.user.userId
             phase = .loggedIn
             log.notice("logged in as \(result.user.userId, privacy: .public)")
+            Analytics.setUser(result.user.userId)
+            Analytics.track(.login)
             return true
         } catch {
             lastError = .from(error)
@@ -76,6 +78,8 @@ final class AuthService {
         await api.clearTokens()
         userId = nil
         phase = .loggedOut
+        Analytics.track(.logout)
+        Analytics.setUser(nil)
     }
 
     /// Back to the phone-entry step (e.g. user mistyped the number).

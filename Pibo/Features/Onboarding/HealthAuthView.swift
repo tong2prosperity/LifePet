@@ -578,6 +578,8 @@ struct HealthAuthView: View {
             await health.requestAuthorization()
             store.demoMode = health.authState != .granted
             LPLog.onboarding.notice("Onboarding auth finished (auth=\(String(describing: health.authState), privacy: .public))")
+            Analytics.track(.healthAuth, screen: "onboarding",
+                            ["granted": .bool(health.authState == .granted)])
             go(.energy, haptics: false)
         }
     }

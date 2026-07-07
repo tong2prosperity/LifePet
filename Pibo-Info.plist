@@ -13,6 +13,12 @@
 	<array>
 		<string>location</string>
 	</array>
+	<!-- 统一后台打点 URL (DataSneaker server). Leave empty to disable analytics
+	     entirely; fill in once the server is deployed, e.g.
+	     https://track.example.com — or http://localhost:8080 to hit a locally
+	     running DataSneaker in the simulator. See Pibo/Services/Analytics. -->
+	<key>PIBO_ANALYTICS_URL</key>
+	<string></string>
 	<!-- Allow cleartext HTTP to localhost / .local hosts so the app can reach a
 	     locally-run pibo-server (http://localhost:8080) during development. This
 	     does NOT permit arbitrary cleartext loads. -->

@@ -36,6 +36,8 @@ struct PiboApp: App {
     init() {
         PiboPersistenceMigrator.runIfNeeded()
         LPLog.app.notice("App launched")
+        Analytics.start()
+        Analytics.track(.appLaunch)
         let id = PetIdentityStore()
         let snaps = DailySnapshotStore()
         let h = HealthDataService()
@@ -184,6 +186,10 @@ struct PiboApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     LPLog.app.debug("scenePhase → \(String(describing: phase), privacy: .public)")
+                    // 打点: session boundaries (the SDK itself also flushes +
+                    // persists its queue on backgrounding).
+                    if phase == .active { Analytics.track(.appForeground) }
+                    if phase == .background { Analytics.track(.appBackground) }
                     // Foreground reconciliation per the plan: catch anything
                     // background delivery missed (cheap, anchors persist).
                     // Day rollover runs *before* reconcile so a same-foreground

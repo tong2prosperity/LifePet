@@ -45,8 +45,13 @@ struct HomeView: View {
 
     @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
 
-    /// Pause the 60fps stage loop while a full-screen feature covers it.
-    private var stagePaused: Bool { showCamera || showGames || showHistory || showWalkDoodle }
+    /// Pause the 60fps stage loop while a feature covers it — the full-screen
+    /// covers plus the two sheets (设置 / 餐食详情), which on iOS occlude the stage
+    /// too (`MealDetailView` in particular can sit open a while during 卡路里 识别).
+    private var stagePaused: Bool {
+        showCamera || showGames || showHistory || showWalkDoodle
+            || showSettings || detailMeal != nil
+    }
 
     var body: some View {
         ZStack {
@@ -57,8 +62,14 @@ struct HomeView: View {
                 weather: store.weather,
                 onPat: handlePat,
                 onHairPulled: handleHairPull,
-                onEnterCamera: { pendingMeal = nil; showCamera = true },
-                onEnterGames: { showGames = true },
+                onEnterCamera: {
+                    Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
+                    pendingMeal = nil; showCamera = true
+                },
+                onEnterGames: {
+                    Analytics.track(.gamesOpen, screen: "home")
+                    showGames = true
+                },
                 energyGainToken: energyToken,
                 pluckToken: pluckToken,
                 turnAwayToken: turnAwayToken,
@@ -203,6 +214,7 @@ struct HomeView: View {
     private var historyButton: some View {
         Button {
             LPHaptics.tap()
+            Analytics.track(.historyOpen, screen: "home")
             showHistory = true
         } label: {
             VStack(spacing: 2) {
@@ -229,6 +241,7 @@ struct HomeView: View {
     private var settingsButton: some View {
         Button {
             LPHaptics.tap()
+            Analytics.track(.settingsOpen, screen: "home")
             showSettings = true
         } label: {
             Image(systemName: "gearshape")
@@ -334,6 +347,8 @@ struct HomeView: View {
         let response = store.pat()
         if response.turnsAway { turnAwayToken = UUID() }
         if let line = response.line { show(line) }
+        let reaction = response.line.map { $0.isStoryClue ? "story" : "spoke" } ?? "ignored"
+        Analytics.track(.pat, screen: "home", ["reaction": .string(reaction)])
     }
 
     /// 拖毛 released past the pull threshold. Inside 22:00–02:00 this IS 拔毛
@@ -383,6 +398,8 @@ struct HomeView: View {
 
     private func dismissEnergyPop() {
         LPHaptics.tap()
+        Analytics.track(.energyCollected, screen: "home",
+                        ["sprouted": .bool(store.growthStage == .sprouted)])
         store.consumePendingWorkout()
         setSproutPhase(.idle)
     }
@@ -395,6 +412,7 @@ struct HomeView: View {
 
     private func doPluck() {
         let grade = store.pluck()
+        Analytics.track(.pluck, screen: "home", ["grade": .string(grade.rawValue)])
         pluckToken = PluckToken(id: UUID(), color: grade.seedColor)
         show(PiboSpeechLine(text: grade.piboLines.randomElement() ?? "...给...你..."))
     }
@@ -402,6 +420,7 @@ struct HomeView: View {
     /// Open the camera for a specific meal slot (早/中/晚) — the saved photo goes
     /// to the backend for 卡路里 recognition and its detail modal pops up.
     private func startMealCapture(_ meal: MealType) {
+        Analytics.track(.cameraOpen, screen: "home", ["meal": .string(meal.rawValue)])
         pendingMeal = meal
         showCamera = true
     }
@@ -411,6 +430,9 @@ struct HomeView: View {
         LPLog.cutout.notice("photo saved → post-processing (hasImage=\(image != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public) meal=\(meal?.rawValue ?? "—", privacy: .public))")
         pendingMeal = nil
         energyToken = UUID()
+        Analytics.track(.photoSaved, screen: "camera",
+                        ["meal": .string(meal?.rawValue ?? "none"),
+                         "has_subject": .bool(subjectLabel != nil)])
         if meal == nil, Bool.random() {
             show(PiboSpeechLine(text: PiboCameraView.genericComments.randomElement() ?? "...颜色...记..."))
         }
@@ -448,6 +470,10 @@ struct HomeView: View {
     /// Walk doodle saved (运动能量) — persist it for the 足迹涂鸦 history card,
     /// nudge the head 毛, and let Pibo grumble a line (spec §3.4 energy lineage).
     private func handleDoodleSaved(_ result: WalkDoodleResult) {
+        Analytics.track(.walkDoodleSaved, screen: "walk_doodle",
+                        ["distance_m": .int(Int(result.distanceMeters)),
+                         "area_m2": .int(Int(result.areaSquareMeters)),
+                         "duration_s": .int(Int(result.duration))])
         history.addWalkDoodle(result)
         energyToken = UUID()
         show(PiboSpeechLine(text: WalkDoodleCopy.savedLines.randomElement() ?? "...画...完了..."))
@@ -478,6 +504,7 @@ struct HomeView: View {
     }
 
     private func performReset() {
+        Analytics.track(.reset, screen: "settings")
         store.reset()
         onboardingDone = false
     }

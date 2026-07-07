@@ -85,11 +85,17 @@ final class MembershipService {
             switch try await product.purchase() {
             case .success(let verification):
                 await handle(verification)
+                Analytics.track(.purchase, screen: "membership",
+                                ["product": .string(product.id), "result": isMember ? "success" : "unentitled"])
                 return isMember
             case .userCancelled:
+                Analytics.track(.purchase, screen: "membership",
+                                ["product": .string(product.id), "result": "cancelled"])
                 return false
             case .pending:
                 lastError = AppLocalization.text("购买等待批准中（家长同意/审核）")
+                Analytics.track(.purchase, screen: "membership",
+                                ["product": .string(product.id), "result": "pending"])
                 return false
             @unknown default:
                 return false
@@ -97,6 +103,8 @@ final class MembershipService {
         } catch {
             log.error("purchase failed: \(String(describing: error))")
             lastError = AppLocalization.text("购买失败，请重试")
+            Analytics.track(.purchase, screen: "membership",
+                            ["product": .string(product.id), "result": "failed"])
             return false
         }
     }
@@ -105,6 +113,7 @@ final class MembershipService {
     /// the entitlement.
     func restore() async {
         lastError = nil
+        Analytics.track(.purchaseRestore, screen: "membership")
         do {
             try await AppStore.sync()
         } catch {

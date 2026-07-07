@@ -34,8 +34,13 @@ struct WaterSurface: View {
             let amps = (0..<3).map { i in i < intensities.count ? min(1, max(0, intensities[i])) : 0 }
             let periods = amps.map { periodSlow + (periodFast - periodSlow) * $0 }
             let base = waterBase(centers: centers, amps: amps)
+            // 全干（三列达成度/雨量都为 0，如无活动的历史日）时没有可动的水滴，
+            // 逐帧跑 `waterGlass` 着色器 + Canvas 纯属浪费 → 直接暂停，只留静态 base。
+            // 历史页现在是常驻的 fullScreenCover（`floorIsOpen` 恒为 true），不再有
+            // 二楼开合来自然停下，这条干旱判定是主要的省电闸。
+            let dry = amps.allSatisfy { $0 < 0.02 }
 
-            TimelineView(.animation(paused: !isActive)) { timeline in
+            TimelineView(.animation(paused: !isActive || dry)) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 // 每列相位 local∈[0,1)：Swift 端 Double 取模，精度无忧。
                 let locals = (0..<3).map { i in

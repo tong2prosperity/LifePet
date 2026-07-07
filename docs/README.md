@@ -13,6 +13,16 @@
   可直接落地的作者素材：约定全 12 条（含第七条终显情感锚）、揭示层 L0–L5、四类碎片文案池、
   载体→机制映射、记忆恢复度模型、衰退行为、续写风格指南。
 
+### games/ — 小游戏选型（游戏场）
+- [Pibo 健康小游戏调研（Features/Games 落地指南）](games/health-minigames-research.md)
+  全网深度调研 + 多代理对抗验证，覆盖认知训练 / 呼吸正念 / 微运动 exergame 三大品类。
+  含证据分级（硬证据 vs 产品观察）、FTC 认知游戏文案红线、iOS 检测技术选型（CoreMotion/Vision）、
+  6 款可落地游戏机制建议与 P0–P2 排期。**健康正当性向**的选型真源。
+- [Pibo 纯娱乐 kill-time 小游戏调研（游戏场选型）](games/killtime-minigames-research.md)
+  抛开健康正当性，纯「好玩 + 打发时间 + 贴 Pibo 皮」。两路调研——宠物/养成 app 内嵌小游戏拆解
+  + 超休闲机制 × SpriteKit 可行性。首推**合成花朵（Suika 换皮）+ 叠花盆（Stack）**，含猜拳/节奏点击等
+  9 类套皮机制、三条留存铁律与 P0–P2 排期。**纯娱乐向**的选型真源。
+
 ### health-data/ — 健康与运动数据
 - [Apple Watch × HealthKit 数据目录](health-data/apple-watch-healthkit-data-catalog.md)
   Apple Watch 能采集、并能被 iOS 端通过 HealthKit 读到的全部运动/健康数据清单。按「戴表必有 / 习惯触发 / 型号依赖 / 需主动测量」分级，含类型系统说明、采样特性、授权与后台读取要点，以及到 Pibo 三维能量（活力 / 静息 / 心绪）的映射建议。

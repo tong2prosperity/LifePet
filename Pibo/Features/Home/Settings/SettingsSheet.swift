@@ -46,6 +46,7 @@ struct SettingsSheet: View {
         .presentationDragIndicator(.visible)
         .sheet(isPresented: $showMembership) {
             MembershipSheet()
+                .onAppear { Analytics.track(.membershipOpen, screen: "settings") }
         }
         .sheet(isPresented: $showStressLog) {
             StressLogView()
@@ -104,6 +105,9 @@ struct SettingsSheet: View {
         let isSelected = store.currentTheme.id == theme.id
         return Button {
             LPHaptics.tap()
+            if !isSelected {
+                Analytics.track(.themeChange, screen: "settings", ["theme": .string(theme.id)])
+            }
             store.selectedThemeID = theme.id
         } label: {
             HStack(spacing: LP.Spacing.m) {
