@@ -24,6 +24,7 @@ struct SettingsSheet: View {
     @State private var showStressLog = false
     #if DEBUG
     @State private var showStressProbe = false
+    @State private var showWaterLab = false
     @State private var stressProbeText = ""
     #endif
 
@@ -56,6 +57,9 @@ struct SettingsSheet: View {
             Button("好") {}
         } message: {
             Text(stressProbeText)
+        }
+        .fullScreenCover(isPresented: $showWaterLab) {
+            WaterLabView()
         }
         #endif
         .confirmationDialog(
@@ -365,6 +369,14 @@ struct SettingsSheet: View {
                     Task { await runNotifSelfCheck() }
                 } label: {
                     debugRow("通知自检（发一条测试通知）")
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                Button {
+                    LPHaptics.tap()
+                    showWaterLab = true
+                } label: {
+                    debugRow("Metal 流水实验")
                 }
                 .buttonStyle(.plain)
                 Divider().overlay(LP.Separator.primary)

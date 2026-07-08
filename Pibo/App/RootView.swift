@@ -6,6 +6,9 @@ import SwiftUI
 struct RootView: View {
     @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
     @AppStorage(PiboPersistenceKeys.Defaults.appLanguage) private var appLanguage: String = AppLanguage.preferred.rawValue
+    #if DEBUG
+    @State private var showWaterLab = false
+    #endif
 
     private var language: AppLanguage {
         AppLanguage(rawValue: appLanguage) ?? .preferred
@@ -25,6 +28,16 @@ struct RootView: View {
         // Language follows the stored value; the in-app 中/EN switch button was
         // removed per product direction (2026-06-09).
         .environment(\.locale, language.locale)
+        #if DEBUG
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("-PiboWaterLab") {
+                showWaterLab = true
+            }
+        }
+        .fullScreenCover(isPresented: $showWaterLab) {
+            WaterLabView()
+        }
+        #endif
     }
 }
 
