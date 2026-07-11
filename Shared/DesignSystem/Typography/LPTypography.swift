@@ -45,32 +45,33 @@ extension LP {
         //   The product-UI scale used by the home / Dashboard / cards: headline
         //   `uiH1…uiH5`, body `b1…b4` (medium + regular), caption `c1…c2`.
         //   Distinct from the serif `h1/h2/h3` above (those stay for the LP
-        //   narrative aesthetic). Exact px / weight / line exported from Figma
-        //   via `get_variable_defs` on 2026-06-10 — the source face is
+        //   narrative aesthetic). Exact size / weight / line values verified
+        //   via Figma design context on 2026-07-11 — the source face is
         //   **PingFang SC Medium/Regular** (= `.medium`/`.regular`, weight 500/400);
-        //   we map to `.sans` (`.default`) so iOS renders Latin with SF and CJK
-        //   with PingFang SC automatically. H1/H2 use a fixed 100px line in Figma
-        //   (≈1.56× / 2.08×); H3–H5 + b1/b2 use 1.35×, b3/b4 + c1/c2 use 1.5×.
-        //   Headline tracking is letterSpacing -1 (px → pt).
-        static let uiH1 = style(.sans, weight: .medium, size: 64, tracking: -1, line: 100.0 / 64.0)
-        static let uiH2 = style(.sans, weight: .medium, size: 48, tracking: -1, line: 100.0 / 48.0)
-        static let uiH3 = style(.sans, weight: .medium, size: 36, tracking: -1, line: 1.35)
-        static let uiH4 = style(.sans, weight: .medium, size: 28, tracking: -1, line: 1.35)
-        static let uiH5 = style(.sans, weight: .medium, size: 20, tracking: -1, line: 1.35)
+        //   PingFang SC ships with Apple platforms, so these styles resolve the
+        //   Figma face directly instead of substituting SF for Latin glyphs.
+        //   H1/H2 use a fixed 100pt line in Figma (≈1.56× / 2.08×); H3–H5 +
+        //   b1/b2 use 1.35×, b3/b4 + c1/c2 use 1.5×. Figma headline tracking is
+        //   -1%, represented by the point value for each font size below.
+        static let uiH1 = style(.piboUI, weight: .medium, size: 64, tracking: -0.64, line: 100.0 / 64.0)
+        static let uiH2 = style(.piboUI, weight: .medium, size: 48, tracking: -0.48, line: 100.0 / 48.0)
+        static let uiH3 = style(.piboUI, weight: .medium, size: 36, tracking: -0.36, line: 1.35)
+        static let uiH4 = style(.piboUI, weight: .medium, size: 28, tracking: -0.28, line: 1.35)
+        static let uiH5 = style(.piboUI, weight: .medium, size: 20, tracking: -0.20, line: 1.35)
 
-        static let b1Medium  = style(.sans, weight: .medium,  size: 20, tracking: 0, line: 1.35)
-        static let b1Regular = style(.sans, weight: .regular, size: 20, tracking: 0, line: 1.35)  // code convenience — no Figma var (b1 ships medium only)
-        static let b2Medium  = style(.sans, weight: .medium,  size: 18, tracking: 0, line: 1.35)
-        static let b2Regular = style(.sans, weight: .regular, size: 18, tracking: 0, line: 1.35)
-        static let b3Medium  = style(.sans, weight: .medium,  size: 16, tracking: 0, line: 1.50)
-        static let b3Regular = style(.sans, weight: .regular, size: 16, tracking: 0, line: 1.50)
-        static let b4Medium  = style(.sans, weight: .medium,  size: 14, tracking: 0, line: 1.50)
-        static let b4Regular = style(.sans, weight: .regular, size: 14, tracking: 0, line: 1.50)
+        static let b1Medium  = style(.piboUI, weight: .medium,  size: 20, tracking: 0, line: 1.35)
+        static let b1Regular = style(.piboUI, weight: .regular, size: 20, tracking: 0, line: 1.35)  // code convenience — no Figma var (b1 ships medium only)
+        static let b2Medium  = style(.piboUI, weight: .medium,  size: 18, tracking: 0, line: 1.35)
+        static let b2Regular = style(.piboUI, weight: .regular, size: 18, tracking: 0, line: 1.35)
+        static let b3Medium  = style(.piboUI, weight: .medium,  size: 16, tracking: 0, line: 1.50)
+        static let b3Regular = style(.piboUI, weight: .regular, size: 16, tracking: 0, line: 1.50)
+        static let b4Medium  = style(.piboUI, weight: .medium,  size: 14, tracking: 0, line: 1.50)
+        static let b4Regular = style(.piboUI, weight: .regular, size: 14, tracking: 0, line: 1.50)
 
-        static let c1Medium  = style(.sans, weight: .medium,  size: 12, tracking: 0, line: 1.50)
-        static let c1Regular = style(.sans, weight: .regular, size: 12, tracking: 0, line: 1.50)
-        static let c2Medium  = style(.sans, weight: .medium,  size: 10, tracking: 0, line: 1.50)
-        static let c2Regular = style(.sans, weight: .regular, size: 10, tracking: 0, line: 1.50)
+        static let c1Medium  = style(.piboUI, weight: .medium,  size: 12, tracking: 0, line: 1.50)
+        static let c1Regular = style(.piboUI, weight: .regular, size: 12, tracking: 0, line: 1.50)
+        static let c2Medium  = style(.piboUI, weight: .medium,  size: 10, tracking: 0, line: 1.50)
+        static let c2Regular = style(.piboUI, weight: .regular, size: 10, tracking: 0, line: 1.50)
     }
 
     /// A typography recipe. Prefer applying via `Text("…").lpText(style)` — that
@@ -134,14 +135,14 @@ extension LP {
     }
 
     enum Face {
-        case serif, hand, mono, sans
+        case serif, hand, mono, sans, piboUI
 
         var systemDesign: Font.Design {
             switch self {
             case .serif: return .serif
             case .hand:  return .rounded       // see file header re: fallback quality
             case .mono:  return .monospaced
-            case .sans:  return .default
+            case .sans, .piboUI: return .default
             }
         }
 
@@ -154,7 +155,7 @@ extension LP {
             case .serif: return 1.21
             case .hand:  return 1.17   // .rounded
             case .mono:  return 1.16
-            case .sans:  return 1.20
+            case .sans, .piboUI: return 1.20
             }
         }
     }
@@ -198,13 +199,16 @@ extension LP {
         #endif
     }
 
-    /// Map a face + weight to a bundled custom-font PostScript name. Returns
-    /// `nil` when the font isn't registered, in which case `TextStyle.font`
-    /// falls back to the matching `Font.Design`.
+    /// Map a face + weight to a bundled or platform font PostScript name.
+    /// Returns `nil` when the face uses a SwiftUI system design.
     ///
     /// When you drop real font files into the target (e.g. `Fraunces-SemiBold.ttf`)
     /// and register them via `UIAppFonts`, fill in the switch below.
     fileprivate static func customFaceName(for face: Face, weight: Font.Weight) -> String? {
+        if face == .piboUI {
+            return weight == .medium ? "PingFangSC-Medium" : "PingFangSC-Regular"
+        }
+
         // Intentionally empty. Hook up when real fonts are bundled, e.g.:
         // switch (face, weight) {
         // case (.serif, .bold):     return "Fraunces-Bold"

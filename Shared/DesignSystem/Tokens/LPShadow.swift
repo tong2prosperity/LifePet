@@ -16,26 +16,26 @@ extension LP {
         static let lg = Spec(color: .black.opacity(0.12), radius: 12, x: 0, y: 8)
 
         // — Figma UI Kit ramp (node 57:226 §shadow): shadow-1 … shadow-4 —
-        //   Exact effect styles exported via `get_variable_defs` on 2026-06-10.
+        //   Exact effect styles verified via `get_variable_defs` on 2026-07-11.
         //   Each elevation is **two** stacked drop shadows: a tight ambient
         //   layer (#000 @ ~3% blur 1.8–32) plus a softer key layer that carries
         //   the offset. `lpShadow` applies both. Figma `radius` = blur; we drop
         //   `spread` (always 0). Subtle on the light surfaces by design.
         static let elevation1 = Spec(layers: [
-            .init(color: .black.opacity(0.031), radius: 1.8, x: 0, y: 0),
-            .init(color: .black.opacity(0.039), radius: 4,   x: 0, y: 0.5),
+            .init(color: .black.opacity(8.0 / 255.0),  radius: 1.8, x: 0, y: 0),
+            .init(color: .black.opacity(10.0 / 255.0), radius: 4,   x: 0, y: 0.5),
         ])
         static let elevation2 = Spec(layers: [
-            .init(color: .black.opacity(0.031), radius: 3,  x: 0, y: 0),
-            .init(color: .black.opacity(0.039), radius: 24, x: 0, y: 2.4),
+            .init(color: .black.opacity(8.0 / 255.0),  radius: 3,  x: 0, y: 0),
+            .init(color: .black.opacity(10.0 / 255.0), radius: 24, x: 0, y: 2.4),
         ])
         static let elevation3 = Spec(layers: [
-            .init(color: .black.opacity(0.031), radius: 3,  x: 0, y: 0),
-            .init(color: .black.opacity(0.059), radius: 32, x: 0, y: 6),
+            .init(color: .black.opacity(8.0 / 255.0),  radius: 3,  x: 0, y: 0),
+            .init(color: .black.opacity(15.0 / 255.0), radius: 32, x: 0, y: 6),
         ])
         static let elevation4 = Spec(layers: [
-            .init(color: .black.opacity(0.031), radius: 32,  x: 0, y: 4),
-            .init(color: .black.opacity(0.078), radius: 100, x: 0, y: 8),
+            .init(color: .black.opacity(8.0 / 255.0),  radius: 32,  x: 0, y: 4),
+            .init(color: .black.opacity(20.0 / 255.0), radius: 100, x: 0, y: 8),
         ])
 
         /// A shadow spec. May carry multiple stacked drop-shadow `layers`

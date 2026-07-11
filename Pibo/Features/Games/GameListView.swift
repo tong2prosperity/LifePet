@@ -10,6 +10,7 @@ struct GameListView: View {
     var onWalkDoodleSaved: (WalkDoodleResult) -> Void
 
     @State private var selectedGame: MiniGameKind?
+    @State private var isChessPresented = false
     #if DEBUG
     @State private var debugOpenedGame = false
     #endif
@@ -21,6 +22,7 @@ struct GameListView: View {
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: LP.Spacing.xxl) {
                     header
+                    chessSection
                     ForEach(MiniGameKind.sections, id: \.category) { section in
                         gameSection(section.category, games: section.games)
                     }
@@ -36,6 +38,9 @@ struct GameListView: View {
         .accessibilityAddTraits(.isModal)
         .fullScreenCover(item: $selectedGame) { game in
             MiniGameHostView(kind: game, onWalkDoodleSaved: onWalkDoodleSaved)
+        }
+        .fullScreenCover(isPresented: $isChessPresented) {
+            PiboChessMiniGameView()
         }
         .onAppear {
             Analytics.track(.gamesOpen, screen: "games")
@@ -84,6 +89,54 @@ struct GameListView: View {
                     gameCard(game)
                 }
             }
+        }
+    }
+
+    private var chessSection: some View {
+        VStack(alignment: .leading, spacing: LP.Spacing.m) {
+            Text(AppLocalization.text("棋局"))
+                .lpText(LP.Typography.b3Medium)
+                .foregroundStyle(LP.Content.tertiary)
+                .padding(.horizontal, LP.Spacing.xs)
+
+            Button {
+                LPHaptics.tap()
+                Analytics.track(.miniGameStart, screen: "games", ["game": .string("chess")])
+                isChessPresented = true
+            } label: {
+                HStack(spacing: LP.Spacing.l) {
+                    Image(systemName: "checkerboard.rectangle")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(LP.Fill.foundationAccent)
+                        .frame(width: 48, height: 48)
+                        .background(LP.Fill.foundationAccent.opacity(0.12), in: Circle())
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(AppLocalization.text("Pibo 国际象棋"))
+                            .lpText(LP.Typography.b3Medium)
+                            .foregroundStyle(LP.Content.primary)
+                        Text(AppLocalization.text("和 Stockfish 下一局"))
+                            .lpText(LP.Typography.c1Regular)
+                            .foregroundStyle(LP.Content.tertiary)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(LP.Content.tertiary)
+                }
+                .padding(LP.Spacing.l)
+                .frame(maxWidth: .infinity, minHeight: 88)
+                .background(
+                    RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous)
+                        .fill(LP.Fill.bgContainer)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous)
+                        .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair)
+                }
+                .lpShadow(LP.Shadow.elevation1)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("gameCard.chess")
         }
     }
 

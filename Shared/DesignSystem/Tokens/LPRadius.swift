@@ -19,8 +19,9 @@ extension LP {
         static let pill:   CGFloat = 999
 
         // — Figma UI Kit scale (node 57:226 §Radius) —
-        //   Named ramp straight off the Figma inspector. `infinite` is the
-        //   capsule radius (Figma labels it 300; we keep 999 = `pill`).
+        //   Named ramp straight off the Figma inspector. `infinite` preserves
+        //   Figma's published 300pt value; use `pill`/Capsule for legacy views
+        //   that intentionally require an unbounded capsule radius.
         static let xxs:      CGFloat = 2
         static let xs:       CGFloat = 4
         static let s:        CGFloat = 8
@@ -29,6 +30,6 @@ extension LP {
         static let xl:       CGFloat = 20
         static let xxl:      CGFloat = 36
         static let xxxl:     CGFloat = 48
-        static let infinite: CGFloat = 999
+        static let infinite: CGFloat = 300
     }
 }
