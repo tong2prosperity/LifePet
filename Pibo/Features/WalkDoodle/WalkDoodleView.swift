@@ -12,6 +12,8 @@ import CoreLocation
 /// fields are where 布置涂鸦 / 比拼面积 plug in later.
 struct WalkDoodleView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Hands the finished doodle to `HomeView` (persist + Pibo reaction).
     var onSaved: (WalkDoodleResult) -> Void
@@ -21,6 +23,7 @@ struct WalkDoodleView: View {
     @State private var result: WalkDoodleResult? = nil
     @State private var piboLine: String = ""
     @State private var hint: String = WalkDoodleCopy.recordingHints[0]
+    @State private var showDiscardConfirmation = false
 
     private let challenge = WalkDoodleChallenge.freeform
 
@@ -35,12 +38,25 @@ struct WalkDoodleView: View {
             .padding(LP.Spacing.l)
         }
         .background(LP.Fill.bgSurface.ignoresSafeArea())
+        .lpDynamicTypeScaling()
+        .accessibilityAddTraits(.isModal)
         .onAppear { session.requestAuthorization() }
         .onDisappear { session.reset() }
         // Live Activity 结束 button → finalize the doodle (preview shows on next
         // foreground). Guarded so we never double-finish.
         .onChange(of: session.stopRequested) { _, requested in
             if requested, result == nil { finishRecording() }
+        }
+        .alert(
+            AppLocalization.text("放弃这次涂鸦？"),
+            isPresented: $showDiscardConfirmation
+        ) {
+            Button(AppLocalization.text("继续画"), role: .cancel) {}
+            Button(AppLocalization.text("放弃"), role: .destructive) {
+                discardAndDismiss()
+            }
+        } message: {
+            Text(AppLocalization.text("当前路线还没有保存。"))
         }
     }
 
@@ -77,18 +93,42 @@ struct WalkDoodleView: View {
     // MARK: Top bar
 
     private var topBar: some View {
-        HStack(spacing: LP.Spacing.s) {
-            circleButton(system: "xmark", label: AppLocalization.text("关闭")) {
-                session.reset()
-                dismiss()
-            }
-            Spacer(minLength: 0)
-            titleChip
-            Spacer(minLength: 0)
-            circleButton(system: "location.fill", label: AppLocalization.text("回到我的位置")) {
-                withAnimation(.easeInOut(duration: 0.4)) {
-                    camera = .userLocation(fallback: .automatic)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: LP.Spacing.s) {
+                    HStack(spacing: LP.Spacing.s) {
+                        closeControl
+                        Spacer(minLength: 0)
+                        locationControl
+                    }
+                    titleChip
                 }
+            } else {
+                HStack(spacing: LP.Spacing.s) {
+                    closeControl
+                    Spacer(minLength: 0)
+                    titleChip
+                    Spacer(minLength: 0)
+                    locationControl
+                }
+            }
+        }
+    }
+
+    private var closeControl: some View {
+        circleButton(system: "xmark", label: AppLocalization.text("关闭")) {
+            if session.phase == .recording || result?.isDrawn == true {
+                showDiscardConfirmation = true
+            } else {
+                discardAndDismiss()
+            }
+        }
+    }
+
+    private var locationControl: some View {
+        circleButton(system: "location.fill", label: AppLocalization.text("回到我的位置")) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) {
+                camera = .userLocation(fallback: .automatic)
             }
         }
     }
@@ -129,10 +169,13 @@ struct WalkDoodleView: View {
     @ViewBuilder
     private var bottomPanel: some View {
         VStack(spacing: LP.Spacing.m) {
-            switch session.phase {
-            case .idle:        idlePanel
-            case .recording:   recordingPanel
-            case .finished:    finishedPanel
+            if dynamicTypeSize.isAccessibilitySize {
+                ScrollView(showsIndicators: false) {
+                    panelPhaseContent
+                }
+                .frame(maxHeight: 360)
+            } else {
+                panelPhaseContent
             }
         }
         .padding(LP.Spacing.l)
@@ -141,6 +184,15 @@ struct WalkDoodleView: View {
             RoundedRectangle(cornerRadius: LP.Radius.xl, style: .continuous)
                 .fill(LP.Fill.bgPop))
         .lpShadow(LP.Shadow.elevation3)
+    }
+
+    @ViewBuilder
+    private var panelPhaseContent: some View {
+        switch session.phase {
+        case .idle:        idlePanel
+        case .recording:   recordingPanel
+        case .finished:    finishedPanel
+        }
     }
 
     // — idle —
@@ -159,7 +211,7 @@ struct WalkDoodleView: View {
                     .frame(maxWidth: .infinity)
                 primaryButton(AppLocalization.text("开始涂鸦"), system: "scribble.variable") {
                     Analytics.track(.walkDoodleStart, screen: "walk_doodle")
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85)) {
                         session.start()
                     }
                 }
@@ -200,16 +252,11 @@ struct WalkDoodleView: View {
     }
 
     private var statRow: some View {
-        HStack(spacing: 0) {
-            doodleStat(label: AppLocalization.text("距离"),
-                       value: DoodleGeometry.distanceText(session.distanceMeters))
-            divider
-            doodleStat(label: AppLocalization.text("圈地"),
-                       value: DoodleGeometry.areaText(session.areaSquareMeters))
-            divider
-            doodleStat(label: AppLocalization.text("用时"),
-                       value: DoodleGeometry.durationText(session.elapsed))
-        }
+        doodleStats(
+            distance: DoodleGeometry.distanceText(session.distanceMeters),
+            area: DoodleGeometry.areaText(session.areaSquareMeters),
+            duration: DoodleGeometry.durationText(session.elapsed)
+        )
     }
 
     // — finished —
@@ -220,7 +267,7 @@ struct WalkDoodleView: View {
                 finishedStats(result)
                 piboBubble
                 if result.isDrawn {
-                    HStack(spacing: LP.Spacing.s) {
+                    adaptiveActionRow {
                         secondaryButton(AppLocalization.text("重走"), system: "arrow.counterclockwise") {
                             redraw()
                         }
@@ -230,7 +277,7 @@ struct WalkDoodleView: View {
                         }
                     }
                 } else {
-                    HStack(spacing: LP.Spacing.s) {
+                    adaptiveActionRow {
                         secondaryButton(AppLocalization.text("放弃"), system: "trash") {
                             session.reset()
                             dismiss()
@@ -245,15 +292,40 @@ struct WalkDoodleView: View {
     }
 
     private func finishedStats(_ result: WalkDoodleResult) -> some View {
-        HStack(spacing: 0) {
-            doodleStat(label: AppLocalization.text("距离"),
-                       value: DoodleGeometry.distanceText(result.distanceMeters))
-            divider
-            doodleStat(label: AppLocalization.text("圈地"),
-                       value: DoodleGeometry.areaText(result.areaSquareMeters))
-            divider
-            doodleStat(label: AppLocalization.text("用时"),
-                       value: DoodleGeometry.durationText(result.duration))
+        doodleStats(
+            distance: DoodleGeometry.distanceText(result.distanceMeters),
+            area: DoodleGeometry.areaText(result.areaSquareMeters),
+            duration: DoodleGeometry.durationText(result.duration)
+        )
+    }
+
+    @ViewBuilder
+    private func doodleStats(distance: String, area: String, duration: String) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: LP.Spacing.s) {
+                doodleStat(label: AppLocalization.text("距离"), value: distance)
+                Divider()
+                doodleStat(label: AppLocalization.text("圈地"), value: area)
+                Divider()
+                doodleStat(label: AppLocalization.text("用时"), value: duration)
+            }
+        } else {
+            HStack(spacing: 0) {
+                doodleStat(label: AppLocalization.text("距离"), value: distance)
+                divider
+                doodleStat(label: AppLocalization.text("圈地"), value: area)
+                divider
+                doodleStat(label: AppLocalization.text("用时"), value: duration)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func adaptiveActionRow<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: LP.Spacing.s) { content() }
+        } else {
+            HStack(spacing: LP.Spacing.s) { content() }
         }
     }
 
@@ -281,8 +353,9 @@ struct WalkDoodleView: View {
                 .lpText(LP.Typography.uiH5)
                 .foregroundStyle(LP.Content.primary)
                 .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.7)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
     }
@@ -302,6 +375,8 @@ struct WalkDoodleView: View {
                 Image(systemName: system).font(.system(size: 15, weight: .semibold))
                 Text(title).lpText(LP.Typography.b2Medium)
             }
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+            .multilineTextAlignment(.center)
             .foregroundStyle(LP.Fill.foundationOnAccent)
             .frame(maxWidth: .infinity)
             .padding(.vertical, LP.Spacing.m)
@@ -319,6 +394,8 @@ struct WalkDoodleView: View {
                 Image(systemName: system).font(.system(size: 15, weight: .medium))
                 Text(title).lpText(LP.Typography.b2Medium)
             }
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+            .multilineTextAlignment(.center)
             .foregroundStyle(LP.Content.secondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, LP.Spacing.m)
@@ -338,8 +415,13 @@ struct WalkDoodleView: View {
         if let region = finished.coordinates.isEmpty
             ? nil
             : DoodleGeometry.boundingRegion(finished.coordinates.map(\.coordinate)) {
-            withAnimation(.easeInOut(duration: 0.5)) { camera = .region(region) }
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.5)) { camera = .region(region) }
         }
+    }
+
+    private func discardAndDismiss() {
+        session.reset()
+        dismiss()
     }
 
     /// 重走 — clear the doodle and return to the idle briefing; the user taps
@@ -347,7 +429,7 @@ struct WalkDoodleView: View {
     private func redraw() {
         camera = .userLocation(fallback: .automatic)
         hint = WalkDoodleCopy.recordingHints.randomElement() ?? hint
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+        withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85)) {
             result = nil
             session.reset()
         }

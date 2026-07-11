@@ -269,7 +269,7 @@ enum HistoryPreviewData {
     static let store: HealthHistoryStore = {
         let s = HealthHistoryStore(context: container.mainContext)
         #if DEBUG
-        s.seedSampleAllIfEmpty()
+        Task { await s.seedSampleAllIfEmpty() }
         #endif
         return s
     }()

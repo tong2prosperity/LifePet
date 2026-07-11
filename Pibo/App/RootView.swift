@@ -8,6 +8,14 @@ struct RootView: View {
     @AppStorage(PiboPersistenceKeys.Defaults.appLanguage) private var appLanguage: String = AppLanguage.preferred.rawValue
     #if DEBUG
     @State private var showWaterLab = false
+    @State private var debugMiniGame: MiniGameKind? = MiniGameKind.debugRequestedLaunchGame()
+
+    private var debugBypassesOnboarding: Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-PiboOpenGames")
+            || arguments.contains("-PiboOpenMiniGame")
+            || arguments.contains { $0.hasPrefix("-PiboOpenMiniGame=") }
+    }
     #endif
 
     private var language: AppLanguage {
@@ -16,6 +24,16 @@ struct RootView: View {
 
     var body: some View {
         Group {
+            #if DEBUG
+            if debugMiniGame != nil {
+                Color.clear
+                    .ignoresSafeArea()
+            } else if onboardingDone || debugBypassesOnboarding {
+                HomeView()
+            } else {
+                HealthAuthView(onContinue: { onboardingDone = true })
+            }
+            #else
             if onboardingDone {
                 // No bottom tab bar: the home is the only floor; swiping the grab
                 // bar up reveals the 数据二楼 (see `HomeView`). 图鉴 / 一起 are not
@@ -24,6 +42,7 @@ struct RootView: View {
             } else {
                 HealthAuthView(onContinue: { onboardingDone = true })
             }
+            #endif
         }
         // Language follows the stored value; the in-app 中/EN switch button was
         // removed per product direction (2026-06-09).
@@ -36,6 +55,9 @@ struct RootView: View {
         }
         .fullScreenCover(isPresented: $showWaterLab) {
             WaterLabView()
+        }
+        .fullScreenCover(item: $debugMiniGame) { game in
+            MiniGameHostView(kind: game, onWalkDoodleSaved: { _ in })
         }
         #endif
     }

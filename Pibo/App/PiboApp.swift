@@ -163,7 +163,11 @@ struct PiboApp: App {
                     // HK, DEBUG-seed so the 二楼 is demonstrable.
                     #if DEBUG
                     if health.authState != .granted {
-                        history.seedSampleAllIfEmpty()
+                        // Let Home commit its first frame before optional demo
+                        // data maintenance. Image generation inside the seeder
+                        // runs off the main actor and is versioned per day.
+                        await Task.yield()
+                        await history.seedSampleAllIfEmpty()
                         store.debugSeedStressIfNeeded()
                     }
                     #endif

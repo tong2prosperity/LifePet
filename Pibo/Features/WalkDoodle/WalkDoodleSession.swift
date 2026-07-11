@@ -36,6 +36,16 @@ final class WalkDoodleSession {
     @ObservationIgnored private var rawLocations: [CLLocation] = []
     @ObservationIgnored private var startedAt: Date?
     @ObservationIgnored private var ticker: Task<Void, Never>?
+    @ObservationIgnored private var areaOrigin: CLLocationCoordinate2D?
+    @ObservationIgnored private var previousAreaPoint: DoodleProjectedPoint?
+    @ObservationIgnored private var areaCrossSum = 0.0
+
+    deinit {
+        // Belt-and-suspenders: if the session is released without a clean
+        // `reset()`, stop the 1s ticker promptly instead of waiting for its next
+        // weak-self check. (Task.cancel is safe from a nonisolated deinit.)
+        ticker?.cancel()
+    }
 
     /// Drop fixes worse than this (m) — keeps GPS scatter out of the stroke.
     private static let accuracyCeiling: CLLocationAccuracy = 30
@@ -89,6 +99,7 @@ final class WalkDoodleSession {
         coordinates.removeAll(keepingCapacity: true)
         distanceMeters = 0
         areaSquareMeters = 0
+        resetAreaAccumulator()
         elapsed = 0
         stopRequested = false
         let started = Date()
@@ -132,6 +143,7 @@ final class WalkDoodleSession {
         coordinates.removeAll(keepingCapacity: true)
         distanceMeters = 0
         areaSquareMeters = 0
+        resetAreaAccumulator()
         elapsed = 0
         startedAt = nil
         stopRequested = false
@@ -156,16 +168,53 @@ final class WalkDoodleSession {
             }
             rawLocations.append(loc)
             coordinates.append(loc.coordinate)
+            appendAreaPoint(loc.coordinate)
         }
-        areaSquareMeters = DoodleGeometry.enclosedArea(coordinates)
+    }
+
+    /// Incremental shoelace area. The first coordinate is projected to (0, 0),
+    /// so the closing edge from the newest point back to the origin contributes
+    /// zero and each accepted GPS fix only adds one cross product.
+    private func appendAreaPoint(_ coordinate: CLLocationCoordinate2D) {
+        guard let origin = areaOrigin else {
+            areaOrigin = coordinate
+            previousAreaPoint = DoodleProjectedPoint(x: 0, y: 0)
+            areaSquareMeters = 0
+            return
+        }
+
+        let metresPerDegreeLatitude = 111_320.0
+        let metresPerDegreeLongitude = metresPerDegreeLatitude * cos(origin.latitude * .pi / 180)
+        let point = DoodleProjectedPoint(
+            x: (coordinate.longitude - origin.longitude) * metresPerDegreeLongitude,
+            y: (coordinate.latitude - origin.latitude) * metresPerDegreeLatitude
+        )
+        if let previousAreaPoint {
+            areaCrossSum += previousAreaPoint.x * point.y - point.x * previousAreaPoint.y
+        }
+        previousAreaPoint = point
+        areaSquareMeters = abs(areaCrossSum) / 2
+    }
+
+    private func resetAreaAccumulator() {
+        areaOrigin = nil
+        previousAreaPoint = nil
+        areaCrossSum = 0
     }
 
     private func startTicking() {
+        ticker?.cancel()
         ticker = Task { [weak self] in
             var tick = 0
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
-                guard let self, self.phase == .recording, let started = self.startedAt else { continue }
+                guard !Task.isCancelled else { return }
+                // Session deallocated (view gone without a clean reset) — stop the
+                // orphan ticker instead of spinning forever.
+                guard let self else { return }
+                // Not actively recording (paused / finished) — skip this tick but
+                // keep the ticker alive so recording can resume.
+                guard self.phase == .recording, let started = self.startedAt else { continue }
                 self.elapsed = Date().timeIntervalSince(started)
                 tick += 1
                 // The Live Activity 结束 button raises a cross-process flag — poll it.
@@ -227,6 +276,11 @@ final class WalkDoodleSession {
     private func clearStopSignal() {}
     private func isStopSignalRaised(since baseline: Date) -> Bool { false }
     #endif
+}
+
+private struct DoodleProjectedPoint {
+    let x: Double
+    let y: Double
 }
 
 /// Forwards `CLLocationManager` callbacks (delivered on the main run loop) into the

@@ -37,7 +37,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Pibo 想认识地球：用相机拍下你的食物，这份记录会变成它头上那株花的能量。"
+            "value" : "Pibo 会用相机记录食物，也会在镜前接花瓣小游戏中识别你的动作。"
           }
         }
       }
@@ -85,6 +85,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pibo 需要听见你呼唤它的名字，才能确认降临。"
+          }
+        }
+      }
+    },
+    "NSMotionUsageDescription" : {
+      "comment" : "Privacy - Motion Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Pibo 使用手机动作来给原地踏步和摇花铃小游戏计步、计次。"
           }
         }
       }

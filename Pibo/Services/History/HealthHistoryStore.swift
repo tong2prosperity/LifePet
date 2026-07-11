@@ -311,13 +311,23 @@ final class HealthHistoryStore {
 
     /// Dev-only umbrella: seed days + workouts + food, each guarded independently
     /// so a store half-populated by an older build still gets the missing pieces.
-    func seedSampleAllIfEmpty(days: Int = 35) {
+    func seedSampleAllIfEmpty(days: Int = 35) async {
+        let today = Calendar.current.startOfDay(for: .now)
+        let seedState = "2:\(Int(today.timeIntervalSinceReferenceDate))"
+        let defaults = UserDefaults.standard
+        guard defaults.string(forKey: PiboPersistenceKeys.Defaults.debugHistorySeedState) != seedState else {
+            return
+        }
+
         seedSampleHistoryIfEmpty(days: days)
         upgradeSeededRows(days: days)
         seedSampleWorkoutsIfEmpty(days: days)
-        seedSampleFoodIfEmpty()
-        upgradeSeededFood()
+        let seededFood = await seedSampleFoodIfEmpty()
+        if !seededFood {
+            await upgradeSeededFood()
+        }
         seedSampleDoodlesIfEmpty()
+        defaults.set(seedState, forKey: PiboPersistenceKeys.Defaults.debugHistorySeedState)
     }
 
     /// Dev-only: one synthetic walk doodle on *today* — a hand-wobbled loop — so the
@@ -415,43 +425,73 @@ final class HealthHistoryStore {
 
     /// Seed photo specs — symbol, tint, hour, 识图 label. Shared by the fresh
     /// seed and the upgrade pass that patches pre-label seeded rows.
-    private static let foodSeedSpecs: [(String, UIColor, Int, String)] = [
-        ("birthday.cake.fill", .systemBrown, 9, "蛋糕"),
-        ("cup.and.saucer.fill", .darkGray, 11, "咖啡"),
-        ("carrot.fill", .systemGreen, 13, "胡萝卜"),
+    private struct FoodSeedSpec: Sendable {
+        let symbol: String
+        let color: FoodSeedColor
+        let hour: Int
+        let label: String
+    }
+
+    private enum FoodSeedColor: Sendable {
+        case brown
+        case darkGray
+        case green
+    }
+
+    private struct RenderedFoodSeed: Sendable {
+        let hour: Int
+        let label: String
+        let pngData: Data
+    }
+
+    nonisolated private static let foodSeedSpecs: [FoodSeedSpec] = [
+        FoodSeedSpec(symbol: "birthday.cake.fill", color: .brown, hour: 9, label: "蛋糕"),
+        FoodSeedSpec(symbol: "cup.and.saucer.fill", color: .darkGray, hour: 11, label: "咖啡"),
+        FoodSeedSpec(symbol: "carrot.fill", color: .green, hour: 13, label: "胡萝卜"),
     ]
 
     /// Dev-only: a few cut-out-style food photos on *today* so the 今日记录 card
     /// demos with content (SF Symbols rendered onto transparency, stickerized
     /// like real captures).
-    private func seedSampleFoodIfEmpty() {
+    private func seedSampleFoodIfEmpty() async -> Bool {
         let today = Calendar.current.startOfDay(for: .now)
-        guard foodPhotos(on: today).isEmpty else { return }
+        guard foodPhotos(on: today).isEmpty else { return false }
         let cal = Calendar.current
-        for (symbol, color, hour, label) in Self.foodSeedSpecs {
-            guard let data = Self.renderSymbolPNG(symbol, color: color) else { continue }
-            let at = cal.date(bySettingHour: hour, minute: 33, second: 0, of: today) ?? today
-            addFoodPhoto(pngData: data, capturedAt: at, subjectLabel: label)
+        let seeds = await Task.detached(priority: .utility) {
+            Self.renderedFoodSeeds()
+        }.value
+        for seed in seeds {
+            let at = cal.date(bySettingHour: seed.hour, minute: 33, second: 0, of: today) ?? today
+            addFoodPhoto(pngData: seed.pngData, capturedAt: at, subjectLabel: seed.label)
         }
+        return !seeds.isEmpty
     }
 
-    /// Dev-only: re-stamp the seed-slot photos (hour + :33 capture times) every
-    /// launch so label/border treatment changes land on an already-seeded
-    /// container. Cheap (3 small renders) and only touches seed content — real
-    /// captures never sit on a seed slot.
-    private func upgradeSeededFood() {
+    /// Dev-only: re-stamp the seed-slot photos (hour + :33 capture times) on a
+    /// seed-version bump so label/border treatment changes land on an already-
+    /// seeded container. Rendering is kept off the main actor; real captures
+    /// never sit on a seed slot.
+    private func upgradeSeededFood() async {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
+        let photos = foodPhotos(on: today)
+        let seedHours = Set(Self.foodSeedSpecs.map(\.hour))
+        guard photos.contains(where: {
+            cal.component(.minute, from: $0.capturedAt) == 33
+                && seedHours.contains(cal.component(.hour, from: $0.capturedAt))
+        }) else { return }
+
+        let renderedByHour = Dictionary(uniqueKeysWithValues: await Task.detached(priority: .utility) {
+            Self.renderedFoodSeeds().map { ($0.hour, $0) }
+        }.value)
         var changed = false
-        for photo in foodPhotos(on: today) {
+        for photo in photos {
             let hour = cal.component(.hour, from: photo.capturedAt)
             let minute = cal.component(.minute, from: photo.capturedAt)
             guard minute == 33,
-                  let spec = Self.foodSeedSpecs.first(where: { $0.2 == hour }) else { continue }
-            if let data = Self.renderSymbolPNG(spec.0, color: spec.1) {
-                photo.pngData = data
-            }
-            photo.subjectLabel = spec.3
+                  let seed = renderedByHour[hour] else { continue }
+            photo.pngData = seed.pngData
+            photo.subjectLabel = seed.label
             photo.updatedAt = .now
             changed = true
         }
@@ -498,7 +538,19 @@ final class HealthHistoryStore {
         return segments
     }
 
-    private static func renderSymbolPNG(_ name: String, color: UIColor) -> Data? {
+    nonisolated private static func renderedFoodSeeds() -> [RenderedFoodSeed] {
+        foodSeedSpecs.compactMap { spec in
+            let color: UIColor = switch spec.color {
+            case .brown: .systemBrown
+            case .darkGray: .darkGray
+            case .green: .systemGreen
+            }
+            guard let data = renderSymbolPNG(spec.symbol, color: color) else { return nil }
+            return RenderedFoodSeed(hour: spec.hour, label: spec.label, pngData: data)
+        }
+    }
+
+    nonisolated private static func renderSymbolPNG(_ name: String, color: UIColor) -> Data? {
         let cfg = UIImage.SymbolConfiguration(pointSize: 120, weight: .regular)
         guard let img = UIImage(systemName: name, withConfiguration: cfg)?
             .withTintColor(color, renderingMode: .alwaysOriginal) else { return nil }

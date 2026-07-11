@@ -44,6 +44,14 @@ enum HeartbeatSeriesReader {
                             date: series.startDate, isResting: resting)
     }
 
+    /// The newest heartbeat series' stable id, without the expensive per-beat RR
+    /// enumeration. Lets a caller cheaply short-circuit re-processing the same
+    /// series (the observer + every foreground `reconcile()` re-fetch the newest
+    /// one) before paying for `latestSample`'s full read.
+    static func latestSeriesID(store: HKHealthStore) async -> UUID? {
+        await latestSeries(store: store)?.uuid
+    }
+
     /// Whether the series was measured at rest — true when **no HKWorkout
     /// overlaps** its time window. A single lightweight query (heartbeat series
     /// arrive only every 2–5h, so the cost is negligible). Read auth for

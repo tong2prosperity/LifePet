@@ -26,7 +26,9 @@ struct PiboCameraView: View {
     private enum Stage { case viewfinder, preview }
     @State private var stage: Stage = .viewfinder
     @State private var shot: UIImage? = nil
-    @State private var lastThumb: UIImage? = PiboPhotoStore.loadLatest()
+    /// Last saved shot's thumbnail. Loaded lazily off-main in `.task` (a disk read
+    /// + JPEG decode) so presenting the camera doesn't hitch on the main thread.
+    @State private var lastThumb: UIImage? = nil
     @State private var capturedAt = Date()
     @State private var flash = false
     @State private var aspect: CaptureAspect = .fourThree
@@ -42,7 +44,13 @@ struct PiboCameraView: View {
             case .preview:    preview
             }
         }
-        .task { await camera.configure() }
+        .task {
+            await camera.configure()
+            // Off-main disk read + JPEG decode of the last shot's thumbnail.
+            if lastThumb == nil {
+                lastThumb = await Task.detached { PiboPhotoStore.loadLatest() }.value
+            }
+        }
         .onDisappear { camera.stop() }
     }
 
@@ -473,7 +481,7 @@ private struct CameraPreview: UIViewRepresentable {
 
 /// The most recent saved photo — persisted to a single file so the viewfinder
 /// thumbnail survives across launches.
-enum PiboPhotoStore {
+nonisolated enum PiboPhotoStore {
     private static var fileURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("pibo_last_photo.jpg")

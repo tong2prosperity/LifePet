@@ -199,7 +199,7 @@ final class HealthDataService {
 
         Task {
             do {
-                try await store.enableBackgroundDelivery(for: sampleType, frequency: .immediate)
+                try await store.enableBackgroundDelivery(for: sampleType, frequency: metric.backgroundDeliveryFrequency)
                 LPLog.healthKit.debug("Background delivery enabled: \(metric.rawValue, privacy: .public)")
             } catch {
                 LPLog.healthKit.error("Background delivery failed for \(metric.rawValue, privacy: .public): \(error.localizedDescription, privacy: .public)")
@@ -293,6 +293,16 @@ final class HealthDataService {
     /// a stress spike can push even while the app is backgrounded. No-ops on the
     /// simulator / any device without a readable heartbeat series (RMSSD `nil`).
     private func postStress() async {
+        // Cheap pre-check: the observer (fires on registration) and every
+        // foreground `reconcile()` re-fetch the same newest series. Peek its id
+        // first — a single `limit:1` query — and skip the expensive per-beat RR
+        // enumeration + workout-overlap read when we've already processed it. The
+        // synchronous check+set below still guards the rare concurrent race.
+        if let newestID = await HeartbeatSeriesReader.latestSeriesID(store: store),
+           newestID == StressLogStore.lastProcessedSeriesID {
+            LPLog.healthKit.debug("postStress: newest series already processed, skipping enumeration")
+            return
+        }
         guard let sample = await HeartbeatSeriesReader.latestSample(store: store) else {
             LPLog.healthKit.debug("postStress: no readable heartbeat series")
             return
@@ -457,9 +467,14 @@ final class HealthDataService {
             // (d) suspicious metadata (timezone shift, external UUID
             //     patterns) when overlap looks like it came from re-imports.
             LPLog.sleep.debug("=== \(samples.count, privacy: .public) samples · window=36h · hasStages=\(hasStages, privacy: .public) · sessions=\(sessions.count, privacy: .public) ===")
+            #if DEBUG
+            // Per-sample dump eagerly builds DateFormatter / metadata strings for
+            // *every* stage sample (a night can be dozens–hundreds) on the
+            // MainActor — a pure diagnostic, so keep it out of Release entirely.
             for (idx, s) in samples.enumerated() {
                 Self.dumpSleepSample(s, index: idx)
             }
+            #endif
             let startStr = earliestAsleep.map { LPLog.dateFormatter.string(from: $0) } ?? "nil"
             LPLog.sleep.info(">>> total=\(Int(total/60), privacy: .public)min deep=\(Int(deep/60), privacy: .public)min rem=\(Int(rem/60), privacy: .public)min start=\(startStr, privacy: .public)")
             continuation.yield(.sleep(total: total, deep: deep, rem: rem, start: earliestAsleep))

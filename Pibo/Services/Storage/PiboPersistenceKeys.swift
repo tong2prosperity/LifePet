@@ -19,6 +19,16 @@ nonisolated enum PiboPersistenceKeys {
         static let lastSeenDate = "pibo.dayRollover.lastSeenDate.v1"
         static let lastDecayAt = "pibo.decay.lastDecayAt.v1"
         static let pendingWorkout = "pibo.pendingWorkout.v1"
+        static let debugHistorySeedState = "pibo.debug.historySeedState.v1"
+        static let huarongRoadDifficulty = "pibo.games.huarongRoad.difficulty.v1"
+        static let huarongRoadBestMovesPrefix = "pibo.games.huarongRoad.bestMoves.v1."
+        static let memoryMatrixDifficulty = "pibo.games.memoryMatrix.difficulty.v1"
+        static let dualNBackLevel = "pibo.games.dualNBack.level.v1"
+        static let miniGameBestScorePrefix = "pibo.games.bestScore.v1."
+        static let miniGamePetalBalance = "pibo.games.petalBalance.v1"
+        static let idleGardenLastCollectAt = "pibo.games.idleGarden.lastCollectAt.v1"
+        static let idleGardenSeeds = "pibo.games.idleGarden.seeds.v1"
+        static let idleGardenPlantedPlots = "pibo.games.idleGarden.plantedPlots.v1"
 
         static let lifepetMigrationDone = "pibo.migration.lifepet.v1.done"
 

@@ -554,10 +554,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Pibo-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Pibo 想认识地球：用相机拍下你的食物，这份记录会变成它头上那株花的能量。";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Pibo 会用相机记录食物，也会在镜前接花瓣小游戏中识别你的动作。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Pibo 想知道你走到哪儿：用定位把你走过的路画成地图涂鸦，帮它圈一块花田。";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pibo 需要听见你呼唤它的名字，才能确认降临。";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pibo 会用麦克风确认呼唤，也会在吹散迷雾小游戏中感知长呼气。";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Pibo 使用手机动作来给原地踏步和摇花铃小游戏计步、计次。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pibo 使用语音识别确认你是否呼唤了它的名字。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -597,10 +598,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Pibo-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Pibo;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Pibo 想认识地球：用相机拍下你的食物，这份记录会变成它头上那株花的能量。";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Pibo 会用相机记录食物，也会在镜前接花瓣小游戏中识别你的动作。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Pibo 想知道你走到哪儿：用定位把你走过的路画成地图涂鸦，帮它圈一块花田。";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pibo 需要听见你呼唤它的名字，才能确认降临。";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pibo 会用麦克风确认呼唤，也会在吹散迷雾小游戏中感知长呼气。";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Pibo 使用手机动作来给原地踏步和摇花铃小游戏计步、计次。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pibo 使用语音识别确认你是否呼唤了它的名字。";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

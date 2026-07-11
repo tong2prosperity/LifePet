@@ -1,34 +1,29 @@
 import SwiftUI
 
-// MARK: - 健康小游戏列表 (游戏场)
-//
-// The 游戏场 zone entrance content. Every game here is **健康相关** (the worldview
-// is "你的身体就是宠物的食物") — they nudge the user to actually move, and the
-// result feeds Pibo's 运动能量. The first shipped game is 地图涂鸦 (walk doodle):
-// 出门走一幅画、圈一块花田. More body-driven games slot in as more cards.
-//
-// Presented as a full-screen cover from `HomeView` when the user taps into the
-// 游戏场 zone (`PiboStageScene.onEnterGames`). Each playable game presents itself
-// over this list; results bubble up via the supplied closures.
+// MARK: - 小游戏列表 (游戏场)
 
 struct GameListView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// A finished walk doodle — `HomeView` persists it + grants 运动能量 + lets
-    /// Pibo grumble a line (same handler the old home task card used).
+    /// A finished walk doodle — `HomeView` persists it + grants 运动能量.
     var onWalkDoodleSaved: (WalkDoodleResult) -> Void
 
-    @State private var showWalkDoodle = false
+    @State private var selectedGame: MiniGameKind?
+    #if DEBUG
+    @State private var debugOpenedGame = false
+    #endif
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             LP.Fill.bgSurfaceSecondary.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: LP.Spacing.l) {
+                LazyVStack(alignment: .leading, spacing: LP.Spacing.xxl) {
                     header
-                    walkDoodleCard
-                    comingSoonCard
+                    ForEach(MiniGameKind.sections, id: \.category) { section in
+                        gameSection(section.category, games: section.games)
+                    }
                     Color.clear.frame(height: LP.Spacing.xxl)
                 }
                 .padding(.horizontal, LP.Spacing.xl)
@@ -37,103 +32,109 @@ struct GameListView: View {
 
             closeButton
         }
-        .fullScreenCover(isPresented: $showWalkDoodle) {
-            // WalkDoodleView dismisses itself after 保存/返回; onSaved fires first.
-            WalkDoodleView(onSaved: onWalkDoodleSaved)
+        .lpDynamicTypeScaling()
+        .accessibilityAddTraits(.isModal)
+        .fullScreenCover(item: $selectedGame) { game in
+            MiniGameHostView(kind: game, onWalkDoodleSaved: onWalkDoodleSaved)
+        }
+        .onAppear {
+            Analytics.track(.gamesOpen, screen: "games")
+            #if DEBUG
+            if !debugOpenedGame, let debugGame = MiniGameKind.debugRequestedLaunchGame() {
+                debugOpenedGame = true
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    selectedGame = debugGame
+                }
+            }
+            #endif
         }
     }
-
-    // MARK: Header
 
     private var header: some View {
         VStack(alignment: .leading, spacing: LP.Spacing.s) {
             Text(AppLocalization.text("游戏场"))
                 .lpText(LP.Typography.b2Medium)
                 .foregroundStyle(LP.Content.secondary)
-            Text(AppLocalization.text("陪 Pibo 动一动"))
+            Text(AppLocalization.text("陪 Pibo 玩一局"))
                 .lpText(LP.Typography.uiH4)
-                .foregroundStyle(LP.Content.secondary)
-            // Garbled 魔丸 voice — raw, like the rest of the speech pools.
-            Text("...动一动...花...才会开...啵")
+                .foregroundStyle(LP.Content.primary)
+            Text("...别把我放进菜单里...快开始...啵")
                 .lpText(LP.Typography.c1Regular)
                 .foregroundStyle(LP.Content.tertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: Cards
+    private func gameSection(_ category: MiniGameCategory, games: [MiniGameKind]) -> some View {
+        let columns = dynamicTypeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.adaptive(minimum: 154), spacing: LP.Spacing.m)]
 
-    private var walkDoodleCard: some View {
+        return VStack(alignment: .leading, spacing: LP.Spacing.m) {
+            Text(AppLocalization.text(category.title))
+                .lpText(LP.Typography.b3Medium)
+                .foregroundStyle(LP.Content.tertiary)
+                .padding(.horizontal, LP.Spacing.xs)
+
+            LazyVGrid(columns: columns,
+                      alignment: .leading,
+                      spacing: LP.Spacing.m) {
+                ForEach(games) { game in
+                    gameCard(game)
+                }
+            }
+        }
+    }
+
+    private func gameCard(_ game: MiniGameKind) -> some View {
         Button {
             LPHaptics.tap()
-            showWalkDoodle = true
+            Analytics.track(.miniGameStart, screen: "games", ["game": .string(game.rawValue)])
+            selectedGame = game
         } label: {
-            gameCard(
-                glyph: "scribble.variable",
-                accent: true,
-                tag: AppLocalization.text("运动能量"),
-                title: AppLocalization.text("地图涂鸦"),
-                subtitle: AppLocalization.text("出门走一幅画 · 圈一块花田"),
-                playable: true
+            VStack(alignment: .leading, spacing: LP.Spacing.m) {
+                HStack(alignment: .top, spacing: LP.Spacing.s) {
+                    MiniGameKindBadgeAsset(kind: game)
+                        .frame(width: 38, height: 38)
+                    Spacer(minLength: 0)
+                    Text(AppLocalization.text(game.tag))
+                        .lpText(LP.Typography.c2Medium)
+                        .foregroundStyle(game.tint)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.7)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(AppLocalization.text(game.title))
+                        .lpText(LP.Typography.b3Medium)
+                        .foregroundStyle(LP.Content.primary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.72)
+                    Text(AppLocalization.text(game.subtitle))
+                        .lpText(LP.Typography.c1Regular)
+                        .foregroundStyle(LP.Content.tertiary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
+                        .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.78)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(LP.Spacing.l)
+            .frame(maxWidth: .infinity, minHeight: 142, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous)
+                    .fill(LP.Fill.bgContainer)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous)
+                    .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair)
+            )
+            .lpShadow(LP.Shadow.elevation1)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(AppLocalization.text("地图涂鸦：出门走一幅画"))
+        .accessibilityLabel(AppLocalization.text("\(game.title)：\(game.subtitle)"))
+        .accessibilityIdentifier("gameCard.\(game.rawValue)")
     }
-
-    private var comingSoonCard: some View {
-        gameCard(
-            glyph: "figure.run",
-            accent: false,
-            tag: AppLocalization.text("敬请期待"),
-            title: AppLocalization.text("更多健康小游戏"),
-            subtitle: AppLocalization.text("都和身体活动有关 · 正在路上"),
-            playable: false
-        )
-        .opacity(0.6)
-    }
-
-    private func gameCard(glyph: String, accent: Bool, tag: String, title: String,
-                          subtitle: String, playable: Bool) -> some View {
-        HStack(spacing: LP.Spacing.m) {
-            Image(systemName: glyph)
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(accent ? LP.Fill.foundationOnAccent : LP.Content.tertiary)
-                .frame(width: 48, height: 48)
-                .background(Circle().fill(accent ? LP.Fill.foundationAccent : LP.Fill.bgSurfaceSecondary))
-                .overlay(Circle().strokeBorder(LP.Border.tertiary, lineWidth: accent ? 0 : LP.BorderWidth.hair))
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(tag)
-                    .lpText(LP.Typography.c2Medium)
-                    .foregroundStyle(LP.Content.tertiary)
-                Text(title)
-                    .lpText(LP.Typography.b2Medium)
-                    .foregroundStyle(LP.Content.primary)
-                Text(subtitle)
-                    .lpText(LP.Typography.c1Regular)
-                    .foregroundStyle(LP.Content.tertiary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            if playable {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(LP.Content.quarternary)
-            }
-        }
-        .padding(LP.Spacing.l)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                .fill(LP.Fill.bgContainer))
-        .overlay(
-            RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair))
-        .lpShadow(LP.Shadow.elevation2)
-    }
-
-    // MARK: Close
 
     private var closeButton: some View {
         Button {
@@ -143,7 +144,7 @@ struct GameListView: View {
             Image(systemName: "xmark")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(LP.Content.secondary)
-                .frame(width: 36, height: 36)
+                .frame(width: 44, height: 44)
                 .background(Circle().fill(LP.Fill.bgContainer))
                 .lpShadow(LP.Shadow.elevation1)
         }
@@ -151,6 +152,53 @@ struct GameListView: View {
         .padding(.trailing, LP.Spacing.xl)
         .padding(.top, LP.Spacing.l)
         .accessibilityLabel(AppLocalization.text("关闭"))
+        .accessibilityIdentifier("games.close")
+    }
+}
+
+struct MiniGameHostView: View {
+    let kind: MiniGameKind
+    var onWalkDoodleSaved: (WalkDoodleResult) -> Void
+
+    var body: some View {
+        switch kind {
+        case .walkDoodle:
+            WalkDoodleView(onSaved: onWalkDoodleSaved)
+        case .huarongRoad:
+            HuarongRoadView()
+        case .stepLights:
+            StepLightsGameView()
+        case .bellSquat:
+            BellSquatGameView()
+        case .memoryMatrix:
+            MemoryMatrixGameView()
+        case .mistBreath:
+            MistBreathGameView()
+        case .breathFloat:
+            BreathFloatGameView()
+        case .dualNBack:
+            DualNBackGameView()
+        case .mirrorPetals:
+            MirrorPetalsGameView()
+        case .speedMatch:
+            SpeedMatchGameView()
+        case .trainThought:
+            TrainThoughtGameView()
+        case .petDetective:
+            PetDetectiveGameView()
+        case .flowerMerge:
+            FlowerMergeGameView()
+        case .potStack:
+            PotStackGameView()
+        case .rhythmTap:
+            RhythmTapGameView()
+        case .waterTiming:
+            WaterTimingGameView()
+        case .piboRunner:
+            PiboRunnerGameView()
+        case .idleGarden:
+            IdleGardenGameView()
+        }
     }
 }
 

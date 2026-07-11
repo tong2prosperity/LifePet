@@ -32,6 +32,8 @@ enum Analytics {
         case walkDoodleStart = "walk_doodle_start"
         case walkDoodleSaved = "walk_doodle_saved"
         case gamesOpen = "games_open"
+        case miniGameStart = "mini_game_start"
+        case miniGameFinish = "mini_game_finish"
         case historyOpen = "history_open"
         case settingsOpen = "settings_open"
         case themeChange = "theme_change"
@@ -84,8 +86,8 @@ enum Analytics {
 /// In-module property value so call sites don't need `import DataSneaker`
 /// (member-import-visibility would otherwise require it for `JSONValue`'s
 /// literal conformances). Flat scalars only — event properties stay flat.
-enum AnalyticsValue: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral,
-                     ExpressibleByFloatLiteral, ExpressibleByBooleanLiteral {
+nonisolated enum AnalyticsValue: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral,
+                                 ExpressibleByFloatLiteral, ExpressibleByBooleanLiteral {
     case string(String)
     case int(Int)
     case double(Double)
@@ -96,7 +98,7 @@ enum AnalyticsValue: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral,
     init(floatLiteral value: Double) { self = .double(value) }
     init(booleanLiteral value: Bool) { self = .bool(value) }
 
-    var json: JSONValue {
+    nonisolated var json: JSONValue {
         switch self {
         case .string(let value): .string(value)
         case .int(let value): .int(value)

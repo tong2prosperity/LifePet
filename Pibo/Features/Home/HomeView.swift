@@ -27,6 +27,9 @@ struct HomeView: View {
     @State private var showHistory = false
     @State private var showWalkDoodle = false
     @State private var showSettings = false
+    #if DEBUG
+    @State private var debugOpenedGames = false
+    #endif
     /// 拍照识别卡路里: which meal the pending camera capture belongs to (nil = a
     /// free 照相馆 shot with no recognition), and which meal's detail modal is up.
     @State private var pendingMeal: MealType? = nil
@@ -42,6 +45,11 @@ struct HomeView: View {
     /// Greeting / day-label cached once (they're "drawn once per day").
     @State private var greetingText: String = ""
     @State private var dayLabelText: String = ""
+    /// Today's 三餐 photos, cached in state so the (warm) home body doesn't run a
+    /// SwiftData fetch on every re-eval (e.g. each 拍一拍 flips `activityState`).
+    /// Refreshed on appear + whenever `history.revision` bumps (a capture / 卡路里
+    /// 分析 write).
+    @State private var todayPhotos: [FoodPhoto] = []
 
     @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
 
@@ -78,8 +86,10 @@ struct HomeView: View {
                 isPaused: stagePaused
             )
             .ignoresSafeArea()
+            .accessibilityHidden(stagePaused)
 
             chromeContent
+                .accessibilityHidden(stagePaused)
 
             // 发芽 close-up captions, synced to the stage phases.
             if sproutPhase == .collecting || sproutPhase == .sprouted {
@@ -97,13 +107,22 @@ struct HomeView: View {
                 EnergyCollectedPop(onDismiss: dismissEnergyPop)
             }
         }
+        .accessibilityHidden(stagePaused)
         .task { await idleMutterLoop() }
         .onAppear {
             greetingText = store.mowanGreeting
             dayLabelText = store.relationshipDayLabel
+            todayPhotos = history.foodPhotos(on: Date())
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-PiboSimulateMeal") {
                 Task { try? await Task.sleep(for: .seconds(1)); debugSimulateMeal(.lunch) }
+            }
+            if !debugOpenedGames, ProcessInfo.processInfo.arguments.contains("-PiboOpenGames") {
+                debugOpenedGames = true
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    showGames = true
+                }
             }
             #endif
             if store.pendingWorkout != nil {
@@ -115,6 +134,12 @@ struct HomeView: View {
         }
         .onChange(of: store.pendingWorkout?.id) { _, id in
             if id != nil { maybeStartEnergyFlow() }
+        }
+        .onChange(of: history.revision) { _, _ in
+            // A capture / 卡路里 分析 write landed — refresh the cached 三餐 photos
+            // off the body path so the meal icons relight without re-fetching per
+            // body eval.
+            todayPhotos = history.foodPhotos(on: Date())
         }
         .fullScreenCover(isPresented: $showCamera) {
             PiboCameraView(onPhotoSaved: { image, label in
@@ -270,13 +295,11 @@ struct HomeView: View {
     /// 早 / 中 / 晚 — three meal icons. Tap an empty one to shoot that meal (→
     /// camera → Kimi 卡路里 识别); tap a filled one to reopen its detail modal.
     private var mealIconsRow: some View {
-        // Depend on history writes so a fresh capture / analysis relights the icon.
-        let _ = history.revision
-        // One fetch for all three icons — not one query per icon per body eval.
-        let photos = history.foodPhotos(on: Date())
-        return HStack(spacing: LP.Spacing.s) {
+        // Reads the cached `todayPhotos` (refreshed on appear + history.revision) —
+        // no SwiftData fetch on the home body path.
+        HStack(spacing: LP.Spacing.s) {
             ForEach(MealType.allCases) { meal in
-                mealIcon(meal, photos: photos)
+                mealIcon(meal, photos: todayPhotos)
             }
         }
         .padding(.horizontal, LP.Spacing.m)

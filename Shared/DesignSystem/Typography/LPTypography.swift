@@ -114,6 +114,23 @@ extension LP {
             let natural = scaled * face.naturalLineHeightRatio
             return max(0, target - natural)
         }
+
+        var dynamicTypeReference: Font.TextStyle {
+            switch size {
+            case 28...:
+                return .largeTitle
+            case 20..<28:
+                return .title2
+            case 17..<20:
+                return .body
+            case 14..<17:
+                return .callout
+            case 12..<14:
+                return .footnote
+            default:
+                return .caption2
+            }
+        }
     }
 
     enum Face {
@@ -203,6 +220,54 @@ extension LP {
 
 // MARK: - Text / View sugar
 
+private struct LPDynamicTypeScalingKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var lpDynamicTypeScalingEnabled: Bool {
+        get { self[LPDynamicTypeScalingKey.self] }
+        set { self[LPDynamicTypeScalingKey.self] = newValue }
+    }
+}
+
+private struct LPTextStyleModifier: ViewModifier {
+    @Environment(\.lpDynamicTypeScalingEnabled) private var scalesWithDynamicType
+    @ScaledMetric private var dynamicSize: CGFloat
+
+    let style: LP.TextStyle
+
+    init(style: LP.TextStyle) {
+        self.style = style
+        _dynamicSize = ScaledMetric(
+            wrappedValue: LP.scaled(style),
+            relativeTo: style.dynamicTypeReference
+        )
+    }
+
+    func body(content: Content) -> some View {
+        let size = scalesWithDynamicType ? dynamicSize : LP.scaled(style)
+        let targetLineHeight = size * style.lineHeightMultiple
+        let naturalLineHeight = size * style.face.naturalLineHeightRatio
+
+        content
+            .font(resolvedFont(size: size))
+            .tracking(style.tracking)
+            .textCase(style.isUppercased ? .uppercase : .none)
+            .lineSpacing(max(0, targetLineHeight - naturalLineHeight))
+    }
+
+    private func resolvedFont(size: CGFloat) -> Font {
+        let base: Font
+        if let name = LP.customFaceName(for: style.face, weight: style.weight) {
+            base = .custom(name, fixedSize: size)
+        } else {
+            base = .system(size: size, weight: style.weight, design: style.face.systemDesign)
+        }
+        return style.isItalic ? base.italic() : base
+    }
+}
+
 extension View {
     /// The single point of entry for applying a design-system text style.
     /// Applies font, tracking, uppercase transform (for labels), and the
@@ -214,11 +279,14 @@ extension View {
     ///     .foregroundStyle(LP.Colors.muted)
     /// ```
     func lpText(_ style: LP.TextStyle) -> some View {
-        self
-            .font(style.font)
-            .tracking(style.tracking)
-            .textCase(style.isUppercased ? .uppercase : .none)
-            .lineSpacing(style.lineSpacing)
+        modifier(LPTextStyleModifier(style: style))
+    }
+
+    /// Enables Dynamic Type scaling for LP typography inside a bounded feature
+    /// surface. The default remains off so existing app screens keep their
+    /// current layout until they are audited and opted in.
+    func lpDynamicTypeScaling(_ enabled: Bool = true) -> some View {
+        environment(\.lpDynamicTypeScalingEnabled, enabled)
     }
 }
 

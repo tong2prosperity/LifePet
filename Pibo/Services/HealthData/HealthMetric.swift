@@ -36,6 +36,20 @@ enum HealthMetric: String, CaseIterable, Sendable {
         case .workout:         return HKWorkoutType.workoutType()
         }
     }
+
+    /// Background-delivery cadence. `.immediate` wakes the app on *every* watch
+    /// sync of this type — a real battery cost — so only genuinely time-sensitive
+    /// metrics use it: `.workout` (drives the 发芽/能量收集 flow) and
+    /// `.heartbeatSeries` (a stress spike can push a notification while
+    /// backgrounded). Everything else is passive daily-total data the foreground
+    /// `reconcile()` refreshes the moment the app opens, so `.hourly` background
+    /// wakes are plenty and far cheaper.
+    var backgroundDeliveryFrequency: HKUpdateFrequency {
+        switch self {
+        case .workout, .heartbeatSeries: return .immediate
+        default:                         return .hourly
+        }
+    }
 }
 
 extension Set where Element == HealthMetric {
