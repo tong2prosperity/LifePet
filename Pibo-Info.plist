@@ -9,6 +9,11 @@
 -->
 <plist version="1.0">
 <dict>
+	<!-- Allow Core Animation/UIKit surfaces to use the full ProMotion refresh
+	     range on supported iPhones instead of enforcing a 60 Hz minimum frame
+	     duration for the app. -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

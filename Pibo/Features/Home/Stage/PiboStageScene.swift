@@ -1,5 +1,6 @@
 import SpriteKit
 import SwiftUI
+import UIKit
 
 // MARK: - Pibo home stage (SpriteKit)
 //
@@ -47,6 +48,12 @@ final class PiboStageScene: SKScene {
     var onEnterCamera: (() -> Void)?
     /// 点击场景内「健身房」icon — SwiftUI 层弹出健康小游戏列表。
     var onEnterGames: (() -> Void)?
+    /// Direct manipulation asks the SwiftUI bridge for the display's maximum
+    /// cadence until the touch ends or is cancelled.
+    var onDirectManipulationChanged: ((Bool) -> Void)?
+    /// Authored reactions request a temporary high-refresh lease. Overlapping
+    /// leases are coalesced by `PiboStageRenderController`.
+    var onHighRefreshRequested: ((TimeInterval) -> Void)?
 
     // — Nodes —
     private let backdrop = SKNode()      // sky + ground
@@ -65,6 +72,8 @@ final class PiboStageScene: SKScene {
     private let rainBack = SKNode()      // 雨幕(Pibo 之后 — 景深层)
     private let rainFront = SKNode()     // 水花 + 滴在 Pibo(Pibo 之前)
     private let cam = SKCameraNode()
+    private var splashPool: [SKSpriteNode] = []
+    private var nextSplashPoolIndex = 0
 
     private var built = false
     /// True while the 发芽 close-up owns the camera (blocks pats + relayouts
@@ -74,14 +83,19 @@ final class PiboStageScene: SKScene {
     override func didMove(to view: SKView) {
         scaleMode = .resizeFill
         anchorPoint = .zero
-        backgroundColor = .clear
+        backgroundColor = SKColor(theme.scene.skyBottom)
         if size.width > 1, size.height > 1 { buildIfNeeded() }
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
         guard size.width > 1, size.height > 1 else { return }
+        let wasBuilt = built
         buildIfNeeded()
+        guard wasBuilt else { return }
+        rebuildBackdrop()
+        rebuildPibo()
         layoutAll()
+        if weather.isRainy { applyWeather() }
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -99,11 +113,19 @@ final class PiboStageScene: SKScene {
         theme = newTheme
         activityState = newState
         growth = newGrowth
+        if themeChanged { backgroundColor = SKColor(newTheme.scene.skyBottom) }
         guard built else { return }
         // A theme may switch between art and procedural Pibo, so rebuild the body
         // group (not just the backdrop/head) when the theme changes.
-        if themeChanged { rebuildBackdrop(); rebuildPibo() }
-        else if growthChanged { rebuildHead(); if weather.isRainy { rebuildPiboSurface() } }
+        if themeChanged {
+            rebuildBackdrop()
+            rebuildPibo()
+            layoutAll()
+            if weather.isRainy { applyWeather() }
+        } else if growthChanged {
+            rebuildHead()
+            if weather.isRainy { rebuildPiboSurface() }
+        }
         if stateChanged || themeChanged { applyState(animated: true) }
     }
 
@@ -121,6 +143,7 @@ final class PiboStageScene: SKScene {
     /// the head is already sprouted (the first collection plays the close-up).
     func playEnergyGain() {
         guard built else { return }
+        onHighRefreshRequested?(1.0)
         headNode.removeAction(forKey: "headIdle")
         let shake = SKAction.sequence([
             .rotate(toAngle: 0.18, duration: 0.06),
@@ -144,6 +167,7 @@ final class PiboStageScene: SKScene {
     /// full-screen instead of calling this.
     func playSproutCloseup(onPhase: @escaping (SproutCloseupPhase) -> Void) {
         guard built, !closeupActive else { onPhase(.finished); return }
+        onHighRefreshRequested?(5.0)
         closeupActive = true
         headNode.removeAction(forKey: "headIdle")
 
@@ -211,6 +235,7 @@ final class PiboStageScene: SKScene {
     /// the turned-away art, hold, turn back. Procedural themes just swivel.
     func playTurnAway() {
         guard built else { return }
+        onHighRefreshRequested?(2.1)
         if let backName = theme.bodyBackImage, let body = bodySprite {
             guard body.action(forKey: "turnAway") == nil else { return }
             let frontTexture = body.texture
@@ -249,6 +274,7 @@ final class PiboStageScene: SKScene {
     /// 拔毛 — a seed drops from the head and falls to the ground.
     func playPluck(color: SKColor) {
         guard built else { return }
+        onHighRefreshRequested?(1.4)
         let seed = SKShapeNode(ellipseOf: CGSize(width: 14, height: 18))
         seed.fillColor = color
         seed.strokeColor = .clear
@@ -307,6 +333,7 @@ final class PiboStageScene: SKScene {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard built, !closeupActive, hairTouch == nil, tapTouch == nil,
               let t = touches.first else { return }
+        onDirectManipulationChanged?(true)
         let p = t.location(in: self)
         // A touch that lands on the 毛 owns the gesture as a 拖毛 drag; everything
         // else is a tap candidate (拍一拍 / 场景 icon).
@@ -335,7 +362,10 @@ final class PiboStageScene: SKScene {
         // A tap candidate that wanders too far is no longer a tap.
         if let t = tapTouch, touches.contains(t) {
             let p = t.location(in: self)
-            if hypot(p.x - tapOrigin.x, p.y - tapOrigin.y) > Self.tapSlop { tapTouch = nil }
+            if hypot(p.x - tapOrigin.x, p.y - tapOrigin.y) > Self.tapSlop {
+                tapTouch = nil
+                onDirectManipulationChanged?(false)
+            }
         }
     }
 
@@ -348,6 +378,7 @@ final class PiboStageScene: SKScene {
         }
         guard let t = tapTouch, touches.contains(t) else { return }
         tapTouch = nil
+        onDirectManipulationChanged?(false)
         handleTap(at: t.location(in: self))
     }
 
@@ -357,7 +388,10 @@ final class PiboStageScene: SKScene {
             finishHairDrag(pulled: false)
             return
         }
-        if let t = tapTouch, touches.contains(t) { tapTouch = nil }
+        if let t = tapTouch, touches.contains(t) {
+            tapTouch = nil
+            onDirectManipulationChanged?(false)
+        }
     }
 
     // MARK: Tap routing
@@ -379,6 +413,7 @@ final class PiboStageScene: SKScene {
     }
 
     private func bounceIcon(_ node: SKNode?) {
+        onHighRefreshRequested?(0.5)
         node?.removeAction(forKey: "iconTap")
         node?.run(.sequence([
             .scale(to: 0.88, duration: 0.08),
@@ -390,6 +425,8 @@ final class PiboStageScene: SKScene {
     /// acknowledging wiggle for a mere poke — then resume the idle sway.
     private func finishHairDrag(pulled: Bool) {
         hairTouch = nil
+        onDirectManipulationChanged?(false)
+        onHighRefreshRequested?(0.7)
         let releaseAngle = headNode.zRotation
         let settle: SKAction
         if pulled {
@@ -439,6 +476,7 @@ final class PiboStageScene: SKScene {
         buildPibo()
         rebuildHead()
         layoutAll()
+        if weather.isRainy { applyWeather() }
         applyState(animated: false)
         startIdleBob()
         startHeadIdle()
@@ -468,7 +506,6 @@ final class PiboStageScene: SKScene {
         bodySprite = nil
         buildPibo()
         rebuildHead()
-        layoutAll()
         startIdleBob()
         startHeadIdle()
     }
@@ -596,9 +633,10 @@ final class PiboStageScene: SKScene {
             return
         }
         let sky = SKSpriteNode(texture: Self.gradientTexture(
-            size: size, top: SKColor(scene.skyTop), bottom: SKColor(scene.skyBottom)))
+            top: SKColor(scene.skyTop), bottom: SKColor(scene.skyBottom)))
         sky.anchorPoint = .zero
         sky.position = .zero
+        sky.size = size
         sky.zPosition = 0
         parent.addChild(sky)
 
@@ -634,38 +672,22 @@ final class PiboStageScene: SKScene {
         let s: CGFloat = 62
 
         // Contact shadow (static — the badge bobs above it).
-        let shadow = SKShapeNode(ellipseOf: CGSize(width: s * 0.86, height: s * 0.2))
-        shadow.fillColor = SKColor(white: 0, alpha: 0.12)
-        shadow.strokeColor = .clear
+        let shadow = SKSpriteNode(texture: Self.zoneShadowTexture)
+        shadow.size = CGSize(width: s * 0.9, height: s * 0.24)
         shadow.position = CGPoint(x: 0, y: -s * 0.62)
         shadow.zPosition = 0
         node.addChild(shadow)
 
         // Bobbing badge + glyph.
-        let float = SKNode()
+        let float = SKSpriteNode(texture: Self.zoneBadgeTexture(emoji: emoji, accent: accent))
+        float.size = CGSize(width: 66, height: 66)
         float.zPosition = 1
         node.addChild(float)
 
-        let badge = SKShapeNode(rectOf: CGSize(width: s, height: s), cornerRadius: 18)
-        badge.fillColor = SKColor(Color(hex: accent)).withAlphaComponent(0.94)
-        badge.strokeColor = SKColor(white: 1, alpha: 0.6)
-        badge.lineWidth = 2
-        float.addChild(badge)
-
-        let glyph = SKLabelNode(text: emoji)
-        glyph.fontSize = 30
-        glyph.verticalAlignmentMode = .center
-        glyph.horizontalAlignmentMode = .center
-        glyph.position = CGPoint(x: 0, y: 1)
-        float.addChild(glyph)
-
         // Title beneath (static, so it doesn't jitter with the bob).
-        let label = SKLabelNode(text: title)
-        label.fontName = "PingFangSC-Semibold"
-        label.fontSize = 13
-        label.fontColor = SKColor(Color(hex: 0x2B3338))
-        label.verticalAlignmentMode = .center
-        label.horizontalAlignmentMode = .center
+        let titleTexture = Self.zoneTitleTexture(title)
+        let label = SKSpriteNode(texture: titleTexture.texture)
+        label.size = titleTexture.size
         label.position = CGPoint(x: 0, y: -s * 0.5 - 15)
         label.zPosition = 1
         node.addChild(label)
@@ -674,6 +696,82 @@ final class PiboStageScene: SKScene {
         let down = SKAction.moveBy(x: 0, y: -5, duration: 1.4); down.timingMode = .easeInEaseOut
         float.run(.repeatForever(.sequence([up, down])))
         return node
+    }
+
+    private static let zoneShadowTexture: SKTexture = {
+        let size = CGSize(width: 58, height: 16)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            context.cgContext.setFillColor(UIColor(white: 0, alpha: 0.12).cgColor)
+            context.cgContext.fillEllipse(in: CGRect(origin: .zero, size: size))
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
+    }()
+
+    private static func zoneBadgeTexture(emoji: String, accent: UInt32) -> SKTexture {
+        let size = CGSize(width: 66, height: 66)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            let red = CGFloat((accent >> 16) & 0xFF) / 255
+            let green = CGFloat((accent >> 8) & 0xFF) / 255
+            let blue = CGFloat(accent & 0xFF) / 255
+            let badgeRect = CGRect(x: 2, y: 2, width: 62, height: 62)
+            let badge = UIBezierPath(roundedRect: badgeRect, cornerRadius: 18)
+            UIColor(red: red, green: green, blue: blue, alpha: 0.94).setFill()
+            badge.fill()
+            UIColor(white: 1, alpha: 0.6).setStroke()
+            badge.lineWidth = 2
+            badge.stroke()
+
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 30),
+                .paragraphStyle: paragraph,
+            ]
+            let value = NSString(string: emoji)
+            let bounds = value.boundingRect(
+                with: size,
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributes,
+                context: nil
+            )
+            value.draw(
+                in: CGRect(x: 0, y: (size.height - bounds.height) / 2 - 1,
+                           width: size.width, height: bounds.height),
+                withAttributes: attributes
+            )
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
+    }
+
+    private static func zoneTitleTexture(_ title: String) -> (texture: SKTexture, size: CGSize) {
+        let font = UIFont(name: "PingFangSC-Semibold", size: 13)
+            ?? UIFont.systemFont(ofSize: 13, weight: .semibold)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor(red: 43 / 255, green: 51 / 255, blue: 56 / 255, alpha: 1),
+        ]
+        let value = NSString(string: title)
+        let measured = value.size(withAttributes: attributes)
+        let size = CGSize(width: ceil(measured.width) + 4, height: ceil(measured.height) + 4)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            value.draw(at: CGPoint(x: 2, y: 2), withAttributes: attributes)
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return (texture, size)
     }
 
     /// Place the entrance icons flanking Pibo, seated near the ground band.
@@ -788,7 +886,6 @@ final class PiboStageScene: SKScene {
 
     private func layoutAll() {
         guard built else { return }
-        rebuildBackdrop()
         layoutZoneIcons()
         if usesArt {
             // Place the body sprite at the theme's design-frame body center; size
@@ -804,10 +901,6 @@ final class PiboStageScene: SKScene {
             cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
             cam.setScale(1)
         }
-        // Rain spread / ground line depend on size — rebuild on relayout (rare:
-        // size settle / theme change, never per-frame; the pull-up offsets the
-        // SpriteView without resizing the scene). No-op when not raining.
-        if weather.isRainy { applyWeather() }
     }
 
     private func positionHead() {
@@ -890,7 +983,10 @@ final class PiboStageScene: SKScene {
         fx.addChild(z)
         z.run(.repeatForever(.sequence([
             .group([.moveBy(x: 8, y: 24, duration: 1.6), .fadeOut(withDuration: 1.6)]),
-            .run { z.position = CGPoint(x: self.pibo.position.x + self.bodyWidth * 0.5, y: self.pibo.position.y + self.bodyHeight * 0.45) },
+            .run { [weak self, weak z] in
+                guard let self, let z else { return }
+                z.position = CGPoint(x: self.pibo.position.x + self.bodyWidth * 0.5, y: self.pibo.position.y + self.bodyHeight * 0.45)
+            },
             .fadeIn(withDuration: 0.01),
         ])))
     }
@@ -912,6 +1008,7 @@ final class PiboStageScene: SKScene {
     }
 
     private func bouncePibo() {
+        onHighRefreshRequested?(0.5)
         bodyForFX?.removeAction(forKey: "squash")
         let squash = SKAction.sequence([
             .scaleX(to: 1.12, y: 0.9, duration: 0.08),
@@ -948,8 +1045,8 @@ final class PiboStageScene: SKScene {
     //   3. 滴在 Pibo 上 — 同样在 `rainFront`,每隔一阵在 Pibo 顶部轮廓随机点投下一滴
     //      (实时读 `pibo.position.y`,跟着 idle bob 一起动),落点炸出同款水花。
     //
-    // 性能:不上物理引擎(脚本落点已够"滴在地面/Pibo 上"的识别度);二楼拉开时
-    // `SpriteView(isPaused:)`(p>0.98)会暂停整个场景 → 雨与水花自动停转,无需额外闸。
+    // 性能:不上物理引擎(脚本落点已够"滴在地面/Pibo 上"的识别度);全屏功能覆盖
+    // Home 时 SwiftUI 会暂停 scene 并移除承载它的 SKView → 雨与水花自动停转。
 
     /// 名义地面线(场景坐标,y 向上)。程序化主题 = 地面带顶;图片主题地面烘焙在
     /// 背景图里,这里用同一高度近似(后续可按主题加 `groundLineY` 微调)。
@@ -964,7 +1061,10 @@ final class PiboStageScene: SKScene {
     private func applyWeather() {
         rainBack.removeAllChildren();  rainBack.removeAllActions()
         rainFront.removeAllChildren(); rainFront.removeAllActions()
+        splashPool.removeAll(keepingCapacity: true)
+        nextSplashPoolIndex = 0
         guard weather.isRainy else { return }
+        prepareSplashPool()
         buildRainCurtain()
         startGroundSplashes()
         startPiboDrips()
@@ -1032,9 +1132,10 @@ final class PiboStageScene: SKScene {
         let land = CGPoint(x: pibo.position.x + local.x + CGFloat.random(in: -2 ... 2),
                            y: pibo.position.y + local.y + CGFloat.random(in: -2 ... 3))
         // 入射水滴(最后 ~46pt,因为雨幕在 Pibo 之后,需要一颗"落在 Pibo 前面"的滴)。
-        let drop = SKShapeNode(ellipseOf: CGSize(width: 3, height: 11))
-        drop.fillColor = Self.rainTint
-        drop.strokeColor = .clear
+        let drop = SKSpriteNode(texture: Self.rainTexture)
+        drop.size = CGSize(width: 3, height: 11)
+        drop.color = Self.rainTint
+        drop.colorBlendFactor = 1
         drop.position = CGPoint(x: land.x, y: land.y + 46)
         rainFront.addChild(drop)
         let fall = SKAction.moveTo(y: land.y, duration: 0.14)
@@ -1109,51 +1210,126 @@ final class PiboStageScene: SKScene {
     }
 
     /// 触水水花 — 皇冠扁环(快速外扩淡出)+ 回弹水珠(Rayleigh jet)+ 两侧溅滴。
-    /// 复用 `WaterSurface.impact` 的造型语言,移植成 SpriteKit 节点。
+    /// 复用 `WaterSurface.impact` 的造型语言。动画预渲染为纹理帧，并从固定
+    /// 节点池取 sprite，避免雨天每秒创建、曲面细分几十个 `SKShapeNode`。
     private func makeSplash(at p: CGPoint, scale s: CGFloat, flatten: CGFloat) {
-        // 皇冠扁环。
-        let ring = SKShapeNode(ellipseOf: CGSize(width: 11 * s, height: 11 * s * flatten))
-        ring.position = p
-        ring.strokeColor = Self.rainTint.withAlphaComponent(0.75)
-        ring.lineWidth = 1.4
-        ring.fillColor = .clear
-        ring.zPosition = 1
-        rainFront.addChild(ring)
-        ring.run(.sequence([
-            .group([.scale(to: 2.6, duration: 0.34), .fadeOut(withDuration: 0.34)]),
-            .removeFromParent(),
-        ]))
-        // 回弹水珠 — 升起再落下。
-        let bead = SKShapeNode(circleOfRadius: 1.7 * s)
-        bead.fillColor = Self.rainTint
-        bead.strokeColor = .clear
-        bead.position = p
-        bead.zPosition = 1
-        rainFront.addChild(bead)
-        let up = SKAction.moveBy(x: 0, y: 11 * s, duration: 0.16);   up.timingMode = .easeOut
-        let down = SKAction.moveBy(x: 0, y: -11 * s, duration: 0.16); down.timingMode = .easeIn
-        bead.run(.sequence([
-            .group([.sequence([up, down]), .fadeOut(withDuration: 0.32)]),
-            .removeFromParent(),
-        ]))
-        // 两侧溅滴。
-        for sign in [-1.0, 1.0] {
-            let d = SKShapeNode(circleOfRadius: 1.3 * s)
-            d.fillColor = Self.rainTint
-            d.strokeColor = .clear
-            d.position = p
-            d.zPosition = 1
-            rainFront.addChild(d)
-            d.run(.sequence([
-                .group([.moveBy(x: CGFloat(sign) * 12 * s, y: 9 * s, duration: 0.18),
-                        .fadeOut(withDuration: 0.22)]),
-                .removeFromParent(),
-            ]))
+        guard let splash = acquireSplashNode() else { return }
+        let isPiboSplash = flatten > 0.5
+        splash.texture = isPiboSplash ? Self.piboSplashFrames[0] : Self.groundSplashFrames[0]
+        splash.position = p
+        splash.setScale(s)
+        splash.alpha = 1
+        splash.isHidden = false
+        splash.run(isPiboSplash ? Self.piboSplashAction : Self.groundSplashAction)
+    }
+
+    private func prepareSplashPool() {
+        splashPool.reserveCapacity(Self.splashPoolSize)
+        for _ in 0..<Self.splashPoolSize {
+            let node = SKSpriteNode(texture: Self.groundSplashFrames[0])
+            node.size = Self.splashTextureSize
+            node.zPosition = 1
+            node.isHidden = true
+            rainFront.addChild(node)
+            splashPool.append(node)
         }
+    }
+
+    private func acquireSplashNode() -> SKSpriteNode? {
+        guard !splashPool.isEmpty else { return nil }
+        for offset in 0..<splashPool.count {
+            let index = (nextSplashPoolIndex + offset) % splashPool.count
+            let node = splashPool[index]
+            if node.isHidden || !node.hasActions() {
+                nextSplashPoolIndex = (index + 1) % splashPool.count
+                node.removeAllActions()
+                return node
+            }
+        }
+
+        // The pool is deliberately larger than the maximum normal concurrency;
+        // if a long frame overlaps every slot, recycle the oldest round-robin
+        // node instead of allocating on the hot path.
+        let node = splashPool[nextSplashPoolIndex]
+        nextSplashPoolIndex = (nextSplashPoolIndex + 1) % splashPool.count
+        node.removeAllActions()
+        return node
     }
 
     /// 雨滴贴图 — 一道柔和的竖直水痕(自上而下渐显)。建一次复用。
     private static let rainTint = SKColor(red: 0.62, green: 0.78, blue: 0.92, alpha: 1)
+    private static let splashPoolSize = 24
+    private static let splashTextureSize = CGSize(width: 48, height: 44)
+    private static let groundSplashFrames = splashFrames(flatten: 0.42)
+    private static let piboSplashFrames = splashFrames(flatten: 0.62)
+    private static let groundSplashAction = SKAction.sequence([
+        .animate(with: groundSplashFrames, timePerFrame: 0.34 / Double(groundSplashFrames.count - 1),
+                 resize: false, restore: false),
+        .hide(),
+    ])
+    private static let piboSplashAction = SKAction.sequence([
+        .animate(with: piboSplashFrames, timePerFrame: 0.34 / Double(piboSplashFrames.count - 1),
+                 resize: false, restore: false),
+        .hide(),
+    ])
+
+    private static func splashFrames(flatten: CGFloat) -> [SKTexture] {
+        let frameCount = 21
+        let duration: CGFloat = 0.34
+        let base = CGPoint(x: splashTextureSize.width / 2, y: splashTextureSize.height * 0.68)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        format.opaque = false
+
+        return (0..<frameCount).map { frame in
+            let time = CGFloat(frame) / CGFloat(frameCount - 1) * duration
+            let image = UIGraphicsImageRenderer(size: splashTextureSize, format: format).image { context in
+                let cg = context.cgContext
+
+                let ringProgress = min(1, time / duration)
+                let ringScale = 1 + 1.6 * ringProgress
+                let ringSize = CGSize(width: 11 * ringScale, height: 11 * flatten * ringScale)
+                cg.setStrokeColor(rainTint.withAlphaComponent(0.75 * (1 - ringProgress)).cgColor)
+                cg.setLineWidth(1.4)
+                cg.strokeEllipse(in: CGRect(
+                    x: base.x - ringSize.width / 2,
+                    y: base.y - ringSize.height / 2,
+                    width: ringSize.width,
+                    height: ringSize.height
+                ))
+
+                let beadProgress: CGFloat
+                let beadY: CGFloat
+                if time <= 0.16 {
+                    beadProgress = time / 0.16
+                    let eased = 1 - pow(1 - beadProgress, 2)
+                    beadY = base.y - 11 * eased
+                } else {
+                    beadProgress = min(1, (time - 0.16) / 0.16)
+                    beadY = base.y - 11 * (1 - beadProgress * beadProgress)
+                }
+                let beadAlpha = max(0, 1 - time / 0.32)
+                cg.setFillColor(rainTint.withAlphaComponent(beadAlpha).cgColor)
+                cg.fillEllipse(in: CGRect(x: base.x - 1.7, y: beadY - 1.7, width: 3.4, height: 3.4))
+
+                let sideProgress = min(1, time / 0.18)
+                let sideAlpha = max(0, 1 - time / 0.22)
+                cg.setFillColor(rainTint.withAlphaComponent(sideAlpha).cgColor)
+                for sign: CGFloat in [-1, 1] {
+                    let center = CGPoint(
+                        x: base.x + sign * 12 * sideProgress,
+                        y: base.y - 9 * sideProgress
+                    )
+                    cg.fillEllipse(in: CGRect(x: center.x - 1.3, y: center.y - 1.3,
+                                              width: 2.6, height: 2.6))
+                }
+            }
+            let texture = SKTexture(image: image)
+            texture.filteringMode = .linear
+            return texture
+        }
+    }
+
     private static let rainTexture: SKTexture = {
         let sz = CGSize(width: 4, height: 18)
         let img = UIGraphicsImageRenderer(size: sz).image { ctx in
@@ -1177,18 +1353,28 @@ final class PiboStageScene: SKScene {
         (0.77, 0.44, 0.3), (0.84, 0.72, 0.6), (0.91, 0.34, 0.5), (0.13, 0.88, 0.4),
     ]
 
-    private static func gradientTexture(size: CGSize, top: SKColor, bottom: SKColor) -> SKTexture {
-        let renderer = UIGraphicsImageRenderer(size: size)
+    /// A vertical gradient only needs a narrow source texture. Rendering it at
+    /// full-screen points with the device's 3x scale created a multi-megabyte
+    /// bitmap and texture upload on the main thread; SpriteKit can stretch this
+    /// small linear-filtered texture without changing the result.
+    private static func gradientTexture(top: SKColor, bottom: SKColor) -> SKTexture {
+        let textureSize = CGSize(width: 2, height: 256)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: textureSize, format: format)
         let img = renderer.image { ctx in
             let cg = ctx.cgContext
             let colors = [top.cgColor, bottom.cgColor] as CFArray
             guard let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
                                         colors: colors, locations: [0, 1]) else { return }
             cg.drawLinearGradient(grad,
-                                  start: CGPoint(x: size.width / 2, y: 0),
-                                  end: CGPoint(x: size.width / 2, y: size.height),
+                                  start: CGPoint(x: textureSize.width / 2, y: 0),
+                                  end: CGPoint(x: textureSize.width / 2, y: textureSize.height),
                                   options: [])
         }
-        return SKTexture(image: img)
+        let texture = SKTexture(image: img)
+        texture.filteringMode = .linear
+        return texture
     }
 }
