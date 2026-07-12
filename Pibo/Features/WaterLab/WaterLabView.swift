@@ -1,9 +1,10 @@
 import SwiftUI
+#if DEBUG
+import SpriteKit
 
-/// DEV page for proving the recommended water workflow:
-/// static illustration + stream mask + Metal shader animation. The current
-/// source art is `water_lab_scene`, generated from
-/// `tmp/generated/pibo_forest_with_flowing_stream.png`.
+/// DEV controls for the exact SpriteKit river used by production Home. This
+/// intentionally owns no second renderer: sliders update `ForestStream.fsh`
+/// uniforms on `PiboStageScene` directly.
 struct WaterLabView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -93,7 +94,7 @@ struct WaterLabView: View {
             } label: {
                 HStack(spacing: LP.Spacing.s) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Metal 流水实验")
+                        Text("生产流水实验")
                             .lpText(LP.Typography.uiH4)
                             .foregroundStyle(LP.Content.primary)
                         if !controlsExpanded {
@@ -120,7 +121,7 @@ struct WaterLabView: View {
             .accessibilityLabel(controlsExpanded ? "折叠调节面板" : "展开调节面板")
 
             if controlsExpanded {
-                Text("背景图保持静态，只在溪流遮罩内做折射、滚动高光和水纹。")
+                Text("首页同一套分层素材与 ForestStream.fsh；只在溪流 alpha 遮罩内做折射和高光。")
                     .lpText(LP.Typography.c1Regular)
                     .foregroundStyle(LP.Content.tertiary)
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -167,63 +168,38 @@ private struct WaterLabScene: View {
     var showMask: Bool
     var isPaused: Bool
 
-    private let imageSize = CGSize(width: 1320, height: 1760)
+    @State private var scene = PiboStageScene(size: CGSize(width: 390, height: 760))
 
     var body: some View {
-        let fitted = aspectFillRect(image: imageSize, in: containerSize)
-        ZStack {
-            Image("water_lab_scene")
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: containerSize.width, height: containerSize.height)
-                .clipped()
-
-            TimelineView(.animation(paused: isPaused)) { timeline in
-                let t = timeline.date.timeIntervalSinceReferenceDate
-                    .truncatingRemainder(dividingBy: 120)
-                Image("water_lab_scene")
-                    .resizable()
-                    .frame(width: fitted.width, height: fitted.height)
-                    .layerEffect(
-                        ShaderLibrary.flowingStream(
-                            .float2(fitted.size),
-                            .float(Float(t)),
-                            .float(Float(speed)),
-                            .float(Float(rippleStrength)),
-                            .float(Float(highlightStrength))
-                        ),
-                        maxSampleOffset: CGSize(width: 18, height: 18)
-                    )
-                    .frame(width: fitted.width, height: fitted.height)
-                    .allowsHitTesting(false)
+        PiboStageRenderView(scene: scene, preferredFramesPerSecond: isPaused ? 1 : 60)
+            .frame(width: containerSize.width, height: containerSize.height)
+            .clipped()
+            .onAppear { configureScene() }
+            .onChange(of: containerSize) { _, _ in configureScene() }
+            .onChange(of: speed) { _, _ in updateWater() }
+            .onChange(of: rippleStrength) { _, _ in updateWater() }
+            .onChange(of: highlightStrength) { _, _ in updateWater() }
+            .onChange(of: showMask) { _, _ in updateWater() }
+            .onChange(of: isPaused) { _, paused in
+                scene.isPaused = paused
             }
-
-            if showMask {
-                Image("water_lab_scene")
-                    .resizable()
-                    .frame(width: fitted.width, height: fitted.height)
-                    .colorEffect(ShaderLibrary.streamMaskPreview(.float2(fitted.size)))
-                    .frame(width: fitted.width, height: fitted.height)
-                    .allowsHitTesting(false)
-                    .blendMode(.plusLighter)
-            }
-        }
-        .frame(width: containerSize.width, height: containerSize.height)
-        .clipped()
     }
 
-    private func aspectFillRect(image: CGSize, in container: CGSize) -> CGRect {
-        guard image.width > 0, image.height > 0,
-              container.width > 0, container.height > 0 else {
-            return CGRect(origin: .zero, size: container)
-        }
-        let scale = max(container.width / image.width, container.height / image.height)
-        let size = CGSize(width: image.width * scale, height: image.height * scale)
-        return CGRect(
-            x: (container.width - size.width) / 2,
-            y: (container.height - size.height) / 2,
-            width: size.width,
-            height: size.height
+    private func configureScene() {
+        if containerSize.width > 1, containerSize.height > 1 { scene.size = containerSize }
+        scene.apply(theme: .forest, state: .idle, growth: .sprouted)
+        scene.setEnvironment(.daylight)
+        scene.setLowPowerMode(false)
+        scene.isPaused = isPaused
+        updateWater()
+    }
+
+    private func updateWater() {
+        scene.setWaterDebugTuning(
+            speed: speed,
+            rippleStrength: rippleStrength,
+            highlightStrength: highlightStrength,
+            showMask: showMask
         )
     }
 }
@@ -231,3 +207,4 @@ private struct WaterLabScene: View {
 #Preview {
     WaterLabView()
 }
+#endif

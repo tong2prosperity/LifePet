@@ -10,7 +10,7 @@ import Foundation
 // (不渲染特效),等后续各自补氛围。
 //
 // 数据源:v1 由设置页的 DEBUG 开关手动切换(见 `SettingsSheet`),写进
-// `PetStateStore.weather`,由 `HomeView` 透传给 `PiboStageView.setWeather`。
+// `PetStateStore.weather`,由 `HomeView` 映射进 `ForestEnvironmentSnapshot`。
 // 接入 WeatherKit 后,改由 `WeatherService` 写入 `store.weather` —— 映射见文件
 // 末尾"WeatherKit 接入"注释块,届时取消注释即可,无需改动场景层。
 

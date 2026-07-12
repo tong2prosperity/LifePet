@@ -12,15 +12,14 @@ struct PiboStageView: View {
     let state: PiboActivityState
     /// 魔丸 head growth (「?」卷芽 ⇄ 发芽带叶) — drives which head sprite shows.
     var growth: PiboGrowthStage = .sprouted
-    /// 当前天气 — 开/关下雨三件套(雨幕 / 地面水花 / 滴在 Pibo 上)。
-    var weather: PiboWeather = .clear
+    /// Local-time lighting, wind, and DEBUG-only precipitation.
+    var environment: ForestEnvironmentSnapshot = .daylight
+    /// Fine-grained renderer controls. Release Home keeps the standard values;
+    /// DEBUG exposes them in a collapsible overlay.
+    var tuning: ForestSceneTuning = .standard
     var onPat: () -> Void = {}
     /// Fired when the head 毛 is dragged past the pull threshold (the 拔毛 gesture).
     var onHairPulled: () -> Void = {}
-    /// 点击场景内「摄影馆」icon → 弹出露珠相机。
-    var onEnterCamera: () -> Void = {}
-    /// 点击场景内「健身房」icon → 弹出健康小游戏列表。
-    var onEnterGames: () -> Void = {}
     /// Bump to fire the 能量收集 头顶毛 animation.
     var energyGainToken: UUID? = nil
     /// Set to drop a 拔毛 seed of the given color.
@@ -84,7 +83,8 @@ struct PiboStageView: View {
             .onChange(of: theme.id) { _, _ in scene.apply(theme: theme, state: state, growth: growth) }
             .onChange(of: state) { _, _ in scene.apply(theme: theme, state: state, growth: growth) }
             .onChange(of: growth) { _, _ in scene.apply(theme: theme, state: state, growth: growth) }
-            .onChange(of: weather) { _, w in scene.setWeather(w) }
+            .onChange(of: environment) { _, value in scene.setEnvironment(value) }
+            .onChange(of: tuning) { _, value in scene.setTuning(value) }
             .onChange(of: energyGainToken) { _, token in
                 if token != nil { scene.playEnergyGain() }
             }
@@ -99,16 +99,17 @@ struct PiboStageView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
                 renderController.refreshLowPowerMode()
+                scene.setLowPowerMode(renderController.lowPowerModeEnabled)
             }
         }
     }
 
     private func configureScene(size: CGSize) {
         if size.width > 1, size.height > 1 { scene.size = size }
+        renderController.refreshLowPowerMode()
+        scene.setLowPowerMode(renderController.lowPowerModeEnabled)
         scene.onPat = onPat
         scene.onHairPulled = onHairPulled
-        scene.onEnterCamera = onEnterCamera
-        scene.onEnterGames = onEnterGames
         scene.onDirectManipulationChanged = { [weak renderController] active in
             renderController?.setDirectManipulation(active: active)
         }
@@ -116,7 +117,8 @@ struct PiboStageView: View {
             renderController?.requestHighRefresh(for: duration)
         }
         scene.apply(theme: theme, state: state, growth: growth)
-        scene.setWeather(weather)
+        scene.setEnvironment(environment)
+        scene.setTuning(tuning)
     }
 }
 

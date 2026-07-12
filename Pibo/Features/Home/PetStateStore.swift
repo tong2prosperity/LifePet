@@ -307,9 +307,8 @@ final class PetStateStore {
     }
 
     private static let selectedThemeKey = "pibo.theme.selected.v1"
-    /// User-picked 关于毛的主题 id (settings gear → 主题). `nil` = default 魔丸.
-    /// Loaded in `init`, persisted on change; `currentTheme`
-    /// (`PetStateStore+Mowan`) resolves it against `PiboTheme.selectable`.
+    /// DEBUG-only preview selection persisted across launches. Release ignores
+    /// this value and `currentTheme` always resolves to the production forest.
     var selectedThemeID: String? = nil {
         didSet {
             if let selectedThemeID {
@@ -339,9 +338,8 @@ final class PetStateStore {
 
     private static let weatherKey = "pibo.weather.v1"
     /// 当前天气 — 驱动首页 SpriteKit 场景的氛围(雨幕 / 地面水花 / 滴在 Pibo 上)。
-    /// v1 由设置页的 DEBUG 开关手动切换;接入 WeatherKit 后改由 WeatherService 写入
-    /// (`WeatherCondition.piboWeather`,见 `PiboWeather.swift`)。持久化便于演示跨重启
-    /// 保持;`reset()` 清回 `.clear`。
+    /// The DEBUG settings switch writes this value. Release Home clamps rain to
+    /// zero, so a persisted developer override can never affect production.
     var weather: PiboWeather = .clear {
         didSet {
             guard weather != oldValue else { return }
@@ -349,6 +347,21 @@ final class PetStateStore {
             LPLog.petState.notice("weather → \(self.weather.rawValue, privacy: .public)")
         }
     }
+
+    #if DEBUG
+    private static let debugForestDayPhaseKey = "pibo.debug.forestDayPhase.v1"
+    /// Nil follows local time. A value is a developer-only lighting override;
+    /// Release builds do not compile or read it.
+    var debugForestDayPhase: ForestDayPhase? = nil {
+        didSet {
+            if let debugForestDayPhase {
+                UserDefaults.standard.set(debugForestDayPhase.rawValue, forKey: Self.debugForestDayPhaseKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.debugForestDayPhaseKey)
+            }
+        }
+    }
+    #endif
 
     /// First 运动能量 collected — the 毛 sprouts its leaf. Idempotent.
     func markSprouted() {
@@ -578,6 +591,10 @@ final class PetStateStore {
             rawValue: UserDefaults.standard.string(forKey: Self.growthStageKey) ?? "") ?? .mystery
         self.appearance = PiboAppearance.decoded(from: UserDefaults.standard.data(forKey: Self.appearanceKey))
         self.weather = PiboWeather(rawValue: UserDefaults.standard.string(forKey: Self.weatherKey) ?? "") ?? .clear
+        #if DEBUG
+        self.debugForestDayPhase = ForestDayPhase(
+            rawValue: UserDefaults.standard.string(forKey: Self.debugForestDayPhaseKey) ?? "")
+        #endif
         LPLog.petState.notice("PetStateStore init demoMode=\(demoMode, privacy: .public) eventsBound=\(events != nil, privacy: .public) day=\(identity.daysSinceBirth, privacy: .public)")
 
         // Cold-launch rollover catch-up. If the app was killed across one or
@@ -763,6 +780,10 @@ final class PetStateStore {
         UserDefaults.standard.removeObject(forKey: Self.appearanceKey)
         weather = .clear
         UserDefaults.standard.removeObject(forKey: Self.weatherKey)
+        #if DEBUG
+        debugForestDayPhase = nil
+        UserDefaults.standard.removeObject(forKey: Self.debugForestDayPhaseKey)
+        #endif
         selectedThemeID = nil
         story.reset()
         // Stress is per-pet too — drop the RMSSD baseline window + the measure

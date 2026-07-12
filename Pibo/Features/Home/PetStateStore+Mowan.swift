@@ -253,10 +253,12 @@ extension PetStateStore {
     /// themes are selectable in `SettingsSheet`; date-driven 节气/活动 unlock
     /// rules are a later pass.
     var currentTheme: PiboTheme {
+        #if DEBUG
         if let id = selectedThemeID,
            let chosen = PiboTheme.selectable.first(where: { $0.id == id }) {
             return chosen
         }
-        return .demon
+        #endif
+        return .forest
     }
 }

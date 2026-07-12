@@ -32,7 +32,9 @@ struct SettingsSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: LP.Spacing.xl) {
                 header
+                #if DEBUG
                 themeSection
+                #endif
                 membershipSection
                 notifySection
                 dangerSection
@@ -82,8 +84,9 @@ struct SettingsSheet: View {
             .padding(.top, LP.Spacing.s)
     }
 
-    // MARK: 主题
+    // MARK: 主题 (DEBUG legacy preview only)
 
+    #if DEBUG
     private var themeSection: some View {
         VStack(alignment: .leading, spacing: LP.Spacing.s) {
             Text(AppLocalization.text("关于毛的主题"))
@@ -135,7 +138,8 @@ struct SettingsSheet: View {
     }
 
     private func themeName(_ theme: PiboTheme) -> String {
-        theme.displayName.isEmpty ? AppLocalization.text("魔丸（默认）") : AppLocalization.text(theme.displayName)
+        if theme.id == PiboTheme.forest.id { return "森林（正式版）" }
+        return theme.displayName.isEmpty ? AppLocalization.text("魔丸") : AppLocalization.text(theme.displayName)
     }
 
     /// A slice of the theme's backdrop as the row thumbnail (procedural themes
@@ -159,6 +163,7 @@ struct SettingsSheet: View {
                 .strokeBorder(LP.Border.primary, lineWidth: LP.BorderWidth.hair)
         )
     }
+    #endif
 
     // MARK: 会员
 
@@ -376,11 +381,13 @@ struct SettingsSheet: View {
                     LPHaptics.tap()
                     showWaterLab = true
                 } label: {
-                    debugRow("Metal 流水实验")
+                    debugRow("生产流水实验")
                 }
                 .buttonStyle(.plain)
                 Divider().overlay(LP.Separator.primary)
                 weatherDebugRow
+                Divider().overlay(LP.Separator.primary)
+                dayPhaseDebugRow
             }
             .background(
                 RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
@@ -397,7 +404,7 @@ struct SettingsSheet: View {
                 .lpText(LP.Typography.b3Medium)
                 .foregroundStyle(LP.Content.secondary)
             Spacer(minLength: 0)
-            ForEach([PiboWeather.clear, .rain, .thunderstorm, .snow], id: \.self) { w in
+            ForEach([PiboWeather.clear, .rain, .thunderstorm], id: \.self) { w in
                 let on = store.weather == w
                 Button {
                     LPHaptics.tap()
@@ -413,6 +420,30 @@ struct SettingsSheet: View {
                         )
                 }
                 .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, LP.Spacing.m)
+        .padding(.vertical, LP.Spacing.s + 2)
+    }
+
+    private var dayPhaseDebugRow: some View {
+        HStack(spacing: LP.Spacing.s) {
+            Text("森林时间")
+                .lpText(LP.Typography.b3Medium)
+                .foregroundStyle(LP.Content.secondary)
+            Spacer(minLength: 0)
+            Menu {
+                Button("自动（本地时间）") { store.debugForestDayPhase = nil }
+                ForEach(ForestDayPhase.allCases, id: \.self) { phase in
+                    Button(phase.displayName) { store.debugForestDayPhase = phase }
+                }
+            } label: {
+                Text(store.debugForestDayPhase?.displayName ?? "自动")
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(LP.Content.secondary)
+                    .padding(.horizontal, LP.Spacing.s)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(LP.Fill.bgSurfaceSecondary))
             }
         }
         .padding(.horizontal, LP.Spacing.m)

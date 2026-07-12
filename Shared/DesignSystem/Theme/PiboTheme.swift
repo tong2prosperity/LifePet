@@ -106,6 +106,28 @@ enum PiboHeadItem: Hashable {
 // MARK: - Presets
 
 extension PiboTheme {
+    /// Production home appearance. The forest itself is assembled from the
+    /// layered Figma artwork in `ForestSceneManifest`; these scene colors are
+    /// the safe fallback behind transparent edges and for non-home previews.
+    static let forest = PiboTheme(
+        id: "forest",
+        displayName: "",
+        scene: PiboScene(
+            skyTop: Color(hex: 0xD3EEE3), skyBottom: Color(hex: 0xB5DFCF),
+            ground: Color(hex: 0x9BCA5A), groundAccent: Color(hex: 0x41C7C9),
+            terrain: .meadow
+        ),
+        headItem: .sprout,
+        bodyImage: "forest_pibo_body",
+        bodyCenterX: 196.5,
+        bodyCenterY: 510.2,
+        headSprite: PiboThemeSprite(image: "forest_pibo_head", centerX: 121.28, centerY: 443.7),
+        // The current Figma file has one latest head state. Keeping a replacement
+        // entry preserves the existing first-energy flow while the animation is
+        // expressed through scale/rotation instead of an old texture swap.
+        sproutedHeadSprite: PiboThemeSprite(image: "forest_pibo_head", centerX: 121.28, centerY: 443.7)
+    )
+
     /// 魔丸态默认 — Day 1: floating slab in a void, 黑洞 + 「?」卷芽 over the head.
     /// Fully image-backed (restored from Figma 74:5917): the platform slab
     /// (`demon_bg`), the shared 白团子 (`pibo_body`), the 「?」卷芽 (`demon_curl`,
@@ -181,10 +203,10 @@ extension PiboTheme {
     )
 
     /// All themes shipped today (default first).
-    static let presets: [PiboTheme] = [.demon, .sprout, .peachSeason, .aranyaSeaBreeze]
+    static let presets: [PiboTheme] = [.forest, .demon, .sprout, .peachSeason, .aranyaSeaBreeze]
 
-    /// Themes offered in the settings 主题 picker — the three finished,
-    /// image-backed looks from Figma 74:6101 (procedural `.sprout` stays a
-    /// fallback, not a user choice).
-    static let selectable: [PiboTheme] = [.demon, .peachSeason, .aranyaSeaBreeze]
+    /// Themes offered only by the DEBUG settings picker. Production always
+    /// resolves to `.forest`; procedural `.sprout` stays a fallback, not a user
+    /// choice.
+    static let selectable: [PiboTheme] = [.forest, .demon, .peachSeason, .aranyaSeaBreeze]
 }

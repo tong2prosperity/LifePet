@@ -5,8 +5,8 @@ import UIKit
 // MARK: - Pibo home stage (SpriteKit)
 //
 // The home activity zone is a SpriteKit scene (chosen for the growing amount of
-// 2D-game-like animation: idle motion, 拍一拍 reactions, 拔毛, 头顶毛/能量收集,
-// background transitions, particles). SwiftUI owns only the surrounding chrome.
+// 2D-game-like animation: flowing water, foliage, atmosphere, idle motion,
+// 拍一拍 reactions, 拔毛, 头顶毛/能量收集, and particles). SwiftUI owns chrome.
 //
 // Data in: a `PiboTheme` (scene backdrop + head item), a `PiboGrowthStage`
 // (魔丸 「?」卷芽 ⇄ 发芽带叶), and a `PiboActivityState` (drives Pibo's
@@ -14,9 +14,7 @@ import UIKit
 // a drag on the head 毛 bends it and fires `onHairPulled` on release — the
 // SwiftUI layer decides how Pibo reacts (the spec's caps live in
 // `PetStateStore.pat()`; the pull is 拔毛 when the window is open). Two 场景内
-// icon (摄影馆 / 健身房) flank Pibo — a tap on either enters its feature
-// (`onEnterCamera` / `onEnterGames`). No camera pan / 横向逛场景 — the stage is a
-// single fixed home scene.
+// No camera pan / 横向逛场景 — the stage is a single fixed portrait forest.
 //
 // Node tree (z back→front): backdrop(sky → ground) → 场景 icons → pibo(shadow,
 // body, eyes, blush, head 毛) → overhead 黑洞 → fx (Zzz / sparkles / seeds). A
@@ -36,18 +34,13 @@ final class PiboStageScene: SKScene {
     private(set) var theme: PiboTheme = .sprout
     private(set) var activityState: PiboActivityState = .idle
     private(set) var growth: PiboGrowthStage = .mystery
-    /// 当前天气 — 驱动雨幕 / 地面水花 / 滴在 Pibo 上（见「Weather」段）。
-    private(set) var weather: PiboWeather = .clear
+    private(set) var environment: ForestEnvironmentSnapshot = .daylight
     /// Fired on a tap that lands on Pibo's body (拍一拍).
     var onPat: (() -> Void)?
     /// Fired when the head 毛 is dragged past the pull threshold and released —
     /// the 拔毛 gesture. The scene plays the local snap-back; the SwiftUI layer
     /// decides what the pull *means* (collect the seed / an annoyed turn-away).
     var onHairPulled: (() -> Void)?
-    /// 点击场景内「摄影馆」icon — SwiftUI 层弹出露珠相机。
-    var onEnterCamera: (() -> Void)?
-    /// 点击场景内「健身房」icon — SwiftUI 层弹出健康小游戏列表。
-    var onEnterGames: (() -> Void)?
     /// Direct manipulation asks the SwiftUI bridge for the display's maximum
     /// cadence until the touch ends or is cancelled.
     var onDirectManipulationChanged: ((Bool) -> Void)?
@@ -56,10 +49,16 @@ final class PiboStageScene: SKScene {
     var onHighRefreshRequested: ((TimeInterval) -> Void)?
 
     // — Nodes —
-    private let backdrop = SKNode()      // sky + ground
-    private let iconLayer = SKNode()     // 场景内的 摄影馆 / 健身房 入口 icon
-    private var studioIcon: SKNode?      // 摄影馆 → onEnterCamera
-    private var gymIcon: SKNode?         // 健身房 → onEnterGames
+    private let backdrop = SKNode()      // legacy backdrop or layered forest
+    private let forestFoliageLayer = SKNode()
+    private var forestFoliage: [ForestFoliageNode] = []
+    private var forestWaterNode: SKSpriteNode?
+    private var morningLightNode: SKSpriteNode?
+    private let firefliesNode = SKNode()
+    private var fireflyEmitter: SKEmitterNode?
+    private let atmosphereNode = SKNode()
+    private let multiplyOverlay = SKSpriteNode(color: .clear, size: .zero)
+    private let screenOverlay = SKSpriteNode(color: .clear, size: .zero)
     private let pibo = SKNode()          // body group (bobs as a unit)
     private var bodyNode: SKShapeNode?   // procedural egg body
     private var bodySprite: SKSpriteNode? // art body (when theme.bodyImage set)
@@ -74,6 +73,20 @@ final class PiboStageScene: SKScene {
     private let cam = SKCameraNode()
     private var splashPool: [SKSpriteNode] = []
     private var nextSplashPoolIndex = 0
+    private var lastUpdateTime: TimeInterval = 0
+    private var flowTime: Float = 0
+    private var lowPowerModeEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled
+    private var tuning: ForestSceneTuning = .standard
+
+    #if DEBUG
+    private struct WaterDebugTuning {
+        var speed: Float
+        var rippleStrength: Float
+        var highlightStrength: Float
+        var showMask: Bool
+    }
+    private var waterDebugTuning: WaterDebugTuning?
+    #endif
 
     private var built = false
     /// True while the 发芽 close-up owns the camera (blocks pats + relayouts
@@ -95,13 +108,28 @@ final class PiboStageScene: SKScene {
         rebuildBackdrop()
         rebuildPibo()
         layoutAll()
-        if weather.isRainy { applyWeather() }
+        applyAtmosphere(animated: false)
+        if environment.rainIntensity > 0 { applyWeather() }
     }
 
     override func update(_ currentTime: TimeInterval) {
         // Belt-and-suspenders: if the scene wasn't built by didMove/didChangeSize
         // (SwiftUI SpriteView size timing), build as soon as a valid size lands.
         if !built, size.width > 1, size.height > 1 { buildIfNeeded() }
+        guard built else { return }
+        let delta = lastUpdateTime > 0 ? min(currentTime - lastUpdateTime, 1.0 / 15.0) : 0
+        lastUpdateTime = currentTime
+        guard theme.id == PiboTheme.forest.id else { return }
+
+        flowTime.formTruncatingRemainder(dividingBy: 120)
+        flowTime += Float(delta)
+        forestWaterNode?.shader?.uniformNamed("u_flow_time")?.floatValue = flowTime
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled
+        var tunedWind = environment.wind
+        tunedWind.strength *= CGFloat(tuning.foliageMotionScale)
+        for leaf in forestFoliage {
+            leaf.update(time: currentTime, deltaTime: delta, wind: tunedWind, reduceMotion: reduceMotion)
+        }
     }
 
     // MARK: Public API (called from the SwiftUI wrapper)
@@ -118,25 +146,70 @@ final class PiboStageScene: SKScene {
         // A theme may switch between art and procedural Pibo, so rebuild the body
         // group (not just the backdrop/head) when the theme changes.
         if themeChanged {
+            let forest = newTheme.id == PiboTheme.forest.id
+            pibo.zPosition = forest ? 20 : 0
+            overheadNode.zPosition = forest ? 33 : 13
+            rainBack.zPosition = forest ? 24 : 5
             rebuildBackdrop()
             rebuildPibo()
             layoutAll()
-            if weather.isRainy { applyWeather() }
+            applyAtmosphere(animated: false)
+            if environment.rainIntensity > 0 { applyWeather() }
         } else if growthChanged {
             rebuildHead()
-            if weather.isRainy { rebuildPiboSurface() }
+            if environment.rainIntensity > 0 { rebuildPiboSurface() }
         }
         if stateChanged || themeChanged { applyState(animated: true) }
     }
 
-    /// 设置天气 — 开/关下雨三件套。场景未建好时只记录,建好后(`buildIfNeeded`
-    /// → `layoutAll`)会据 `weather` 自动渲染。
-    func setWeather(_ newWeather: PiboWeather) {
-        guard newWeather != weather else { return }
-        weather = newWeather
+    func setEnvironment(_ newEnvironment: ForestEnvironmentSnapshot) {
+        guard newEnvironment != environment else { return }
+        let rainChanged = newEnvironment.rainIntensity != environment.rainIntensity
+        let phaseChanged = newEnvironment.dayPhase != environment.dayPhase
+        environment = newEnvironment
         guard built else { return }
-        applyWeather()
+        if phaseChanged { applyAtmosphere(animated: true) }
+        updateWaterLighting()
+        if rainChanged { applyWeather() }
     }
+
+    func setLowPowerMode(_ enabled: Bool) {
+        guard lowPowerModeEnabled != enabled else { return }
+        lowPowerModeEnabled = enabled
+        applyWaterPerformanceUniforms()
+        updateFireflies(animated: false)
+        if environment.rainIntensity > 0 { applyWeather() }
+    }
+
+    func setTuning(_ newTuning: ForestSceneTuning) {
+        let sanitized = newTuning.sanitized
+        guard sanitized != tuning else { return }
+        let visibilityChanged = sanitized.piboVisible != tuning.piboVisible
+        tuning = sanitized
+        guard built else { return }
+        applyTuning(visibilityChanged: visibilityChanged)
+    }
+
+    #if DEBUG
+    /// WaterLab uses the production scene, texture, and shader. Keeping tuning
+    /// here prevents the debug page from drifting into a second water renderer.
+    func setWaterDebugTuning(
+        speed: Double,
+        rippleStrength: Double,
+        highlightStrength: Double,
+        showMask: Bool
+    ) {
+        waterDebugTuning = WaterDebugTuning(
+            speed: Float(speed),
+            rippleStrength: Float(rippleStrength),
+            highlightStrength: Float(highlightStrength),
+            showMask: showMask
+        )
+        applyWaterPerformanceUniforms()
+        updateWaterLighting()
+        forestWaterNode?.shader?.uniformNamed("u_mask_preview")?.floatValue = showMask ? 1 : 0
+    }
+    #endif
 
     /// 能量收集 — the head 毛 senses new energy: shake → grow → settle, with a
     /// little sparkle burst (spec §3.4). The small in-place animation, used when
@@ -295,6 +368,7 @@ final class PiboStageScene: SKScene {
     private enum HitRegion { case hair, body, none }
 
     private func hitRegion(at p: CGPoint) -> HitRegion {
+        guard tuning.piboVisible else { return .none }
         if !headNode.isHidden {
             // `headNode.frame` is in pibo's coords (its parent) and already
             // accounts for the idle rotation / any in-flight scale.
@@ -318,7 +392,7 @@ final class PiboStageScene: SKScene {
     private static let hairPullThreshold: CGFloat = 30
 
     // — tap candidate (non-毛) — a began→ended on roughly the same point is a tap
-    // that routes to 拍一拍 / 场景 icon; a small movement tolerance absorbs jitter.
+    // that routes to 拍一拍; a small movement tolerance absorbs jitter.
     private var tapTouch: UITouch?
     private var tapOrigin: CGPoint = .zero
     /// Beyond this move a touch is a drag/scroll, not a tap.
@@ -336,7 +410,7 @@ final class PiboStageScene: SKScene {
         onDirectManipulationChanged?(true)
         let p = t.location(in: self)
         // A touch that lands on the 毛 owns the gesture as a 拖毛 drag; everything
-        // else is a tap candidate (拍一拍 / 场景 icon).
+        // else is a tap candidate (拍一拍).
         if hitRegion(at: p) == .hair {
             hairTouch = t
             hairDragOrigin = p
@@ -396,29 +470,9 @@ final class PiboStageScene: SKScene {
 
     // MARK: Tap routing
 
-    /// A tap — route to a 场景 icon (摄影馆 / 健身房) or, on Pibo's body, 拍一拍.
+    /// Only Pibo itself handles stage touches. Feature entries live in SwiftUI.
     private func handleTap(at p: CGPoint) {
-        if iconHit(studioIcon, at: p) { bounceIcon(studioIcon); onEnterCamera?(); return }
-        if iconHit(gymIcon, at: p) { bounceIcon(gymIcon); onEnterGames?(); return }
         if hitRegion(at: p) == .body { bouncePibo(); onPat?() }
-    }
-
-    /// Hit-test a 场景 icon, padded so its tap target reaches ~56pt.
-    private func iconHit(_ node: SKNode?, at p: CGPoint) -> Bool {
-        guard let node, !node.isHidden else { return false }
-        let f = node.calculateAccumulatedFrame()
-        let padX = max(0, (56 - f.width) / 2)
-        let padY = max(0, (56 - f.height) / 2)
-        return f.insetBy(dx: -padX, dy: -padY).contains(p)
-    }
-
-    private func bounceIcon(_ node: SKNode?) {
-        onHighRefreshRequested?(0.5)
-        node?.removeAction(forKey: "iconTap")
-        node?.run(.sequence([
-            .scale(to: 0.88, duration: 0.08),
-            .scale(to: 1.0, duration: 0.16),
-        ]), withKey: "iconTap")
     }
 
     /// Snap the 毛 back — a springy overshoot when it was really pulled, a tiny
@@ -456,28 +510,37 @@ final class PiboStageScene: SKScene {
         guard !built, size.width > 1, size.height > 1 else { return }
         built = true
         addChild(backdrop)
-        iconLayer.zPosition = 4     // scenery 入口 icon — behind Pibo (z=10), over ground
-        addChild(iconLayer)
+        addChild(forestFoliageLayer)
+        pibo.zPosition = theme.id == PiboTheme.forest.id ? 20 : 0
         addChild(pibo)
-        overheadNode.zPosition = 13   // over the head 毛 — the curl emerges from the hole
+        overheadNode.zPosition = theme.id == PiboTheme.forest.id ? 33 : 13
         addChild(overheadNode)
+        firefliesNode.zPosition = 40
+        addChild(firefliesNode)
         addChild(fx)
-        fx.zPosition = 40
-        rainBack.zPosition = 5      // 介于 backdrop(0–2) 与 pibo(10) 之间
+        fx.zPosition = 55
+        rainBack.zPosition = theme.id == PiboTheme.forest.id ? 24 : 5
         addChild(rainBack)
-        rainFront.zPosition = 41    // pibo / fx 之上 — 水花落在 Pibo 前面
+        rainFront.zPosition = 60
         addChild(rainFront)
         cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
         addChild(cam)
         camera = cam
+        atmosphereNode.zPosition = 90
+        cam.addChild(atmosphereNode)
+        multiplyOverlay.blendMode = .multiply
+        screenOverlay.blendMode = .screen
+        atmosphereNode.addChild(multiplyOverlay)
+        atmosphereNode.addChild(screenOverlay)
 
         rebuildBackdrop()
-        buildZoneIcons()
         buildPibo()
         rebuildHead()
         layoutAll()
-        if weather.isRainy { applyWeather() }
+        applyAtmosphere(animated: false)
+        if environment.rainIntensity > 0 { applyWeather() }
         applyState(animated: false)
+        applyTuning(visibilityChanged: true)
         startIdleBob()
         startHeadIdle()
     }
@@ -491,12 +554,23 @@ final class PiboStageScene: SKScene {
     // Art bodies size to the Figma frame proportions (image 239.262×235 on a
     // 393-wide frame, node 74:5954); procedural bodies keep the prior sizing.
     private var bodyWidth: CGFloat {
-        usesArt ? size.width * (239.262 / 393.0) : min(size.width * 0.34, 150)
+        if theme.id == PiboTheme.forest.id {
+            return 181.1602 * ForestLayoutMapper(sceneSize: size).scale
+        }
+        return usesArt ? size.width * (239.262 / 393.0) : min(size.width * 0.34, 150)
     }
     private var bodyHeight: CGFloat {
-        usesArt ? bodyWidth * (235.0 / 239.262) : bodyWidth * 1.12
+        if theme.id == PiboTheme.forest.id {
+            return 199.592 / 181.1602 * bodyWidth
+        }
+        return usesArt ? bodyWidth * (235.0 / 239.262) : bodyWidth * 1.12
     }
-    private var groundTopY: CGFloat { size.height * 0.34 }   // ground band height from bottom
+    private var groundTopY: CGFloat {
+        if theme.id == PiboTheme.forest.id {
+            return ForestLayoutMapper(sceneSize: size).point(CGPoint(x: 0, y: 610)).y
+        }
+        return size.height * 0.34
+    }
 
     /// Tear down and rebuild the body group for the current theme — used when the
     /// theme changes (art ⇄ procedural body) at runtime.
@@ -618,7 +692,239 @@ final class PiboStageScene: SKScene {
     /// The stage is a single home scene = the current theme backdrop.
     private func rebuildBackdrop() {
         backdrop.removeAllChildren()
-        buildHomeBackdrop(into: backdrop)
+        forestFoliageLayer.removeAllChildren()
+        forestFoliage.removeAll(keepingCapacity: true)
+        forestWaterNode = nil
+        morningLightNode = nil
+        if theme.id == PiboTheme.forest.id {
+            buildForestBackdrop()
+        } else {
+            buildHomeBackdrop(into: backdrop)
+        }
+    }
+
+    private func buildForestBackdrop() {
+        backgroundColor = SKColor(red: 0.827, green: 0.933, blue: 0.890, alpha: 1)
+        let mapper = ForestLayoutMapper(sceneSize: size)
+
+        let base = SKSpriteNode(color: backgroundColor, size: size)
+        base.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        base.zPosition = -1
+        backdrop.addChild(base)
+
+        for definition in ForestSceneManifest.backgroundLayers {
+            backdrop.addChild(forestSprite(for: definition, mapper: mapper))
+        }
+
+        let waterDefinition = ForestSceneManifest.river
+        let water = forestSprite(for: waterDefinition, mapper: mapper)
+        water.shader = makeWaterShader()
+        backdrop.addChild(water)
+        forestWaterNode = water
+
+        for definition in ForestSceneManifest.foliage {
+            let texture = SKTexture(imageNamed: definition.image)
+            texture.filteringMode = .linear
+            let leaf = ForestFoliageNode(texture: texture, definition: definition)
+            leaf.size = mapper.size(definition.frame.size)
+            let anchorInDesign = CGPoint(
+                x: definition.frame.minX + definition.frame.width * definition.anchor.x,
+                y: definition.frame.minY + definition.frame.height * definition.anchor.y
+            )
+            leaf.position = mapper.point(anchorInDesign)
+            forestFoliageLayer.addChild(leaf)
+            forestFoliage.append(leaf)
+        }
+
+        let light = forestSprite(for: ForestSceneManifest.morningLight, mapper: mapper)
+        light.blendMode = .screen
+        backdrop.addChild(light)
+        morningLightNode = light
+        updateWaterLighting()
+    }
+
+    private func forestSprite(
+        for definition: ForestSceneManifest.Layer,
+        mapper: ForestLayoutMapper
+    ) -> SKSpriteNode {
+        let texture = SKTexture(imageNamed: definition.image)
+        texture.filteringMode = .linear
+        let sprite = SKSpriteNode(texture: texture)
+        sprite.position = mapper.point(CGPoint(x: definition.frame.midX, y: definition.frame.midY))
+        sprite.size = mapper.size(definition.frame.size)
+        sprite.zPosition = definition.zPosition
+        return sprite
+    }
+
+    private func makeWaterShader() -> SKShader {
+        let shader = SKShader(fileNamed: "ForestStream.fsh")
+        shader.addUniform(SKUniform(name: "u_flow_time", float: flowTime))
+        shader.addUniform(SKUniform(name: "u_flow_speed", float: waterFlowSpeed))
+        shader.addUniform(SKUniform(name: "u_ripple_strength", float: effectiveWaterRippleStrength))
+        shader.addUniform(SKUniform(name: "u_highlight_strength", float: 0.82))
+        shader.addUniform(SKUniform(name: "u_darkness", float: 0))
+        shader.addUniform(SKUniform(name: "u_warmth", float: 0))
+        shader.addUniform(SKUniform(name: "u_low_power", float: lowPowerModeEnabled ? 1 : 0))
+        #if DEBUG
+        shader.addUniform(SKUniform(name: "u_mask_preview", float: waterDebugTuning?.showMask == true ? 1 : 0))
+        #else
+        shader.addUniform(SKUniform(name: "u_mask_preview", float: 0))
+        #endif
+        return shader
+    }
+
+    private var waterFlowSpeed: Float {
+        #if DEBUG
+        if let waterDebugTuning { return waterDebugTuning.speed }
+        #endif
+        return Float(tuning.waterFlowSpeed)
+    }
+
+    private var effectiveWaterRippleStrength: Float {
+        #if DEBUG
+        let base = waterDebugTuning?.rippleStrength ?? 0.78
+        #else
+        let base: Float = 0.78
+        #endif
+        return base * (lowPowerModeEnabled ? 0.68 : 1)
+    }
+
+    private func applyWaterPerformanceUniforms() {
+        guard let shader = forestWaterNode?.shader else { return }
+        shader.uniformNamed("u_flow_speed")?.floatValue = waterFlowSpeed
+        shader.uniformNamed("u_ripple_strength")?.floatValue = effectiveWaterRippleStrength
+        shader.uniformNamed("u_low_power")?.floatValue = lowPowerModeEnabled ? 1 : 0
+    }
+
+    private func applyTuning(visibilityChanged: Bool) {
+        pibo.isHidden = !tuning.piboVisible
+        applyWaterPerformanceUniforms()
+        guard visibilityChanged else { return }
+
+        if tuning.piboVisible {
+            overheadNode.isHidden = theme.resolvedHead(for: growth).overhead == nil
+            showZzz(activityState == .deepSleep)
+        } else {
+            overheadNode.isHidden = true
+            showZzz(false)
+        }
+    }
+
+    private func updateWaterLighting() {
+        let values: (darkness: Float, warmth: Float, highlight: Float)
+        switch environment.dayPhase {
+        case .morning: values = (0.02, 0.32, 0.92)
+        case .day: values = (0, 0, 0.82)
+        case .dusk: values = (0.18, 0.42, 0.68)
+        case .night: values = (0.72, 0, 0.38)
+        }
+        forestWaterNode?.shader?.uniformNamed("u_darkness")?.floatValue = values.darkness
+        forestWaterNode?.shader?.uniformNamed("u_warmth")?.floatValue = values.warmth
+        #if DEBUG
+        let highlight = waterDebugTuning?.highlightStrength ?? values.highlight
+        #else
+        let highlight = values.highlight
+        #endif
+        forestWaterNode?.shader?.uniformNamed("u_highlight_strength")?.floatValue = highlight
+    }
+
+    private func applyAtmosphere(animated: Bool) {
+        atmosphereNode.position = .zero
+        multiplyOverlay.size = size
+        screenOverlay.size = size
+
+        let multiply: (SKColor, CGFloat)
+        let screen: (SKColor, CGFloat)
+        let morningAlpha: CGFloat
+        switch environment.dayPhase {
+        case .morning:
+            multiply = (SKColor(red: 0.91, green: 0.95, blue: 0.88, alpha: 1), 0.10)
+            screen = (SKColor(red: 1, green: 0.84, blue: 0.60, alpha: 1), 0.12)
+            morningAlpha = 0.92
+        case .day:
+            multiply = (.white, 0)
+            screen = (.white, 0.02)
+            morningAlpha = 0.10
+        case .dusk:
+            multiply = (SKColor(red: 0.21, green: 0.36, blue: 0.35, alpha: 1), 0.18)
+            screen = (SKColor(red: 1, green: 0.69, blue: 0.42, alpha: 1), 0.16)
+            morningAlpha = 0.04
+        case .night:
+            multiply = (SKColor(red: 0.08, green: 0.18, blue: 0.23, alpha: 1), 0.48)
+            screen = (SKColor(red: 0.55, green: 0.79, blue: 0.84, alpha: 1), 0.08)
+            morningAlpha = 0
+        }
+
+        let duration = animated ? 1.2 : 0
+        multiplyOverlay.removeAction(forKey: "atmosphere")
+        screenOverlay.removeAction(forKey: "atmosphere")
+        morningLightNode?.removeAction(forKey: "atmosphere")
+        multiplyOverlay.run(.group([
+            .colorize(with: multiply.0, colorBlendFactor: 1, duration: duration),
+            .fadeAlpha(to: multiply.1, duration: duration),
+        ]), withKey: "atmosphere")
+        screenOverlay.run(.group([
+            .colorize(with: screen.0, colorBlendFactor: 1, duration: duration),
+            .fadeAlpha(to: screen.1, duration: duration),
+        ]), withKey: "atmosphere")
+        morningLightNode?.run(.fadeAlpha(to: morningAlpha, duration: duration), withKey: "atmosphere")
+        updateFireflies(animated: animated)
+    }
+
+    private func updateFireflies(animated: Bool) {
+        guard theme.id == PiboTheme.forest.id else {
+            fireflyEmitter?.particleBirthRate = 0
+            return
+        }
+        let emitter = fireflyEmitter ?? makeFireflyEmitter()
+        emitter.position = CGPoint(x: size.width / 2, y: size.height * 0.36)
+        emitter.particlePositionRange = CGVector(dx: size.width * 0.92, dy: size.height * 0.32)
+
+        let targetRate: CGFloat
+        switch environment.dayPhase {
+        case .morning, .day:
+            targetRate = 0
+        case .dusk:
+            targetRate = lowPowerModeEnabled ? 0 : 1.2
+        case .night:
+            targetRate = lowPowerModeEnabled ? 2.0 : 6.0
+        }
+        if animated {
+            let start = emitter.particleBirthRate
+            emitter.run(.customAction(withDuration: 1.2) { node, elapsed in
+                guard let emitter = node as? SKEmitterNode else { return }
+                let progress = min(max(elapsed / 1.2, 0), 1)
+                emitter.particleBirthRate = start + (targetRate - start) * progress
+            }, withKey: "phase")
+        } else {
+            emitter.removeAction(forKey: "phase")
+            emitter.particleBirthRate = targetRate
+        }
+    }
+
+    private func makeFireflyEmitter() -> SKEmitterNode {
+        let emitter = SKEmitterNode()
+        emitter.particleTexture = Self.fireflyTexture
+        emitter.particleBirthRate = 0
+        emitter.particleLifetime = 4.8
+        emitter.particleLifetimeRange = 2.2
+        emitter.emissionAngleRange = .pi * 2
+        emitter.particleSpeed = 7
+        emitter.particleSpeedRange = 5
+        emitter.particleAlpha = 0
+        emitter.particleAlphaRange = 0.12
+        emitter.particleAction = .repeatForever(.sequence([
+            .fadeAlpha(to: 0.95, duration: 0.8),
+            .fadeAlpha(to: 0.16, duration: 1.1),
+        ]))
+        emitter.particleScale = 0.42
+        emitter.particleScaleRange = 0.22
+        emitter.particleColor = SKColor(red: 0.94, green: 1, blue: 0.52, alpha: 1)
+        emitter.particleColorBlendFactor = 1
+        emitter.particleBlendMode = .add
+        firefliesNode.addChild(emitter)
+        fireflyEmitter = emitter
+        return emitter
     }
 
     /// home 区域背景 = 当前主题（图片主题一张全幅图，程序化主题天空渐变 + 地面带）。
@@ -647,138 +953,6 @@ final class PiboStageScene: SKScene {
         parent.addChild(ground)
 
         addGroundDetail(scene, into: parent)
-    }
-
-    // MARK: 场景内入口 icon (摄影馆 / 健身房)
-
-    /// Build the two in-scene entrance icons and stash their references for
-    /// hit-testing. They flank Pibo (摄影馆 left, 健身房 right); a tap enters the
-    /// feature. Positioned in `layoutZoneIcons` (size-dependent).
-    private func buildZoneIcons() {
-        iconLayer.removeAllChildren()
-        let studio = makeZoneIcon(emoji: "📷", title: "摄影馆", accent: 0xC98F63)
-        let gym = makeZoneIcon(emoji: "🎮", title: "健身房", accent: 0x6E97B8)
-        studioIcon = studio
-        gymIcon = gym
-        iconLayer.addChild(studio)
-        iconLayer.addChild(gym)
-        layoutZoneIcons()
-    }
-
-    /// One entrance icon: a soft rounded badge with an emoji + a title beneath,
-    /// a contact shadow, and a gentle idle bob. Styled with the LP palette.
-    private func makeZoneIcon(emoji: String, title: String, accent: UInt32) -> SKNode {
-        let node = SKNode()
-        let s: CGFloat = 62
-
-        // Contact shadow (static — the badge bobs above it).
-        let shadow = SKSpriteNode(texture: Self.zoneShadowTexture)
-        shadow.size = CGSize(width: s * 0.9, height: s * 0.24)
-        shadow.position = CGPoint(x: 0, y: -s * 0.62)
-        shadow.zPosition = 0
-        node.addChild(shadow)
-
-        // Bobbing badge + glyph.
-        let float = SKSpriteNode(texture: Self.zoneBadgeTexture(emoji: emoji, accent: accent))
-        float.size = CGSize(width: 66, height: 66)
-        float.zPosition = 1
-        node.addChild(float)
-
-        // Title beneath (static, so it doesn't jitter with the bob).
-        let titleTexture = Self.zoneTitleTexture(title)
-        let label = SKSpriteNode(texture: titleTexture.texture)
-        label.size = titleTexture.size
-        label.position = CGPoint(x: 0, y: -s * 0.5 - 15)
-        label.zPosition = 1
-        node.addChild(label)
-
-        let up = SKAction.moveBy(x: 0, y: 5, duration: 1.4); up.timingMode = .easeInEaseOut
-        let down = SKAction.moveBy(x: 0, y: -5, duration: 1.4); down.timingMode = .easeInEaseOut
-        float.run(.repeatForever(.sequence([up, down])))
-        return node
-    }
-
-    private static let zoneShadowTexture: SKTexture = {
-        let size = CGSize(width: 58, height: 16)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 2
-        format.opaque = false
-        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
-            context.cgContext.setFillColor(UIColor(white: 0, alpha: 0.12).cgColor)
-            context.cgContext.fillEllipse(in: CGRect(origin: .zero, size: size))
-        }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .linear
-        return texture
-    }()
-
-    private static func zoneBadgeTexture(emoji: String, accent: UInt32) -> SKTexture {
-        let size = CGSize(width: 66, height: 66)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 2
-        format.opaque = false
-        let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
-            let red = CGFloat((accent >> 16) & 0xFF) / 255
-            let green = CGFloat((accent >> 8) & 0xFF) / 255
-            let blue = CGFloat(accent & 0xFF) / 255
-            let badgeRect = CGRect(x: 2, y: 2, width: 62, height: 62)
-            let badge = UIBezierPath(roundedRect: badgeRect, cornerRadius: 18)
-            UIColor(red: red, green: green, blue: blue, alpha: 0.94).setFill()
-            badge.fill()
-            UIColor(white: 1, alpha: 0.6).setStroke()
-            badge.lineWidth = 2
-            badge.stroke()
-
-            let paragraph = NSMutableParagraphStyle()
-            paragraph.alignment = .center
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 30),
-                .paragraphStyle: paragraph,
-            ]
-            let value = NSString(string: emoji)
-            let bounds = value.boundingRect(
-                with: size,
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                attributes: attributes,
-                context: nil
-            )
-            value.draw(
-                in: CGRect(x: 0, y: (size.height - bounds.height) / 2 - 1,
-                           width: size.width, height: bounds.height),
-                withAttributes: attributes
-            )
-        }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .linear
-        return texture
-    }
-
-    private static func zoneTitleTexture(_ title: String) -> (texture: SKTexture, size: CGSize) {
-        let font = UIFont(name: "PingFangSC-Semibold", size: 13)
-            ?? UIFont.systemFont(ofSize: 13, weight: .semibold)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor(red: 43 / 255, green: 51 / 255, blue: 56 / 255, alpha: 1),
-        ]
-        let value = NSString(string: title)
-        let measured = value.size(withAttributes: attributes)
-        let size = CGSize(width: ceil(measured.width) + 4, height: ceil(measured.height) + 4)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 2
-        format.opaque = false
-        let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
-            value.draw(at: CGPoint(x: 2, y: 2), withAttributes: attributes)
-        }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .linear
-        return (texture, size)
-    }
-
-    /// Place the entrance icons flanking Pibo, seated near the ground band.
-    private func layoutZoneIcons() {
-        let y = groundTopY + size.height * 0.02
-        studioIcon?.position = CGPoint(x: size.width * 0.16, y: y)
-        gymIcon?.position = CGPoint(x: size.width * 0.84, y: y)
     }
 
     private func groundPath(_ terrain: PiboScene.Terrain) -> CGPath {
@@ -847,7 +1021,7 @@ final class PiboStageScene: SKScene {
         // Overhead 黑洞 — scene-level so the curl slides through it as Pibo bobs.
         if let overhead {
             overheadNode.texture = SKTexture(imageNamed: overhead.image)
-            overheadNode.isHidden = false
+            overheadNode.isHidden = !tuning.piboVisible
             overheadNode.alpha = 1
         } else {
             overheadNode.isHidden = true
@@ -886,8 +1060,11 @@ final class PiboStageScene: SKScene {
 
     private func layoutAll() {
         guard built else { return }
-        layoutZoneIcons()
-        if usesArt {
+        if theme.id == PiboTheme.forest.id {
+            let mapper = ForestLayoutMapper(sceneSize: size)
+            let foot = mapper.point(ForestSceneManifest.piboFootPoint)
+            pibo.position = CGPoint(x: foot.x, y: foot.y + bodyHeight * 0.5)
+        } else if usesArt {
             // Place the body sprite at the theme's design-frame body center; size
             // it to the mapped box.
             bodySprite?.size = CGSize(width: bodyWidth, height: bodyHeight)
@@ -915,6 +1092,16 @@ final class PiboStageScene: SKScene {
         }
 
         if let head {
+            if theme.id == PiboTheme.forest.id {
+                let mapper = ForestLayoutMapper(sceneSize: size)
+                let nat = headNode.texture?.size() ?? CGSize(width: 30.716, height: 66.573)
+                headNode.size = mapper.size(nat)
+                headNode.position = CGPoint(
+                    x: (head.centerX - theme.bodyCenterX) * mapper.scale,
+                    y: (theme.bodyCenterY - head.centerY) * mapper.scale
+                )
+                return
+            }
             // Size from the head texture's natural points (@3x asset → design pts)
             // so each theme's 毛/花 keeps its own aspect — 桃花枝 38×89.5 stays put,
             // while 阿那亚 海草 (taller/narrower) isn't squished into the branch box.
@@ -935,10 +1122,11 @@ final class PiboStageScene: SKScene {
     // MARK: State
 
     private func applyState(animated: Bool) {
-        // Art bodies bake the face/expression into the sprite — only posture-level
-        // cues apply (Zzz when asleep, a brief turn-away when 被打扰). Per-state art
-        // swaps come with the state-machine pass.
         if usesArt {
+            if theme.id == PiboTheme.forest.id {
+                applyForestState(animated: animated)
+                return
+            }
             showZzz(activityState == .deepSleep)
             if activityState == .disturbed { playTurnAway() }
             return
@@ -960,6 +1148,65 @@ final class PiboStageScene: SKScene {
         }
     }
 
+    private func applyForestState(animated: Bool) {
+        guard let body = bodySprite else { return }
+        body.removeAction(forKey: "forestState")
+        headNode.removeAction(forKey: "forestState")
+        headNode.removeAction(forKey: "headIdle")
+        showZzz(activityState == .deepSleep)
+        let duration = animated ? 0.32 : 0
+
+        switch activityState {
+        case .deepSleep:
+            body.run(.group([
+                .scaleX(to: 1.03, y: 0.96, duration: duration),
+                .rotate(toAngle: -0.025, duration: duration),
+            ]), withKey: "forestState")
+            runForestHeadReaction(.rotate(toAngle: -0.12, duration: duration))
+        case .waking:
+            body.run(.group([
+                .scaleX(to: 1, y: 1, duration: duration),
+                .rotate(toAngle: 0.025, duration: duration),
+            ]), withKey: "forestState")
+            runForestHeadReaction(.rotate(toAngle: -0.04, duration: duration))
+        case .active:
+            let pulse = SKAction.sequence([
+                .scaleX(to: 0.96, y: 1.06, duration: 0.12),
+                .scaleX(to: 1.02, y: 0.98, duration: 0.12),
+                .scaleX(to: 1, y: 1, duration: 0.16),
+            ])
+            body.run(pulse, withKey: "forestState")
+            runForestHeadReaction(.sequence([
+                .rotate(toAngle: 0.10, duration: 0.12),
+                .rotate(toAngle: -0.08, duration: 0.14),
+                .rotate(toAngle: 0, duration: 0.18),
+            ]))
+        case .irritated:
+            body.run(.group([
+                .scaleX(to: 1.01, y: 0.98, duration: duration),
+                .rotate(toAngle: 0.045, duration: duration),
+            ]), withKey: "forestState")
+            runForestHeadReaction(.rotate(toAngle: 0.13, duration: duration))
+        case .disturbed:
+            body.setScale(1)
+            playTurnAway()
+            startHeadIdle()
+        case .idle:
+            body.run(.group([
+                .scaleX(to: 1, y: 1, duration: duration),
+                .rotate(toAngle: 0, duration: duration),
+            ]), withKey: "forestState")
+            runForestHeadReaction(.rotate(toAngle: 0, duration: duration))
+        }
+    }
+
+    private func runForestHeadReaction(_ action: SKAction) {
+        headNode.run(.sequence([
+            action,
+            .run { [weak self] in self?.startHeadIdle() },
+        ]), withKey: "forestState")
+    }
+
     private func setBlush(_ a: CGFloat) {
         blush.run(.fadeAlpha(to: a, duration: 0.3))
     }
@@ -972,7 +1219,7 @@ final class PiboStageScene: SKScene {
 
     private func showZzz(_ show: Bool) {
         fx.childNode(withName: "zzz")?.removeFromParent()
-        guard show else { return }
+        guard show, tuning.piboVisible else { return }
         let z = SKLabelNode(text: "Zzz")
         z.name = "zzz"
         z.fontName = "AvenirNext-Bold"
@@ -1002,8 +1249,20 @@ final class PiboStageScene: SKScene {
 
     private func startHeadIdle() {
         headNode.removeAction(forKey: "headIdle")
-        let l = SKAction.rotate(toAngle: 0.06, duration: 1.4); l.timingMode = .easeInEaseOut
-        let r = SKAction.rotate(toAngle: -0.06, duration: 1.4); r.timingMode = .easeInEaseOut
+        let center: CGFloat
+        if theme.id == PiboTheme.forest.id {
+            switch activityState {
+            case .deepSleep: center = -0.12
+            case .waking: center = -0.04
+            case .irritated: center = 0.13
+            case .active, .disturbed, .idle: center = 0
+            }
+        } else {
+            center = 0
+        }
+        let amplitude: CGFloat = theme.id == PiboTheme.forest.id ? 0.035 : 0.06
+        let l = SKAction.rotate(toAngle: center + amplitude, duration: 1.4); l.timingMode = .easeInEaseOut
+        let r = SKAction.rotate(toAngle: center - amplitude, duration: 1.4); r.timingMode = .easeInEaseOut
         headNode.run(.repeatForever(.sequence([l, r])), withKey: "headIdle")
     }
 
@@ -1063,7 +1322,7 @@ final class PiboStageScene: SKScene {
         rainFront.removeAllChildren(); rainFront.removeAllActions()
         splashPool.removeAll(keepingCapacity: true)
         nextSplashPoolIndex = 0
-        guard weather.isRainy else { return }
+        guard environment.rainIntensity > 0 else { return }
         prepareSplashPool()
         buildRainCurtain()
         startGroundSplashes()
@@ -1072,12 +1331,13 @@ final class PiboStageScene: SKScene {
 
     /// 雨幕 — 顶部一个全宽发射器,粒子加速下落(雷雨更密更快、风更斜)。
     private func buildRainCurtain() {
-        let storm = weather == .thunderstorm
+        let storm = environment.rainIntensity >= 0.8
         let e = SKEmitterNode()
         e.particleTexture = Self.rainTexture
         e.position = CGPoint(x: size.width / 2, y: size.height + 24)
         e.particlePositionRange = CGVector(dx: size.width * 1.15, dy: 0)
-        e.particleBirthRate = storm ? 240 : 130
+        let powerMultiplier: CGFloat = lowPowerModeEnabled ? 0.45 : 1
+        e.particleBirthRate = (90 + 150 * environment.rainIntensity) * powerMultiplier
         e.particleLifetime = size.height / 480 + 0.6
         e.particleLifetimeRange = 0.3
         e.emissionAngle = -.pi / 2          // 垂直向下(SpriteKit:角度自 +x 逆时针)
@@ -1085,7 +1345,7 @@ final class PiboStageScene: SKScene {
         e.particleSpeed = storm ? 720 : 560
         e.particleSpeedRange = 140
         e.yAcceleration = -420              // 重力加速下落
-        e.xAcceleration = storm ? -130 : -40   // 轻微风斜
+        e.xAcceleration = environment.wind.direction.dx * (storm ? 140 : 55)
         e.particleAlpha = 0.55
         e.particleAlphaRange = 0.2
         e.particleAlphaSpeed = -0.12
@@ -1098,10 +1358,11 @@ final class PiboStageScene: SKScene {
         rainBack.addChild(e)
     }
 
-    /// 地面水花 — 沿 `groundLineY` 持续随机点炸水花。
+    /// Surface impacts are sampled independently from the visual rain curtain;
+    /// no per-drop physics bodies are created.
     private func startGroundSplashes() {
-        let storm = weather == .thunderstorm
-        let interval = storm ? 0.05 : 0.11
+        let storm = environment.rainIntensity >= 0.8
+        let interval = (storm ? 0.05 : 0.11) * (lowPowerModeEnabled ? 2.2 : 1)
         rainFront.run(.repeatForever(.sequence([
             .wait(forDuration: interval, withRange: interval * 0.8),
             .run { [weak self] in self?.spawnGroundSplash() },
@@ -1111,8 +1372,8 @@ final class PiboStageScene: SKScene {
     /// 滴在 Pibo 上 — 沿真实轮廓随机点持续投滴(频率比地面低)。
     private func startPiboDrips() {
         rebuildPiboSurface()
-        let storm = weather == .thunderstorm
-        let interval = storm ? 0.35 : 0.6
+        let storm = environment.rainIntensity >= 0.8
+        let interval = (storm ? 0.35 : 0.6) * (lowPowerModeEnabled ? 1.8 : 1)
         rainFront.run(.repeatForever(.sequence([
             .wait(forDuration: interval, withRange: interval * 0.7),
             .run { [weak self] in self?.spawnPiboDrip() },
@@ -1120,15 +1381,54 @@ final class PiboStageScene: SKScene {
     }
 
     private func spawnGroundSplash() {
+        if theme.id == PiboTheme.forest.id {
+            let roll = CGFloat.random(in: 0...1)
+            if roll < 0.48, let point = randomForestWaterPoint() {
+                makeSplash(at: point, scale: CGFloat.random(in: 0.75...1.15), flatten: 0.35)
+                return
+            }
+            if roll < 0.72, let leaf = forestFoliage.randomElement() {
+                let frame = leaf.calculateAccumulatedFrame()
+                let point = CGPoint(
+                    x: CGFloat.random(in: frame.minX...frame.maxX),
+                    y: CGFloat.random(in: frame.midY...frame.maxY)
+                )
+                leaf.receiveRainImpact(
+                    strength: environment.rainIntensity,
+                    side: point.x < frame.midX ? -1 : 1
+                )
+                makeSplash(at: point, scale: 0.52, flatten: 0.64)
+                return
+            }
+
+            let mapper = ForestLayoutMapper(sceneSize: size)
+            let point = mapper.point(CGPoint(
+                x: CGFloat.random(in: 24...369),
+                y: CGFloat.random(in: 570...625)
+            ))
+            makeSplash(at: point, scale: CGFloat.random(in: 0.65...1.0), flatten: 0.45)
+            return
+        }
+
         let x = CGFloat.random(in: size.width * 0.04 ... size.width * 0.96)
         let y = groundLineY + CGFloat.random(in: -6 ... 10)
         makeSplash(at: CGPoint(x: x, y: y), scale: CGFloat.random(in: 0.8 ... 1.3), flatten: 0.42)
     }
 
+    private func randomForestWaterPoint() -> CGPoint? {
+        guard let water = forestWaterNode,
+              let normalized = Self.forestWaterSamples.randomElement() else { return nil }
+        let local = CGPoint(
+            x: (normalized.x - 0.5) * water.size.width,
+            y: (normalized.y - 0.5) * water.size.height
+        )
+        return water.convert(local, to: self)
+    }
+
     /// 一滴从上方落到 Pibo **真实轮廓**上的某点 → 触身炸水花。落点来自
     /// `piboSurface`(蛋形 / 毛的顶面采样),加 `pibo.position` 实时跟随 idle bob。
     private func spawnPiboDrip() {
-        guard built, let local = piboSurface.randomElement() else { return }
+        guard built, tuning.piboVisible, let local = piboSurface.randomElement() else { return }
         let land = CGPoint(x: pibo.position.x + local.x + CGFloat.random(in: -2 ... 2),
                            y: pibo.position.y + local.y + CGFloat.random(in: -2 ... 3))
         // 入射水滴(最后 ~46pt,因为雨幕在 Pibo 之后,需要一颗"落在 Pibo 前面"的滴)。
@@ -1258,6 +1558,10 @@ final class PiboStageScene: SKScene {
 
     /// 雨滴贴图 — 一道柔和的竖直水痕(自上而下渐显)。建一次复用。
     private static let rainTint = SKColor(red: 0.62, green: 0.78, blue: 0.92, alpha: 1)
+    private static let forestWaterSamples = normalizedAlphaSamples(
+        imageNamed: "forest_river",
+        maximumSamplesPerAxis: 64
+    )
     private static let splashPoolSize = 24
     private static let splashTextureSize = CGSize(width: 48, height: 44)
     private static let groundSplashFrames = splashFrames(flatten: 0.42)
@@ -1344,6 +1648,71 @@ final class PiboStageScene: SKScene {
         }
         return SKTexture(image: img)
     }()
+
+    private static let fireflyTexture: SKTexture = {
+        let size = CGSize(width: 18, height: 18)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let colors = [
+                SKColor.white.withAlphaComponent(0.95).cgColor,
+                SKColor(red: 0.88, green: 1, blue: 0.42, alpha: 0.35).cgColor,
+                SKColor.clear.cgColor,
+            ] as CFArray
+            guard let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: colors,
+                locations: [0, 0.28, 1]
+            ) else { return }
+            context.cgContext.drawRadialGradient(
+                gradient,
+                startCenter: CGPoint(x: 9, y: 9),
+                startRadius: 0,
+                endCenter: CGPoint(x: 9, y: 9),
+                endRadius: 9,
+                options: []
+            )
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
+    }()
+
+    private static func normalizedAlphaSamples(
+        imageNamed name: String,
+        maximumSamplesPerAxis: Int
+    ) -> [CGPoint] {
+        guard let cg = UIImage(named: name)?.cgImage, cg.width > 1, cg.height > 1 else { return [] }
+        let width = cg.width
+        let height = cg.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return [] }
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        let stride = max(1, max(width, height) / maximumSamplesPerAxis)
+        var result: [CGPoint] = []
+        for row in Swift.stride(from: stride / 2, to: height, by: stride) {
+            for column in Swift.stride(from: stride / 2, to: width, by: stride) {
+                let alpha = pixels[(row * width + column) * 4 + 3]
+                if alpha > 80 {
+                    result.append(CGPoint(
+                        x: (CGFloat(column) + 0.5) / CGFloat(width),
+                        y: (CGFloat(row) + 0.5) / CGFloat(height)
+                    ))
+                }
+            }
+        }
+        return result
+    }
 
     // MARK: Helpers
 

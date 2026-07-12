@@ -3,16 +3,12 @@ import SwiftData
 import UIKit
 import os
 
-/// Pibo home (魔丸态) — a single fixed SpriteKit home scene (no 横向逛场景 / camera
-/// pan). Pibo stands center; two 场景内 icon flank it (摄影馆 → 露珠相机, 健身房 →
-/// 健康小游戏列表), tapped in-scene to enter their feature. The scene keeps 拍一拍 /
-/// 拔毛 / 能量收集. SwiftUI overlays only the chrome: greeting + 与Pibo相识第 N 天,
-/// the 足迹 (history) + settings icons, the contextual 拔毛 button, and the 拍一拍
-/// speech / 发芽 flow.
+/// Pibo home — a fixed portrait SpriteKit forest. The scene never pans or
+/// scrolls; SwiftUI owns the four corner entries and the surrounding chrome.
 ///
-/// Feature entries are in-world (home spec lineage): 摄影馆 → 露珠相机, 健身房 →
-/// 健康小游戏列表 (`GameListView`, walk doodle 等), 足迹 icon → 历史数据页. The old
-/// 上滑数据二楼 (FloorModel/FloorContainer) is retired.
+/// The top-right icon grid enters 露珠相机, 健康小游戏列表 (`GameListView`, walk
+/// doodle 等), 足迹历史页, and 设置. The old in-world studio/gym entries and 上滑
+/// 数据二楼 (`FloorModel` / `FloorContainer`) are retired.
 ///
 /// Pibo's state and the head-flower come straight off raw HealthKit + time of day
 /// (see `PetStateStore+Mowan`).
@@ -45,6 +41,13 @@ struct HomeView: View {
     /// Greeting / day-label cached once (they're "drawn once per day").
     @State private var greetingText: String = ""
     @State private var dayLabelText: String = ""
+    @State private var atmosphereNow = Date()
+    #if DEBUG
+    @State private var forestTuning: ForestSceneTuning = .standard
+    @State private var tuningPanelExpanded = true
+    #else
+    private let forestTuning: ForestSceneTuning = .standard
+    #endif
     /// Today's 三餐 photos, cached in state so the (warm) home body doesn't run a
     /// SwiftData fetch on every re-eval (e.g. each 拍一拍 flips `activityState`).
     /// Refreshed on appear + whenever `history.revision` bumps (a capture / 卡路里
@@ -61,23 +64,28 @@ struct HomeView: View {
             || showSettings || detailMeal != nil
     }
 
+    private var forestEnvironment: ForestEnvironmentSnapshot {
+        #if DEBUG
+        return ForestDayPhaseResolver.resolve(
+            date: atmosphereNow,
+            forcedPhase: store.debugForestDayPhase,
+            rainIntensity: CGFloat(store.weather.precipitation)
+        )
+        #else
+        return ForestDayPhaseResolver.resolve(date: atmosphereNow, rainIntensity: 0)
+        #endif
+    }
+
     var body: some View {
         ZStack {
             PiboStageView(
                 theme: store.currentTheme,
                 state: store.activityState,
                 growth: store.growthStage,
-                weather: store.weather,
+                environment: forestEnvironment,
+                tuning: forestTuning,
                 onPat: handlePat,
                 onHairPulled: handleHairPull,
-                onEnterCamera: {
-                    Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
-                    pendingMeal = nil; showCamera = true
-                },
-                onEnterGames: {
-                    Analytics.track(.gamesOpen, screen: "home")
-                    showGames = true
-                },
                 energyGainToken: energyToken,
                 pluckToken: pluckToken,
                 turnAwayToken: turnAwayToken,
@@ -109,6 +117,13 @@ struct HomeView: View {
         }
         .accessibilityHidden(stagePaused)
         .task { await idleMutterLoop() }
+        .task { await atmosphereClockLoop() }
+        .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+            atmosphereNow = Date()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+            atmosphereNow = Date()
+        }
         .onAppear {
             greetingText = store.mowanGreeting
             dayLabelText = store.relationshipDayLabel
@@ -200,6 +215,21 @@ struct HomeView: View {
                 bottomControls
             }
             .padding(.horizontal, LP.Spacing.l)
+
+            #if DEBUG
+            VStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 0) {
+                    ForestTuningPanel(
+                        tuning: $forestTuning,
+                        isExpanded: $tuningPanelExpanded
+                    )
+                    Spacer(minLength: 0)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, LP.Spacing.l)
+            .padding(.top, 118)
+            #endif
         }
         .opacity(closeupActive ? 0 : 1)
         .allowsHitTesting(!closeupActive)
@@ -213,11 +243,14 @@ struct HomeView: View {
                 Text(greetingText.isEmpty ? store.mowanGreeting : greetingText)
                     .lpText(LP.Typography.b4Medium)
                     .foregroundStyle(LP.Content.secondary)
-                if !store.currentTheme.displayName.isEmpty {
+                #if DEBUG
+                if store.currentTheme.id != PiboTheme.forest.id,
+                   !store.currentTheme.displayName.isEmpty {
                     Text(AppLocalization.text(store.currentTheme.displayName))
                         .lpText(LP.Typography.uiH4)
                         .foregroundStyle(LP.Content.secondary)
                 }
+                #endif
                 Text(dayLabelText.isEmpty ? store.relationshipDayLabel : dayLabelText)
                     .lpText(LP.Typography.uiH4)
                     .foregroundStyle(LP.Content.secondary)
@@ -225,59 +258,63 @@ struct HomeView: View {
 
             Spacer(minLength: 0)
 
-            // Fixed corner icons (旅行青蛙-style) — 足迹 history + settings.
-            VStack(spacing: LP.Spacing.s) {
-                historyButton
-                settingsButton
-            }
+            cornerActions
         }
         .padding(.top, LP.Spacing.s)
     }
 
-    /// Hand-drawn 「足迹」 icon → the 历史数据页. A soft paper card, lightly tilted,
-    /// so it reads as a hand-placed keepsake rather than a system chrome button.
-    private var historyButton: some View {
-        Button {
-            LPHaptics.tap()
-            Analytics.track(.historyOpen, screen: "home")
-            showHistory = true
-        } label: {
-            VStack(spacing: 2) {
-                Image(systemName: "book.closed")
-                    .font(.system(size: 18, weight: .regular))
-                Text(AppLocalization.text("足迹"))
-                    .lpText(LP.Typography.c2Medium)
+    private var cornerActions: some View {
+        LazyVGrid(columns: [GridItem(.fixed(44), spacing: LP.Spacing.s),
+                            GridItem(.fixed(44), spacing: LP.Spacing.s)],
+                  spacing: LP.Spacing.s) {
+            cornerButton(systemImage: "camera.fill", label: "露珠相机", rotation: -2) {
+                Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
+                pendingMeal = nil
+                showCamera = true
             }
-            .foregroundStyle(LP.Content.secondary)
-            .frame(width: 48, height: 48)
-            .background(
-                RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
-                    .fill(LP.Fill.bgContainer))
-            .overlay(
-                RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
-                    .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair))
-            .lpShadow(LP.Shadow.elevation2)
-            .rotationEffect(.degrees(-3))
+            cornerButton(systemImage: "gamecontroller.fill", label: "小游戏", rotation: 2) {
+                Analytics.track(.gamesOpen, screen: "home")
+                showGames = true
+            }
+            cornerButton(systemImage: "book.closed", label: "足迹", rotation: 2) {
+                Analytics.track(.historyOpen, screen: "home")
+                showHistory = true
+            }
+            cornerButton(systemImage: "gearshape", label: "设置", rotation: -2) {
+                Analytics.track(.settingsOpen, screen: "home")
+                showSettings = true
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(AppLocalization.text("足迹 · 历史数据"))
+        .frame(width: 96)
     }
 
-    private var settingsButton: some View {
+    private func cornerButton(
+        systemImage: String,
+        label: String,
+        rotation: Double,
+        action: @escaping () -> Void
+    ) -> some View {
         Button {
             LPHaptics.tap()
-            Analytics.track(.settingsOpen, screen: "home")
-            showSettings = true
+            action()
         } label: {
-            Image(systemName: "gearshape")
-                .font(.system(size: 20, weight: .regular))
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(LP.Content.secondary)
-                .frame(width: 40, height: 40)
-                .background(Circle().fill(LP.Fill.bgContainer.opacity(0.9)))
+                .frame(width: 44, height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
+                        .fill(LP.Fill.bgContainer.opacity(0.90))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
+                        .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair)
+                )
                 .lpShadow(LP.Shadow.elevation1)
+                .rotationEffect(.degrees(rotation))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(AppLocalization.text("设置"))
+        .accessibilityLabel(AppLocalization.text(label))
     }
 
     // MARK: Bottom controls
@@ -526,6 +563,15 @@ struct HomeView: View {
         }
     }
 
+    /// Wall-clock lighting is intentionally cheap: one update per minute plus
+    /// the explicit timezone/day notifications registered on the view.
+    private func atmosphereClockLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(60))
+            if !Task.isCancelled { atmosphereNow = Date() }
+        }
+    }
+
     private func performReset() {
         Analytics.track(.reset, screen: "settings")
         store.reset()
@@ -557,6 +603,136 @@ struct HomeView: View {
     }
 #endif
 }
+
+#if DEBUG
+private struct ForestTuningPanel: View {
+    @Binding var tuning: ForestSceneTuning
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        Group {
+            if isExpanded {
+                expandedPanel
+                    .transition(.scale(scale: 0.88, anchor: .topLeading).combined(with: .opacity))
+            } else {
+                collapsedButton
+                    .transition(.scale(scale: 0.88, anchor: .topLeading).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.86), value: isExpanded)
+    }
+
+    private var expandedPanel: some View {
+        VStack(alignment: .leading, spacing: LP.Spacing.s) {
+            HStack(spacing: LP.Spacing.s) {
+                Label("森林细节", systemImage: "slider.horizontal.3")
+                    .lpText(LP.Typography.b3Medium)
+                    .foregroundStyle(LP.Content.primary)
+
+                Spacer(minLength: 0)
+
+                Button {
+                    LPHaptics.tap()
+                    tuning = .standard
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("恢复森林默认参数")
+
+                Button {
+                    LPHaptics.tap()
+                    isExpanded = false
+                } label: {
+                    Image(systemName: "chevron.up")
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("收起森林细节面板")
+            }
+            .foregroundStyle(LP.Content.secondary)
+
+            Toggle("隐藏 Pibo", isOn: Binding(
+                get: { !tuning.piboVisible },
+                set: { tuning.piboVisible = !$0 }
+            ))
+            .lpText(LP.Typography.c1Regular)
+            .tint(LP.Fill.foundationAccent)
+
+            tuningSlider(
+                title: "树叶晃动",
+                value: $tuning.foliageMotionScale,
+                range: 0...2
+            )
+            tuningSlider(
+                title: "水流速度",
+                value: $tuning.waterFlowSpeed,
+                range: 0...1.4
+            )
+        }
+        .padding(LP.Spacing.m)
+        .frame(width: 236)
+        .background(
+            RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                .fill(LP.Fill.bgContainer.opacity(0.94))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair)
+        )
+        .lpShadow(LP.Shadow.elevation2)
+    }
+
+    private var collapsedButton: some View {
+        Button {
+            LPHaptics.tap()
+            isExpanded = true
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(LP.Content.secondary)
+                .frame(width: 44, height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
+                        .fill(LP.Fill.bgContainer.opacity(0.94))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
+                        .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair)
+                )
+                .lpShadow(LP.Shadow.elevation1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("展开森林细节面板")
+    }
+
+    private func tuningSlider(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: LP.Spacing.s) {
+                Text(title)
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(LP.Content.secondary)
+                Spacer(minLength: 0)
+                Text(value.wrappedValue, format: .number.precision(.fractionLength(2)))
+                    .lpText(LP.Typography.c2Medium)
+                    .foregroundStyle(LP.Content.tertiary)
+                    .monospacedDigit()
+            }
+            Slider(value: value, in: range, step: 0.05)
+                .tint(LP.Fill.foundationAccent)
+                .accessibilityLabel(title)
+                .accessibilityValue(
+                    Text(value.wrappedValue, format: .number.precision(.fractionLength(2)))
+                )
+        }
+    }
+}
+#endif
 
 #Preview {
     HomeView()
