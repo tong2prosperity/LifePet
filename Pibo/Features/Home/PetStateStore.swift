@@ -306,19 +306,6 @@ final class PetStateStore {
         }
     }
 
-    private static let selectedThemeKey = "pibo.theme.selected.v1"
-    /// DEBUG-only preview selection persisted across launches. Release ignores
-    /// this value and `currentTheme` always resolves to the production forest.
-    var selectedThemeID: String? = nil {
-        didSet {
-            if let selectedThemeID {
-                UserDefaults.standard.set(selectedThemeID, forKey: Self.selectedThemeKey)
-            } else {
-                UserDefaults.standard.removeObject(forKey: Self.selectedThemeKey)
-            }
-        }
-    }
-
     private static let growthStageKey = "pibo.growth.v1"
     /// 魔丸 head growth — the 「?」卷芽 until the first collected 运动能量,
     /// then 发芽带叶 (Figma《识别到用户的活动》74:6102: 播完缩回主页面,
@@ -585,8 +572,7 @@ final class PetStateStore {
         self.stats = Self.demoStats
         self.state = .excited
         self.steps = demoMode ? Self.demoSteps : []
-        // Theme + growth persistence (didSet doesn't fire from init).
-        self.selectedThemeID = UserDefaults.standard.string(forKey: Self.selectedThemeKey)
+        // Growth persistence (didSet doesn't fire from init).
         self.growthStage = PiboGrowthStage(
             rawValue: UserDefaults.standard.string(forKey: Self.growthStageKey) ?? "") ?? .mystery
         self.appearance = PiboAppearance.decoded(from: UserDefaults.standard.data(forKey: Self.appearanceKey))
@@ -784,7 +770,6 @@ final class PetStateStore {
         debugForestDayPhase = nil
         UserDefaults.standard.removeObject(forKey: Self.debugForestDayPhaseKey)
         #endif
-        selectedThemeID = nil
         story.reset()
         // Stress is per-pet too — drop the RMSSD baseline window + the measure
         // log so the new pet starts clean (raw.rmssd was already cleared above).

@@ -90,4 +90,11 @@ struct ForestLayoutMapper {
     func size(_ designSize: CGSize) -> CGSize {
         CGSize(width: designSize.width * scale, height: designSize.height * scale)
     }
+
+    func designPoint(_ scenePoint: CGPoint) -> CGPoint {
+        CGPoint(
+            x: (scenePoint.x - origin.x) / scale,
+            y: ForestSceneManifest.designSize.height - (scenePoint.y - origin.y) / scale
+        )
+    }
 }

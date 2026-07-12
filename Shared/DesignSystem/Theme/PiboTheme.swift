@@ -1,20 +1,13 @@
 import SwiftUI
 
-// MARK: - 关于毛的主题 (Pibo theme system)
+// MARK: - Pibo home appearance tokens
 //
 // A *theme* scopes two things in the home activity zone:
 //   1. the **scene** Pibo stands in (sky + ground), and
 //   2. the **kind of 毛/花** growing on its head.
 //
-// Themes are 节气限定 / 活动限定 (seasonal / event-limited) — e.g. 桃花时节,
-// 阿那亚的海风里. Each theme is pure token data (`PiboTheme`), so adding one is a
-// single value with no new view code; `PiboStageScene` (home) and
-// `PiboThemeScene` (widget/preview Canvas) interpret it.
-//
-// Sourced from the home《关于毛的主题》mockup (Figma node 74:6101 — three screens:
-// 桃花时节 D127 / 阿那亚的海风里 D7 / 魔丸态 D1). The user picks a theme from the
-// settings gear (`SettingsSheet`); the choice persists via
-// `PetStateStore.selectedThemeID`.
+// `forest` is the only runtime appearance. The token shape remains shared by
+// SpriteKit and the lightweight SwiftUI preview renderer.
 
 /// One positioned artwork sprite: an asset name plus its **center in the
 /// 393×852 Figma design frame**, so each theme's 毛/花/黑洞 sits exactly where
@@ -121,92 +114,16 @@ extension PiboTheme {
         bodyImage: "forest_pibo_body",
         bodyCenterX: 196.5,
         bodyCenterY: 510.2,
-        headSprite: PiboThemeSprite(image: "forest_pibo_head", centerX: 121.28, centerY: 443.7),
+        // The PNG is asymmetric: its root is at the bottom around x=60.5/93,
+        // not at the texture center. These coordinates put that root on the
+        // body's top-center with a small overlap so no transparent seam appears.
+        headSprite: PiboThemeSprite(image: "forest_pibo_head", centerX: 193.5, centerY: 381.0),
         // The current Figma file has one latest head state. Keeping a replacement
         // entry preserves the existing first-energy flow while the animation is
         // expressed through scale/rotation instead of an old texture swap.
-        sproutedHeadSprite: PiboThemeSprite(image: "forest_pibo_head", centerX: 121.28, centerY: 443.7)
+        sproutedHeadSprite: PiboThemeSprite(image: "forest_pibo_head", centerX: 193.5, centerY: 381.0)
     )
 
-    /// 魔丸态默认 — Day 1: floating slab in a void, 黑洞 + 「?」卷芽 over the head.
-    /// Fully image-backed (restored from Figma 74:5917): the platform slab
-    /// (`demon_bg`), the shared 白团子 (`pibo_body`), the 「?」卷芽 (`demon_curl`,
-    /// growing into `demon_curl_sprouted` after the first 能量收集) and the 黑洞
-    /// (`demon_hole`). Scene colors mirror the SVG fills for the procedural
-    /// fallback (slab `#EAEAEA`, edge `#BFBFBF`).
-    static let demon = PiboTheme(
-        id: "demon",
-        displayName: "",
-        scene: PiboScene(
-            skyTop: Color(hex: 0xF4F8F9), skyBottom: Color(hex: 0xF4F8F9),
-            ground: Color(hex: 0xEAEAEA), groundAccent: Color(hex: 0xBFBFBF),
-            terrain: .platform,
-            backgroundImage: "demon_bg"        // 还原自 Figma 74:5917（悬浮平台 Group 78）
-        ),
-        headItem: .mystery,
-        bodyImage: "pibo_body",                // 复用白团子 + 脸（同一本体）
-        bodyBackImage: "pibo_body_back",
-        bodyCenterY: 428.5,                    // 魔丸 Figma 帧的本体中心略高（站在台沿上）
-        headSprite: PiboThemeSprite(image: "demon_curl", centerX: 200.43, centerY: 299),
-        sproutedHeadSprite: PiboThemeSprite(image: "demon_curl_sprouted", centerX: 211.43, centerY: 299),
-        overheadSprite: PiboThemeSprite(image: "demon_hole", centerX: 196, centerY: 271)
-    )
-
-    /// 节气限定 · 桃花时节 — pink-petalled meadow, blossom twig on head.
-    static let peachSeason = PiboTheme(
-        id: "peach-season",
-        displayName: "桃花时节",
-        scene: PiboScene(
-            skyTop: Color(hex: 0xFFFFFF), skyBottom: Color(hex: 0xFDF3F6),
-            ground: Color(hex: 0xAFC98E), groundAccent: Color(hex: 0xF3A9BE),
-            terrain: .meadow,
-            backgroundImage: "peach_bg"        // 还原自 Figma 74:5954（4 层笔刷草地 + 底部白圆）
-        ),
-        headItem: .peachBranch,
-        bodyImage: "pibo_body",                // Group70：白团子 + 脸
-        bodyBackImage: "pibo_body_back",
-        headSprite: PiboThemeSprite(image: "peach_branch")   // Group74 + 枝干
-    )
-
-    /// 活动限定 · 阿那亚的海风里 — sea-and-sand beach, green sea leaf on head.
-    /// Fully image-backed (restored from Figma `488:1340` / `488:1353`): a sand
-    /// band over `bgSurface` with a painted sea inlet (`aranya_bg`), the shared
-    /// 白团子 body (`pibo_body`), and a single 海草叶片 (`aranya_seaweed`). Scene
-    /// colors mirror the SVG fills (sand `#D5C5AA`, sea-foam `#AADDE5`) so the
-    /// procedural fallback stays on-palette if an asset ever fails to load.
-    static let aranyaSeaBreeze = PiboTheme(
-        id: "aranya-sea-breeze",
-        displayName: "阿那亚的海风里",
-        scene: PiboScene(
-            skyTop: Color(hex: 0xFFFFFF), skyBottom: Color(hex: 0xF1F8FA),
-            ground: Color(hex: 0xD5C5AA), groundAccent: Color(hex: 0xAADDE5),
-            terrain: .beach,
-            backgroundImage: "aranya_bg"       // 还原自 Figma 488:1340（沙滩 + 海湾 + 贝壳）
-        ),
-        headItem: .seaweed,
-        bodyImage: "pibo_body",                // 复用桃花的白团子 + 脸（同一本体）
-        bodyBackImage: "pibo_body_back",
-        headSprite: PiboThemeSprite(image: "aranya_seaweed") // Group83：海草叶片
-    )
-
-    /// Default sprout theme — neutral meadow, the everyday green sprout.
-    /// Procedural-only; kept as the fallback look and for the widget Canvas.
-    static let sprout = PiboTheme(
-        id: "sprout",
-        displayName: "",
-        scene: PiboScene(
-            skyTop: Color(hex: 0xFFFFFF), skyBottom: Color(hex: 0xF6F6F2),
-            ground: Color(hex: 0xDDE3D6), groundAccent: Color(hex: 0xC2D0AE),
-            terrain: .meadow
-        ),
-        headItem: .sprout
-    )
-
-    /// All themes shipped today (default first).
-    static let presets: [PiboTheme] = [.forest, .demon, .sprout, .peachSeason, .aranyaSeaBreeze]
-
-    /// Themes offered only by the DEBUG settings picker. Production always
-    /// resolves to `.forest`; procedural `.sprout` stays a fallback, not a user
-    /// choice.
-    static let selectable: [PiboTheme] = [.forest, .demon, .peachSeason, .aranyaSeaBreeze]
+    /// The only appearance exposed to previews and runtime UI.
+    static let presets: [PiboTheme] = [.forest]
 }

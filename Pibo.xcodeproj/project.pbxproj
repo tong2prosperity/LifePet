@@ -8,11 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		A7DA5EEC2FD0000100000001 /* DataSneaker in Frameworks */ = {isa = PBXBuildFile; productRef = A7DA5EEC2FD0000100000002 /* DataSneaker */; };
-		B1C000000000000000000001 /* PiboChessUI in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000000000000000000002 /* PiboChessUI */; };
 		A7F3FD592F9B1F0200EA90A6 /* Pibo Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = A7F3FD582F9B1F0200EA90A6 /* Pibo Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A7F5C52B2FC8832A0050C48C /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A7F5C52A2FC8832A0050C48C /* WidgetKit.framework */; };
 		A7F5C52D2FC8832A0050C48C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A7F5C52C2FC8832A0050C48C /* SwiftUI.framework */; };
 		A7F5C53E2FC8832B0050C48C /* PiboWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A7F5C5282FC8832A0050C48C /* PiboWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B1C000000000000000000001 /* PiboChessUI in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000000000000000000002 /* PiboChessUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */

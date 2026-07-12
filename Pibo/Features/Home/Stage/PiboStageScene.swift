@@ -30,8 +30,14 @@ enum SproutCloseupPhase {
 
 final class PiboStageScene: SKScene {
 
+    /// `forest_river` is the complete Figma river and includes the authored
+    /// foreground foliage reflections. The static child vector remains the
+    /// undistorted silhouette used by the crop mask and moving highlights.
+    private static let forestWaterTextureName = "forest_water_static"
+    private static let forestWaterCompositedTextureName = "forest_river"
+
     // — Inputs (set by the SwiftUI wrapper) —
-    private(set) var theme: PiboTheme = .sprout
+    private(set) var theme: PiboTheme = .forest
     private(set) var activityState: PiboActivityState = .idle
     private(set) var growth: PiboGrowthStage = .mystery
     private(set) var environment: ForestEnvironmentSnapshot = .daylight
@@ -52,13 +58,18 @@ final class PiboStageScene: SKScene {
     private let backdrop = SKNode()      // legacy backdrop or layered forest
     private let forestFoliageLayer = SKNode()
     private var forestFoliage: [ForestFoliageNode] = []
-    private var forestWaterNode: SKSpriteNode?
+    private var forestLayerNodes: [String: SKSpriteNode] = [:]
+    private var forestFoliageNodes: [String: ForestFoliageNode] = [:]
+    private let forestReflectionLayer = SKCropNode()
+    private var forestReflectionProxies: [ForestReflectionProxy] = []
+    private var forestWaterBaseNode: SKSpriteNode?
+    private var forestWaterNode: SKSpriteNode? // surface highlights + flow clock
     private var morningLightNode: SKSpriteNode?
     private let firefliesNode = SKNode()
     private var fireflyEmitter: SKEmitterNode?
     private let atmosphereNode = SKNode()
-    private let multiplyOverlay = SKSpriteNode(color: .clear, size: .zero)
-    private let screenOverlay = SKSpriteNode(color: .clear, size: .zero)
+    private let gradeOverlay = SKSpriteNode(color: .white, size: .zero)
+    private let lightOverlay = SKSpriteNode(color: .white, size: .zero)
     private let pibo = SKNode()          // body group (bobs as a unit)
     private var bodyNode: SKShapeNode?   // procedural egg body
     private var bodySprite: SKSpriteNode? // art body (when theme.bodyImage set)
@@ -83,6 +94,9 @@ final class PiboStageScene: SKScene {
         var speed: Float
         var rippleStrength: Float
         var highlightStrength: Float
+        var reflectionIntensity: Float
+        var reflectionCompression: Float
+        var reflectionTipScale: Float
         var showMask: Bool
     }
     private var waterDebugTuning: WaterDebugTuning?
@@ -123,6 +137,7 @@ final class PiboStageScene: SKScene {
 
         flowTime.formTruncatingRemainder(dividingBy: 120)
         flowTime += Float(delta)
+        forestWaterBaseNode?.shader?.uniformNamed("u_flow_time")?.floatValue = flowTime
         forestWaterNode?.shader?.uniformNamed("u_flow_time")?.floatValue = flowTime
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
         var tunedWind = environment.wind
@@ -130,6 +145,11 @@ final class PiboStageScene: SKScene {
         for leaf in forestFoliage {
             leaf.update(time: currentTime, deltaTime: delta, wind: tunedWind, reduceMotion: reduceMotion)
         }
+    }
+
+    override func didEvaluateActions() {
+        guard built, theme.id == PiboTheme.forest.id else { return }
+        updateForestReflections()
     }
 
     // MARK: Public API (called from the SwiftUI wrapper)
@@ -197,16 +217,30 @@ final class PiboStageScene: SKScene {
         speed: Double,
         rippleStrength: Double,
         highlightStrength: Double,
+        reflectionIntensity: Double = 1,
+        reflectionCompression: Double = 0.52,
+        reflectionTipScale: Double = 0.72,
         showMask: Bool
     ) {
         waterDebugTuning = WaterDebugTuning(
             speed: Float(speed),
             rippleStrength: Float(rippleStrength),
             highlightStrength: Float(highlightStrength),
+            reflectionIntensity: Float(reflectionIntensity),
+            reflectionCompression: Float(reflectionCompression),
+            reflectionTipScale: Float(reflectionTipScale),
             showMask: showMask
         )
+        // At zero the lab shows the supplied static child vector, making an
+        // exact authored-reflection off/on screenshot comparison possible.
+        let baseTexture = reflectionIntensity <= 0.001
+            ? Self.forestWaterTextureName
+            : Self.forestWaterCompositedTextureName
+        forestWaterBaseNode?.texture = SKTexture(imageNamed: baseTexture)
+        forestWaterBaseNode?.texture?.filteringMode = .linear
         applyWaterPerformanceUniforms()
         updateWaterLighting()
+        updateForestReflections()
         forestWaterNode?.shader?.uniformNamed("u_mask_preview")?.floatValue = showMask ? 1 : 0
     }
     #endif
@@ -528,10 +562,12 @@ final class PiboStageScene: SKScene {
         camera = cam
         atmosphereNode.zPosition = 90
         cam.addChild(atmosphereNode)
-        multiplyOverlay.blendMode = .multiply
-        screenOverlay.blendMode = .screen
-        atmosphereNode.addChild(multiplyOverlay)
-        atmosphereNode.addChild(screenOverlay)
+        gradeOverlay.alpha = 0
+        lightOverlay.alpha = 0
+        gradeOverlay.blendMode = .alpha
+        lightOverlay.blendMode = .alpha
+        atmosphereNode.addChild(gradeOverlay)
+        atmosphereNode.addChild(lightOverlay)
 
         rebuildBackdrop()
         buildPibo()
@@ -694,6 +730,12 @@ final class PiboStageScene: SKScene {
         backdrop.removeAllChildren()
         forestFoliageLayer.removeAllChildren()
         forestFoliage.removeAll(keepingCapacity: true)
+        forestLayerNodes.removeAll(keepingCapacity: true)
+        forestFoliageNodes.removeAll(keepingCapacity: true)
+        forestReflectionLayer.removeAllChildren()
+        forestReflectionLayer.maskNode = nil
+        forestReflectionProxies.removeAll(keepingCapacity: true)
+        forestWaterBaseNode = nil
         forestWaterNode = nil
         morningLightNode = nil
         if theme.id == PiboTheme.forest.id {
@@ -713,14 +755,35 @@ final class PiboStageScene: SKScene {
         backdrop.addChild(base)
 
         for definition in ForestSceneManifest.backgroundLayers {
-            backdrop.addChild(forestSprite(for: definition, mapper: mapper))
+            let sprite = forestSprite(for: definition, mapper: mapper)
+            backdrop.addChild(sprite)
+            forestLayerNodes[definition.image] = sprite
         }
 
         let waterDefinition = ForestSceneManifest.river
-        let water = forestSprite(for: waterDefinition, mapper: mapper)
-        water.shader = makeWaterShader()
-        backdrop.addChild(water)
-        forestWaterNode = water
+        let waterBase = forestSprite(for: waterDefinition, mapper: mapper)
+        waterBase.texture = SKTexture(imageNamed: Self.forestWaterCompositedTextureName)
+        waterBase.texture?.filteringMode = .linear
+        waterBase.shader = makeWaterBaseShader()
+        backdrop.addChild(waterBase)
+        forestWaterBaseNode = waterBase
+
+        let riverMask = forestSprite(for: waterDefinition, mapper: mapper)
+        riverMask.texture = SKTexture(imageNamed: Self.forestWaterTextureName)
+        riverMask.texture?.filteringMode = .linear
+        riverMask.zPosition = 0
+        forestReflectionLayer.maskNode = riverMask
+        forestReflectionLayer.zPosition = waterDefinition.zPosition + 0.2
+        backdrop.addChild(forestReflectionLayer)
+
+        let waterSurface = forestSprite(for: waterDefinition, mapper: mapper)
+        waterSurface.texture = SKTexture(imageNamed: Self.forestWaterTextureName)
+        waterSurface.texture?.filteringMode = .linear
+        waterSurface.zPosition = waterDefinition.zPosition + 0.6
+        waterSurface.blendMode = .screen
+        waterSurface.shader = makeWaterShader()
+        backdrop.addChild(waterSurface)
+        forestWaterNode = waterSurface
 
         for definition in ForestSceneManifest.foliage {
             let texture = SKTexture(imageNamed: definition.image)
@@ -734,6 +797,7 @@ final class PiboStageScene: SKScene {
             leaf.position = mapper.point(anchorInDesign)
             forestFoliageLayer.addChild(leaf)
             forestFoliage.append(leaf)
+            forestFoliageNodes[definition.image] = leaf
         }
 
         let light = forestSprite(for: ForestSceneManifest.morningLight, mapper: mapper)
@@ -760,10 +824,7 @@ final class PiboStageScene: SKScene {
         let shader = SKShader(fileNamed: "ForestStream.fsh")
         shader.addUniform(SKUniform(name: "u_flow_time", float: flowTime))
         shader.addUniform(SKUniform(name: "u_flow_speed", float: waterFlowSpeed))
-        shader.addUniform(SKUniform(name: "u_ripple_strength", float: effectiveWaterRippleStrength))
         shader.addUniform(SKUniform(name: "u_highlight_strength", float: 0.82))
-        shader.addUniform(SKUniform(name: "u_darkness", float: 0))
-        shader.addUniform(SKUniform(name: "u_warmth", float: 0))
         shader.addUniform(SKUniform(name: "u_low_power", float: lowPowerModeEnabled ? 1 : 0))
         #if DEBUG
         shader.addUniform(SKUniform(name: "u_mask_preview", float: waterDebugTuning?.showMask == true ? 1 : 0))
@@ -771,6 +832,173 @@ final class PiboStageScene: SKScene {
         shader.addUniform(SKUniform(name: "u_mask_preview", float: 0))
         #endif
         return shader
+    }
+
+    private func makeWaterBaseShader() -> SKShader {
+        let shader = SKShader(fileNamed: "ForestWaterBase.fsh")
+        shader.addUniform(SKUniform(name: "u_flow_time", float: flowTime))
+        shader.addUniform(SKUniform(name: "u_flow_speed", float: waterFlowSpeed))
+        shader.addUniform(SKUniform(name: "u_ripple_strength", float: effectiveWaterRippleStrength))
+        shader.addUniform(SKUniform(name: "u_darkness", float: 0))
+        shader.addUniform(SKUniform(name: "u_warmth", float: 0))
+        shader.addUniform(SKUniform(name: "u_low_power", float: lowPowerModeEnabled ? 1 : 0))
+        return shader
+    }
+
+    private func rebuildForestReflectionProxies() {
+        forestReflectionLayer.removeAllChildren()
+        forestReflectionProxies.removeAll(keepingCapacity: true)
+        guard theme.id == PiboTheme.forest.id,
+              forestReflectionLayer.parent != nil else { return }
+
+        func appendProxy(
+            source: SKSpriteNode,
+            contact: CGPoint,
+            projectionHeight: CGFloat,
+            sourceVRange: ClosedRange<CGFloat> = 0 ... 1,
+            alpha: CGFloat,
+            zPosition: CGFloat
+        ) {
+            let proxy = ForestReflectionProxy(
+                source: source,
+                contactPoint: contact,
+                projectionHeight: projectionHeight,
+                sourceVRange: sourceVRange,
+                baseAlpha: alpha,
+                zPosition: zPosition
+            )
+            forestReflectionLayer.addChild(proxy.reflected)
+            forestReflectionProxies.append(proxy)
+        }
+
+        for image in ["forest_bg_tree", "forest_secondary_tree"] {
+            guard let source = forestLayerNodes[image],
+                  let definition = ForestSceneManifest.backgroundLayers.first(where: { $0.image == image }) else {
+                continue
+            }
+            let contact = CGPoint(x: definition.frame.midX, y: ForestSceneManifest.river.frame.minY)
+            let lowerV = min(max(
+                (definition.frame.maxY - contact.y) / definition.frame.height,
+                0
+            ), 1)
+            appendProxy(
+                source: source,
+                contact: contact,
+                projectionHeight: contact.y - definition.frame.minY,
+                sourceVRange: lowerV ... 1,
+                alpha: 0.24,
+                zPosition: 0
+            )
+        }
+
+        let leafReflections: [(image: String, contactY: CGFloat, alpha: CGFloat)] = [
+            ("forest_main_leaf_1", 730, 0.26),
+            ("forest_main_leaf_2", 730, 0.26),
+            ("forest_front_leaf_1", 825, 0.22),
+            ("forest_front_leaf_2", 820, 0.22),
+        ]
+        for reflection in leafReflections {
+            let image = reflection.image
+            guard let source = forestFoliageNodes[image],
+                  let definition = ForestSceneManifest.foliage.first(where: { $0.image == image }) else {
+                continue
+            }
+            let contactY = min(max(reflection.contactY, definition.frame.minY), definition.frame.maxY)
+            let contact = CGPoint(
+                x: definition.frame.midX,
+                y: contactY
+            )
+            let lowerV = min(max(
+                (definition.frame.maxY - contact.y) / definition.frame.height,
+                0
+            ), 1)
+            appendProxy(
+                source: source,
+                contact: contact,
+                projectionHeight: max(contact.y - definition.frame.minY, 1),
+                sourceVRange: lowerV ... 1,
+                alpha: reflection.alpha,
+                zPosition: 1
+            )
+        }
+
+        let piboContact = ForestSceneManifest.piboFootPoint
+        let piboProjectionHeight: CGFloat = 265
+        if let bodySprite {
+            appendProxy(
+                source: bodySprite,
+                contact: piboContact,
+                projectionHeight: piboProjectionHeight,
+                alpha: 0.16,
+                zPosition: 2
+            )
+        }
+        appendProxy(
+            source: headNode,
+            contact: piboContact,
+            projectionHeight: piboProjectionHeight,
+            alpha: 0.16,
+            zPosition: 3
+        )
+        updateForestReflections()
+    }
+
+    private func updateForestReflections() {
+        guard theme.id == PiboTheme.forest.id,
+              !forestReflectionProxies.isEmpty,
+              size.width > 1,
+              size.height > 1 else { return }
+        let mapper = ForestLayoutMapper(sceneSize: size)
+        let phase = CGFloat(flowTime * waterFlowSpeed)
+        let style: ForestReflectionProjection.Style
+        let intensity: CGFloat
+        #if DEBUG
+        if let waterDebugTuning {
+            style = ForestReflectionProjection.Style(
+                verticalCompression: CGFloat(waterDebugTuning.reflectionCompression),
+                tipWidthScale: CGFloat(waterDebugTuning.reflectionTipScale),
+                outwardDrift: ForestReflectionProjection.Style.strong.outwardDrift,
+                rippleStrength: CGFloat(waterDebugTuning.rippleStrength)
+            )
+            intensity = CGFloat(waterDebugTuning.reflectionIntensity)
+        } else {
+            style = ForestReflectionProjection.Style(
+                verticalCompression: ForestReflectionProjection.Style.strong.verticalCompression,
+                tipWidthScale: ForestReflectionProjection.Style.strong.tipWidthScale,
+                outwardDrift: ForestReflectionProjection.Style.strong.outwardDrift,
+                rippleStrength: CGFloat(effectiveWaterRippleStrength)
+            )
+            intensity = 1
+        }
+        #else
+        style = ForestReflectionProjection.Style(
+            verticalCompression: ForestReflectionProjection.Style.strong.verticalCompression,
+            tipWidthScale: ForestReflectionProjection.Style.strong.tipWidthScale,
+            outwardDrift: ForestReflectionProjection.Style.strong.outwardDrift,
+            rippleStrength: CGFloat(effectiveWaterRippleStrength)
+        )
+        intensity = 1
+        #endif
+
+        let phaseMultiplier: CGFloat
+        switch environment.dayPhase {
+        case .morning: phaseMultiplier = 0.90
+        case .day: phaseMultiplier = 1
+        case .dusk: phaseMultiplier = 0.75
+        case .night: phaseMultiplier = 0.40
+        }
+        for proxy in forestReflectionProxies {
+            proxy.update(
+                in: forestReflectionLayer,
+                sceneSize: size,
+                mapper: mapper,
+                phase: phase,
+                style: style,
+                intensity: intensity,
+                dayPhaseMultiplier: phaseMultiplier,
+                lowPower: lowPowerModeEnabled
+            )
+        }
     }
 
     private var waterFlowSpeed: Float {
@@ -790,10 +1018,11 @@ final class PiboStageScene: SKScene {
     }
 
     private func applyWaterPerformanceUniforms() {
-        guard let shader = forestWaterNode?.shader else { return }
-        shader.uniformNamed("u_flow_speed")?.floatValue = waterFlowSpeed
-        shader.uniformNamed("u_ripple_strength")?.floatValue = effectiveWaterRippleStrength
-        shader.uniformNamed("u_low_power")?.floatValue = lowPowerModeEnabled ? 1 : 0
+        for shader in [forestWaterBaseNode?.shader, forestWaterNode?.shader].compactMap({ $0 }) {
+            shader.uniformNamed("u_flow_speed")?.floatValue = waterFlowSpeed
+            shader.uniformNamed("u_ripple_strength")?.floatValue = effectiveWaterRippleStrength
+            shader.uniformNamed("u_low_power")?.floatValue = lowPowerModeEnabled ? 1 : 0
+        }
     }
 
     private func applyTuning(visibilityChanged: Bool) {
@@ -818,8 +1047,8 @@ final class PiboStageScene: SKScene {
         case .dusk: values = (0.18, 0.42, 0.68)
         case .night: values = (0.72, 0, 0.38)
         }
-        forestWaterNode?.shader?.uniformNamed("u_darkness")?.floatValue = values.darkness
-        forestWaterNode?.shader?.uniformNamed("u_warmth")?.floatValue = values.warmth
+        forestWaterBaseNode?.shader?.uniformNamed("u_darkness")?.floatValue = values.darkness
+        forestWaterBaseNode?.shader?.uniformNamed("u_warmth")?.floatValue = values.warmth
         #if DEBUG
         let highlight = waterDebugTuning?.highlightStrength ?? values.highlight
         #else
@@ -830,42 +1059,42 @@ final class PiboStageScene: SKScene {
 
     private func applyAtmosphere(animated: Bool) {
         atmosphereNode.position = .zero
-        multiplyOverlay.size = size
-        screenOverlay.size = size
+        gradeOverlay.size = size
+        lightOverlay.size = size
 
-        let multiply: (SKColor, CGFloat)
-        let screen: (SKColor, CGFloat)
+        let grade: (SKColor, CGFloat)
+        let light: (SKColor, CGFloat)
         let morningAlpha: CGFloat
         switch environment.dayPhase {
         case .morning:
-            multiply = (SKColor(red: 0.91, green: 0.95, blue: 0.88, alpha: 1), 0.10)
-            screen = (SKColor(red: 1, green: 0.84, blue: 0.60, alpha: 1), 0.12)
-            morningAlpha = 0.92
+            grade = (SKColor(red: 0.96, green: 0.95, blue: 0.86, alpha: 1), 0.04)
+            light = (SKColor(red: 1, green: 0.82, blue: 0.58, alpha: 1), 0.09)
+            morningAlpha = 0.72
         case .day:
-            multiply = (.white, 0)
-            screen = (.white, 0.02)
-            morningAlpha = 0.10
+            grade = (.white, 0)
+            light = (.white, 0)
+            morningAlpha = 0.08
         case .dusk:
-            multiply = (SKColor(red: 0.21, green: 0.36, blue: 0.35, alpha: 1), 0.18)
-            screen = (SKColor(red: 1, green: 0.69, blue: 0.42, alpha: 1), 0.16)
-            morningAlpha = 0.04
+            grade = (SKColor(red: 0.19, green: 0.16, blue: 0.24, alpha: 1), 0.18)
+            light = (SKColor(red: 1, green: 0.52, blue: 0.25, alpha: 1), 0.12)
+            morningAlpha = 0
         case .night:
-            multiply = (SKColor(red: 0.08, green: 0.18, blue: 0.23, alpha: 1), 0.48)
-            screen = (SKColor(red: 0.55, green: 0.79, blue: 0.84, alpha: 1), 0.08)
+            grade = (SKColor(red: 0.03, green: 0.10, blue: 0.17, alpha: 1), 0.50)
+            light = (SKColor(red: 0.27, green: 0.48, blue: 0.60, alpha: 1), 0.06)
             morningAlpha = 0
         }
 
         let duration = animated ? 1.2 : 0
-        multiplyOverlay.removeAction(forKey: "atmosphere")
-        screenOverlay.removeAction(forKey: "atmosphere")
+        gradeOverlay.removeAction(forKey: "atmosphere")
+        lightOverlay.removeAction(forKey: "atmosphere")
         morningLightNode?.removeAction(forKey: "atmosphere")
-        multiplyOverlay.run(.group([
-            .colorize(with: multiply.0, colorBlendFactor: 1, duration: duration),
-            .fadeAlpha(to: multiply.1, duration: duration),
+        gradeOverlay.run(.group([
+            .colorize(with: grade.0, colorBlendFactor: 1, duration: duration),
+            .fadeAlpha(to: grade.1, duration: duration),
         ]), withKey: "atmosphere")
-        screenOverlay.run(.group([
-            .colorize(with: screen.0, colorBlendFactor: 1, duration: duration),
-            .fadeAlpha(to: screen.1, duration: duration),
+        lightOverlay.run(.group([
+            .colorize(with: light.0, colorBlendFactor: 1, duration: duration),
+            .fadeAlpha(to: light.1, duration: duration),
         ]), withKey: "atmosphere")
         morningLightNode?.run(.fadeAlpha(to: morningAlpha, duration: duration), withKey: "atmosphere")
         updateFireflies(animated: animated)
@@ -1078,6 +1307,7 @@ final class PiboStageScene: SKScene {
             cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
             cam.setScale(1)
         }
+        rebuildForestReflectionProxies()
     }
 
     private func positionHead() {

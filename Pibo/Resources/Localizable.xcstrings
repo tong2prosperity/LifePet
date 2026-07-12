@@ -313,16 +313,6 @@
         }
       }
     },
-    "%@ %@" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ %2$@"
-          }
-        }
-      }
-    },
     "%@ 醒过来一点！+%d 活力星光" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -245,20 +245,10 @@ extension PetStateStore {
         return grade
     }
 
-    // MARK: Theme (关于毛的主题)
+    // MARK: Home appearance
 
-    /// The active 主题 (节气/活动限定): the user's pick from the settings gear,
-    /// falling back to the 魔丸 default (Figma 74:6101's D1 screen — 黑洞 +
-    /// 「?」卷芽 on the floating slab, now fully image-backed). All three Figma
-    /// themes are selectable in `SettingsSheet`; date-driven 节气/活动 unlock
-    /// rules are a later pass.
+    /// Forest is the single home appearance in every configuration.
     var currentTheme: PiboTheme {
-        #if DEBUG
-        if let id = selectedThemeID,
-           let chosen = PiboTheme.selectable.first(where: { $0.id == id }) {
-            return chosen
-        }
-        #endif
         return .forest
     }
 }

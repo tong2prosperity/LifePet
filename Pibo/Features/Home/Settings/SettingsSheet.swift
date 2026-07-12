@@ -3,9 +3,8 @@ import SwiftUI
 import HealthKit
 #endif
 
-/// Settings, behind the home gear (Figma headers 76:6662 / 245:1742): pick a
-/// 关于毛的主题 and start over. Reset lives here now (it used to hang directly
-/// off the gear button).
+/// Settings behind the home gear. The forest is the single production home
+/// appearance; this sheet owns membership, notifications, diagnostics and reset.
 struct SettingsSheet: View {
     @Environment(PetStateStore.self) private var store
     @Environment(MembershipService.self) private var membership
@@ -32,9 +31,6 @@ struct SettingsSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: LP.Spacing.xl) {
                 header
-                #if DEBUG
-                themeSection
-                #endif
                 membershipSection
                 notifySection
                 dangerSection
@@ -83,87 +79,6 @@ struct SettingsSheet: View {
             .foregroundStyle(LP.Content.primary)
             .padding(.top, LP.Spacing.s)
     }
-
-    // MARK: 主题 (DEBUG legacy preview only)
-
-    #if DEBUG
-    private var themeSection: some View {
-        VStack(alignment: .leading, spacing: LP.Spacing.s) {
-            Text(AppLocalization.text("关于毛的主题"))
-                .lpText(LP.Typography.c1Regular)
-                .foregroundStyle(LP.Content.tertiary)
-
-            VStack(spacing: 0) {
-                ForEach(Array(PiboTheme.selectable.enumerated()), id: \.element.id) { index, theme in
-                    themeRow(theme)
-                    if index < PiboTheme.selectable.count - 1 {
-                        Divider().overlay(LP.Separator.primary)
-                    }
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                    .fill(LP.Fill.bgContainer)
-            )
-        }
-    }
-
-    private func themeRow(_ theme: PiboTheme) -> some View {
-        let isSelected = store.currentTheme.id == theme.id
-        return Button {
-            LPHaptics.tap()
-            if !isSelected {
-                Analytics.track(.themeChange, screen: "settings", ["theme": .string(theme.id)])
-            }
-            store.selectedThemeID = theme.id
-        } label: {
-            HStack(spacing: LP.Spacing.m) {
-                themeThumbnail(theme)
-                Text(themeName(theme))
-                    .lpText(LP.Typography.b2Medium)
-                    .foregroundStyle(LP.Content.primary)
-                Spacer(minLength: 0)
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(LP.Fill.foundationAccent)
-                }
-            }
-            .padding(.horizontal, LP.Spacing.m)
-            .padding(.vertical, LP.Spacing.s + 2)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    private func themeName(_ theme: PiboTheme) -> String {
-        if theme.id == PiboTheme.forest.id { return "森林（正式版）" }
-        return theme.displayName.isEmpty ? AppLocalization.text("魔丸") : AppLocalization.text(theme.displayName)
-    }
-
-    /// A slice of the theme's backdrop as the row thumbnail (procedural themes
-    /// fall back to their scene colors).
-    private func themeThumbnail(_ theme: PiboTheme) -> some View {
-        Group {
-            if let bg = theme.scene.backgroundImage {
-                Image(bg)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                LinearGradient(
-                    colors: [theme.scene.skyBottom, theme.scene.ground],
-                    startPoint: .top, endPoint: .bottom)
-            }
-        }
-        .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
-                .strokeBorder(LP.Border.primary, lineWidth: LP.BorderWidth.hair)
-        )
-    }
-    #endif
 
     // MARK: 会员
 

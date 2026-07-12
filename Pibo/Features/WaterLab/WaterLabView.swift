@@ -3,17 +3,39 @@ import SwiftUI
 import SpriteKit
 
 /// DEV controls for the exact SpriteKit river used by production Home. This
-/// intentionally owns no second renderer: sliders update `ForestStream.fsh`
-/// uniforms on `PiboStageScene` directly.
+/// intentionally owns no second renderer: sliders update the production water
+/// shaders and reflection projection on `PiboStageScene` directly.
 struct WaterLabView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var speed: Double = 0.62
     @State private var rippleStrength: Double = 0.70
     @State private var highlightStrength: Double = 0.78
+    @State private var reflectionIntensity: Double = 1.00
+    @State private var reflectionCompression: Double = 0.52
+    @State private var reflectionTipScale: Double = 0.72
     @State private var showMask = false
     @State private var isPaused = false
     @State private var controlsExpanded = true
+
+    init() {
+        let arguments = ProcessInfo.processInfo.arguments
+        if let argument = arguments.first(where: {
+            $0.hasPrefix("-PiboWaterReflectionIntensity=")
+        }) {
+            let value = argument.dropFirst("-PiboWaterReflectionIntensity=".count)
+            if let intensity = Double(value) {
+                _reflectionIntensity = State(initialValue: min(max(intensity, 0), 1.6))
+            }
+        }
+
+        // Deterministic screenshot preset used to compare reflection-on and
+        // reflection-off renders. It is intentionally DEBUG-only with this view.
+        if arguments.contains("-PiboWaterLabCapture") {
+            _isPaused = State(initialValue: true)
+            _controlsExpanded = State(initialValue: false)
+        }
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -25,6 +47,9 @@ struct WaterLabView: View {
                     speed: speed,
                     rippleStrength: rippleStrength,
                     highlightStrength: highlightStrength,
+                    reflectionIntensity: reflectionIntensity,
+                    reflectionCompression: reflectionCompression,
+                    reflectionTipScale: reflectionTipScale,
                     showMask: showMask,
                     isPaused: isPaused
                 )
@@ -121,7 +146,7 @@ struct WaterLabView: View {
             .accessibilityLabel(controlsExpanded ? "折叠调节面板" : "展开调节面板")
 
             if controlsExpanded {
-                Text("首页同一套分层素材与 ForestStream.fsh；只在溪流 alpha 遮罩内做折射和高光。")
+                Text("首页同一套分层素材；倒影网格与水面高光都限制在溪流 alpha 遮罩内。")
                     .lpText(LP.Typography.c1Regular)
                     .foregroundStyle(LP.Content.tertiary)
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -131,6 +156,12 @@ struct WaterLabView: View {
                 controlSlider("折射", value: $rippleStrength, range: 0.00...1.25)
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 controlSlider("高光", value: $highlightStrength, range: 0.00...1.30)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                controlSlider("倒影强度", value: $reflectionIntensity, range: 0.00...1.60)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                controlSlider("纵向压缩", value: $reflectionCompression, range: 0.25...0.85)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                controlSlider("远端宽度", value: $reflectionTipScale, range: 0.45...1.00)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -165,6 +196,9 @@ private struct WaterLabScene: View {
     var speed: Double
     var rippleStrength: Double
     var highlightStrength: Double
+    var reflectionIntensity: Double
+    var reflectionCompression: Double
+    var reflectionTipScale: Double
     var showMask: Bool
     var isPaused: Bool
 
@@ -179,6 +213,9 @@ private struct WaterLabScene: View {
             .onChange(of: speed) { _, _ in updateWater() }
             .onChange(of: rippleStrength) { _, _ in updateWater() }
             .onChange(of: highlightStrength) { _, _ in updateWater() }
+            .onChange(of: reflectionIntensity) { _, _ in updateWater() }
+            .onChange(of: reflectionCompression) { _, _ in updateWater() }
+            .onChange(of: reflectionTipScale) { _, _ in updateWater() }
             .onChange(of: showMask) { _, _ in updateWater() }
             .onChange(of: isPaused) { _, paused in
                 scene.isPaused = paused
@@ -199,6 +236,9 @@ private struct WaterLabScene: View {
             speed: speed,
             rippleStrength: rippleStrength,
             highlightStrength: highlightStrength,
+            reflectionIntensity: reflectionIntensity,
+            reflectionCompression: reflectionCompression,
+            reflectionTipScale: reflectionTipScale,
             showMask: showMask
         )
     }

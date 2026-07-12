@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 import UIKit
 import os
 
@@ -26,9 +25,9 @@ struct HomeView: View {
     #if DEBUG
     @State private var debugOpenedGames = false
     #endif
-    /// 拍照识别卡路里: which meal the pending camera capture belongs to (nil = a
-    /// free 照相馆 shot with no recognition), and which meal's detail modal is up.
-    @State private var pendingMeal: MealType? = nil
+    /// A meal passed by the detail sheet's “重拍” action. Normal home entry leaves
+    /// this nil and lets the camera own purpose + meal selection.
+    @State private var cameraInitialMeal: MealType? = nil
     @State private var detailMeal: MealType? = nil
     @State private var recognizer = FoodRecognitionService()
     @State private var energyToken: UUID? = nil
@@ -48,12 +47,6 @@ struct HomeView: View {
     #else
     private let forestTuning: ForestSceneTuning = .standard
     #endif
-    /// Today's 三餐 photos, cached in state so the (warm) home body doesn't run a
-    /// SwiftData fetch on every re-eval (e.g. each 拍一拍 flips `activityState`).
-    /// Refreshed on appear + whenever `history.revision` bumps (a capture / 卡路里
-    /// 分析 write).
-    @State private var todayPhotos: [FoodPhoto] = []
-
     @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
 
     /// Pause the 60fps stage loop while a feature covers it — the full-screen
@@ -127,8 +120,15 @@ struct HomeView: View {
         .onAppear {
             greetingText = store.mowanGreeting
             dayLabelText = store.relationshipDayLabel
-            todayPhotos = history.foodPhotos(on: Date())
             #if DEBUG
+            if let phaseArgument = ProcessInfo.processInfo.arguments.first(where: {
+                $0.hasPrefix("-PiboForestDayPhase=")
+            }) {
+                let rawValue = String(phaseArgument.dropFirst("-PiboForestDayPhase=".count))
+                store.debugForestDayPhase = rawValue == "auto"
+                    ? nil
+                    : ForestDayPhase(rawValue: rawValue)
+            }
             if ProcessInfo.processInfo.arguments.contains("-PiboSimulateMeal") {
                 Task { try? await Task.sleep(for: .seconds(1)); debugSimulateMeal(.lunch) }
             }
@@ -150,15 +150,9 @@ struct HomeView: View {
         .onChange(of: store.pendingWorkout?.id) { _, id in
             if id != nil { maybeStartEnergyFlow() }
         }
-        .onChange(of: history.revision) { _, _ in
-            // A capture / 卡路里 分析 write landed — refresh the cached 三餐 photos
-            // off the body path so the meal icons relight without re-fetching per
-            // body eval.
-            todayPhotos = history.foodPhotos(on: Date())
-        }
         .fullScreenCover(isPresented: $showCamera) {
-            PiboCameraView(onPhotoSaved: { image, label in
-                handlePhotoSaved(image, label, meal: pendingMeal)
+            PiboCameraView(initialMeal: cameraInitialMeal, onPhotoSaved: { image, label, meal in
+                handlePhotoSaved(image, label, meal: meal)
             }).environment(store)
         }
         .sheet(item: $detailMeal) { meal in
@@ -221,7 +215,11 @@ struct HomeView: View {
                 HStack(alignment: .top, spacing: 0) {
                     ForestTuningPanel(
                         tuning: $forestTuning,
-                        isExpanded: $tuningPanelExpanded
+                        isExpanded: $tuningPanelExpanded,
+                        forcedDayPhase: Binding(
+                            get: { store.debugForestDayPhase },
+                            set: { store.debugForestDayPhase = $0 }
+                        )
                     )
                     Spacer(minLength: 0)
                 }
@@ -243,14 +241,6 @@ struct HomeView: View {
                 Text(greetingText.isEmpty ? store.mowanGreeting : greetingText)
                     .lpText(LP.Typography.b4Medium)
                     .foregroundStyle(LP.Content.secondary)
-                #if DEBUG
-                if store.currentTheme.id != PiboTheme.forest.id,
-                   !store.currentTheme.displayName.isEmpty {
-                    Text(AppLocalization.text(store.currentTheme.displayName))
-                        .lpText(LP.Typography.uiH4)
-                        .foregroundStyle(LP.Content.secondary)
-                }
-                #endif
                 Text(dayLabelText.isEmpty ? store.relationshipDayLabel : dayLabelText)
                     .lpText(LP.Typography.uiH4)
                     .foregroundStyle(LP.Content.secondary)
@@ -269,7 +259,7 @@ struct HomeView: View {
                   spacing: LP.Spacing.s) {
             cornerButton(systemImage: "camera.fill", label: "露珠相机", rotation: -2) {
                 Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
-                pendingMeal = nil
+                cameraInitialMeal = nil
                 showCamera = true
             }
             cornerButton(systemImage: "gamecontroller.fill", label: "小游戏", rotation: 2) {
@@ -320,65 +310,12 @@ struct HomeView: View {
     // MARK: Bottom controls
 
     private var bottomControls: some View {
-        VStack(spacing: LP.Spacing.m) {
+        Group {
             if store.pluckAvailable {
                 pluckButton
-            }
-            mealIconsRow
-        }
-        .padding(.bottom, LP.Spacing.l)
-    }
-
-    /// 早 / 中 / 晚 — three meal icons. Tap an empty one to shoot that meal (→
-    /// camera → Kimi 卡路里 识别); tap a filled one to reopen its detail modal.
-    private var mealIconsRow: some View {
-        // Reads the cached `todayPhotos` (refreshed on appear + history.revision) —
-        // no SwiftData fetch on the home body path.
-        HStack(spacing: LP.Spacing.s) {
-            ForEach(MealType.allCases) { meal in
-                mealIcon(meal, photos: todayPhotos)
+                    .padding(.bottom, LP.Spacing.l)
             }
         }
-        .padding(.horizontal, LP.Spacing.m)
-        .padding(.vertical, LP.Spacing.s)
-        .background(Capsule().fill(LP.Fill.bgContainer.opacity(0.85)))
-        .lpShadow(LP.Shadow.elevation1)
-    }
-
-    private func mealIcon(_ meal: MealType, photos: [FoodPhoto]) -> some View {
-        let photo = photos.last { $0.mealTypeRaw == meal.rawValue }
-        let analyzing = photo.map { recognizer.isAnalyzing($0.id) } ?? false
-        let kcal = photo?.totalCalories
-        let filled = photo != nil
-        return Button {
-            LPHaptics.tap()
-            if filled { detailMeal = meal } else { startMealCapture(meal) }
-        } label: {
-            VStack(spacing: 2) {
-                ZStack {
-                    Image(systemName: meal.symbol)
-                        .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(filled ? LP.Fill.foundationAccent : LP.Content.tertiary)
-                    if analyzing {
-                        ProgressView().controlSize(.mini)
-                            .offset(x: 12, y: -12)
-                    }
-                }
-                .frame(height: 20)
-                if let kcal {
-                    Text("\(kcal)")
-                        .lpText(LP.Typography.c2Medium)
-                        .foregroundStyle(LP.Content.secondary)
-                } else {
-                    Text(AppLocalization.text(meal.shortLabel))
-                        .lpText(LP.Typography.c2Medium)
-                        .foregroundStyle(filled ? LP.Content.secondary : LP.Content.tertiary)
-                }
-            }
-            .frame(width: 44, height: 40)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(meal.title) \(kcal.map { "\($0) kcal" } ?? "")")
     }
 
     private var pluckButton: some View {
@@ -481,14 +418,14 @@ struct HomeView: View {
     /// to the backend for 卡路里 recognition and its detail modal pops up.
     private func startMealCapture(_ meal: MealType) {
         Analytics.track(.cameraOpen, screen: "home", ["meal": .string(meal.rawValue)])
-        pendingMeal = meal
+        cameraInitialMeal = meal
         showCamera = true
     }
 
     private func handlePhotoSaved(_ image: UIImage?, _ subjectLabel: String?, meal: MealType? = nil) {
         // 拍照 = 认知能量. Nudge the head 毛 + let Pibo react (spec §4.3).
         LPLog.cutout.notice("photo saved → post-processing (hasImage=\(image != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public) meal=\(meal?.rawValue ?? "—", privacy: .public))")
-        pendingMeal = nil
+        cameraInitialMeal = nil
         energyToken = UUID()
         Analytics.track(.photoSaved, screen: "camera",
                         ["meal": .string(meal?.rawValue ?? "none"),
@@ -608,6 +545,7 @@ struct HomeView: View {
 private struct ForestTuningPanel: View {
     @Binding var tuning: ForestSceneTuning
     @Binding var isExpanded: Bool
+    @Binding var forcedDayPhase: ForestDayPhase?
 
     var body: some View {
         Group {
@@ -634,6 +572,7 @@ private struct ForestTuningPanel: View {
                 Button {
                     LPHaptics.tap()
                     tuning = .standard
+                    forcedDayPhase = nil
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
                         .frame(width: 28, height: 28)
@@ -660,6 +599,8 @@ private struct ForestTuningPanel: View {
             .lpText(LP.Typography.c1Regular)
             .tint(LP.Fill.foundationAccent)
 
+            timeLightingControl
+
             tuningSlider(
                 title: "树叶晃动",
                 value: $tuning.foliageMotionScale,
@@ -682,6 +623,49 @@ private struct ForestTuningPanel: View {
                 .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair)
         )
         .lpShadow(LP.Shadow.elevation2)
+    }
+
+    private var timeLightingControl: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: LP.Spacing.s) {
+                Text("时间光影")
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(LP.Content.secondary)
+                Spacer(minLength: 0)
+                Text(forcedDayPhase?.displayName ?? "自动")
+                    .lpText(LP.Typography.c2Medium)
+                    .foregroundStyle(LP.Content.tertiary)
+            }
+
+            HStack(spacing: 4) {
+                timeButton("自动", phase: nil)
+                timeButton("晨", phase: .morning)
+                timeButton("昼", phase: .day)
+                timeButton("暮", phase: .dusk)
+                timeButton("夜", phase: .night)
+            }
+        }
+    }
+
+    private func timeButton(_ title: String, phase: ForestDayPhase?) -> some View {
+        let isSelected = forcedDayPhase == phase
+        return Button {
+            guard !isSelected else { return }
+            LPHaptics.tap()
+            forcedDayPhase = phase
+        } label: {
+            Text(title)
+                .lpText(LP.Typography.c2Medium)
+                .foregroundStyle(isSelected ? LP.Fill.foundationOnAccent : LP.Content.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .background(
+                    Capsule().fill(isSelected ? LP.Fill.foundationAccent : LP.Fill.bgSurfaceSecondary)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(phase?.displayName ?? "自动跟随本地时间")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var collapsedButton: some View {

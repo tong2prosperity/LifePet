@@ -1,9 +1,8 @@
 import Foundation
 
-/// 早 / 中 / 晚 — the three meal slots the home-screen icons capture into.
-/// A photo captured through one of these icons is sent to the backend Kimi VLM
-/// for 卡路里/营养 recognition (see `FoodRecognitionService`); a free 拍照 through
-/// the 照相馆 has no meal and skips recognition.
+/// 早 / 中 / 晚 — the three meal slots offered after choosing “记录卡路里” in the
+/// camera. A meal capture is sent to the backend for 卡路里/营养 recognition;
+/// “普通拍照记录” has no meal and skips recognition.
 enum MealType: String, CaseIterable, Codable, Identifiable, Sendable {
     case breakfast
     case lunch
@@ -11,7 +10,7 @@ enum MealType: String, CaseIterable, Codable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    /// Compact chip glyph — 早 / 中 / 晚.
+    /// Compact camera-choice glyph — 早 / 中 / 晚.
     var shortLabel: String {
         switch self {
         case .breakfast: return "早"
@@ -29,7 +28,7 @@ enum MealType: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
 
-    /// SF Symbol shown in the home icon.
+    /// SF Symbol shown in the camera meal choice.
     var symbol: String {
         switch self {
         case .breakfast: return "sunrise.fill"

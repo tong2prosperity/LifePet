@@ -6,10 +6,9 @@ import os
 
 /// 拍照页 / 记录饮食 (Figma `488:1337` §拍照页). Opened from the home 露珠相机 button.
 ///
-/// Flow: live camera viewfinder → tap the shutter (the capture area flashes once
-/// with a 20% white scrim) → 拍立得 polaroid preview (random −5°…5° tilt, with a
-/// timestamp + pibo mark) → 重拍 / 保存. Save persists the shot (it becomes the
-/// viewfinder thumbnail next time) and raises 认知能量 via `onPhotoSaved`.
+/// Flow: choose 记录卡路里 or 普通拍照记录 → choose 早/中/晚 when calorie capture
+/// is selected → live camera viewfinder → 拍立得 preview → 重拍 / 保存. A recapture
+/// launched from meal detail can inject its meal and enter the viewfinder directly.
 ///
 /// Capture is a real `AVCaptureSession`. On a device without a camera (simulator)
 /// or when access is denied, it falls back to a synthesized placeholder frame so
@@ -20,11 +19,13 @@ struct PiboCameraView: View {
     /// the 识图 subject label (nil when classification found nothing). The home
     /// persists a background-removed (抠图) + 镶边框 copy as a 今日记录 food
     /// photo and raises 认知能量.
-    var onPhotoSaved: (UIImage?, String?) -> Void = { _, _ in }
+    var onPhotoSaved: (UIImage?, String?, MealType?) -> Void
 
     @State private var camera = CameraController()
-    private enum Stage { case viewfinder, preview }
-    @State private var stage: Stage = .viewfinder
+    private enum Stage { case purpose, meal, viewfinder, preview }
+    @State private var stage: Stage
+    @State private var selectedMeal: MealType?
+    private let startsWithMeal: Bool
     @State private var shot: UIImage? = nil
     /// Last saved shot's thumbnail. Loaded lazily off-main in `.task` (a disk read
     /// + JPEG decode) so presenting the camera doesn't hitch on the main thread.
@@ -36,10 +37,22 @@ struct PiboCameraView: View {
     /// 识图 — fills in asynchronously after the shutter; shown on the polaroid.
     @State private var subjectLabel: String? = nil
 
+    init(
+        initialMeal: MealType? = nil,
+        onPhotoSaved: @escaping (UIImage?, String?, MealType?) -> Void = { _, _, _ in }
+    ) {
+        self.onPhotoSaved = onPhotoSaved
+        self.startsWithMeal = initialMeal != nil
+        _selectedMeal = State(initialValue: initialMeal)
+        _stage = State(initialValue: initialMeal == nil ? .purpose : .viewfinder)
+    }
+
     var body: some View {
         ZStack {
             LP.Fill.bgSurface.ignoresSafeArea()
             switch stage {
+            case .purpose:    purposeSelection
+            case .meal:       mealSelection
             case .viewfinder: viewfinder
             case .preview:    preview
             }
@@ -52,6 +65,181 @@ struct PiboCameraView: View {
             }
         }
         .onDisappear { camera.stop() }
+    }
+
+    // MARK: - Capture purpose
+
+    private var purposeSelection: some View {
+        VStack(spacing: 0) {
+            selectionHeader(
+                title: "露珠相机",
+                subtitle: "这次想记录什么？",
+                backAction: { dismiss() }
+            )
+
+            VStack(spacing: LP.Spacing.m) {
+                purposeButton(
+                    icon: "flame.fill",
+                    title: "记录卡路里",
+                    subtitle: "拍下食物，识别这一餐的热量",
+                    accent: LP.Fill.foundationAccent
+                ) {
+                    selectedMeal = nil
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                        stage = .meal
+                    }
+                }
+
+                purposeButton(
+                    icon: "camera.fill",
+                    title: "普通拍照记录",
+                    subtitle: "保存今天想记住的画面",
+                    accent: LP.Content.secondary
+                ) {
+                    selectedMeal = nil
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                        stage = .viewfinder
+                    }
+                }
+            }
+            .padding(.horizontal, LP.Spacing.xl)
+
+            Spacer(minLength: LP.Spacing.xl)
+        }
+    }
+
+    private var mealSelection: some View {
+        VStack(spacing: 0) {
+            selectionHeader(
+                title: "记录卡路里",
+                subtitle: "选择这张照片属于哪一餐",
+                backAction: {
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                        stage = .purpose
+                    }
+                }
+            )
+
+            VStack(spacing: LP.Spacing.s) {
+                ForEach(MealType.allCases) { meal in
+                    mealButton(meal)
+                }
+            }
+            .padding(.horizontal, LP.Spacing.xl)
+
+            Spacer(minLength: LP.Spacing.xl)
+        }
+    }
+
+    private func selectionHeader(
+        title: String,
+        subtitle: String,
+        backAction: @escaping () -> Void
+    ) -> some View {
+        ZStack(alignment: .top) {
+            VStack(spacing: LP.Spacing.s) {
+                Text(AppLocalization.text(title))
+                    .lpText(LP.Typography.uiH4)
+                    .foregroundStyle(LP.Content.primary)
+                Text(AppLocalization.text(subtitle))
+                    .lpText(LP.Typography.b4Medium)
+                    .foregroundStyle(LP.Content.secondary)
+            }
+            .frame(maxWidth: .infinity)
+
+            HStack {
+                backButton(action: backAction)
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(LP.Spacing.xl)
+    }
+
+    private func purposeButton(
+        icon: String,
+        title: String,
+        subtitle: String,
+        accent: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            LPHaptics.tap()
+            action()
+        } label: {
+            HStack(spacing: LP.Spacing.l) {
+                Image(systemName: icon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 52, height: 52)
+                    .background(Circle().fill(accent.opacity(0.12)))
+
+                VStack(alignment: .leading, spacing: LP.Spacing.xs) {
+                    Text(AppLocalization.text(title))
+                        .lpText(LP.Typography.b1Medium)
+                        .foregroundStyle(LP.Content.primary)
+                    Text(AppLocalization.text(subtitle))
+                        .lpText(LP.Typography.c1Regular)
+                        .foregroundStyle(LP.Content.tertiary)
+                }
+
+                Spacer(minLength: LP.Spacing.s)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(LP.Content.quarternary)
+            }
+            .padding(LP.Spacing.l)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                    .fill(LP.Fill.bgContainer)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                    .strokeBorder(LP.Border.primary, lineWidth: LP.BorderWidth.hair)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppLocalization.text(title))
+        .accessibilityHint(AppLocalization.text(subtitle))
+    }
+
+    private func mealButton(_ meal: MealType) -> some View {
+        Button {
+            LPHaptics.tap()
+            selectedMeal = meal
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                stage = .viewfinder
+            }
+        } label: {
+            HStack(spacing: LP.Spacing.l) {
+                Image(systemName: meal.symbol)
+                    .font(.system(size: 21, weight: .medium))
+                    .foregroundStyle(LP.Fill.foundationAccent)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(LP.Fill.foundationAccent.opacity(0.12)))
+
+                Text(AppLocalization.text(meal.title))
+                    .lpText(LP.Typography.b1Medium)
+                    .foregroundStyle(LP.Content.primary)
+
+                Spacer(minLength: LP.Spacing.s)
+                Text(AppLocalization.text(meal.shortLabel))
+                    .lpText(LP.Typography.c1Medium)
+                    .foregroundStyle(LP.Content.tertiary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(LP.Content.quarternary)
+            }
+            .padding(.horizontal, LP.Spacing.l)
+            .frame(maxWidth: .infinity)
+            .frame(height: 72)
+            .background(
+                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                    .fill(LP.Fill.bgContainer)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppLocalization.text(meal.title))
     }
 
     // MARK: - Viewfinder
@@ -67,24 +255,32 @@ struct PiboCameraView: View {
         }
     }
 
-    /// 记录饮食 — centered title + subtitle (Figma `509:2732`), back chevron top-left.
+    /// Selected capture purpose — centered title + subtitle, back chevron top-left.
     private var captureHeader: some View {
         ZStack(alignment: .top) {
             VStack(spacing: LP.Spacing.s) {
-                Text(AppLocalization.text("记录饮食"))
+                Text(AppLocalization.text(captureTitle))
                     .lpText(LP.Typography.uiH4)
                     .foregroundStyle(LP.Content.secondary)
-                Text(AppLocalization.text("pibo想知道你吃了什么"))
+                Text(AppLocalization.text(captureSubtitle))
                     .lpText(LP.Typography.b4Medium)
                     .foregroundStyle(LP.Content.secondary)
             }
             .frame(maxWidth: .infinity)
             HStack {
-                backButton(action: { dismiss() })
+                backButton(action: leaveViewfinder)
                 Spacer(minLength: 0)
             }
         }
         .padding(LP.Spacing.xl)
+    }
+
+    private var captureTitle: String {
+        selectedMeal.map { "记录\($0.title)" } ?? "普通拍照记录"
+    }
+
+    private var captureSubtitle: String {
+        selectedMeal == nil ? "拍下今天想记住的画面" : "pibo想知道你吃了什么"
     }
 
     private func backButton(action: @escaping () -> Void) -> some View {
@@ -329,6 +525,16 @@ struct PiboCameraView: View {
         withAnimation(.spring(response: 0.34, dampingFraction: 0.85)) { stage = .viewfinder }
     }
 
+    private func leaveViewfinder() {
+        if startsWithMeal {
+            dismiss()
+            return
+        }
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+            stage = selectedMeal == nil ? .purpose : .meal
+        }
+    }
+
     private func save() {
         LPHaptics.tap()
         LPLog.camera.notice("保存 photo (hasShot=\(shot != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public))")
@@ -336,7 +542,7 @@ struct PiboCameraView: View {
             PiboPhotoStore.saveLatest(shot)
             lastThumb = shot
         }
-        onPhotoSaved(shot, subjectLabel)
+        onPhotoSaved(shot, subjectLabel, selectedMeal)
         dismiss()
     }
 
