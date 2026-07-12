@@ -323,7 +323,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A7DA5EEC2FD0000100000003 /* XCLocalSwiftPackageReference "../../tiebao/utils/DataSneaker/sdk/swift" */,
-				B1C000000000000000000003 /* XCLocalSwiftPackageReference "../../PiboWorld/ios" */,
+				B1C000000000000000000003 /* XCRemoteSwiftPackageReference "pibo-chess-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A7F3FD4C2F9B1F0100EA90A6 /* Products */;
@@ -865,11 +865,18 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../tiebao/utils/DataSneaker/sdk/swift;
 		};
-		B1C000000000000000000003 /* XCLocalSwiftPackageReference "../../PiboWorld/ios" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../PiboWorld/ios;
-		};
 /* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B1C000000000000000000003 /* XCRemoteSwiftPackageReference "pibo-chess-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PiboWorld/pibo-chess-sdk.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		A7DA5EEC2FD0000100000002 /* DataSneaker */ = {
@@ -878,6 +885,7 @@
 		};
 		B1C000000000000000000002 /* PiboChessUI */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = B1C000000000000000000003 /* XCRemoteSwiftPackageReference "pibo-chess-sdk" */;
 			productName = PiboChessUI;
 		};
 /* End XCSwiftPackageProductDependency section */
