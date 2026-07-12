@@ -5,7 +5,7 @@ import Foundation
 /// (Figma `activity card` 1374:529 / `walk data-v` 186:1023). The waking window
 /// **06:00–22:00** maps to 16 hourly columns; each grows a plant whose stage
 /// maps that hour's volume (石头 → 嫩芽 → 松树 → 高株) over the mint hills, with
-/// a scattered pebble ground, fireflies, a tick ruler and a peak-hour callout.
+/// fireflies, a tick ruler and a peak-hour callout.
 struct HistoryStepsCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -55,7 +55,7 @@ struct HistoryStepsCard: View {
         }
         // `VStack` eagerly builds every history card. Start only when this card
         // actually enters the viewport, otherwise the grow-in finishes offscreen.
-        .onScrollVisibilityChange(threshold: 0.32) { visible in
+        .onScrollVisibilityChange(threshold: 0.72) { visible in
             isVisible = visible
             guard visible, !isRevealed else { return }
             startReveal()
@@ -163,8 +163,7 @@ struct HistoryStepsCard: View {
 /// **fixed across days** so the field reads as data (a 高株 ≈ a near-max hour).
 /// On today, columns still ahead render dimmed.
 ///
-/// 入场生长动画 (matches the reference clip): on each 二楼 open the field
-/// **grows in left→right** — the mint hills + 碎石 sweep in under a moving
+/// 入场生长动画：the field **grows in left→right** — the mint hills sweep in under a moving
 /// reveal mask, each hour's plant 冒头 (bottom-anchored spring pop) staggered to
 /// fire as the sweep reaches its column, then the 萤火虫 fade in last. Driven by
 /// the card's scroll visibility so it cannot finish before the user reaches it.
@@ -197,13 +196,13 @@ private struct GrassField: View {
                     .resizable()
                     .frame(width: w + 2, height: min(100, h), alignment: .top)
                     .frame(width: w, height: h, alignment: .top)
-                .mask(alignment: .leading) {
-                    Rectangle()
-                        .frame(width: isRevealed ? w + 4 : 0)
-                        .animation(
-                            reduceMotion ? nil : .easeOut(duration: Self.sweepDuration),
-                            value: isRevealed)
-                }
+                    .mask(alignment: .leading) {
+                        Rectangle()
+                            .frame(width: isRevealed ? w + 4 : 0)
+                            .animation(
+                                reduceMotion ? nil : .easeOut(duration: Self.sweepDuration),
+                                value: isRevealed)
+                    }
 
                 // 植物：每列随扫掠到达而「冒头」，底部锚点弹簧上弹。
                 plantRow(h: min(91, h))
