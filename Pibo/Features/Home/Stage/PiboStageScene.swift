@@ -30,11 +30,10 @@ enum SproutCloseupPhase {
 
 final class PiboStageScene: SKScene {
 
-    /// `forest_river` is the complete Figma river and includes the authored
-    /// foreground foliage reflections. The static child vector remains the
-    /// undistorted silhouette used by the crop mask and moving highlights.
+    /// Clean Figma water only. Reflections are rendered independently so the
+    /// flattened leaf artwork in the legacy `forest_river` can never leak into
+    /// the water base.
     private static let forestWaterTextureName = "forest_water_static"
-    private static let forestWaterCompositedTextureName = "forest_river"
 
     // — Inputs (set by the SwiftUI wrapper) —
     private(set) var theme: PiboTheme = .forest
@@ -64,19 +63,23 @@ final class PiboStageScene: SKScene {
     private var forestReflectionProxies: [ForestReflectionProxy] = []
     private var forestWaterBaseNode: SKSpriteNode?
     private var forestWaterNode: SKSpriteNode? // surface highlights + flow clock
+    private var forestBaseNode: SKSpriteNode?
     private var morningLightNode: SKSpriteNode?
+    private var duskLightNode: SKSpriteNode?
+    /// One shared material instance per depth group. Time changes update each
+    /// uniform set once instead of touching every forest sprite every frame.
+    private var forestMaterialShaders: [ForestLightingGroup: SKShader] = [:]
     private let firefliesNode = SKNode()
     private var fireflyEmitter: SKEmitterNode?
-    private let atmosphereNode = SKNode()
-    private let gradeOverlay = SKSpriteNode(color: .white, size: .zero)
-    private let lightOverlay = SKSpriteNode(color: .white, size: .zero)
     private let pibo = SKNode()          // body group (bobs as a unit)
     private var bodyNode: SKShapeNode?   // procedural egg body
     private var bodySprite: SKSpriteNode? // art body (when theme.bodyImage set)
+    private var bodyArtwork: PiboSVGArtwork?
     private var leftEye = SKNode()
     private var rightEye = SKNode()
     private var blush = SKNode()
     private var headNode = SKSpriteNode()
+    private var headArtwork: PiboSVGArtwork?
     private let overheadNode = SKSpriteNode()  // 魔丸黑洞 — floats above the head
     private let fx = SKNode()            // transient effects layer
     private let rainBack = SKNode()      // 雨幕(Pibo 之后 — 景深层)
@@ -122,7 +125,7 @@ final class PiboStageScene: SKScene {
         rebuildBackdrop()
         rebuildPibo()
         layoutAll()
-        applyAtmosphere(animated: false)
+        applyLighting()
         if environment.rainIntensity > 0 { applyWeather() }
     }
 
@@ -173,7 +176,7 @@ final class PiboStageScene: SKScene {
             rebuildBackdrop()
             rebuildPibo()
             layoutAll()
-            applyAtmosphere(animated: false)
+            applyLighting()
             if environment.rainIntensity > 0 { applyWeather() }
         } else if growthChanged {
             rebuildHead()
@@ -185,11 +188,11 @@ final class PiboStageScene: SKScene {
     func setEnvironment(_ newEnvironment: ForestEnvironmentSnapshot) {
         guard newEnvironment != environment else { return }
         let rainChanged = newEnvironment.rainIntensity != environment.rainIntensity
-        let phaseChanged = newEnvironment.dayPhase != environment.dayPhase
         environment = newEnvironment
         guard built else { return }
-        if phaseChanged { applyAtmosphere(animated: true) }
-        updateWaterLighting()
+        // Lighting is continuous within a semantic phase, so every distinct
+        // snapshot updates the small shared uniform set.
+        applyLighting()
         if rainChanged { applyWeather() }
     }
 
@@ -197,7 +200,7 @@ final class PiboStageScene: SKScene {
         guard lowPowerModeEnabled != enabled else { return }
         lowPowerModeEnabled = enabled
         applyWaterPerformanceUniforms()
-        updateFireflies(animated: false)
+        updateFireflies()
         if environment.rainIntensity > 0 { applyWeather() }
     }
 
@@ -231,13 +234,6 @@ final class PiboStageScene: SKScene {
             reflectionTipScale: Float(reflectionTipScale),
             showMask: showMask
         )
-        // At zero the lab shows the supplied static child vector, making an
-        // exact authored-reflection off/on screenshot comparison possible.
-        let baseTexture = reflectionIntensity <= 0.001
-            ? Self.forestWaterTextureName
-            : Self.forestWaterCompositedTextureName
-        forestWaterBaseNode?.texture = SKTexture(imageNamed: baseTexture)
-        forestWaterBaseNode?.texture?.filteringMode = .linear
         applyWaterPerformanceUniforms()
         updateWaterLighting()
         updateForestReflections()
@@ -396,23 +392,40 @@ final class PiboStageScene: SKScene {
 
     // MARK: Touch → 拍一拍 (body) / 拖毛 (hair)
 
-    /// Which sprite region a scene point lands in. The 毛 wins where it overlaps
-    /// the body (it grows out of the body top), and its box is padded out to at
-    /// least 44pt per side (HIG minimum — the 桃花枝 art is only ~38pt wide).
+    /// Which SVG silhouette a scene point lands in. The 毛 wins where it overlaps
+    /// the body because it grows out of the body top. Production hit geometry is
+    /// parsed from the same SVG paths used to render each SpriteKit texture.
     private enum HitRegion { case hair, body, none }
 
     private func hitRegion(at p: CGPoint) -> HitRegion {
         guard tuning.piboVisible else { return .none }
         if !headNode.isHidden {
-            // `headNode.frame` is in pibo's coords (its parent) and already
-            // accounts for the idle rotation / any in-flight scale.
-            let local = convert(p, to: pibo)
-            let f = headNode.frame
-            let padX = max(12, (44 - f.width) / 2)
-            let padY = max(12, (44 - f.height) / 2)
-            if f.insetBy(dx: -padX, dy: -padY).contains(local) { return .hair }
+            if let headArtwork {
+                let local = convert(p, to: headNode)
+                if headArtwork.contains(
+                    spriteLocalPoint: local,
+                    displayedSize: headNode.size,
+                    anchorPoint: headNode.anchorPoint
+                ) { return .hair }
+            } else {
+                // Non-production fallback art keeps a conventional padded box.
+                let local = convert(p, to: pibo)
+                let frame = headNode.frame
+                let padX = max(12, (44 - frame.width) / 2)
+                let padY = max(12, (44 - frame.height) / 2)
+                if frame.insetBy(dx: -padX, dy: -padY).contains(local) { return .hair }
+            }
         }
-        // Generous circle around the body (the prior whole-Pibo hit area).
+        if let bodySprite, let bodyArtwork {
+            let local = convert(p, to: bodySprite)
+            if bodyArtwork.contains(
+                spriteLocalPoint: local,
+                displayedSize: bodySprite.size,
+                anchorPoint: bodySprite.anchorPoint
+            ) { return .body }
+            return .none
+        }
+        // Procedural fallback themes retain their approximate body circle.
         let dx = p.x - pibo.position.x
         let dy = p.y - (pibo.position.y + bodyHeight * 0.3)
         if dx * dx + dy * dy < pow(bodyWidth * 0.8, 2) { return .body }
@@ -560,20 +573,11 @@ final class PiboStageScene: SKScene {
         cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
         addChild(cam)
         camera = cam
-        atmosphereNode.zPosition = 90
-        cam.addChild(atmosphereNode)
-        gradeOverlay.alpha = 0
-        lightOverlay.alpha = 0
-        gradeOverlay.blendMode = .alpha
-        lightOverlay.blendMode = .alpha
-        atmosphereNode.addChild(gradeOverlay)
-        atmosphereNode.addChild(lightOverlay)
-
         rebuildBackdrop()
         buildPibo()
         rebuildHead()
         layoutAll()
-        applyAtmosphere(animated: false)
+        applyLighting()
         if environment.rainIntensity > 0 { applyWeather() }
         applyState(animated: false)
         applyTuning(visibilityChanged: true)
@@ -614,6 +618,7 @@ final class PiboStageScene: SKScene {
         pibo.removeAllChildren()
         bodyNode = nil
         bodySprite = nil
+        bodyArtwork = nil
         buildPibo()
         rebuildHead()
         startIdleBob()
@@ -624,7 +629,9 @@ final class PiboStageScene: SKScene {
         // Art path: a single Pibo sprite (body + face baked in) plus the head
         // item on its own layer. Procedural face/feet/shadow are skipped.
         if usesArt, let name = theme.bodyImage {
-            let body = SKSpriteNode(texture: SKTexture(imageNamed: name))
+            bodyArtwork = PiboSVGAssets.artwork(named: name)
+            let texture = bodyArtwork?.makeTexture() ?? SKTexture(imageNamed: name)
+            let body = SKSpriteNode(texture: texture)
             body.zPosition = 10
             bodySprite = body
             pibo.addChild(body)
@@ -737,7 +744,10 @@ final class PiboStageScene: SKScene {
         forestReflectionProxies.removeAll(keepingCapacity: true)
         forestWaterBaseNode = nil
         forestWaterNode = nil
+        forestBaseNode = nil
         morningLightNode = nil
+        duskLightNode = nil
+        forestMaterialShaders.removeAll(keepingCapacity: true)
         if theme.id == PiboTheme.forest.id {
             buildForestBackdrop()
         } else {
@@ -753,16 +763,18 @@ final class PiboStageScene: SKScene {
         base.position = CGPoint(x: size.width / 2, y: size.height / 2)
         base.zPosition = -1
         backdrop.addChild(base)
+        forestBaseNode = base
 
         for definition in ForestSceneManifest.backgroundLayers {
             let sprite = forestSprite(for: definition, mapper: mapper)
+            sprite.shader = materialShader(for: definition.lightingGroup)
             backdrop.addChild(sprite)
             forestLayerNodes[definition.image] = sprite
         }
 
         let waterDefinition = ForestSceneManifest.river
         let waterBase = forestSprite(for: waterDefinition, mapper: mapper)
-        waterBase.texture = SKTexture(imageNamed: Self.forestWaterCompositedTextureName)
+        waterBase.texture = SKTexture(imageNamed: Self.forestWaterTextureName)
         waterBase.texture?.filteringMode = .linear
         waterBase.shader = makeWaterBaseShader()
         backdrop.addChild(waterBase)
@@ -795,6 +807,7 @@ final class PiboStageScene: SKScene {
                 y: definition.frame.minY + definition.frame.height * definition.anchor.y
             )
             leaf.position = mapper.point(anchorInDesign)
+            leaf.shader = materialShader(for: definition.lightingGroup)
             forestFoliageLayer.addChild(leaf)
             forestFoliage.append(leaf)
             forestFoliageNodes[definition.image] = leaf
@@ -804,7 +817,15 @@ final class PiboStageScene: SKScene {
         light.blendMode = .screen
         backdrop.addChild(light)
         morningLightNode = light
-        updateWaterLighting()
+
+        let dusk = forestSprite(for: ForestSceneManifest.morningLight, mapper: mapper)
+        dusk.position.x = size.width - light.position.x
+        dusk.xScale = -1
+        dusk.blendMode = .screen
+        backdrop.addChild(dusk)
+        duskLightNode = dusk
+
+        applyLighting()
     }
 
     private func forestSprite(
@@ -840,8 +861,22 @@ final class PiboStageScene: SKScene {
         shader.addUniform(SKUniform(name: "u_flow_speed", float: waterFlowSpeed))
         shader.addUniform(SKUniform(name: "u_ripple_strength", float: effectiveWaterRippleStrength))
         shader.addUniform(SKUniform(name: "u_darkness", float: 0))
-        shader.addUniform(SKUniform(name: "u_warmth", float: 0))
+        shader.addUniform(SKUniform(name: "u_tint", vectorFloat3: vector_float3(1, 1, 1)))
+        shader.addUniform(SKUniform(name: "u_tint_amount", float: 0))
         shader.addUniform(SKUniform(name: "u_low_power", float: lowPowerModeEnabled ? 1 : 0))
+        return shader
+    }
+
+    private func materialShader(for group: ForestLightingGroup) -> SKShader? {
+        guard group != .water, group != .emissive else { return nil }
+        if let shader = forestMaterialShaders[group] { return shader }
+        let shader = SKShader(fileNamed: "ForestMaterial.fsh")
+        shader.addUniform(SKUniform(name: "u_darkness", float: 0))
+        shader.addUniform(SKUniform(name: "u_tint", vectorFloat3: vector_float3(1, 1, 1)))
+        shader.addUniform(SKUniform(name: "u_tint_amount", float: 0))
+        shader.addUniform(SKUniform(name: "u_saturation", float: 1))
+        shader.addUniform(SKUniform(name: "u_lift", float: 0))
+        forestMaterialShaders[group] = shader
         return shader
     }
 
@@ -980,13 +1015,6 @@ final class PiboStageScene: SKScene {
         intensity = 1
         #endif
 
-        let phaseMultiplier: CGFloat
-        switch environment.dayPhase {
-        case .morning: phaseMultiplier = 0.90
-        case .day: phaseMultiplier = 1
-        case .dusk: phaseMultiplier = 0.75
-        case .night: phaseMultiplier = 0.40
-        }
         for proxy in forestReflectionProxies {
             proxy.update(
                 in: forestReflectionLayer,
@@ -995,7 +1023,7 @@ final class PiboStageScene: SKScene {
                 phase: phase,
                 style: style,
                 intensity: intensity,
-                dayPhaseMultiplier: phaseMultiplier,
+                dayPhaseMultiplier: environment.lighting.water.reflectionStrength,
                 lowPower: lowPowerModeEnabled
             )
         }
@@ -1040,67 +1068,65 @@ final class PiboStageScene: SKScene {
     }
 
     private func updateWaterLighting() {
-        let values: (darkness: Float, warmth: Float, highlight: Float)
-        switch environment.dayPhase {
-        case .morning: values = (0.02, 0.32, 0.92)
-        case .day: values = (0, 0, 0.82)
-        case .dusk: values = (0.18, 0.42, 0.68)
-        case .night: values = (0.72, 0, 0.38)
-        }
-        forestWaterBaseNode?.shader?.uniformNamed("u_darkness")?.floatValue = values.darkness
-        forestWaterBaseNode?.shader?.uniformNamed("u_warmth")?.floatValue = values.warmth
+        let water = environment.lighting.water
+        forestWaterBaseNode?.shader?.uniformNamed("u_darkness")?.floatValue = Float(water.darkness)
+        forestWaterBaseNode?.shader?.uniformNamed("u_tint")?.vectorFloat3Value = vector_float3(
+            Float(water.tint.red), Float(water.tint.green), Float(water.tint.blue)
+        )
+        forestWaterBaseNode?.shader?.uniformNamed("u_tint_amount")?.floatValue = Float(water.tintAmount)
         #if DEBUG
-        let highlight = waterDebugTuning?.highlightStrength ?? values.highlight
+        let highlight = waterDebugTuning?.highlightStrength ?? Float(water.highlightStrength)
         #else
-        let highlight = values.highlight
+        let highlight = Float(water.highlightStrength)
         #endif
         forestWaterNode?.shader?.uniformNamed("u_highlight_strength")?.floatValue = highlight
     }
 
-    private func applyAtmosphere(animated: Bool) {
-        atmosphereNode.position = .zero
-        gradeOverlay.size = size
-        lightOverlay.size = size
-
-        let grade: (SKColor, CGFloat)
-        let light: (SKColor, CGFloat)
-        let morningAlpha: CGFloat
-        switch environment.dayPhase {
-        case .morning:
-            grade = (SKColor(red: 0.96, green: 0.95, blue: 0.86, alpha: 1), 0.04)
-            light = (SKColor(red: 1, green: 0.82, blue: 0.58, alpha: 1), 0.09)
-            morningAlpha = 0.72
-        case .day:
-            grade = (.white, 0)
-            light = (.white, 0)
-            morningAlpha = 0.08
-        case .dusk:
-            grade = (SKColor(red: 0.19, green: 0.16, blue: 0.24, alpha: 1), 0.18)
-            light = (SKColor(red: 1, green: 0.52, blue: 0.25, alpha: 1), 0.12)
-            morningAlpha = 0
-        case .night:
-            grade = (SKColor(red: 0.03, green: 0.10, blue: 0.17, alpha: 1), 0.50)
-            light = (SKColor(red: 0.27, green: 0.48, blue: 0.60, alpha: 1), 0.06)
-            morningAlpha = 0
+    private func applyLighting() {
+        guard theme.id == PiboTheme.forest.id else {
+            fireflyEmitter?.particleBirthRate = 0
+            return
         }
 
-        let duration = animated ? 1.2 : 0
-        gradeOverlay.removeAction(forKey: "atmosphere")
-        lightOverlay.removeAction(forKey: "atmosphere")
-        morningLightNode?.removeAction(forKey: "atmosphere")
-        gradeOverlay.run(.group([
-            .colorize(with: grade.0, colorBlendFactor: 1, duration: duration),
-            .fadeAlpha(to: grade.1, duration: duration),
-        ]), withKey: "atmosphere")
-        lightOverlay.run(.group([
-            .colorize(with: light.0, colorBlendFactor: 1, duration: duration),
-            .fadeAlpha(to: light.1, duration: duration),
-        ]), withKey: "atmosphere")
-        morningLightNode?.run(.fadeAlpha(to: morningAlpha, duration: duration), withKey: "atmosphere")
-        updateFireflies(animated: animated)
+        let profiles: [(ForestLightingGroup, ForestMaterialLighting)] = [
+            (.far, environment.lighting.far),
+            (.midground, environment.lighting.midground),
+            (.foreground, environment.lighting.foreground),
+            (.pibo, environment.lighting.pibo),
+        ]
+        for (group, profile) in profiles {
+            guard let shader = materialShader(for: group) else { continue }
+            shader.uniformNamed("u_darkness")?.floatValue = Float(profile.darkness)
+            shader.uniformNamed("u_tint")?.vectorFloat3Value = vector_float3(
+                Float(profile.tint.red), Float(profile.tint.green), Float(profile.tint.blue)
+            )
+            shader.uniformNamed("u_tint_amount")?.floatValue = Float(profile.tintAmount)
+            shader.uniformNamed("u_saturation")?.floatValue = Float(profile.saturation)
+            shader.uniformNamed("u_lift")?.floatValue = Float(profile.lift)
+        }
+
+        // The empty canvas behind the far vectors belongs to the far material,
+        // but is a flat color rather than a sampled texture.
+        let far = environment.lighting.far
+        let authored = ForestRGB(red: 0.827, green: 0.933, blue: 0.890)
+        let shaded = ForestRGB(
+            red: authored.red * (1 - far.darkness) * (1 + (far.tint.red - 1) * far.tintAmount),
+            green: authored.green * (1 - far.darkness) * (1 + (far.tint.green - 1) * far.tintAmount),
+            blue: authored.blue * (1 - far.darkness) * (1 + (far.tint.blue - 1) * far.tintAmount)
+        )
+        let baseColor = SKColor(red: shaded.red, green: shaded.green, blue: shaded.blue, alpha: 1)
+        backgroundColor = baseColor
+        forestBaseNode?.color = baseColor
+
+        bodySprite?.shader = materialShader(for: .pibo)
+        headNode.shader = materialShader(for: .pibo)
+        morningLightNode?.alpha = environment.lighting.morningBeam
+        duskLightNode?.alpha = environment.lighting.duskBeam
+        updateWaterLighting()
+        updateFireflies()
     }
 
-    private func updateFireflies(animated: Bool) {
+    private func updateFireflies() {
         guard theme.id == PiboTheme.forest.id else {
             fireflyEmitter?.particleBirthRate = 0
             return
@@ -1109,26 +1135,10 @@ final class PiboStageScene: SKScene {
         emitter.position = CGPoint(x: size.width / 2, y: size.height * 0.36)
         emitter.particlePositionRange = CGVector(dx: size.width * 0.92, dy: size.height * 0.32)
 
-        let targetRate: CGFloat
-        switch environment.dayPhase {
-        case .morning, .day:
-            targetRate = 0
-        case .dusk:
-            targetRate = lowPowerModeEnabled ? 0 : 1.2
-        case .night:
-            targetRate = lowPowerModeEnabled ? 2.0 : 6.0
-        }
-        if animated {
-            let start = emitter.particleBirthRate
-            emitter.run(.customAction(withDuration: 1.2) { node, elapsed in
-                guard let emitter = node as? SKEmitterNode else { return }
-                let progress = min(max(elapsed / 1.2, 0), 1)
-                emitter.particleBirthRate = start + (targetRate - start) * progress
-            }, withKey: "phase")
-        } else {
-            emitter.removeAction(forKey: "phase")
-            emitter.particleBirthRate = targetRate
-        }
+        let targetRate = environment.lighting.fireflyBirthRate
+            * (lowPowerModeEnabled ? 1 / 3 : 1)
+        emitter.removeAction(forKey: "phase")
+        emitter.particleBirthRate = targetRate
     }
 
     private func makeFireflyEmitter() -> SKEmitterNode {
@@ -1246,6 +1256,7 @@ final class PiboStageScene: SKScene {
 
     private func rebuildHead() {
         let (head, overhead) = theme.resolvedHead(for: growth)
+        headArtwork = nil
 
         // Overhead 黑洞 — scene-level so the curl slides through it as Pibo bobs.
         if let overhead {
@@ -1259,7 +1270,8 @@ final class PiboStageScene: SKScene {
         // Art path: a real head-item texture (桃花枝 / 海草 / 卷芽); sized/placed
         // in layout from its design-frame anchor.
         if let head {
-            headNode.texture = SKTexture(imageNamed: head.image)
+            headArtwork = PiboSVGAssets.artwork(named: head.image)
+            headNode.texture = headArtwork?.makeTexture() ?? SKTexture(imageNamed: head.image)
             headNode.isHidden = false
             positionHead()
             return
@@ -1683,10 +1695,15 @@ final class PiboStageScene: SKScene {
         guard built, size.width > 1 else { return }
         var pts: [CGPoint] = []
 
-        // 身体:图片主题采纹理 alpha;失败 / 程序化 → 椭圆顶解析轮廓。
+        // 身体:优先采 canonical SVG 的渲染 alpha;失败 / 程序化 → 旧图片或椭圆顶。
         if usesArt, let name = theme.bodyImage {
-            pts += topSurfacePoints(imageNamed: name, center: bodySprite?.position ?? .zero,
-                                    size: CGSize(width: bodyWidth, height: bodyHeight), columns: 26)
+            if let cgImage = bodyArtwork?.image.cgImage {
+                pts += topSurfacePoints(cgImage: cgImage, center: bodySprite?.position ?? .zero,
+                                        size: CGSize(width: bodyWidth, height: bodyHeight), columns: 26)
+            } else {
+                pts += topSurfacePoints(imageNamed: name, center: bodySprite?.position ?? .zero,
+                                        size: CGSize(width: bodyWidth, height: bodyHeight), columns: 26)
+            }
         }
         if pts.isEmpty {
             let halfW = bodyWidth * 0.5, topY = bodyHeight * 0.5
@@ -1697,10 +1714,15 @@ final class PiboStageScene: SKScene {
             }
         }
 
-        // 头顶毛:选用主题的 head 都是图片(卷芽 / 桃花枝 / 海草)。
+        // 头顶毛:production 使用 canonical SVG;旧主题图片仍可回退采 alpha。
         if !headNode.isHidden, let head = theme.resolvedHead(for: growth).head {
-            pts += topSurfacePoints(imageNamed: head.image, center: headNode.position,
-                                    size: headNode.size, columns: 10)
+            if let cgImage = headArtwork?.image.cgImage {
+                pts += topSurfacePoints(cgImage: cgImage, center: headNode.position,
+                                        size: headNode.size, columns: 10)
+            } else {
+                pts += topSurfacePoints(imageNamed: head.image, center: headNode.position,
+                                        size: headNode.size, columns: 10)
+            }
         }
 
         piboSurface = pts
@@ -1713,6 +1735,12 @@ final class PiboStageScene: SKScene {
                                   size: CGSize, columns: Int) -> [CGPoint] {
         guard size.width > 1, size.height > 1,
               let cg = UIImage(named: name)?.cgImage, cg.width > 1, cg.height > 1 else { return [] }
+        return topSurfacePoints(cgImage: cg, center: center, size: size, columns: columns)
+    }
+
+    private func topSurfacePoints(cgImage cg: CGImage, center: CGPoint,
+                                  size: CGSize, columns: Int) -> [CGPoint] {
+        guard size.width > 1, size.height > 1, cg.width > 1, cg.height > 1 else { return [] }
         let w = cg.width, h = cg.height
         var buf = [UInt8](repeating: 0, count: w * h * 4)
         guard let ctx = CGContext(data: &buf, width: w, height: h, bitsPerComponent: 8,
@@ -1789,7 +1817,7 @@ final class PiboStageScene: SKScene {
     /// 雨滴贴图 — 一道柔和的竖直水痕(自上而下渐显)。建一次复用。
     private static let rainTint = SKColor(red: 0.62, green: 0.78, blue: 0.92, alpha: 1)
     private static let forestWaterSamples = normalizedAlphaSamples(
-        imageNamed: "forest_river",
+        imageNamed: forestWaterTextureName,
         maximumSamplesPerAxis: 64
     )
     private static let splashPoolSize = 24

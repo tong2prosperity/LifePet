@@ -114,9 +114,9 @@ extension PiboTheme {
         bodyImage: "forest_pibo_body",
         bodyCenterX: 196.5,
         bodyCenterY: 510.2,
-        // The PNG is asymmetric: its root is at the bottom around x=60.5/93,
-        // not at the texture center. These coordinates put that root on the
-        // body's top-center with a small overlap so no transparent seam appears.
+        // The canonical Figma SVG is asymmetric: its root is not at the texture
+        // center. These coordinates put that root on the body's top-center with
+        // a small overlap so no transparent seam appears.
         headSprite: PiboThemeSprite(image: "forest_pibo_head", centerX: 193.5, centerY: 381.0),
         // The current Figma file has one latest head state. Keeping a replacement
         // entry preserves the existing first-energy flow while the animation is

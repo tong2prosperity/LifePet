@@ -336,15 +336,19 @@ final class PetStateStore {
     }
 
     #if DEBUG
-    private static let debugForestDayPhaseKey = "pibo.debug.forestDayPhase.v1"
-    /// Nil follows local time. A value is a developer-only lighting override;
-    /// Release builds do not compile or read it.
-    var debugForestDayPhase: ForestDayPhase? = nil {
+    private static let debugForestHourKey = "pibo.debug.forestHour.v1"
+    private static let legacyDebugForestDayPhaseKey = "pibo.debug.forestDayPhase.v1"
+    /// Nil follows local time. A value in 0..<24 is a developer-only continuous
+    /// lighting override; Release builds do not compile or read it.
+    var debugForestHour: Double? = nil {
         didSet {
-            if let debugForestDayPhase {
-                UserDefaults.standard.set(debugForestDayPhase.rawValue, forKey: Self.debugForestDayPhaseKey)
+            if let debugForestHour {
+                UserDefaults.standard.set(
+                    ForestDayPhaseResolver.normalizedHour(debugForestHour),
+                    forKey: Self.debugForestHourKey
+                )
             } else {
-                UserDefaults.standard.removeObject(forKey: Self.debugForestDayPhaseKey)
+                UserDefaults.standard.removeObject(forKey: Self.debugForestHourKey)
             }
         }
     }
@@ -578,8 +582,18 @@ final class PetStateStore {
         self.appearance = PiboAppearance.decoded(from: UserDefaults.standard.data(forKey: Self.appearanceKey))
         self.weather = PiboWeather(rawValue: UserDefaults.standard.string(forKey: Self.weatherKey) ?? "") ?? .clear
         #if DEBUG
-        self.debugForestDayPhase = ForestDayPhase(
-            rawValue: UserDefaults.standard.string(forKey: Self.debugForestDayPhaseKey) ?? "")
+        let defaults = UserDefaults.standard
+        if let persistedHour = defaults.object(forKey: Self.debugForestHourKey) as? NSNumber {
+            self.debugForestHour = ForestDayPhaseResolver.normalizedHour(persistedHour.doubleValue)
+        } else if let legacyPhase = ForestDayPhase(
+            rawValue: defaults.string(forKey: Self.legacyDebugForestDayPhaseKey) ?? ""
+        ) {
+            self.debugForestHour = legacyPhase.referenceHour
+            defaults.set(legacyPhase.referenceHour, forKey: Self.debugForestHourKey)
+            defaults.removeObject(forKey: Self.legacyDebugForestDayPhaseKey)
+        } else {
+            self.debugForestHour = nil
+        }
         #endif
         LPLog.petState.notice("PetStateStore init demoMode=\(demoMode, privacy: .public) eventsBound=\(events != nil, privacy: .public) day=\(identity.daysSinceBirth, privacy: .public)")
 
@@ -767,8 +781,9 @@ final class PetStateStore {
         weather = .clear
         UserDefaults.standard.removeObject(forKey: Self.weatherKey)
         #if DEBUG
-        debugForestDayPhase = nil
-        UserDefaults.standard.removeObject(forKey: Self.debugForestDayPhaseKey)
+        debugForestHour = nil
+        UserDefaults.standard.removeObject(forKey: Self.debugForestHourKey)
+        UserDefaults.standard.removeObject(forKey: Self.legacyDebugForestDayPhaseKey)
         #endif
         story.reset()
         // Stress is per-pet too — drop the RMSSD baseline window + the measure

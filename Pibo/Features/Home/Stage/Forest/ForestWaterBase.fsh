@@ -21,8 +21,8 @@ void main() {
     float shiftedVisible = step(0.002, shifted.a);
     vec3 shiftedColor = shifted.rgb / max(shifted.a, 0.002);
     vec3 color = mix(base, shiftedColor, shiftedVisible);
-    vec3 cool = vec3(0.055, 0.105, 0.15) * u_darkness;
-    vec3 warm = vec3(0.11, 0.055, 0.0) * u_warmth;
-    color = clamp(color - cool + warm, 0.0, 1.0);
+    color *= 1.0 - u_darkness;
+    color = mix(color, color * u_tint, u_tint_amount);
+    color = clamp(color, 0.0, 1.0);
     gl_FragColor = vec4(color * mask.a, mask.a);
 }

@@ -348,12 +348,12 @@ struct SettingsSheet: View {
                 .foregroundStyle(LP.Content.secondary)
             Spacer(minLength: 0)
             Menu {
-                Button("自动（本地时间）") { store.debugForestDayPhase = nil }
-                ForEach(ForestDayPhase.allCases, id: \.self) { phase in
-                    Button(phase.displayName) { store.debugForestDayPhase = phase }
+                Button("自动（本地时间）") { store.debugForestHour = nil }
+                ForEach([6.5, 12.0, 18.5, 23.0], id: \.self) { hour in
+                    Button(Self.forestHourLabel(hour)) { store.debugForestHour = hour }
                 }
             } label: {
-                Text(store.debugForestDayPhase?.displayName ?? "自动")
+                Text(store.debugForestHour.map(Self.forestHourLabel) ?? "自动")
                     .lpText(LP.Typography.c1Regular)
                     .foregroundStyle(LP.Content.secondary)
                     .padding(.horizontal, LP.Spacing.s)
@@ -363,6 +363,11 @@ struct SettingsSheet: View {
         }
         .padding(.horizontal, LP.Spacing.m)
         .padding(.vertical, LP.Spacing.s + 2)
+    }
+
+    nonisolated private static func forestHourLabel(_ hour: Double) -> String {
+        let totalMinutes = Int((hour * 60).rounded()) % (24 * 60)
+        return String(format: "%02d:%02d", totalMinutes / 60, totalMinutes % 60)
     }
 
     private func debugRow(_ title: String) -> some View {

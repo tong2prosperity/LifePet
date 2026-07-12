@@ -61,7 +61,7 @@ struct HomeView: View {
         #if DEBUG
         return ForestDayPhaseResolver.resolve(
             date: atmosphereNow,
-            forcedPhase: store.debugForestDayPhase,
+            forcedHour: store.debugForestHour,
             rainIntensity: CGFloat(store.weather.precipitation)
         )
         #else
@@ -121,13 +121,11 @@ struct HomeView: View {
             greetingText = store.mowanGreeting
             dayLabelText = store.relationshipDayLabel
             #if DEBUG
-            if let phaseArgument = ProcessInfo.processInfo.arguments.first(where: {
-                $0.hasPrefix("-PiboForestDayPhase=")
+            if let hourArgument = ProcessInfo.processInfo.arguments.first(where: {
+                $0.hasPrefix("-PiboForestHour=")
             }) {
-                let rawValue = String(phaseArgument.dropFirst("-PiboForestDayPhase=".count))
-                store.debugForestDayPhase = rawValue == "auto"
-                    ? nil
-                    : ForestDayPhase(rawValue: rawValue)
+                let rawValue = String(hourArgument.dropFirst("-PiboForestHour=".count))
+                store.debugForestHour = rawValue == "auto" ? nil : Double(rawValue)
             }
             if ProcessInfo.processInfo.arguments.contains("-PiboSimulateMeal") {
                 Task { try? await Task.sleep(for: .seconds(1)); debugSimulateMeal(.lunch) }
@@ -216,9 +214,9 @@ struct HomeView: View {
                     ForestTuningPanel(
                         tuning: $forestTuning,
                         isExpanded: $tuningPanelExpanded,
-                        forcedDayPhase: Binding(
-                            get: { store.debugForestDayPhase },
-                            set: { store.debugForestDayPhase = $0 }
+                        forcedHour: Binding(
+                            get: { store.debugForestHour },
+                            set: { store.debugForestHour = $0 }
                         )
                     )
                     Spacer(minLength: 0)
@@ -545,7 +543,9 @@ struct HomeView: View {
 private struct ForestTuningPanel: View {
     @Binding var tuning: ForestSceneTuning
     @Binding var isExpanded: Bool
-    @Binding var forcedDayPhase: ForestDayPhase?
+    @Binding var forcedHour: Double?
+    @State private var playbackTask: Task<Void, Never>?
+    @State private var isPlayingDay = false
 
     var body: some View {
         Group {
@@ -558,6 +558,10 @@ private struct ForestTuningPanel: View {
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.86), value: isExpanded)
+        .onChange(of: isExpanded) { _, expanded in
+            if !expanded { stopPlayback() }
+        }
+        .onDisappear { stopPlayback() }
     }
 
     private var expandedPanel: some View {
@@ -571,8 +575,9 @@ private struct ForestTuningPanel: View {
 
                 Button {
                     LPHaptics.tap()
+                    stopPlayback()
                     tuning = .standard
-                    forcedDayPhase = nil
+                    forcedHour = nil
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
                         .frame(width: 28, height: 28)
@@ -613,7 +618,7 @@ private struct ForestTuningPanel: View {
             )
         }
         .padding(LP.Spacing.m)
-        .frame(width: 236)
+        .frame(width: 264)
         .background(
             RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
                 .fill(LP.Fill.bgContainer.opacity(0.94))
@@ -626,46 +631,119 @@ private struct ForestTuningPanel: View {
     }
 
     private var timeLightingControl: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: LP.Spacing.s) {
                 Text("时间光影")
                     .lpText(LP.Typography.c1Regular)
                     .foregroundStyle(LP.Content.secondary)
                 Spacer(minLength: 0)
-                Text(forcedDayPhase?.displayName ?? "自动")
+                Text(forcedHour == nil ? "自动 · \(formattedHour(displayHour))" : formattedHour(displayHour))
                     .lpText(LP.Typography.c2Medium)
                     .foregroundStyle(LP.Content.tertiary)
+                    .monospacedDigit()
             }
 
+            Slider(value: hourBinding, in: 0...23.75, step: 0.25)
+                .tint(LP.Fill.foundationAccent)
+                .accessibilityLabel("森林时间")
+                .accessibilityValue(formattedHour(displayHour))
+
             HStack(spacing: 4) {
-                timeButton("自动", phase: nil)
-                timeButton("晨", phase: .morning)
-                timeButton("昼", phase: .day)
-                timeButton("暮", phase: .dusk)
-                timeButton("夜", phase: .night)
+                timeButton("自动", hour: nil)
+                timeButton("06:30", hour: 6.5)
+                timeButton("12:00", hour: 12)
+                timeButton("18:30", hour: 18.5)
+                timeButton("23:00", hour: 23)
             }
+
+            Button {
+                LPHaptics.tap()
+                isPlayingDay ? stopPlayback() : startPlayback()
+            } label: {
+                Label(isPlayingDay ? "停止播放" : "24 秒播放一天",
+                      systemImage: isPlayingDay ? "stop.fill" : "play.fill")
+                    .lpText(LP.Typography.c2Medium)
+                    .foregroundStyle(LP.Content.secondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
+                    .background(Capsule().fill(LP.Fill.bgSurfaceSecondary))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isPlayingDay ? "停止时间光影播放" : "用二十四秒播放一天光影")
         }
     }
 
-    private func timeButton(_ title: String, phase: ForestDayPhase?) -> some View {
-        let isSelected = forcedDayPhase == phase
+    private var hourBinding: Binding<Double> {
+        Binding(
+            get: { displayHour },
+            set: { value in
+                stopPlayback()
+                forcedHour = (value * 4).rounded() / 4
+            }
+        )
+    }
+
+    private var displayHour: Double {
+        forcedHour ?? localHour
+    }
+
+    private var localHour: Double {
+        let components = Calendar.autoupdatingCurrent.dateComponents([.hour, .minute], from: Date())
+        return Double(components.hour ?? 12) + Double(components.minute ?? 0) / 60
+    }
+
+    private func timeButton(_ title: String, hour: Double?) -> some View {
+        let isSelected: Bool
+        if let hour, let forcedHour {
+            isSelected = abs(hour - forcedHour) < 0.01
+        } else {
+            isSelected = hour == nil && forcedHour == nil
+        }
         return Button {
             guard !isSelected else { return }
             LPHaptics.tap()
-            forcedDayPhase = phase
+            stopPlayback()
+            forcedHour = hour
         } label: {
             Text(title)
-                .lpText(LP.Typography.c2Medium)
+                .font(.system(size: 9.5, weight: .medium, design: .rounded))
                 .foregroundStyle(isSelected ? LP.Fill.foundationOnAccent : LP.Content.secondary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 28)
+                .frame(height: 27)
                 .background(
                     Capsule().fill(isSelected ? LP.Fill.foundationAccent : LP.Fill.bgSurfaceSecondary)
                 )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(phase?.displayName ?? "自动跟随本地时间")
+        .accessibilityLabel(hour.map(formattedHour) ?? "自动跟随本地时间")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func formattedHour(_ hour: Double) -> String {
+        let normalized = ForestDayPhaseResolver.normalizedHour(hour)
+        let totalMinutes = Int((normalized * 60).rounded()) % (24 * 60)
+        return String(format: "%02d:%02d", totalMinutes / 60, totalMinutes % 60)
+    }
+
+    private func startPlayback() {
+        stopPlayback()
+        isPlayingDay = true
+        playbackTask = Task { @MainActor in
+            for step in 0..<96 {
+                guard !Task.isCancelled else { return }
+                forcedHour = Double(step) / 4
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            guard !Task.isCancelled else { return }
+            isPlayingDay = false
+            playbackTask = nil
+        }
+    }
+
+    private func stopPlayback() {
+        playbackTask?.cancel()
+        playbackTask = nil
+        isPlayingDay = false
     }
 
     private var collapsedButton: some View {
