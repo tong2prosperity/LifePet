@@ -4,6 +4,11 @@
 
 ## 目录
 
+### home/ — 首页场景与渲染
+- [森林首页水面与实时倒影方案](home/forest-water-reflection-rendering.md)
+  Figma S 形水面素材职责、SpriteKit 三层合成、树木/叶片/Pibo 实时透视倒影、Shader 水流与流光、
+  低电量降级、禁止重新接入 `forest_river` 的回归约束，以及像素级和 Simulator 验收基线。
+
 ### narrative/ — 叙事 / 世界观（当前真源）
 - [Pibo 叙事圣经 · 失忆 × 约定 × 碎片叙事](narrative/pibo-narrative-bible.md)
   Pibo 是谁、故事怎么讲、语气怎么拿。三根支柱（性格恒定 / 失忆装置 / 魂系碎片），

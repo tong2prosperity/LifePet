@@ -205,7 +205,7 @@ private struct LeafShape: Shape {
 #Preview("Pibo themes") {
     ScrollView(.horizontal) {
         HStack(spacing: 0) {
-            ForEach(PiboTheme.presets) { theme in
+            ForEach(PiboTheme.previewFixtures) { theme in
                 ZStack(alignment: .top) {
                     PiboThemeScene(theme: theme)
                     VStack(spacing: LP.Spacing.s2) {

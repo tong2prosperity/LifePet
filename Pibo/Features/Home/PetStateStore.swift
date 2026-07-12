@@ -323,6 +323,29 @@ final class PetStateStore {
         didSet { UserDefaults.standard.set(appearance.encoded, forKey: Self.appearanceKey) }
     }
 
+    /// Stable runtime-catalog ID for the selected home theme. Unlock and
+    /// entitlement policy stays outside this low-level persistence seam.
+    private(set) var selectedThemeID: String = PiboThemeCatalog.defaultTheme.id {
+        didSet {
+            guard selectedThemeID != oldValue else { return }
+            PiboThemeSelectionPersistence.save(selectedThemeID)
+        }
+    }
+
+    var currentTheme: PiboTheme {
+        PiboThemeCatalog.theme(id: selectedThemeID) ?? PiboThemeCatalog.defaultTheme
+    }
+
+    /// Selects only registered runtime themes. Product-level unlock checks can
+    /// wrap this method when multiple themes are exposed to users.
+    @discardableResult
+    func selectTheme(id: String) -> Bool {
+        guard PiboThemeCatalog.theme(id: id) != nil else { return false }
+        guard selectedThemeID != id else { return true }
+        selectedThemeID = id
+        return true
+    }
+
     private static let weatherKey = "pibo.weather.v1"
     /// 当前天气 — 驱动首页 SpriteKit 场景的氛围(雨幕 / 地面水花 / 滴在 Pibo 上)。
     /// The DEBUG settings switch writes this value. Release Home clamps rain to
@@ -344,7 +367,7 @@ final class PetStateStore {
         didSet {
             if let debugForestHour {
                 UserDefaults.standard.set(
-                    ForestDayPhaseResolver.normalizedHour(debugForestHour),
+                    PiboStageEnvironmentResolver.normalizedHour(debugForestHour),
                     forKey: Self.debugForestHourKey
                 )
             } else {
@@ -580,12 +603,13 @@ final class PetStateStore {
         self.growthStage = PiboGrowthStage(
             rawValue: UserDefaults.standard.string(forKey: Self.growthStageKey) ?? "") ?? .mystery
         self.appearance = PiboAppearance.decoded(from: UserDefaults.standard.data(forKey: Self.appearanceKey))
+        self.selectedThemeID = PiboThemeSelectionPersistence.restore()
         self.weather = PiboWeather(rawValue: UserDefaults.standard.string(forKey: Self.weatherKey) ?? "") ?? .clear
         #if DEBUG
         let defaults = UserDefaults.standard
         if let persistedHour = defaults.object(forKey: Self.debugForestHourKey) as? NSNumber {
-            self.debugForestHour = ForestDayPhaseResolver.normalizedHour(persistedHour.doubleValue)
-        } else if let legacyPhase = ForestDayPhase(
+            self.debugForestHour = PiboStageEnvironmentResolver.normalizedHour(persistedHour.doubleValue)
+        } else if let legacyPhase = PiboDayPhase(
             rawValue: defaults.string(forKey: Self.legacyDebugForestDayPhaseKey) ?? ""
         ) {
             self.debugForestHour = legacyPhase.referenceHour
@@ -778,6 +802,8 @@ final class PetStateStore {
         UserDefaults.standard.removeObject(forKey: Self.growthStageKey)
         appearance = .default
         UserDefaults.standard.removeObject(forKey: Self.appearanceKey)
+        selectedThemeID = PiboThemeCatalog.defaultTheme.id
+        PiboThemeSelectionPersistence.reset()
         weather = .clear
         UserDefaults.standard.removeObject(forKey: Self.weatherKey)
         #if DEBUG
@@ -1765,5 +1791,25 @@ final class PetStateStore {
             try? await Task.sleep(for: .seconds(2))
             if self?.toast == msg { self?.toast = nil }
         }
+    }
+}
+
+enum PiboThemeSelectionPersistence {
+    static func restore(from defaults: UserDefaults = .standard) -> String {
+        let persistedID = defaults.string(forKey: PiboPersistenceKeys.Defaults.selectedThemeID)
+        let resolvedID = PiboThemeCatalog.resolvedThemeID(persistedID)
+        if persistedID != nil, persistedID != resolvedID {
+            defaults.removeObject(forKey: PiboPersistenceKeys.Defaults.selectedThemeID)
+        }
+        return resolvedID
+    }
+
+    static func save(_ id: String, to defaults: UserDefaults = .standard) {
+        guard PiboThemeCatalog.theme(id: id) != nil else { return }
+        defaults.set(id, forKey: PiboPersistenceKeys.Defaults.selectedThemeID)
+    }
+
+    static func reset(in defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: PiboPersistenceKeys.Defaults.selectedThemeID)
     }
 }

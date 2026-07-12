@@ -7,6 +7,7 @@ nonisolated enum PiboPersistenceKeys {
         static let onboardingResumeAuth = "pibo.onboarding.resumeAuth.v1"
         static let hatched = "pibo.hatched.v1"
         static let appLanguage = "pibo.appLanguage.v1"
+        static let selectedThemeID = "pibo.theme.selectedID.v1"
 
         static let identityCurrentPetId = "pibo.identity.currentPetId.v1"
         static let identityPetName = "pibo.identity.petName.v1"

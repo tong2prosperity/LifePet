@@ -124,6 +124,7 @@ extension PiboTheme {
         sproutedHeadSprite: PiboThemeSprite(image: "forest_pibo_head", centerX: 193.5, centerY: 381.0)
     )
 
-    /// The only appearance exposed to previews and runtime UI.
-    static let presets: [PiboTheme] = [.forest]
+    /// Fixtures for lightweight shared previews. Runtime availability comes
+    /// exclusively from the iOS app's `PiboThemeCatalog` registrations.
+    static let previewFixtures: [PiboTheme] = [.forest]
 }

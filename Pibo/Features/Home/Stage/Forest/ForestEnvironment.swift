@@ -1,34 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// Local, presentation-only atmosphere for the fixed portrait forest.
-/// Rain stays zero in Release; DEBUG can override it from Settings.
-enum ForestDayPhase: String, CaseIterable, Sendable {
-    case morning
-    case day
-    case dusk
-    case night
-
-    var displayName: String {
-        switch self {
-        case .morning: return "早晨"
-        case .day: return "白天"
-        case .dusk: return "傍晚"
-        case .night: return "夜晚"
-        }
-    }
-
-    /// Reference hours used only to migrate the former four-state debug control.
-    var referenceHour: Double {
-        switch self {
-        case .morning: return 6.5
-        case .day: return 12
-        case .dusk: return 18.5
-        case .night: return 23
-        }
-    }
-}
-
 struct ForestRGB: Equatable, Sendable {
     var red: CGFloat
     var green: CGFloat
@@ -61,6 +33,12 @@ struct ForestWaterLighting: Equatable, Sendable {
     var reflectionStrength: CGFloat
 }
 
+struct ForestRenderConfiguration: Equatable, Sendable {
+    var waterFlowSpeed: Double
+
+    static let standard = ForestRenderConfiguration(waterFlowSpeed: 0.62)
+}
+
 struct ForestLightingProfile: Equatable, Sendable {
     var far: ForestMaterialLighting
     var midground: ForestMaterialLighting
@@ -72,49 +50,17 @@ struct ForestLightingProfile: Equatable, Sendable {
     var fireflyBirthRate: CGFloat
 }
 
-struct ForestWind: Equatable, Sendable {
-    var direction: CGVector
-    var strength: CGFloat
-    var gustiness: CGFloat
-}
-
 struct ForestEnvironmentSnapshot: Equatable, Sendable {
-    var dayPhase: ForestDayPhase
-    /// Local wall-clock hour in the circular 0..<24 domain.
-    var localHour: Double
     var lighting: ForestLightingProfile
-    var wind: ForestWind
+    var wind: StageWind
     var rainIntensity: CGFloat
 
-    static let daylight = ForestDayPhaseResolver.resolve(
-        date: Date(timeIntervalSinceReferenceDate: 43_200),
-        forcedHour: 12
-    )
+    static let daylight = ForestEnvironmentAdapter.resolve(.daylight)
 }
 
-/// Runtime presentation controls for the production forest renderer. Home only
-/// exposes them in DEBUG; Release always supplies `.standard`.
-struct ForestSceneTuning: Equatable, Sendable {
-    var piboVisible: Bool
-    var foliageMotionScale: Double
-    var waterFlowSpeed: Double
-
-    static let standard = ForestSceneTuning(
-        piboVisible: true,
-        foliageMotionScale: 1,
-        waterFlowSpeed: 0.62
-    )
-
-    var sanitized: ForestSceneTuning {
-        ForestSceneTuning(
-            piboVisible: piboVisible,
-            foliageMotionScale: min(max(foliageMotionScale, 0), 2),
-            waterFlowSpeed: min(max(waterFlowSpeed, 0), 1.4)
-        )
-    }
-}
-
-enum ForestDayPhaseResolver {
+/// Maps the shared stage clock/weather snapshot to the forest's continuous,
+/// authored lighting, wind, water, and atmosphere values.
+enum ForestEnvironmentAdapter {
     private struct Keyframe {
         var hour: Double
         var darkness: CGFloat
@@ -175,18 +121,8 @@ enum ForestDayPhaseResolver {
                  waterHighlight: 0.38, reflectionStrength: 0.40),
     ]
 
-    static func resolve(
-        date: Date,
-        calendar: Calendar = .autoupdatingCurrent,
-        forcedHour: Double? = nil,
-        rainIntensity: CGFloat = 0
-    ) -> ForestEnvironmentSnapshot {
-        let components = calendar.dateComponents([.hour, .minute, .second], from: date)
-        let wallClockHour = Double(components.hour ?? 12)
-            + Double(components.minute ?? 0) / 60
-            + Double(components.second ?? 0) / 3_600
-        let hour = normalizedHour(forcedHour ?? wallClockHour)
-        let value = sampledKeyframe(at: hour)
+    static func resolve(_ environment: PiboStageEnvironment) -> ForestEnvironmentSnapshot {
+        let value = sampledKeyframe(at: environment.localHour)
 
         let material = { (darknessWeight: CGFloat, tintWeight: CGFloat, lift: CGFloat) in
             ForestMaterialLighting(
@@ -216,21 +152,14 @@ enum ForestDayPhaseResolver {
         )
 
         return ForestEnvironmentSnapshot(
-            dayPhase: semanticPhase(for: hour),
-            localHour: hour,
             lighting: lighting,
-            wind: ForestWind(
+            wind: StageWind(
                 direction: value.windDirection,
                 strength: value.windStrength,
                 gustiness: value.gustiness
             ),
-            rainIntensity: min(max(rainIntensity, 0), 1)
+            rainIntensity: min(max(environment.rainIntensity, 0), 1)
         )
-    }
-
-    static func normalizedHour(_ hour: Double) -> Double {
-        let remainder = hour.truncatingRemainder(dividingBy: 24)
-        return remainder >= 0 ? remainder : remainder + 24
     }
 
     private static func sampledKeyframe(at hour: Double) -> Keyframe {
@@ -262,15 +191,6 @@ enum ForestDayPhaseResolver {
             waterHighlight: scalar(lower.waterHighlight, upper.waterHighlight),
             reflectionStrength: scalar(lower.reflectionStrength, upper.reflectionStrength)
         )
-    }
-
-    private static func semanticPhase(for hour: Double) -> ForestDayPhase {
-        switch hour {
-        case 5..<9: return .morning
-        case 9..<16.5: return .day
-        case 16.5..<20.5: return .dusk
-        default: return .night
-        }
     }
 
     private static func smoothstep(_ lower: CGFloat, _ upper: CGFloat, _ value: CGFloat) -> CGFloat {

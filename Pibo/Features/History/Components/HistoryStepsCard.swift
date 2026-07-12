@@ -7,6 +7,8 @@ import Foundation
 /// maps that hour's volume (石头 → 嫩芽 → 松树 → 高株) over the mint hills, with
 /// a scattered pebble ground, fireflies, a tick ruler and a peak-hour callout.
 struct HistoryStepsCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let steps: Int
     /// Per-hour step counts (index = hour 0–23). Empty → fall back to a
     /// day-total pattern (legacy rows without hourly data).
@@ -18,32 +20,30 @@ struct HistoryStepsCard: View {
     static let startHour = 6
     static let endHour = 22
 
+    @State private var isVisible = false
+    @State private var isRevealed = false
+    @State private var revealGeneration = 0
+
     var body: some View {
         let cols = columns()
         HistoryCard(title: "今日脚步", background: { background }) {
-            VStack(spacing: LP.Spacing.xs) {
-                HStack(alignment: .bottom, spacing: LP.Spacing.s) {
-                    Text("\(steps)")
-                        .lpText(LP.Typography.uiH4)
-                        .foregroundStyle(LP.Content.primary)
-                    Text("步")
-                        .lpText(LP.Typography.b3Medium)
-                        .foregroundStyle(LP.Content.primary)
-                        .padding(.bottom, 6)
-                }
-                Text(caption)
-                    .lpText(LP.Typography.b4Regular)
-                    .foregroundStyle(LP.Content.secondary)
-                    .multilineTextAlignment(.center)
+            HStack(alignment: .bottom, spacing: LP.Spacing.s) {
+                Text("\(steps)")
+                    .lpText(LP.Typography.uiH4)
+                    .foregroundStyle(LP.Content.primary)
+                    .monospacedDigit()
+                Text("步")
+                    .lpText(LP.Typography.b3Medium)
+                    .foregroundStyle(LP.Content.primary)
+                    .padding(.bottom, 6)
             }
             .frame(maxWidth: .infinity)
             .padding(.bottom, LP.Spacing.s)
 
             VStack(spacing: 4) {
-                GrassField(columns: cols, isToday: isToday)
-                    .frame(height: 92)
+                GrassField(columns: cols, isToday: isToday, isRevealed: isRevealed)
+                    .frame(height: 114)
                     .frame(maxWidth: .infinity)
-                    .clipped()
                 VStack(spacing: 4) {
                     TickRuler()
                         .stroke(LP.Content.quarternary, lineWidth: 1)
@@ -53,6 +53,19 @@ struct HistoryStepsCard: View {
                 .padding(.horizontal, 16)   // Figma 321-in-353 inset
             }
         }
+        // `VStack` eagerly builds every history card. Start only when this card
+        // actually enters the viewport, otherwise the grow-in finishes offscreen.
+        .onScrollVisibilityChange(threshold: 0.32) { visible in
+            isVisible = visible
+            guard visible, !isRevealed else { return }
+            startReveal()
+        }
+        .onChange(of: cols, initial: true) { _, _ in
+            resetReveal()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(AppLocalization.text("今日脚步"))
+        .accessibilityValue(AppLocalization.text("\(steps)步，\(caption)"))
     }
 
     // MARK: Axis labels (06:00 · 峰值 · 22:00)
@@ -70,6 +83,8 @@ struct HistoryStepsCard: View {
                 }
                 .lpText(LP.Typography.c2Medium)
                 .foregroundStyle(LP.Content.quarternary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
             }
             Spacer(minLength: 0)
             Text(String(format: "%02d:00", Self.endHour))
@@ -87,8 +102,11 @@ struct HistoryStepsCard: View {
                 $0 < hourlySteps.count ? hourlySteps[$0] : 0
             }
         }
+        guard steps > 0 else {
+            return Array(repeating: 0, count: Self.endHour - Self.startHour)
+        }
         // Legacy (no hourly data): spread the day total over a plausible curve.
-        let vigor = max(0.5, min(1.0, Double(steps) / 10_000))
+        let vigor = min(1.0, Double(steps) / 10_000)
         return Self.legacyPattern.map { Int(Double($0) * vigor * 1500) }  // 1500 = full hour
     }
 
@@ -108,12 +126,32 @@ struct HistoryStepsCard: View {
     ]
 
     private var background: some View {
-        ZStack {
-            LP.Fill.bgContainer
-            LinearGradient(stops: [
-                .init(color: Color(hex: 0x88C6FF, alpha: 0), location: 0.4),
-                .init(color: Color(hex: 0x88C6FF, alpha: 0.8), location: 1.0),
-            ], startPoint: .top, endPoint: .bottom)
+        LP.Fill.bgContainer
+    }
+
+    private func resetReveal() {
+        revealGeneration += 1
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            isRevealed = false
+        }
+        if isVisible {
+            startReveal()
+        }
+    }
+
+    private func startReveal() {
+        revealGeneration += 1
+        let generation = revealGeneration
+        guard !reduceMotion else {
+            isRevealed = true
+            return
+        }
+        Task { @MainActor in
+            await Task.yield()
+            guard isVisible, revealGeneration == generation else { return }
+            isRevealed = true
         }
     }
 }
@@ -121,7 +159,7 @@ struct HistoryStepsCard: View {
 // MARK: - Landscape
 
 /// Plant landscape — one growth-stage plant per hourly column over the mint
-/// hills, a scattered pebble ground, and fireflies. The stage→height scale is
+/// hills and fireflies. The stage→height scale is
 /// **fixed across days** so the field reads as data (a 高株 ≈ a near-max hour).
 /// On today, columns still ahead render dimmed.
 ///
@@ -129,64 +167,58 @@ struct HistoryStepsCard: View {
 /// **grows in left→right** — the mint hills + 碎石 sweep in under a moving
 /// reveal mask, each hour's plant 冒头 (bottom-anchored spring pop) staggered to
 /// fire as the sweep reaches its column, then the 萤火虫 fade in last. Driven by
-/// `floorIsOpen` (flips at the open threshold), so it replays every open and the
-/// card subtree only invalidates on that one boolean — no per-frame cost during
-/// the pull. Closed / preview defaults keep it grown.
+/// the card's scroll visibility so it cannot finish before the user reaches it.
 private struct GrassField: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     /// Per-hour steps for hours `HistoryStepsCard.startHour …` (one per column).
     let columns: [Int]
     let isToday: Bool
-
-    /// Drives replay: the 二楼 reaching its open threshold restarts the grow-in.
-    @Environment(\.floorIsOpen) private var floorIsOpen
-    /// `false` = field hidden/un-grown; `true` = grown. Animated transitions read
-    /// off this single flag (per-column delays live on each element's `.animation`).
-    @State private var grown = false
+    let isRevealed: Bool
 
     /// Wall-clock of the full left→right sweep; plant pops stagger across ~80% of it.
     private static let sweepDuration: Double = 1.05
 
-    /// Pebble ground scatter — x-fraction across the field (Figma 碎石地面).
-    private static let pebbleSpots: [CGFloat] = [0.05, 0.19, 0.33, 0.5, 0.66, 0.8, 0.94]
-    /// Firefly positions (Figma `walk decoration` 1193:2008 — 7 glow dots).
+    /// Firefly positions in the full 353 × 114 landscape. These retain the
+    /// Figma `walk decoration` frame's central spread instead of spanning edge
+    /// to edge. Values are x/y fractions of the landscape.
     private static let fireflySpots: [(CGFloat, CGFloat)] = [
-        (0.12, 0.42), (0.3, 0.24), (0.44, 0.55), (0.58, 0.3),
-        (0.7, 0.5), (0.82, 0.22), (0.92, 0.46),
+        (0.348, 0.456), (0.156, 0.553), (0.405, 0.553), (0.663, 0.474),
+        (0.688, 0.553), (0.771, 0.272), (0.822, 0.237),
     ]
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             ZStack(alignment: .bottom) {
-                // 山丘 + 碎石：一道从左往右扫掠的遮罩铺开（reveal wipe）。
-                ZStack(alignment: .bottom) {
-                    Image("walk_hills")
-                        .resizable()
-                        .aspectRatio(355.203 / 100.307, contentMode: .fill)
-                        .frame(width: w, height: h, alignment: .bottom)
-                    pebbles(w: w, h: h)
-                }
+                // 山丘从左往右铺开。Figma 中山丘约 355 × 100，植物数据区
+                // 内收 8pt 且位于其下方；额外石头会重复最低档位，因此不叠加。
+                Image("walk_hills")
+                    .resizable()
+                    .frame(width: w + 2, height: min(100, h), alignment: .top)
+                    .frame(width: w, height: h, alignment: .top)
                 .mask(alignment: .leading) {
                     Rectangle()
-                        .frame(width: grown ? w + 4 : 0)
-                        .animation(.easeOut(duration: Self.sweepDuration), value: grown)
+                        .frame(width: isRevealed ? w + 4 : 0)
+                        .animation(
+                            reduceMotion ? nil : .easeOut(duration: Self.sweepDuration),
+                            value: isRevealed)
                 }
 
                 // 植物：每列随扫掠到达而「冒头」，底部锚点弹簧上弹。
-                plantRow(h: h)
+                plantRow(h: min(91, h))
+                    .padding(.horizontal, 8)
 
                 // 萤火虫：最后淡入。
                 fireflies(w: w, h: h)
-                    .opacity(grown ? 1 : 0)
-                    .animation(.easeIn(duration: 0.5).delay(Self.sweepDuration * 0.7), value: grown)
+                    .opacity(isRevealed ? 1 : 0)
+                    .animation(
+                        reduceMotion
+                            ? nil
+                            : .easeIn(duration: 0.5).delay(Self.sweepDuration * 0.7),
+                        value: isRevealed)
             }
             .frame(width: w, height: h, alignment: .bottom)
-            // 每次二楼打开重放：先瞬时归零（无动画），下一拍再生长。关闭/预览(默认 true)即长成。
-            .onChange(of: floorIsOpen, initial: true) { _, open in
-                guard open else { grown = false; return }
-                grown = false
-                DispatchQueue.main.async { grown = true }
-            }
         }
     }
 
@@ -201,21 +233,14 @@ private struct GrassField: View {
                 let delay = Double(i) / Double(count) * Self.sweepDuration * 0.8
                 PlantView(stage: stage, fieldHeight: h, dimmed: isToday && hour > currentHour)
                     .frame(maxWidth: .infinity)
-                    .scaleEffect(grown ? 1 : 0.15, anchor: .bottom)
-                    .opacity(grown ? 1 : 0)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.6).delay(delay), value: grown)
+                    .scaleEffect(isRevealed ? 1 : 0.15, anchor: .bottom)
+                    .opacity(isRevealed ? 1 : 0)
+                    .animation(
+                        reduceMotion
+                            ? nil
+                            : .spring(response: 0.5, dampingFraction: 0.6).delay(delay),
+                        value: isRevealed)
             }
-        }
-    }
-
-    /// 碎石地面 — small grey pebbles (the 石头 art at ~half size) along the base.
-    private func pebbles(w: CGFloat, h: CGFloat) -> some View {
-        let pw = h * 0.24                       // pebble box width
-        return ForEach(Self.pebbleSpots.indices, id: \.self) { i in
-            Image("walk_rock")
-                .resizable()
-                .frame(width: pw, height: pw * 20 / 48)
-                .position(x: w * Self.pebbleSpots[i], y: h - (pw * 20 / 48) / 2 - 1)
         }
     }
 
@@ -240,12 +265,14 @@ private struct GrassField: View {
 private enum PlantStage {
     case rock, sprout, pine, tall
 
-    /// One-hour step count → stage (1500 步/h ≈ a full continuous-walking hour).
+    /// One-hour step count → stage. Figma defines four visual variants but no
+    /// numeric thresholds: zero is the rock state, while the three growth bands
+    /// cover a practical hour of light → sustained walking.
     static func forHourSteps(_ s: Int) -> PlantStage {
         switch s {
-        case ..<150:      return .rock
-        case 150..<700:   return .sprout
-        case 700..<1500:  return .pine
+        case ...0:        return .rock
+        case 1..<150:     return .sprout
+        case 150..<500:   return .pine
         default:          return .tall
         }
     }

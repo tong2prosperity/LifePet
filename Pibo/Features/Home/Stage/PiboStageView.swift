@@ -12,11 +12,11 @@ struct PiboStageView: View {
     let state: PiboActivityState
     /// 魔丸 head growth (「?」卷芽 ⇄ 发芽带叶) — drives which head sprite shows.
     var growth: PiboGrowthStage = .sprouted
-    /// Local-time lighting, wind, and DEBUG-only precipitation.
-    var environment: ForestEnvironmentSnapshot = .daylight
+    /// Theme-neutral local time and weather input.
+    var environment: PiboStageEnvironment = .daylight
     /// Fine-grained renderer controls. Release Home keeps the standard values;
     /// DEBUG exposes them in a collapsible overlay.
-    var tuning: ForestSceneTuning = .standard
+    var tuning: StageRenderTuning = .standard
     var onPat: () -> Void = {}
     /// Fired when the head 毛 is dragged past the pull threshold (the 拔毛 gesture).
     var onHairPulled: () -> Void = {}

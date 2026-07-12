@@ -42,10 +42,10 @@ struct HomeView: View {
     @State private var dayLabelText: String = ""
     @State private var atmosphereNow = Date()
     #if DEBUG
-    @State private var forestTuning: ForestSceneTuning = .standard
+    @State private var forestTuning: StageRenderTuning = .standard
     @State private var tuningPanelExpanded = true
     #else
-    private let forestTuning: ForestSceneTuning = .standard
+    private let forestTuning: StageRenderTuning = .standard
     #endif
     @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
 
@@ -57,15 +57,15 @@ struct HomeView: View {
             || showSettings || detailMeal != nil
     }
 
-    private var forestEnvironment: ForestEnvironmentSnapshot {
+    private var stageEnvironment: PiboStageEnvironment {
         #if DEBUG
-        return ForestDayPhaseResolver.resolve(
+        return PiboStageEnvironmentResolver.resolve(
             date: atmosphereNow,
             forcedHour: store.debugForestHour,
-            rainIntensity: CGFloat(store.weather.precipitation)
+            weather: store.weather
         )
         #else
-        return ForestDayPhaseResolver.resolve(date: atmosphereNow, rainIntensity: 0)
+        return PiboStageEnvironmentResolver.resolve(date: atmosphereNow)
         #endif
     }
 
@@ -75,7 +75,7 @@ struct HomeView: View {
                 theme: store.currentTheme,
                 state: store.activityState,
                 growth: store.growthStage,
-                environment: forestEnvironment,
+                environment: stageEnvironment,
                 tuning: forestTuning,
                 onPat: handlePat,
                 onHairPulled: handleHairPull,
@@ -541,7 +541,7 @@ struct HomeView: View {
 
 #if DEBUG
 private struct ForestTuningPanel: View {
-    @Binding var tuning: ForestSceneTuning
+    @Binding var tuning: StageRenderTuning
     @Binding var isExpanded: Bool
     @Binding var forcedHour: Double?
     @State private var playbackTask: Task<Void, Never>?
@@ -608,13 +608,8 @@ private struct ForestTuningPanel: View {
 
             tuningSlider(
                 title: "树叶晃动",
-                value: $tuning.foliageMotionScale,
+                value: $tuning.ambientMotionScale,
                 range: 0...2
-            )
-            tuningSlider(
-                title: "水流速度",
-                value: $tuning.waterFlowSpeed,
-                range: 0...1.4
             )
         }
         .padding(LP.Spacing.m)
@@ -720,7 +715,7 @@ private struct ForestTuningPanel: View {
     }
 
     private func formattedHour(_ hour: Double) -> String {
-        let normalized = ForestDayPhaseResolver.normalizedHour(hour)
+        let normalized = PiboStageEnvironmentResolver.normalizedHour(hour)
         let totalMinutes = Int((normalized * 60).rounded()) % (24 * 60)
         return String(format: "%02d:%02d", totalMinutes / 60, totalMinutes % 60)
     }

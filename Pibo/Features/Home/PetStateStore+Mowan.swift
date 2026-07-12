@@ -245,10 +245,4 @@ extension PetStateStore {
         return grade
     }
 
-    // MARK: Home appearance
-
-    /// Forest is the single home appearance in every configuration.
-    var currentTheme: PiboTheme {
-        return .forest
-    }
 }

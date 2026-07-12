@@ -44,6 +44,16 @@ enum ForestReflectionProjection {
         )
     }
 
+    enum MotionResponse: Equatable {
+        /// Recompute the mirrored position against a fixed water contact. This
+        /// remains appropriate for static trees and the character.
+        case mirrored
+        /// Keep the authored rest-pose projection, then transfer live vertex
+        /// deformation in the same visual direction. Interactive foliage uses
+        /// this so dragging a leaf down also moves its reflection down.
+        case followSourceDeformation
+    }
+
     static func destination(
         for source: CGPoint,
         contact: CGPoint,
@@ -81,6 +91,39 @@ enum ForestReflectionProjection {
         destination.x += (broad + fine) * amplitude
         return destination
     }
+
+    static func destination(
+        for source: CGPoint,
+        restingAt restSource: CGPoint,
+        contact: CGPoint,
+        sourceHeight: CGFloat,
+        phase: CGFloat,
+        style: Style,
+        lowPower: Bool,
+        motionResponse: MotionResponse
+    ) -> CGPoint {
+        let projectionSource = motionResponse == .followSourceDeformation
+            ? restSource
+            : source
+        var destination = destination(
+            for: projectionSource,
+            contact: contact,
+            sourceHeight: sourceHeight,
+            phase: phase,
+            style: style,
+            lowPower: lowPower
+        )
+        guard motionResponse == .followSourceDeformation else { return destination }
+
+        let normalizedHeight = min(max(
+            (contact.y - projectionSource.y) / max(sourceHeight, 1),
+            0
+        ), 1)
+        let widthScale = 1 - (1 - style.tipWidthScale) * normalizedHeight
+        destination.x += (source.x - restSource.x) * widthScale
+        destination.y += (source.y - restSource.y) * style.verticalCompression
+        return destination
+    }
 }
 
 /// One live texture proxy inside the river crop. The proxy itself spans the
@@ -95,7 +138,9 @@ final class ForestReflectionProxy {
     let baseAlpha: CGFloat
 
     private let sourceVRange: ClosedRange<CGFloat>
+    private let motionResponse: ForestReflectionProjection.MotionResponse
     private var lastTexture: SKTexture?
+    private var restSourceDesignPositions: [CGPoint] = []
     private var destinationPositions: [SIMD2<Float>] = []
 
     init(
@@ -104,13 +149,15 @@ final class ForestReflectionProxy {
         projectionHeight: CGFloat,
         sourceVRange: ClosedRange<CGFloat> = 0 ... 1,
         baseAlpha: CGFloat,
-        zPosition: CGFloat
+        zPosition: CGFloat,
+        motionResponse: ForestReflectionProjection.MotionResponse = .mirrored
     ) {
         self.source = source
         self.contactPoint = contactPoint
         self.projectionHeight = max(projectionHeight, 1)
         self.sourceVRange = sourceVRange
         self.baseAlpha = baseAlpha
+        self.motionResponse = motionResponse
 
         let texture = Self.croppedTexture(source.texture, vRange: sourceVRange)
         reflected = SKSpriteNode(texture: texture)
@@ -120,6 +167,7 @@ final class ForestReflectionProxy {
         reflected.blendMode = .alpha
         reflected.shader = Self.makeShader()
         lastTexture = source.texture
+        restSourceDesignPositions.reserveCapacity(ForestReflectionProjection.vertexCount)
         destinationPositions.reserveCapacity(ForestReflectionProjection.vertexCount)
     }
 
@@ -160,8 +208,16 @@ final class ForestReflectionProxy {
                 )
                 let targetPoint = source.convert(local, to: target)
                 let sourceDesign = mapper.designPoint(targetPoint)
+                let vertexIndex = row * (ForestReflectionProjection.columns + 1) + column
+                if restSourceDesignPositions.count <= vertexIndex {
+                    restSourceDesignPositions.append(sourceDesign)
+                }
+                let restSourceDesign = restSourceDesignPositions[vertexIndex]
+                let projectionSource = motionResponse == .followSourceDeformation
+                    ? restSourceDesign
+                    : sourceDesign
                 let normalizedHeight = min(max(
-                    (contactPoint.y - sourceDesign.y) / projectionHeight,
+                    (contactPoint.y - projectionSource.y) / projectionHeight,
                     0
                 ), 1)
                 minHeight = min(minHeight, normalizedHeight)
@@ -169,11 +225,13 @@ final class ForestReflectionProxy {
 
                 let reflectedDesign = ForestReflectionProjection.destination(
                     for: sourceDesign,
+                    restingAt: restSourceDesign,
                     contact: contactPoint,
                     sourceHeight: projectionHeight,
                     phase: phase,
                     style: style,
-                    lowPower: lowPower
+                    lowPower: lowPower,
+                    motionResponse: motionResponse
                 )
                 let reflectedPoint = mapper.point(reflectedDesign)
                 destinationPositions.append(SIMD2(
