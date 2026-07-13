@@ -21,6 +21,7 @@ struct SettingsSheet: View {
     @State private var showResetConfirm = false
     @State private var showMembership = false
     @State private var showStressLog = false
+    @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled) private var ambientSoundEnabled = true
     #if DEBUG
     @State private var showStressProbe = false
     @State private var showWaterLab = false
@@ -32,6 +33,7 @@ struct SettingsSheet: View {
             VStack(alignment: .leading, spacing: LP.Spacing.xl) {
                 header
                 membershipSection
+                soundSection
                 notifySection
                 dangerSection
                 #if DEBUG
@@ -70,6 +72,42 @@ struct SettingsSheet: View {
                 dismiss()
             }
             Button(AppLocalization.text("取消"), role: .cancel) {}
+        }
+    }
+
+    // MARK: 环境声音
+
+    private var soundSection: some View {
+        VStack(alignment: .leading, spacing: LP.Spacing.s) {
+            Text(AppLocalization.text("声音"))
+                .lpText(LP.Typography.c1Regular)
+                .foregroundStyle(LP.Content.tertiary)
+
+            Toggle(isOn: $ambientSoundEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(AppLocalization.text("环境声音"))
+                        .lpText(LP.Typography.b2Medium)
+                        .foregroundStyle(LP.Content.primary)
+                    Text(AppLocalization.text("森林、雨声与雷声"))
+                        .lpText(LP.Typography.c2Regular)
+                        .foregroundStyle(LP.Content.tertiary)
+                }
+            }
+            .tint(LP.Fill.foundationAccent)
+            .onChange(of: ambientSoundEnabled) { _, enabled in
+                LPHaptics.tap()
+                Analytics.track(
+                    .soundscapeSettingChange,
+                    screen: "settings",
+                    ["enabled": .bool(enabled)]
+                )
+            }
+            .padding(.horizontal, LP.Spacing.m)
+            .padding(.vertical, LP.Spacing.s + 2)
+            .background(
+                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
+                    .fill(LP.Fill.bgContainer)
+            )
         }
     }
 

@@ -36,6 +36,7 @@ enum Analytics {
         case miniGameFinish = "mini_game_finish"
         case historyOpen = "history_open"
         case settingsOpen = "settings_open"
+        case soundscapeSettingChange = "soundscape_setting_change"
         case themeChange = "theme_change"
         case membershipOpen = "membership_open"
         case purchase

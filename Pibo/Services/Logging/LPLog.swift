@@ -40,6 +40,7 @@ nonisolated enum LPLog {
     static let identity     = Logger(subsystem: subsystem, category: "Identity")
     static let snapshot     = Logger(subsystem: subsystem, category: "Snapshot")
     static let petState     = Logger(subsystem: subsystem, category: "PetState")
+    static let audio        = Logger(subsystem: subsystem, category: "Audio.Soundscape")
     static let healthKit    = Logger(subsystem: subsystem, category: "HealthKit")
     /// Split out so the verbose per-sample dump can be filtered on its own
     /// without drowning the rest of `HealthKit`'s output.

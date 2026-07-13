@@ -1,3 +1,4 @@
+import AVFAudio
 import SwiftUI
 import UIKit
 import os
@@ -14,6 +15,7 @@ import os
 struct HomeView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(HealthHistoryStore.self) private var history
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var speech: PiboSpeechLine? = nil
     @State private var speechClear: Task<Void, Never>? = nil
@@ -41,6 +43,7 @@ struct HomeView: View {
     @State private var greetingText: String = ""
     @State private var dayLabelText: String = ""
     @State private var atmosphereNow = Date()
+    @State private var soundscape = AmbientSoundscapeService()
     #if DEBUG
     @State private var forestTuning: StageRenderTuning = .standard
     @State private var tuningPanelExpanded = true
@@ -48,6 +51,7 @@ struct HomeView: View {
     private let forestTuning: StageRenderTuning = .standard
     #endif
     @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
+    @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled) private var ambientSoundEnabled = true
 
     /// Pause the 60fps stage loop while a feature covers it — the full-screen
     /// covers plus the two sheets (设置 / 餐食详情), which on iOS occlude the stage
@@ -67,6 +71,14 @@ struct HomeView: View {
         #else
         return PiboStageEnvironmentResolver.resolve(date: atmosphereNow)
         #endif
+    }
+
+    private var soundscapePresentation: SoundscapePresentation {
+        guard scenePhase == .active else { return .suspended }
+        if showCamera || showGames || showHistory || showWalkDoodle || detailMeal != nil {
+            return .suspended
+        }
+        return showSettings ? .ducked : .active
     }
 
     var body: some View {
@@ -117,6 +129,16 @@ struct HomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             atmosphereNow = Date()
         }
+        .onReceive(NotificationCenter.default.publisher(
+            for: AVAudioSession.interruptionNotification
+        )) { notification in
+            soundscape.handleInterruption(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: AVAudioSession.silenceSecondaryAudioHintNotification
+        )) { notification in
+            soundscape.handleSecondaryAudioHint(notification)
+        }
         .onAppear {
             greetingText = store.mowanGreeting
             dayLabelText = store.relationshipDayLabel
@@ -144,6 +166,27 @@ struct HomeView: View {
                     maybeStartEnergyFlow()
                 }
             }
+            startSoundscape()
+        }
+        .onDisappear {
+            soundscape.setPresentation(.suspended)
+            soundscape.stop()
+        }
+        .onChange(of: stageEnvironment) { _, environment in
+            soundscape.apply(
+                environment: environment,
+                date: atmosphereNow,
+                petID: store.identity.currentPetId
+            )
+        }
+        .onChange(of: store.identity.currentPetId) { _, petID in
+            soundscape.apply(environment: stageEnvironment, date: atmosphereNow, petID: petID)
+        }
+        .onChange(of: ambientSoundEnabled) { _, enabled in
+            soundscape.setEnabled(enabled)
+        }
+        .onChange(of: soundscapePresentation) { _, presentation in
+            soundscape.setPresentation(presentation)
         }
         .onChange(of: store.pendingWorkout?.id) { _, id in
             if id != nil { maybeStartEnergyFlow() }
@@ -505,6 +548,17 @@ struct HomeView: View {
             try? await Task.sleep(for: .seconds(60))
             if !Task.isCancelled { atmosphereNow = Date() }
         }
+    }
+
+    private func startSoundscape() {
+        soundscape.setEnabled(ambientSoundEnabled)
+        soundscape.setPresentation(soundscapePresentation)
+        soundscape.refreshExternalAudioSuppression()
+        soundscape.apply(
+            environment: stageEnvironment,
+            date: atmosphereNow,
+            petID: store.identity.currentPetId
+        )
     }
 
     private func performReset() {
