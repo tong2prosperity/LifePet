@@ -5,6 +5,8 @@ import PiboCore
 enum PiboCoreStressAdapter {
     static let coldStartDays = PiboCoreStress.coldStartDays
     static let fullPersonalDays = PiboCoreStress.fullPersonalDays
+    static let alertQuietStartHour = Int(PiboCoreStress.alertQuietStartHour)
+    static let alertQuietEndHour = Int(PiboCoreStress.alertQuietEndHour)
 
     static func baselineZ(rmssd: Double, baseline: StressBaseline) -> Double {
         PiboCoreStress.baselineZ(rmssd: rmssd, baseline: baseline.coreBaseline)
@@ -57,9 +59,28 @@ enum PiboCoreStressAdapter {
     ) -> StressLevel {
         appLevel(PiboCoreStress.confirmedLevel(
             raw: coreLevel(raw),
-            lastRaw: lastRaw.map(coreLevel),
-            lastConfirmed: lastConfirmed.map(coreLevel)
+            lastRaw: lastRaw.map { coreLevel($0) },
+            lastConfirmed: lastConfirmed.map { coreLevel($0) }
         ))
+    }
+
+    static func alertKind(
+        level: StressLevel,
+        previousAlertedLevel: StressLevel?,
+        localHour: Double,
+        secondsSinceLastAlert: Double?
+    ) -> StressAlertKind? {
+        switch PiboCoreStress.alertDecision(
+            level: coreLevel(level),
+            previousAlertedLevel: previousAlertedLevel.map { coreLevel($0) },
+            localHour: localHour,
+            secondsSinceLastAlert: secondsSinceLastAlert
+        ) {
+        case .none: nil
+        case .elevated: .elevated
+        case .recovered: .recovered
+        case .excellent: .excellent
+        }
     }
 
     private static func appLevel(_ level: PiboCoreStressLevel) -> StressLevel {

@@ -80,16 +80,6 @@ final class StressNotifier {
     private static let everyKey = "pibo.stress.push.every.v1"
     private static let lastAtKey = "pibo.stress.push.lastAt.v1"
     private static let lastLevelKey = "pibo.stress.push.lastLevel.v1"
-    /// Minimum spacing between escalation pushes — small, just to dedupe races
-    /// and rapid repeats. Escalations otherwise bypass the cooldown.
-    private static let escalationFloor: TimeInterval = 10 * 60
-    /// Re-remind cadence while stuck at the same-or-lower elevated tier, so a
-    /// chronically stressed wearer isn't left silent after the first alert.
-    private static let sustainedInterval: TimeInterval = 2 * 60 * 60
-    /// Quiet hours [start, end) in 24h local time — no pushes overnight.
-    private static let quietStartHour = 23
-    private static let quietEndHour = 7
-
     /// App-Group defaults so the throttle/escalation ratchet survives a
     /// background relaunch (the process that pushed may not be the one still
     /// alive when the user next opens the app).
@@ -158,13 +148,14 @@ final class StressNotifier {
         let banner = s.alertSetting == .enabled ? "开" : "关"
         let sound = s.soundSetting == .enabled ? "开" : "关"
         let hour = Calendar.current.component(.hour, from: Date())
-        let quiet = (hour >= Self.quietStartHour || hour < Self.quietEndHour)
+        let quiet = hour >= PiboCoreStressAdapter.alertQuietStartHour
+            || hour < PiboCoreStressAdapter.alertQuietEndHour
         let lastLevel = (Self.defaults.object(forKey: Self.lastLevelKey) as? Int)
             .flatMap { StressLevel(rawValue: $0)?.displayName } ?? "无"
         return """
         系统授权: \(status)
         横幅: \(banner) · 声音: \(sound)
-        当前静默时段(23–7): \(quiet ? "是（智能模式此刻不推）" : "否")
+        当前静默时段(\(PiboCoreStressAdapter.alertQuietStartHour)–\(PiboCoreStressAdapter.alertQuietEndHour)): \(quiet ? "是（智能模式此刻不推）" : "否")
         总开关 高压力提醒: \(pushEnabled ? "开" : "关")
         每次测量都提醒: \(notifyEveryReading ? "开" : "关")
         上次已通知档位: \(lastLevel)
@@ -223,22 +214,6 @@ final class StressNotifier {
         }
     }
 
-    /// Decide what (if anything) this reading is worth notifying about, given
-    /// the last *alerted* tier. Returns `nil` when the reading is unremarkable
-    /// (steady 正常, or 优秀 we've already congratulated).
-    private func alertKind(prev: StressLevel?, level: StressLevel) -> StressAlertKind? {
-        switch level {
-        case .notice, .overload:
-            return .elevated
-        case .excellent:
-            // Reaching 优秀 is good news — but only announce the arrival once.
-            return prev == .excellent ? nil : .excellent
-        case .normal:
-            // 恢复 only matters if we'd previously warned about elevated stress.
-            return (prev?.isElevated ?? false) ? .recovered : nil
-        }
-    }
-
     /// Fire a stress notification if this reading warrants one, respecting all
     /// guards. Returns whether a push was actually delivered (the caller logs
     /// it). Safe to call from a background HK wake — it only *reads* system auth
@@ -256,32 +231,15 @@ final class StressNotifier {
         // now calm"). Only a fired push updates it.
         let prev = (Self.defaults.object(forKey: Self.lastLevelKey) as? Int)
             .flatMap { StressLevel(rawValue: $0) }
-        guard let kind = alertKind(prev: prev, level: level) else { return false }
-
-        // Quiet hours — skip *without* recording state, so a transition that
-        // lands overnight can still fire once the window ends.
         let hour = Calendar.current.component(.hour, from: Date())
-        if hour >= Self.quietStartHour || hour < Self.quietEndHour { return false }
-
         let now = Date()
         let lastAt = Self.defaults.object(forKey: Self.lastAtKey) as? Date
-
-        switch kind {
-        case .elevated:
-            let isEscalation = prev.map { level.rawValue > $0.rawValue } ?? true
-            if isEscalation {
-                // A worsening tier is the alert we care about — only a short
-                // floor to dedupe races / rapid repeats.
-                if let lastAt, now.timeIntervalSince(lastAt) < Self.escalationFloor { return false }
-            } else {
-                // Same-or-lower elevated tier: re-remind only on the long cadence.
-                if let lastAt, now.timeIntervalSince(lastAt) < Self.sustainedInterval { return false }
-            }
-        case .recovered, .excellent:
-            // One-shot transition off the last alerted tier — a short floor is
-            // enough to swallow the observer+reconcile double-call.
-            if let lastAt, now.timeIntervalSince(lastAt) < Self.escalationFloor { return false }
-        }
+        guard let kind = PiboCoreStressAdapter.alertKind(
+            level: level,
+            previousAlertedLevel: prev,
+            localHour: Double(hour),
+            secondsSinceLastAlert: lastAt.map { now.timeIntervalSince($0) }
+        ) else { return false }
 
         isNotifying = true
         defer { isNotifying = false }
