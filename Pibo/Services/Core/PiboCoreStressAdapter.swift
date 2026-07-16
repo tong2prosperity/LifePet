@@ -50,7 +50,28 @@ enum PiboCoreStressAdapter {
         ))
     }
 
+    static func confirmedLevel(
+        raw: StressLevel,
+        lastRaw: StressLevel?,
+        lastConfirmed: StressLevel?
+    ) -> StressLevel {
+        appLevel(PiboCoreStress.confirmedLevel(
+            raw: coreLevel(raw),
+            lastRaw: lastRaw.map(coreLevel),
+            lastConfirmed: lastConfirmed.map(coreLevel)
+        ))
+    }
+
     private static func appLevel(_ level: PiboCoreStressLevel) -> StressLevel {
+        switch level {
+        case .excellent: .excellent
+        case .normal: .normal
+        case .notice: .notice
+        case .overload: .overload
+        }
+    }
+
+    private static func coreLevel(_ level: StressLevel) -> PiboCoreStressLevel {
         switch level {
         case .excellent: .excellent
         case .normal: .normal

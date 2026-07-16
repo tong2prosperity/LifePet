@@ -99,9 +99,13 @@ enum StressHysteresis {
         let lastRaw = (defaults.object(forKey: rawKey) as? Int)
             .flatMap(StressLevel.init(rawValue:))
         let lastConfirmed = (defaults.object(forKey: confirmedKey) as? Int)
-            .flatMap(StressLevel.init(rawValue:)) ?? raw
+            .flatMap(StressLevel.init(rawValue:))
         // Two consecutive readings agree → adopt; otherwise hold the last confirmed.
-        let confirmed = (lastRaw == raw) ? raw : lastConfirmed
+        let confirmed = PiboCoreStressAdapter.confirmedLevel(
+            raw: raw,
+            lastRaw: lastRaw,
+            lastConfirmed: lastConfirmed
+        )
         defaults.set(raw.rawValue, forKey: rawKey)
         defaults.set(confirmed.rawValue, forKey: confirmedKey)
         return confirmed
