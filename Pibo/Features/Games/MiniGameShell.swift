@@ -105,57 +105,13 @@ struct MiniGameRewardStore {
     }
 
     static func petals(for score: Int, kind: MiniGameKind) -> Int {
-        guard score > 0 else { return 0 }
-
-        switch kind {
-        case .huarongRoad:
-            return min(8, max(1, score / 18))
-        case .stepLights, .bellSquat, .mirrorPetals:
-            return min(8, max(1, score / 12))
-        case .mistBreath, .breathFloat, .memoryMatrix, .dualNBack, .speedMatch, .trainThought, .petDetective:
-            return min(8, max(1, score / 25))
-        case .flowerMerge, .rhythmTap, .waterTiming, .piboRunner:
-            return min(10, max(1, score / 60))
-        case .potStack:
-            return min(8, max(1, score / 3))
-        case .idleGarden:
-            return min(12, score)
-        case .walkDoodle:
-            return 0
-        }
+        PiboCoreMiniGameAdapter.petals(score: score, kind: kind)
     }
 }
 
 enum MiniGameScoring {
     static func starCount(score: Int, kind: MiniGameKind) -> Int {
-        guard score > 0 else { return 0 }
-
-        let thresholds: (one: Int, two: Int, three: Int)
-        switch kind {
-        case .huarongRoad:
-            thresholds = (35, 75, 115)
-        case .stepLights:
-            thresholds = (18, 45, 80)
-        case .bellSquat:
-            thresholds = (4, 12, 22)
-        case .mirrorPetals:
-            thresholds = (10, 30, 60)
-        case .memoryMatrix, .dualNBack, .speedMatch:
-            thresholds = (20, 45, 75)
-        case .mistBreath, .breathFloat, .trainThought, .petDetective:
-            thresholds = (25, 55, 85)
-        case .flowerMerge, .rhythmTap, .waterTiming, .piboRunner:
-            thresholds = (60, 140, 240)
-        case .potStack, .idleGarden:
-            thresholds = (3, 7, 12)
-        case .walkDoodle:
-            thresholds = (1, 2, 3)
-        }
-
-        if score >= thresholds.three { return 3 }
-        if score >= thresholds.two { return 2 }
-        if score >= thresholds.one { return 1 }
-        return 0
+        PiboCoreMiniGameAdapter.stars(score: score, kind: kind)
     }
 
     static func starText(score: Int, kind: MiniGameKind) -> String {
