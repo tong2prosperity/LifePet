@@ -151,11 +151,17 @@ extension PetStateStore {
         // Prune so the array doesn't grow unbounded.
         patSpeechTimes = in24h
 
-        guard in24h.count < 9, in10m.count < 3 else { return .ignored }
-        guard Double.random(in: 0..<1) < 0.3 else { return .ignored }
+        let decision = PiboCorePatAdapter.decide(
+            spokenIn24Hours: in24h.count,
+            spokenIn10Minutes: in10m.count,
+            speechRoll: Double.random(in: 0..<1),
+            storyRoll: Double.random(in: 0..<1),
+            hasUnrevealedStory: story.hasUnrevealedClue
+        )
+        guard decision != .ignored else { return .ignored }
 
         // 故事线: patting can shake the next clue loose (app 叙事).
-        if Double.random(in: 0..<1) < 0.25, let clue = story.revealNextClue() {
+        if decision == .storySpeech, let clue = story.revealNextClue() {
             patSpeechTimes.append(now)
             return PatResponse(line: PiboSpeechLine(text: clue.line, isStoryClue: true))
         }
