@@ -41,14 +41,20 @@ final class WorkoutRecord {
 
 extension WorkoutRecord {
     var kind: HealthEvent.WorkoutKind { HealthEvent.WorkoutKind(rawValue: kindRaw) ?? .other }
-    var durationMinutes: Int { max(0, Int(duration / 60)) }
+    var durationMinutes: Int {
+        PiboCoreWorkoutAdapter.metrics(
+            durationSeconds: duration,
+            distanceMeters: distanceMeters
+        ).durationMinutes
+    }
 
     /// 平均配速 in minutes-per-kilometer. `nil` when there's no usable distance
     /// (strength / yoga / mindful sessions) — the card hides the column then.
     var paceMinPerKm: Double? {
-        guard distanceMeters > 50, duration > 0 else { return nil }
-        let km = distanceMeters / 1000
-        return (duration / 60) / km
+        PiboCoreWorkoutAdapter.metrics(
+            durationSeconds: duration,
+            distanceMeters: distanceMeters
+        ).paceMinutesPerKilometer
     }
 
     /// `07:00-07:52` time-range label (24h, locale-stable).
