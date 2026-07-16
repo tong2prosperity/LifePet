@@ -32,12 +32,7 @@ enum PiboDayPhase: String, CaseIterable, Sendable {
     /// renderers remain free to interpolate their authored lighting continuously
     /// from `localHour` instead of switching visuals at these boundaries.
     static func resolve(hour: Double) -> PiboDayPhase {
-        switch PiboStageEnvironmentResolver.normalizedHour(hour) {
-        case 5..<9: return .morning
-        case 9..<16.5: return .day
-        case 16.5..<20.5: return .dusk
-        default: return .night
-        }
+        PiboCoreEnvironmentAdapter.dayPhase(at: hour)
     }
 }
 
@@ -61,11 +56,7 @@ struct PiboStageEnvironment: Equatable, Sendable {
     )
 
     var rainIntensity: CGFloat {
-        switch weather {
-        case .rain: return 0.6
-        case .thunderstorm: return 1
-        case .clear, .cloudy, .snow: return 0
-        }
+        CGFloat(PiboCoreEnvironmentAdapter.rainIntensity(for: weather))
     }
 }
 
@@ -88,8 +79,7 @@ enum PiboStageEnvironmentResolver {
     }
 
     static func normalizedHour(_ hour: Double) -> Double {
-        let remainder = hour.truncatingRemainder(dividingBy: 24)
-        return remainder >= 0 ? remainder : remainder + 24
+        PiboCoreEnvironmentAdapter.normalizedHour(hour)
     }
 }
 

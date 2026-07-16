@@ -13,6 +13,7 @@
 		A7F5C52D2FC8832A0050C48C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A7F5C52C2FC8832A0050C48C /* SwiftUI.framework */; };
 		A7F5C53E2FC8832B0050C48C /* PiboWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A7F5C5282FC8832A0050C48C /* PiboWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B1C000000000000000000001 /* PiboChessUI in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000000000000000000002 /* PiboChessUI */; };
+		D0C000000000000000000001 /* PiboCore in Frameworks */ = {isa = PBXBuildFile; productRef = D0C000000000000000000002 /* PiboCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -121,6 +122,7 @@
 			files = (
 				A7DA5EEC2FD0000100000001 /* DataSneaker in Frameworks */,
 				B1C000000000000000000001 /* PiboChessUI in Frameworks */,
+				D0C000000000000000000001 /* PiboCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -210,6 +212,7 @@
 			packageProductDependencies = (
 				A7DA5EEC2FD0000100000002 /* DataSneaker */,
 				B1C000000000000000000002 /* PiboChessUI */,
+				D0C000000000000000000002 /* PiboCore */,
 			);
 			productName = Pibo;
 			productReference = A7F3FD4B2F9B1F0100EA90A6 /* Pibo.app */;
@@ -324,6 +327,7 @@
 			packageReferences = (
 				A7DA5EEC2FD0000100000003 /* XCLocalSwiftPackageReference "../../tiebao/utils/DataSneaker/sdk/swift" */,
 				B1C000000000000000000003 /* XCRemoteSwiftPackageReference "pibo-chess-sdk" */,
+				D0C000000000000000000003 /* XCLocalSwiftPackageReference "../../PiboWorld/pibo-core" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A7F3FD4C2F9B1F0100EA90A6 /* Products */;
@@ -865,6 +869,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../tiebao/utils/DataSneaker/sdk/swift;
 		};
+		D0C000000000000000000003 /* XCLocalSwiftPackageReference "../../PiboWorld/pibo-core" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../PiboWorld/pibo-core;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -887,6 +895,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B1C000000000000000000003 /* XCRemoteSwiftPackageReference "pibo-chess-sdk" */;
 			productName = PiboChessUI;
+		};
+		D0C000000000000000000002 /* PiboCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D0C000000000000000000003 /* XCLocalSwiftPackageReference "../../PiboWorld/pibo-core" */;
+			productName = PiboCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
