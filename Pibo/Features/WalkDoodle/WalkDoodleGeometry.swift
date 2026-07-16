@@ -11,33 +11,14 @@ enum DoodleGeometry {
 
     /// Walked length of the stroke in metres (sum of consecutive segment lengths).
     static func pathLength(_ coords: [CLLocationCoordinate2D]) -> Double {
-        guard coords.count >= 2 else { return 0 }
-        var total = 0.0
-        for i in 1..<coords.count {
-            total += CLLocation(latitude: coords[i - 1].latitude, longitude: coords[i - 1].longitude)
-                .distance(from: CLLocation(latitude: coords[i].latitude, longitude: coords[i].longitude))
-        }
-        return total
+        PiboCoreDoodleAdapter.pathLength(coords)
     }
 
     /// Area (m²) enclosed by the stroke as if its ends were joined — the shoelace
     /// formula on a local equirectangular projection (metres relative to the first
     /// point). This "圈住的地" is what the future 比拼面积 feature ranks.
     static func enclosedArea(_ coords: [CLLocationCoordinate2D]) -> Double {
-        guard coords.count >= 3, let origin = coords.first else { return 0 }
-        let mPerDegLat = 111_320.0
-        let mPerDegLon = 111_320.0 * cos(origin.latitude * .pi / 180)
-        let pts = coords.map { c in
-            CGPoint(x: (c.longitude - origin.longitude) * mPerDegLon,
-                    y: (c.latitude - origin.latitude) * mPerDegLat)
-        }
-        var sum = 0.0
-        for i in 0..<pts.count {
-            let a = pts[i]
-            let b = pts[(i + 1) % pts.count]
-            sum += a.x * b.y - b.x * a.y
-        }
-        return abs(sum) / 2
+        PiboCoreDoodleAdapter.enclosedArea(coords)
     }
 
     /// A camera region that frames the whole stroke with a little breathing room.

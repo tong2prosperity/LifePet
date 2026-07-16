@@ -36,9 +36,6 @@ final class WalkDoodleSession {
     @ObservationIgnored private var rawLocations: [CLLocation] = []
     @ObservationIgnored private var startedAt: Date?
     @ObservationIgnored private var ticker: Task<Void, Never>?
-    @ObservationIgnored private var areaOrigin: CLLocationCoordinate2D?
-    @ObservationIgnored private var previousAreaPoint: DoodleProjectedPoint?
-    @ObservationIgnored private var areaCrossSum = 0.0
 
     deinit {
         // Belt-and-suspenders: if the session is released without a clean
@@ -99,7 +96,6 @@ final class WalkDoodleSession {
         coordinates.removeAll(keepingCapacity: true)
         distanceMeters = 0
         areaSquareMeters = 0
-        resetAreaAccumulator()
         elapsed = 0
         stopRequested = false
         let started = Date()
@@ -143,7 +139,6 @@ final class WalkDoodleSession {
         coordinates.removeAll(keepingCapacity: true)
         distanceMeters = 0
         areaSquareMeters = 0
-        resetAreaAccumulator()
         elapsed = 0
         startedAt = nil
         stopRequested = false
@@ -162,44 +157,17 @@ final class WalkDoodleSession {
         for loc in locations {
             guard loc.horizontalAccuracy >= 0, loc.horizontalAccuracy <= Self.accuracyCeiling else { continue }
             if let last = rawLocations.last {
-                let step = loc.distance(from: last)
+                let step = PiboCoreDoodleAdapter.segmentDistance(
+                    from: last.coordinate,
+                    to: loc.coordinate
+                )
                 guard step >= Self.minPointSpacing else { continue }
                 distanceMeters += step
             }
             rawLocations.append(loc)
             coordinates.append(loc.coordinate)
-            appendAreaPoint(loc.coordinate)
+            areaSquareMeters = PiboCoreDoodleAdapter.enclosedArea(coordinates)
         }
-    }
-
-    /// Incremental shoelace area. The first coordinate is projected to (0, 0),
-    /// so the closing edge from the newest point back to the origin contributes
-    /// zero and each accepted GPS fix only adds one cross product.
-    private func appendAreaPoint(_ coordinate: CLLocationCoordinate2D) {
-        guard let origin = areaOrigin else {
-            areaOrigin = coordinate
-            previousAreaPoint = DoodleProjectedPoint(x: 0, y: 0)
-            areaSquareMeters = 0
-            return
-        }
-
-        let metresPerDegreeLatitude = 111_320.0
-        let metresPerDegreeLongitude = metresPerDegreeLatitude * cos(origin.latitude * .pi / 180)
-        let point = DoodleProjectedPoint(
-            x: (coordinate.longitude - origin.longitude) * metresPerDegreeLongitude,
-            y: (coordinate.latitude - origin.latitude) * metresPerDegreeLatitude
-        )
-        if let previousAreaPoint {
-            areaCrossSum += previousAreaPoint.x * point.y - point.x * previousAreaPoint.y
-        }
-        previousAreaPoint = point
-        areaSquareMeters = abs(areaCrossSum) / 2
-    }
-
-    private func resetAreaAccumulator() {
-        areaOrigin = nil
-        previousAreaPoint = nil
-        areaCrossSum = 0
     }
 
     private func startTicking() {
@@ -276,11 +244,6 @@ final class WalkDoodleSession {
     private func clearStopSignal() {}
     private func isStopSignalRaised(since baseline: Date) -> Bool { false }
     #endif
-}
-
-private struct DoodleProjectedPoint {
-    let x: Double
-    let y: Double
 }
 
 /// Forwards `CLLocationManager` callbacks (delivered on the main run loop) into the

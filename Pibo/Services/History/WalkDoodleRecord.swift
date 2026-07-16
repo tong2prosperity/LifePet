@@ -42,7 +42,12 @@ struct WalkDoodleResult: Sendable, Equatable {
 
     /// A doodle worth keeping: at least a short stroke (filters accidental
     /// "start → stop" taps that recorded nothing).
-    var isDrawn: Bool { coordinates.count >= 3 && distanceMeters >= 30 }
+    var isDrawn: Bool {
+        PiboCoreDoodleAdapter.isDrawn(
+            coordinateCount: coordinates.count,
+            distanceMeters: distanceMeters
+        )
+    }
 }
 
 /// A walk doodle the user traced by walking — Pibo's "用脚画一幅画 / 圈一块花田"
