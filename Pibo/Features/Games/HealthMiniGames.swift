@@ -3581,12 +3581,14 @@ struct PetDetectiveGameView: View {
     }
 
     private var completedRouteScore: Int {
-        let extra = max(0, moves - shortestPath)
-        return max(10, 120 - shortestPath * 4 - extra * 12)
+        PiboCorePetDetectiveAdapter.score(
+            shortestPath: shortestPath,
+            moves: moves
+        )
     }
 
     private func detectiveCell(_ point: GridPoint) -> some View {
-        let isAdjacent = abs(point.x - player.x) + abs(point.y - player.y) == 1
+        let isMovable = canMove(to: point)
         let isBlocked = rocks.contains(point)
 
         return Button {
@@ -3610,11 +3612,11 @@ struct PetDetectiveGameView: View {
         }
         .buttonStyle(.plain)
         .aspectRatio(1, contentMode: .fit)
-        .opacity(isBlocked ? 0.58 : (isAdjacent || point == player ? 1 : 0.72))
-        .disabled(showResult || isBlocked || !isAdjacent)
+        .opacity(isBlocked ? 0.58 : (isMovable || point == player ? 1 : 0.72))
+        .disabled(showResult || !isMovable)
         .accessibilityLabel(AppLocalization.text(cellAccessibilityLabel(point)))
         .accessibilityHint(AppLocalization.text(
-            isBlocked ? "石块挡住了" : (isAdjacent ? "可以移动到这里" : "不在当前位置旁边")
+            isBlocked ? "石块挡住了" : (isMovable ? "可以移动到这里" : "不在当前位置旁边")
         ))
     }
 
@@ -3627,9 +3629,7 @@ struct PetDetectiveGameView: View {
     }
 
     private func move(to point: GridPoint) {
-        guard !rocks.contains(point),
-              abs(point.x - player.x) + abs(point.y - player.y) == 1
-        else {
+        guard canMove(to: point) else {
             LPHaptics.decline()
             return
         }
@@ -3691,35 +3691,31 @@ struct PetDetectiveGameView: View {
     }
 
     private func shortestPathLength(rocks: Set<GridPoint>) -> Int? {
-        var queue: [(point: GridPoint, distance: Int)] = [(player, 0)]
-        var visited: Set<GridPoint> = [player]
-
-        while !queue.isEmpty {
-            let next = queue.removeFirst()
-            if next.point == target { return next.distance }
-
-            for neighbor in neighbors(of: next.point) where !rocks.contains(neighbor) && !visited.contains(neighbor) {
-                visited.insert(neighbor)
-                queue.append((neighbor, next.distance + 1))
-            }
-        }
-
-        return nil
+        PiboCorePetDetectiveAdapter.shortestPath(
+            size: size,
+            rocks: Set(rocks.map(\.corePoint)),
+            start: player.corePoint,
+            target: target.corePoint
+        )
     }
 
-    private func neighbors(of point: GridPoint) -> [GridPoint] {
-        [
-            GridPoint(x: point.x + 1, y: point.y),
-            GridPoint(x: point.x - 1, y: point.y),
-            GridPoint(x: point.x, y: point.y + 1),
-            GridPoint(x: point.x, y: point.y - 1)
-        ].filter { $0.x >= 0 && $0.x < size && $0.y >= 0 && $0.y < size }
+    private func canMove(to point: GridPoint) -> Bool {
+        PiboCorePetDetectiveAdapter.canMove(
+            size: size,
+            rocks: Set(rocks.map(\.corePoint)),
+            from: player.corePoint,
+            to: point.corePoint
+        )
     }
 }
 
 private struct GridPoint: Hashable {
     var x: Int
     var y: Int
+
+    var corePoint: PiboCorePetDetectiveAdapter.Point {
+        PiboCorePetDetectiveAdapter.Point(x: x, y: y)
+    }
 }
 
 // MARK: - Motion Input
