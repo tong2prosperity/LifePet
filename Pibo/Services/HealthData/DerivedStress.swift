@@ -41,14 +41,14 @@ enum DerivedStressModel {
     /// claims to be live. Past `maxAnchorAge` (well beyond the normal 2–5h HRV
     /// cadence) we drop the anchor and fall back to the HR-only estimate, which
     /// the card honestly labels as such.
-    static let maxAnchorAge: TimeInterval = 6 * 60 * 60
+    static let maxAnchorAge: TimeInterval = PiboCoreDerivedStressAdapter.maxAnchorAge
 
     /// The HR modulation term also expires — a "latest" HR sample that's really a
     /// workout peak from before the wearer went back to rest would otherwise read
     /// as current tension (worst on the pure-HR estimate, where it drives the
     /// whole score). Short window: the watch samples HR every few minutes at rest,
     /// so 20 min covers normal gaps while cutting off a stale post-exercise peak.
-    static let maxHRAge: TimeInterval = 20 * 60
+    static let maxHRAge: TimeInterval = PiboCoreDerivedStressAdapter.maxHRAge
 
     static func compute(rmssd: Double?,
                         baseline: StressBaseline?,
@@ -58,37 +58,15 @@ enum DerivedStressModel {
                         rmssdAt: Date?,
                         isMoving: Bool,
                         now: Date = Date()) -> DerivedStress? {
-        // Only trust the anchor while it's still fresh.
-        let anchorFresh = rmssdAt.map { now.timeIntervalSince($0) <= maxAnchorAge } ?? false
-        let anchor = anchorFresh ? StressScore.anchor(rmssd: rmssd, baseline: baseline) : nil
-        // Drop the HR term when moving (exercise ≠ stress) or when the HR reading
-        // is stale (a lingering workout peak).
-        let hrFresh = currentHRAt.map { now.timeIntervalSince($0) <= maxHRAge } ?? false
-        let hrTerm = (isMoving || !hrFresh) ? nil : hrElevation(currentHR: currentHR, restingHR: restingHR)
-
-        let score: Double
-        let estimated: Bool
-        switch (anchor, hrTerm) {
-        case let (a?, h?):  score = 0.6 * a + 0.4 * h; estimated = false
-        case let (a?, nil): score = a;                 estimated = false   // moving / no HR
-        case let (nil, h?): score = h;                 estimated = true    // HR-only guess
-        case (nil, nil):    return nil
-        }
-
-        let clamped = clamp(score)
-        let age = (anchor != nil) ? rmssdAt.map { max(0, Int(now.timeIntervalSince($0) / 60)) } : nil
-        return DerivedStress(score: clamped,
-                             level: StressScore.tier(for: clamped),
-                             hrvAgeMinutes: age,
-                             isEstimated: estimated)
+        PiboCoreDerivedStressAdapter.compute(
+            rmssd: rmssd,
+            baseline: baseline,
+            restingHR: restingHR,
+            currentHR: currentHR,
+            currentHRAt: currentHRAt,
+            rmssdAt: rmssdAt,
+            isMoving: isMoving,
+            now: now
+        )
     }
-
-    /// HR elevation over resting → 0 … 1. `+60%` over resting reads as full
-    /// tension. `nil` when either HR is unusable.
-    private static func hrElevation(currentHR: Double, restingHR: Double) -> Double? {
-        guard restingHR > 0, currentHR > 0 else { return nil }
-        return clamp((currentHR - restingHR) / restingHR / 0.6)
-    }
-
-    private static func clamp(_ x: Double) -> Double { min(1, max(0, x)) }
 }
