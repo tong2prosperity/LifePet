@@ -7,6 +7,7 @@
 - `Pibo/App/`: app entry point, root view, environment wiring, scene phase hooks.
 - `Pibo/Features/`: SwiftUI/SpriteKit feature surfaces. `Home` is the full-screen horizontally pannable SpriteKit world (`PiboStageView` / `PiboStageScene`) with 拍一拍 / 拔毛 / 能量收集 / 露珠相机 entry; `History` is the 足迹 full-screen history page; `Games` hosts health mini-games; `WalkDoodle` is the map doodle recorder; `Onboarding` handles HealthKit auth. `Catalog` / `Together` were removed 2026-06-13.
 - `Pibo/Services/`: HealthKit, SwiftData history, identity/auth/backend, membership, analytics, Vision, localization, logging, and app services. Do not extend the old connectivity/playback/session/music-generation direction.
+- `Pibo/Services/Core/`: thin iOS adapters over the shared Rust `pibo-core` SDK. Keep type mapping and platform presentation here; shared thresholds and deterministic rules belong in the SDK.
 - `Pibo Watch App/Features/CRCBreathing/`: the only current watch feature. Older `Recording`, `Start`, and watch connectivity code are WCSession-era leftovers.
 - `PiboWidgets/`: Home Screen widget and Live Activity extension. Shared payloads live in `Shared/WidgetSupport/` and are live, not legacy.
 - `Shared/DesignSystem/`: LP tokens, Figma UI Kit tokens, reusable components, modifiers, and theme data. Use these before adding one-off UI styling.
@@ -21,13 +22,14 @@ The project uses file-system synchronized Xcode groups. Adding Swift or asset fi
 
 ```bash
 xcodebuild -project Pibo.xcodeproj -list
+xcodebuild -resolvePackageDependencies -project Pibo.xcodeproj -scheme Pibo
 xcodebuild -project Pibo.xcodeproj -scheme Pibo -configuration Debug build
 xcodebuild -project Pibo.xcodeproj -scheme "Pibo Watch App" -configuration Debug build
 xcodebuild -project Pibo.xcodeproj -scheme PiboWidgetsExtension -configuration Debug build
 xcodebuild -project Pibo.xcodeproj -scheme Pibo clean
 ```
 
-Use Xcode with the `Pibo` scheme for normal run/debug. There is no test target yet, and there is no `Package.swift`, CocoaPods, or Carthage setup. Dependencies go through Xcode Swift Package Manager; currently the app uses the local DataSneaker Swift SDK package at `../../tiebao/utils/DataSneaker/sdk/swift`.
+Use Xcode with the `Pibo` scheme for normal run/debug. `PiboTests` is the unit/integration test target. There is no app-level `Package.swift`, CocoaPods, or Carthage setup. Dependencies go through Xcode Swift Package Manager. `PiboCore` is pinned to an exact release of the private `git@github.com:PiboWorld/pibo-core.git` package; DataSneaker remains a local package at `../../tiebao/utils/DataSneaker/sdk/swift`. Commit `Package.resolved` whenever a remote package version changes.
 
 ## Coding Style & Naming Conventions
 
@@ -52,6 +54,14 @@ Recent history uses short Conventional Commit-style prefixes, especially `feat:`
 PRs should include a behavior summary, screenshots or recordings for UI changes, build/test notes, and any HealthKit, StoreKit, widget, location, signing, backend, or Info.plist/capability changes.
 
 ## Product & Architecture Notes
+
+### Shared Rust domain SDK
+
+`pibo-core` is the source of truth for deterministic rules shared with HarmonyPibo. It owns environment/time/weather mixing, the six-state activity machine, greetings, 拍一拍/拔毛, sleep/workout policy, stress scoring and alert decisions, soundscape profiles, Walk Doodle geometry, mini-game rewards, 华容道, Pet Detective, 叠花盆, and Rhythm Tap. iOS consumes its `PiboCore` Swift product and maps results through `Pibo/Services/Core/`.
+
+Do not copy SDK-owned thresholds or algorithms into Swift. Platform acquisition and effects—HealthKit, time/weather fetching, permissions, persistence, SwiftUI/SpriteKit, localized copy, audio, haptics, notifications, networking, analytics, and StoreKit—remain in this repository. New cross-platform pure logic must be implemented and released in `PiboWorld/pibo-core` first.
+
+Core release order is strict: update and verify Core → publish a SemVer tag such as `0.1.1` → update this project's exact Swift Package version and `Package.resolved` → update HarmonyPibo's pinned submodule → build both Apps. Never point the app at Core `main` or an unpublished local revision. The SDK's own `AGENTS.md`/`CLAUDE.md` define ABI and release requirements.
 
 The app name is `Pibo`. All user-facing copy, App display names, share-card branding, onboarding copy, screenshots, manuals, analytics naming, and public docs should say `Pibo`/`PIBO`, not `LifePet` or `LifePulse`.
 

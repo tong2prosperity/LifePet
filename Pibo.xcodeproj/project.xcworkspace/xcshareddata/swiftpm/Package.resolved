@@ -1,5 +1,5 @@
 {
-  "originHash" : "bc1b7063c120ebf3e9d0d8919a8ef178dc42d5718da593618959fa54bf3c9aed",
+  "originHash" : "415c7cffbbb35df5d02c94356b87caef988f180f662ab2053715471e3d69b58e",
   "pins" : [
     {
       "identity" : "pibo-chess-sdk",
@@ -7,6 +7,15 @@
       "location" : "https://github.com/PiboWorld/pibo-chess-sdk.git",
       "state" : {
         "revision" : "a72ed30066640885fcf39ae9e906194832fad6e8",
+        "version" : "0.1.0"
+      }
+    },
+    {
+      "identity" : "pibo-core",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:PiboWorld/pibo-core.git",
+      "state" : {
+        "revision" : "0693bc68849ef67d2633999aed8524d3481b3813",
         "version" : "0.1.0"
       }
     }
