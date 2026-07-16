@@ -914,7 +914,7 @@ private final class RhythmTapGameModel {
     var score = 0
     var combo = 0
     var maxCombo = 0
-    var timeLeft = 45
+    var timeLeft = Int(PiboCoreRhythmTapAdapter.config.session)
     var hasStarted = false
     var isRunning = false
     var isFinished = false
@@ -929,9 +929,10 @@ private final class RhythmTapGameModel {
     @ObservationIgnored private var lastResolvedBeat = -1
     @ObservationIgnored private var lastTapUptime = 0.0
 
-    private let beatInterval = 0.6
-    private let sessionLength = 45.0
-    private var countInLength: Double { beatInterval * 4 }
+    private let config = PiboCoreRhythmTapAdapter.config
+    private var beatInterval: TimeInterval { config.beatInterval }
+    private var sessionLength: TimeInterval { config.session }
+    private var countInLength: TimeInterval { config.countIn }
 
     func startOrToggle() {
         if !hasStarted {
@@ -946,7 +947,7 @@ private final class RhythmTapGameModel {
     func tapBeat() {
         guard isRunning, !isFinished else { return }
         let uptime = ProcessInfo.processInfo.systemUptime
-        guard uptime - lastTapUptime >= 0.12 else { return }
+        guard uptime - lastTapUptime >= config.debounce else { return }
         lastTapUptime = uptime
 
         let rawElapsed = audioClock.elapsed()
@@ -958,30 +959,31 @@ private final class RhythmTapGameModel {
 
         let rhythmElapsed = rawElapsed - countInLength
         resolveExpiredBeats(at: rhythmElapsed)
-        let nearestBeat = Int((rhythmElapsed / beatInterval).rounded())
-        let distance = abs(rhythmElapsed - Double(nearestBeat) * beatInterval)
+        let result = PiboCoreRhythmTapAdapter.judge(
+            elapsed: rhythmElapsed,
+            lastJudgedBeat: lastJudgedBeat,
+            combo: combo
+        )
 
-        guard nearestBeat != lastJudgedBeat else {
+        switch result.judgement {
+        case .duplicate:
             feedback = "这一拍点过了"
-            return
-        }
-
-        if distance <= 0.075 {
-            lastJudgedBeat = nearestBeat
-            combo += 1
+        case .exact:
+            lastJudgedBeat = result.beat
+            combo = result.newCombo
             maxCombo = max(maxCombo, combo)
-            score += 10 + combo
-            feedback = "正拍！\(syllable(for: nearestBeat))"
+            score += result.scoreGain
+            feedback = "正拍！\(syllable(for: result.beat))"
             LPHaptics.success()
-        } else if distance <= 0.16 {
-            lastJudgedBeat = nearestBeat
-            combo += 1
+        case .nearEarly, .nearLate:
+            lastJudgedBeat = result.beat
+            combo = result.newCombo
             maxCombo = max(maxCombo, combo)
-            score += 4
-            feedback = rhythmElapsed < Double(nearestBeat) * beatInterval ? "稍早，接近了" : "稍晚，接近了"
+            score += result.scoreGain
+            feedback = result.judgement == .nearEarly ? "稍早，接近了" : "稍晚，接近了"
             LPHaptics.tap()
-        } else {
-            combo = 0
+        case .miss:
+            combo = result.newCombo
             feedback = "等下一个 pi-bo"
             LPHaptics.decline()
         }
@@ -1012,7 +1014,7 @@ private final class RhythmTapGameModel {
         score = 0
         combo = 0
         maxCombo = 0
-        timeLeft = 45
+        timeLeft = Int(config.session)
         hasStarted = false
         isRunning = false
         isFinished = false
@@ -1052,7 +1054,7 @@ private final class RhythmTapGameModel {
 
         let nearestBeat = (rhythmElapsed / beatInterval).rounded()
         let distance = abs(rhythmElapsed - nearestBeat * beatInterval)
-        let pulse = max(0, 1 - distance / 0.16)
+        let pulse = max(0, 1 - distance / config.nearWindow)
         let headline: String
         if !hasStarted {
             headline = "听见 pi-bo 时点按"
@@ -1113,15 +1115,16 @@ private final class RhythmTapGameModel {
     }
 
     private func resolveExpiredBeats(at rhythmElapsed: TimeInterval) {
-        let latestExpiredBeat = Int(floor((rhythmElapsed - 0.17) / beatInterval))
-        guard latestExpiredBeat > lastResolvedBeat else { return }
-
-        while lastResolvedBeat < latestExpiredBeat {
-            lastResolvedBeat += 1
-            if lastJudgedBeat != lastResolvedBeat {
-                combo = 0
-                feedback = "漏了一拍，听下一个 pi-bo"
-            }
+        let result = PiboCoreRhythmTapAdapter.resolveExpired(
+            elapsed: rhythmElapsed,
+            lastResolvedBeat: lastResolvedBeat,
+            lastJudgedBeat: lastJudgedBeat
+        )
+        guard result.advanced else { return }
+        lastResolvedBeat = result.latestExpiredBeat
+        if result.missed {
+            combo = 0
+            feedback = "漏了一拍，听下一个 pi-bo"
         }
     }
 
@@ -1152,7 +1155,7 @@ private final class RhythmAudioClock {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private let sampleRate = 44_100.0
-    private let beatInterval = 0.6
+    private let beatInterval = PiboCoreRhythmTapAdapter.config.beatInterval
     private var loopBuffer: AVAudioPCMBuffer?
     private var fallbackAccumulated = 0.0
     private var fallbackStartedAt = 0.0
