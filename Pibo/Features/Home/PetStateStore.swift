@@ -1335,11 +1335,13 @@ final class PetStateStore {
             steps.removeAll { $0.status == .suggest && $0.kind == mk }
         }
 
-        let durMin = max(1, Int(duration / 60))
-        // PRD: 运动 10 分钟 +10
-        let gain = min(60, durMin)
+        let policy = PiboCoreWorkoutAdapter.eventPolicy(
+            durationSeconds: duration,
+            ageSeconds: Date().timeIntervalSince(end)
+        )
+        let durMin = policy.durationMinutes
+        let gain = policy.vitalityGain
         let label = workoutLabel(kind)
-        let isFresh = Date().timeIntervalSince(end) < 5 * 60
 
         // Track the latest endDate so the sprite picker can show `run` while
         // the workout is still "fresh" in the user's mind. Use max() because
@@ -1350,7 +1352,7 @@ final class PetStateStore {
             lastWorkoutEndedAt = end
         }
 
-        if isFresh {
+        if policy.isFresh {
             // If a previous pending workout never got consumed (e.g. user
             // killed app with sheet open), silently apply its gain + insert
             // its done card before overwriting — never lose data.

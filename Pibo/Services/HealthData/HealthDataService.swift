@@ -598,7 +598,10 @@ final class HealthDataService {
                 let kcal = workout.statistics(for: HKQuantityType(.activeEnergyBurned))?
                     .sumQuantity()?
                     .doubleValue(for: .kilocalorie())
-                let durMin = Int(workout.duration / 60)
+                let durMin = PiboCoreWorkoutAdapter.metrics(
+                    durationSeconds: workout.duration,
+                    distanceMeters: 0
+                ).durationMinutes
                 let endStr = LPLog.dateFormatter.string(from: workout.endDate)
                 let src = workout.sourceRevision.source.name
                 LPLog.workout.debug("  \(kind.rawValue, privacy: .public) \(durMin, privacy: .public)min ended \(endStr, privacy: .public) kcal=\(kcal ?? 0, privacy: .public) src=\(src, privacy: .public)")

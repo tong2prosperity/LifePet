@@ -14,3 +14,15 @@ import Testing
         distanceMeters: 50
     ).paceMinutesPerKilometer == nil)
 }
+
+@Test func rustWorkoutEventPolicyDrivesHomeCollection() {
+    let short = PiboCoreWorkoutAdapter.eventPolicy(durationSeconds: 20, ageSeconds: 299.999)
+    #expect(short.durationMinutes == 1)
+    #expect(short.vitalityGain == 1)
+    #expect(short.isFresh)
+
+    let long = PiboCoreWorkoutAdapter.eventPolicy(durationSeconds: 7_200, ageSeconds: 300)
+    #expect(long.durationMinutes == 120)
+    #expect(long.vitalityGain == 60)
+    #expect(!long.isFresh)
+}
