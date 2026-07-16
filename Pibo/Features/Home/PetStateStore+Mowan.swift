@@ -73,31 +73,33 @@ extension PetStateStore {
 
     /// Spec §2.1 time bands. Each maps to a copy pool; the line is drawn once
     /// per day (deterministic by day-of-year so it's stable until midnight).
-    private var greetingPool: [String] {
-        let h = Calendar.current.component(.hour, from: Date())
-        switch h {
-        case 5...7:   return ["早上好", "起得早", "新的一天", "天亮了"]
-        case 8...10:  return ["上午好", "今天开始了", "该出门了", "准备好了？"]
-        case 11...13: return ["中午好", "该休息了", "吃饭了", "歇会儿吧"]
-        case 14...16: return ["下午好", "还在忙？", "过半了", "加油"]
-        case 17...18: return ["傍晚了", "天快黑了", "该回家了", "快日落了"]
-        case 19...21: return ["晚上好", "今天怎么样", "该放松了", "休息吧"]
-        default:      return ["还没睡？", "深夜了", "该休息了", "夜猫子"]   // 22:00–04:59
+    private func greetingPool(at date: Date) -> [String] {
+        switch PiboCoreGreetingAdapter.band(at: date) {
+        case .dawn:      return ["早上好", "起得早", "新的一天", "天亮了"]
+        case .morning:   return ["上午好", "今天开始了", "该出门了", "准备好了？"]
+        case .midday:    return ["中午好", "该休息了", "吃饭了", "歇会儿吧"]
+        case .afternoon: return ["下午好", "还在忙？", "过半了", "加油"]
+        case .dusk:      return ["傍晚了", "天快黑了", "该回家了", "快日落了"]
+        case .evening:   return ["晚上好", "今天怎么样", "该放松了", "休息吧"]
+        case .lateNight: return ["还没睡？", "深夜了", "该休息了", "夜猫子"]
         }
     }
 
     /// 称呼: Day 1–14 always 人; Day 15+ the user nickname (fallback 人).
     private var greetingAddress: String {
-        if dayCount <= 14 { return AppLocalization.text("人") }
         let name = ownerName.trimmingCharacters(in: .whitespaces)
-        return name.isEmpty ? AppLocalization.text("人") : name
+        return PiboCoreGreetingAdapter.usesOwnerName(
+            dayCount: dayCount,
+            hasOwnerName: !name.isEmpty
+        ) ? name : AppLocalization.text("人")
     }
 
     /// Full greeting line `{称呼}，[文案]` (spec §2.1).
     var mowanGreeting: String {
-        let pool = greetingPool
-        let day = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 0
-        let line = pool[day % pool.count]
+        let now = Date()
+        let pool = greetingPool(at: now)
+        let index = PiboCoreGreetingAdapter.lineIndex(at: now, lineCount: pool.count)
+        let line = pool[index]
         return "\(greetingAddress)，\(AppLocalization.text(line))"
     }
 
