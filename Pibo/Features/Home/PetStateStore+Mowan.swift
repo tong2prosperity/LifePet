@@ -119,30 +119,16 @@ extension PetStateStore {
     /// until real HealthKit data lands (so an empty device / demo doesn't read
     /// as 烦躁).
     var activityState: PiboActivityState {
-        let hour = Calendar.current.component(.hour, from: Date())
-
-        // 被打扰 — optional, highest priority when triggered.
-        if recentPatCount >= 3 { return .disturbed }
-
-        // 深眠 — night, or the 5-min window after 拔毛.
-        if let until = pluckSleepUntil, until > Date() { return .deepSleep }
-        if hour >= 22 || hour < 6 { return .deepSleep }
-
-        // 初醒 — early morning.
-        if hour >= 6 && hour < 10 { return .waking }
-
-        // Data-driven states need real data; otherwise 发呆.
-        guard hasRealHealthData else { return .idle }
-
-        // 活跃 — lots of steps or a workout today.
-        if rawSteps >= 10_000 || hasWorkoutToday { return .active }
-
-        // 烦躁 — sedentary, or short sleep (only when sleep was recorded).
-        if (rawSteps < 3_000 && !hasWorkoutToday) || (rawSleepHours > 0 && rawSleepHours < 5) {
-            return .irritated
-        }
-
-        return .idle
+        let now = Date()
+        return PiboCoreActivityAdapter.state(
+            localHour: Double(Calendar.current.component(.hour, from: now)),
+            recentPatCount: recentPatCount,
+            postPluckSleep: pluckSleepUntil.map { $0 > now } ?? false,
+            hasRealHealthData: hasRealHealthData,
+            steps: rawSteps,
+            hasWorkoutToday: hasWorkoutToday,
+            sleepHours: rawSleepHours
+        )
     }
 
     /// 初醒 sub-state: did the user sleep enough last night (≥7h)? `nil` when no
