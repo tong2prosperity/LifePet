@@ -1260,24 +1260,37 @@ private enum HuarongBoard {
                             dx: Int,
                             dy: Int,
                             steps: Int) -> [HuarongPiece]? {
-        var next = pieces
-        var didMove = false
-
-        for _ in 0..<steps {
-            guard canMove(next, pieceID: pieceID, dx: dx, dy: dy) else { break }
-            applyOneStep(&next, move: HuarongMove(pieceID: pieceID, dx: dx, dy: dy))
-            didMove = true
+        guard let pieceIndex = pieces.firstIndex(where: { $0.id == pieceID }) else {
+            return nil
         }
-
-        return didMove ? next : nil
+        let result = PiboCoreHuarongAdapter.move(
+            corePieces(pieces),
+            pieceIndex: pieceIndex,
+            dx: dx,
+            dy: dy,
+            steps: steps
+        )
+        guard result.movedSteps > 0 else { return nil }
+        return pieces.enumerated().map { index, piece in
+            var updated = piece
+            updated.origin = HuarongCell(
+                x: result.pieces[index].x,
+                y: result.pieces[index].y
+            )
+            return updated
+        }
     }
 
     static func dragLimits(for pieces: [HuarongPiece], pieceID: String) -> HuarongDragLimits {
-        HuarongDragLimits(
-            left: maxSteps(pieces, pieceID: pieceID, dx: -1, dy: 0),
-            right: maxSteps(pieces, pieceID: pieceID, dx: 1, dy: 0),
-            up: maxSteps(pieces, pieceID: pieceID, dx: 0, dy: -1),
-            down: maxSteps(pieces, pieceID: pieceID, dx: 0, dy: 1)
+        guard let pieceIndex = pieces.firstIndex(where: { $0.id == pieceID }) else {
+            return HuarongDragLimits(left: 0, right: 0, up: 0, down: 0)
+        }
+        let limits = PiboCoreHuarongAdapter.dragLimits(corePieces(pieces), pieceIndex: pieceIndex)
+        return HuarongDragLimits(
+            left: limits.left,
+            right: limits.right,
+            up: limits.up,
+            down: limits.down
         )
     }
 
@@ -1337,7 +1350,10 @@ private enum HuarongBoard {
     }
 
     static func isSolved(_ pieces: [HuarongPiece]) -> Bool {
-        pieces.first(where: { $0.id == goalID })?.origin == HuarongCell(x: 1, y: 3)
+        guard let goalIndex = pieces.firstIndex(where: { $0.id == goalID }) else {
+            return false
+        }
+        return PiboCoreHuarongAdapter.isSolved(corePieces(pieces), goalIndex: goalIndex)
     }
 
     static func availableDirectionText(for pieces: [HuarongPiece], pieceID: String) -> String {
@@ -1389,22 +1405,6 @@ private enum HuarongBoard {
         }
     }
 
-    private static func maxSteps(_ pieces: [HuarongPiece],
-                                 pieceID: String,
-                                 dx: Int,
-                                 dy: Int) -> Int {
-        var next = pieces
-        var count = 0
-
-        while count < max(columns, rows),
-              canMove(next, pieceID: pieceID, dx: dx, dy: dy) {
-            applyOneStep(&next, move: HuarongMove(pieceID: pieceID, dx: dx, dy: dy))
-            count += 1
-        }
-
-        return count
-    }
-
     private static func constrainedDistance(_ raw: CGFloat,
                                             negativeLimit: CGFloat,
                                             positiveLimit: CGFloat,
@@ -1431,26 +1431,26 @@ private enum HuarongBoard {
                         pieceID: String,
                         dx: Int,
                         dy: Int) -> Bool {
-        guard let piece = pieces.first(where: { $0.id == pieceID }) else { return false }
-        let blocked = occupiedCells(in: pieces, excluding: pieceID)
-
-        for cell in piece.cells {
-            let target = HuarongCell(x: cell.x + dx, y: cell.y + dy)
-            guard target.x >= 0,
-                  target.x < columns,
-                  target.y >= 0,
-                  target.y < rows,
-                  !blocked.contains(target)
-            else {
-                return false
-            }
+        guard let pieceIndex = pieces.firstIndex(where: { $0.id == pieceID }) else {
+            return false
         }
-
-        return true
+        return PiboCoreHuarongAdapter.canMove(
+            corePieces(pieces),
+            pieceIndex: pieceIndex,
+            dx: dx,
+            dy: dy
+        )
     }
 
-    private static func occupiedCells(in pieces: [HuarongPiece], excluding pieceID: String) -> Set<HuarongCell> {
-        Set(pieces.filter { $0.id != pieceID }.flatMap(\.cells))
+    private static func corePieces(_ pieces: [HuarongPiece]) -> [PiboCoreHuarongAdapter.Piece] {
+        pieces.map { piece in
+            PiboCoreHuarongAdapter.Piece(
+                x: piece.origin.x,
+                y: piece.origin.y,
+                width: piece.size.columns,
+                height: piece.size.rows
+            )
+        }
     }
 
     private static func applyOneStep(_ pieces: inout [HuarongPiece], move: HuarongMove) {
