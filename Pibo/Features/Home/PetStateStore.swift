@@ -568,10 +568,6 @@ final class PetStateStore {
     private static let lastSeenDateKey = PiboPersistenceKeys.Defaults.lastSeenDate
     private static let lastDecayAtKey = PiboPersistenceKeys.Defaults.lastDecayAt
     private static let pendingWorkoutKey = PiboPersistenceKeys.Defaults.pendingWorkout
-    /// 持久化恢复 pendingWorkout 时的最大保鲜期。超过这个窗口的运动通知
-    /// 即使 UserDefaults 里有，也丢弃 —— 用户夜里关 app 第二天打开看到的
-    /// 不应该是昨天的 sheet。
-    private static let pendingWorkoutMaxAge: TimeInterval = 60 * 60
 
     // — Internals —
     private var raw = RawMetrics()
@@ -663,7 +659,10 @@ final class PetStateStore {
         if !demoMode, let restored = Self.loadPendingWorkout() {
             let age = Date().timeIntervalSince(restored.endedAt)
             let sameDay = Calendar.current.isDate(restored.endedAt, inSameDayAs: Date())
-            if age <= Self.pendingWorkoutMaxAge && sameDay {
+            if PiboCoreWorkoutAdapter.pendingWorkoutIsRestorable(
+                ageSeconds: age,
+                sameDay: sameDay
+            ) {
                 self.pendingWorkout = restored
                 LPLog.petState.notice("Restored pendingWorkout: \(restored.label, privacy: .public) \(restored.durationMin, privacy: .public)min (age \(Int(age/60), privacy: .public)min)")
             } else {
@@ -1033,7 +1032,9 @@ final class PetStateStore {
         let contentState = pendingActivityState(for: workout)
         let content = ActivityContent(
             state: contentState,
-            staleDate: Date().addingTimeInterval(Self.pendingWorkoutMaxAge)
+            staleDate: Date().addingTimeInterval(
+                PiboCoreWorkoutAdapter.pendingWorkoutMaxAgeSeconds
+            )
         )
 
         Task { @MainActor in

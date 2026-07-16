@@ -1,6 +1,10 @@
 import PiboCore
 
 enum PiboCoreWorkoutAdapter {
+    static var pendingWorkoutMaxAgeSeconds: Double {
+        PiboCoreWorkout.pendingWorkoutMaxAgeSeconds
+    }
+
     struct Metrics {
         let durationMinutes: Int
         let paceMinutesPerKilometer: Double?
@@ -32,6 +36,13 @@ enum PiboCoreWorkoutAdapter {
             durationMinutes: result.durationMinutes,
             vitalityGain: result.vitalityGain,
             isFresh: result.isFresh
+        )
+    }
+
+    static func pendingWorkoutIsRestorable(ageSeconds: Double, sameDay: Bool) -> Bool {
+        PiboCoreWorkout.pendingWorkoutIsRestorable(
+            ageSeconds: ageSeconds,
+            sameDay: sameDay
         )
     }
 }

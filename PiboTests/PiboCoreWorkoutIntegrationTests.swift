@@ -26,3 +26,20 @@ import Testing
     #expect(long.vitalityGain == 60)
     #expect(!long.isFresh)
 }
+
+@Test func rustPendingWorkoutPolicyDrivesRestorationAndLiveActivityExpiry() {
+    let maxAge = PiboCoreWorkoutAdapter.pendingWorkoutMaxAgeSeconds
+    #expect(maxAge == 3_600)
+    #expect(PiboCoreWorkoutAdapter.pendingWorkoutIsRestorable(
+        ageSeconds: maxAge,
+        sameDay: true
+    ))
+    #expect(!PiboCoreWorkoutAdapter.pendingWorkoutIsRestorable(
+        ageSeconds: maxAge + 0.001,
+        sameDay: true
+    ))
+    #expect(!PiboCoreWorkoutAdapter.pendingWorkoutIsRestorable(
+        ageSeconds: 60,
+        sameDay: false
+    ))
+}
