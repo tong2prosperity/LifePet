@@ -208,15 +208,18 @@ extension PetStateStore {
     /// belongs to the previous calendar day's evening).
     var pluckAvailable: Bool {
         guard pluckWindowOpen else { return false }
-        return lastPluckedDay.map { !Calendar.current.isDate($0, inSameDayAs: pluckNightAnchor) } ?? true
+        return lastPluckedDay.map {
+            !Calendar.current.isDate($0, inSameDayAs: pluckNightAnchor(at: Date()))
+        } ?? true
     }
 
     /// The calendar day that "owns" the current 22:00–02:00 window — the
     /// evening's date even when collected after midnight.
-    private var pluckNightAnchor: Date {
+    private func pluckNightAnchor(at date: Date) -> Date {
         let cal = Calendar.current
-        let h = cal.component(.hour, from: Date())
-        let base = h < 2 ? Date().addingTimeInterval(-3 * 3600) : Date()
+        let hour = cal.component(.hour, from: date)
+        let dayOffset = PiboCorePluckAdapter.nightDayOffset(localHour: Double(hour))
+        let base = cal.date(byAdding: .day, value: dayOffset, to: date) ?? date
         return cal.startOfDay(for: base)
     }
 
@@ -233,9 +236,10 @@ extension PetStateStore {
     /// and returns the grade so the view can animate the seed + line.
     @discardableResult
     func pluck() -> PluckGrade {
+        let now = Date()
         let grade = pluckGrade
-        lastPluckedDay = pluckNightAnchor
-        pluckSleepUntil = Date().addingTimeInterval(5 * 60)
+        lastPluckedDay = pluckNightAnchor(at: now)
+        pluckSleepUntil = now.addingTimeInterval(PiboCorePluckAdapter.postPluckSleepSeconds)
         LPLog.petState.notice("拔毛 collected grade=\(grade.rawValue, privacy: .public)")
         return grade
     }

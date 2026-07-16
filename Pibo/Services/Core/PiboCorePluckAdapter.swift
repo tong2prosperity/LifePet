@@ -1,8 +1,14 @@
 import PiboCore
 
 enum PiboCorePluckAdapter {
+    static let postPluckSleepSeconds = PiboCorePluck.postPluckSleepSeconds
+
     static func windowOpen(localHour: Double) -> Bool {
         PiboCorePluck.windowOpen(localHour: localHour)
+    }
+
+    static func nightDayOffset(localHour: Double) -> Int {
+        PiboCorePluck.nightDayOffset(localHour: localHour)
     }
 
     static func grade(
@@ -21,4 +27,3 @@ enum PiboCorePluckAdapter {
         }
     }
 }
-

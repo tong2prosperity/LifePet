@@ -5,6 +5,9 @@ import Testing
     #expect(PiboCorePluckAdapter.windowOpen(localHour: 22))
     #expect(PiboCorePluckAdapter.windowOpen(localHour: 1.5))
     #expect(!PiboCorePluckAdapter.windowOpen(localHour: 2))
+    #expect(PiboCorePluckAdapter.nightDayOffset(localHour: 23) == 0)
+    #expect(PiboCorePluckAdapter.nightDayOffset(localHour: 1.5) == -1)
+    #expect(PiboCorePluckAdapter.postPluckSleepSeconds == 300)
     #expect(PiboCorePluckAdapter.grade(
         sleepHours: 7,
         steps: 500,
@@ -21,4 +24,3 @@ import Testing
         hasWorkoutToday: true
     ) == .poor)
 }
-
