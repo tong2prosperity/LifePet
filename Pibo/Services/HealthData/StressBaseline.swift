@@ -27,8 +27,7 @@ struct StressBaseline: Sendable, Equatable {
     /// z-distance of a reading from the personal mean, on the log scale.
     /// Negative = below your normal (more stressed); positive = above (calmer).
     func z(for rmssd: Double) -> Double {
-        guard rmssd > 0, sdLn > 0 else { return 0 }
-        return (Foundation.log(rmssd) - meanLn) / sdLn
+        PiboCoreStressAdapter.baselineZ(rmssd: rmssd, baseline: self)
     }
 }
 
@@ -43,10 +42,10 @@ struct StressBaseline: Sendable, Equatable {
 enum StressScore {
     /// Below this many covered days, the baseline is untrustworthy → use
     /// absolute thresholds only.
-    static let coldStartDays = 7
+    static let coldStartDays = PiboCoreStressAdapter.coldStartDays
     /// At/above this many days, use the personal z-score fully. Between the two
     /// we blend, weighting toward personal as days accumulate.
-    static let fullPersonalDays = 14
+    static let fullPersonalDays = PiboCoreStressAdapter.fullPersonalDays
 
     /// Continuous 0…1 stress from RMSSD relative to the personal baseline.
     /// Returns `nil` only when there's no usable RMSSD. Graduated:
@@ -54,16 +53,7 @@ enum StressScore {
     /// - `coldStartDays ≤ dayCount < fullPersonalDays` → z ⨯ absolute blend.
     /// - otherwise → absolute thresholds (population defaults).
     static func anchor(rmssd: Double?, baseline: StressBaseline?) -> Double? {
-        guard let rmssd, rmssd > 0 else { return nil }
-        let absolute = absoluteScore(rmssd)
-        guard let b = baseline, b.dayCount >= coldStartDays, b.sdLn > 0 else {
-            return absolute
-        }
-        let personal = personalScore(rmssd, baseline: b)
-        if b.dayCount >= fullPersonalDays { return personal }
-        // Transition: weight toward personal by how far past cold-start we are.
-        let w = Double(b.dayCount - coldStartDays) / Double(fullPersonalDays - coldStartDays)
-        return clamp(personal * w + absolute * (1 - w))
+        PiboCoreStressAdapter.anchor(rmssd: rmssd, baseline: baseline)
     }
 
     /// Personal z-score → 0…1 score. Linear map aligned so the z tier edges land
@@ -76,31 +66,19 @@ enum StressScore {
     /// >2 SD — genuinely unusual dips (≈16% notice+overload, ≈2% overload), so the
     /// push actually means something.
     static func personalScore(_ rmssd: Double, baseline: StressBaseline) -> Double {
-        clamp(0.30 - 0.20 * baseline.z(for: rmssd))
+        PiboCoreStressAdapter.personalScore(rmssd: rmssd, baseline: baseline)
     }
 
     /// Population-default score before a personal baseline exists. Piecewise
     /// linear on the classic RMSSD thresholds, aligned to the same boundaries:
     /// 50ms→0.30, 30ms→0.50, 20ms→0.70 (higher RMSSD = calmer = lower score).
     static func absoluteScore(_ rmssd: Double) -> Double {
-        let pts: [(r: Double, s: Double)] = [(65, 0.10), (50, 0.30), (30, 0.50), (20, 0.70), (12, 0.90)]
-        if rmssd >= pts.first!.r { return pts.first!.s }
-        if rmssd <= pts.last!.r { return pts.last!.s }
-        for i in 0..<(pts.count - 1) where rmssd <= pts[i].r && rmssd >= pts[i + 1].r {
-            let t = (pts[i].r - rmssd) / (pts[i].r - pts[i + 1].r)
-            return pts[i].s + t * (pts[i + 1].s - pts[i].s)
-        }
-        return 0.5
+        PiboCoreStressAdapter.absoluteScore(rmssd: rmssd)
     }
 
     /// Shared four-tier boundaries — the ONE place score → `StressLevel` lives.
     static func tier(for score: Double) -> StressLevel {
-        switch score {
-        case ..<0.30: return .excellent
-        case ..<0.50: return .normal
-        case ..<0.70: return .notice
-        default:      return .overload
-        }
+        PiboCoreStressAdapter.tier(for: score)
     }
 
     static func clamp(_ x: Double) -> Double { min(1, max(0, x)) }

@@ -66,15 +66,11 @@ enum StressModel {
     /// population thresholds before that), then nudge one tier toward stress when
     /// resting HR runs high. Lower RMSSD = more stress.
     static func level(rmssd: Double, baseline: StressBaseline?, restingHR: Double) -> StressLevel {
-        guard rmssd > 0, let score = StressScore.anchor(rmssd: rmssd, baseline: baseline) else {
-            return .normal
-        }
-        var level = StressScore.tier(for: score)
-        // Elevated resting HR bumps one tier toward stress.
-        if restingHR >= 80, level != .overload {
-            level = StressLevel(rawValue: level.rawValue + 1) ?? .overload
-        }
-        return level
+        PiboCoreStressAdapter.level(
+            rmssd: rmssd,
+            baseline: baseline,
+            restingHR: restingHR
+        )
     }
 }
 
