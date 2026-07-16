@@ -194,18 +194,7 @@ enum StressBaselineStore {
     /// ln-mean / ln-SD / dayCount over the daily medians. SD needs ≥2 days;
     /// with fewer, `sdLn` is 0 and `StressScore` stays on the cold-start branch.
     private static func stats(of daily: [DailyValue]) -> StressBaseline? {
-        let medians = daily.map(\.median).filter { $0 > 0 }
-        guard !medians.isEmpty else { return nil }
-        let lns = medians.map { Foundation.log($0) }
-        let meanLn = lns.reduce(0, +) / Double(lns.count)
-        let sdLn: Double
-        if lns.count >= 2 {
-            let variance = lns.map { ($0 - meanLn) * ($0 - meanLn) }.reduce(0, +) / Double(lns.count - 1)
-            sdLn = max(variance.squareRoot(), 0.05)
-        } else {
-            sdLn = 0
-        }
-        return StressBaseline(meanLn: meanLn, sdLn: sdLn, dayCount: lns.count, geoMean: exp(meanLn))
+        PiboCoreStressAdapter.baseline(dailyMedians: daily.map(\.median))
     }
 
     private static func median(_ xs: [Double]) -> Double {

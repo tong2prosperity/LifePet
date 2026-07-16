@@ -10,6 +10,18 @@ enum PiboCoreStressAdapter {
         PiboCoreStress.baselineZ(rmssd: rmssd, baseline: baseline.coreBaseline)
     }
 
+    static func baseline(dailyMedians: [Double]) -> StressBaseline? {
+        guard let statistics = PiboCoreStress.baseline(dailyMedians: dailyMedians) else {
+            return nil
+        }
+        return StressBaseline(
+            meanLn: statistics.baseline.meanLn,
+            sdLn: statistics.baseline.sdLn,
+            dayCount: statistics.baseline.dayCount,
+            geoMean: statistics.geoMean
+        )
+    }
+
     static func personalScore(rmssd: Double, baseline: StressBaseline) -> Double {
         PiboCoreStress.personalScore(rmssd: rmssd, baseline: baseline.coreBaseline)
     }
