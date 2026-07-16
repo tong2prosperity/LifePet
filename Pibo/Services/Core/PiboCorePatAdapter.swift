@@ -1,6 +1,9 @@
 import PiboCore
 
 enum PiboCorePatAdapter {
+    static let recentWindowSeconds = PiboCorePat.recentWindowSeconds
+    static let dailyWindowSeconds = PiboCorePat.dailyWindowSeconds
+
     enum Decision {
         case ignored
         case stateSpeech

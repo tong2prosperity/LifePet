@@ -113,7 +113,7 @@ extension PetStateStore {
     /// Whether ≥3 pat-lines landed in the last 10 minutes (the 被打扰 trigger
     /// and the 10-min speech cap share this count).
     private var recentPatCount: Int {
-        let cutoff = Date().addingTimeInterval(-10 * 60)
+        let cutoff = Date().addingTimeInterval(-PiboCorePatAdapter.recentWindowSeconds)
         return patSpeechTimes.filter { $0 > cutoff }.count
     }
 
@@ -147,8 +147,12 @@ extension PetStateStore {
     /// chance of being the next 故事线 clue instead of state-pool copy.
     func pat() -> PatResponse {
         let now = Date()
-        let in24h = patSpeechTimes.filter { now.timeIntervalSince($0) < 24 * 3600 }
-        let in10m = patSpeechTimes.filter { now.timeIntervalSince($0) < 10 * 60 }
+        let in24h = patSpeechTimes.filter {
+            now.timeIntervalSince($0) < PiboCorePatAdapter.dailyWindowSeconds
+        }
+        let in10m = patSpeechTimes.filter {
+            now.timeIntervalSince($0) < PiboCorePatAdapter.recentWindowSeconds
+        }
         // Prune so the array doesn't grow unbounded.
         patSpeechTimes = in24h
 
