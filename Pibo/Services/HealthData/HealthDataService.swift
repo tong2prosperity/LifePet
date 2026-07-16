@@ -401,13 +401,10 @@ final class HealthDataService {
         )
         do {
             let samples = try await descriptor.result(for: store)
-            let hasStages = samples.contains { s in
-                switch HKCategoryValueSleepAnalysis(rawValue: s.value) {
-                case .some(.asleepCore), .some(.asleepDeep), .some(.asleepREM), .some(.asleepUnspecified):
-                    return true
-                default:
-                    return false
-                }
+            let hasStages = samples.contains { sample in
+                PiboCoreSleepAdapter.sampleIsDetailed(
+                    HKCategoryValueSleepAnalysis(rawValue: sample.value)
+                )
             }
             // Group asleep* samples into sessions; pick the most recent.
             // 4h gap is comfortably larger than any normal mid-night arousal
@@ -422,19 +419,19 @@ final class HealthDataService {
             var sessions: [SleepSession] = []
             for s in samples {
                 let v = HKCategoryValueSleepAnalysis(rawValue: s.value)
-                let counts: Bool
-                switch v {
-                case .some(.asleepCore), .some(.asleepDeep), .some(.asleepREM), .some(.asleepUnspecified):
-                    counts = true
-                case .some(.asleep):
-                    counts = !hasStages
-                default:
-                    counts = false
+                let resolved = PiboCoreSleepAdapter.resolveSample(
+                    v,
+                    hasDetailedSamples: hasStages
+                )
+                switch resolved {
+                case .legacyAsleep, .core, .deep, .rem, .unspecified:
+                    break
+                case .ignored, .awake:
+                    continue
                 }
-                guard counts else { continue }
                 let dur = s.endDate.timeIntervalSince(s.startDate)
-                let deepDur: TimeInterval = v == .some(.asleepDeep) ? dur : 0
-                let remDur: TimeInterval  = v == .some(.asleepREM)  ? dur : 0
+                let deepDur: TimeInterval = resolved == .deep ? dur : 0
+                let remDur: TimeInterval = resolved == .rem ? dur : 0
                 if var last = sessions.last,
                    PiboCoreSleepAdapter.samplesShareSession(
                        gapSeconds: s.startDate.timeIntervalSince(last.end)

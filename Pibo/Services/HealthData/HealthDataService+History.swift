@@ -259,23 +259,32 @@ extension HealthDataService {
             for s in samples { byDay[cal.startOfDay(for: s.endDate), default: []].append(s) }
 
             for (day, daySamples) in byDay {
-                let hasStages = daySamples.contains { isStage(HKCategoryValueSleepAnalysis(rawValue: $0.value)) }
+                let hasStages = daySamples.contains {
+                    PiboCoreSleepAdapter.sampleIsDetailed(
+                        HKCategoryValueSleepAnalysis(rawValue: $0.value)
+                    )
+                }
                 var night = NightSleep()
                 for s in daySamples {
                     let v = HKCategoryValueSleepAnalysis(rawValue: s.value)
                     let dur = s.endDate.timeIntervalSince(s.startDate)
                     var asleep = true
                     var stage: SleepStage?
-                    switch v {
-                    case .some(.asleepDeep):        night.deep += dur;  night.total += dur; stage = .deep
-                    case .some(.asleepREM):         night.rem += dur;   night.total += dur; stage = .rem
-                    case .some(.asleepCore):        night.core += dur;  night.total += dur; stage = .core
-                    case .some(.asleepUnspecified): night.total += dur; stage = .core
-                    case .some(.asleep):
-                        if hasStages { asleep = false } else { night.total += dur; stage = .core }
-                    default:
+                    switch PiboCoreSleepAdapter.resolveSample(
+                        v,
+                        hasDetailedSamples: hasStages
+                    ) {
+                    case .deep:        night.deep += dur;  night.total += dur; stage = .deep
+                    case .rem:         night.rem += dur;   night.total += dur; stage = .rem
+                    case .core:        night.core += dur;  night.total += dur; stage = .core
+                    case .legacyAsleep, .unspecified:
+                        night.total += dur; stage = .core
+                    case .awake:
                         asleep = false
-                        if v == .some(.awake) { night.awake += dur; stage = .awake }
+                        night.awake += dur
+                        stage = .awake
+                    case .ignored:
+                        asleep = false
                     }
                     if asleep {
                         night.start = min(night.start ?? s.startDate, s.startDate)
@@ -303,13 +312,6 @@ extension HealthDataService {
             segments[segments.count - 1].end = max(last.end, end)
         } else {
             segments.append(SleepSegmentValue(start: start, end: end, stage: stage))
-        }
-    }
-
-    private func isStage(_ v: HKCategoryValueSleepAnalysis?) -> Bool {
-        switch v {
-        case .some(.asleepCore), .some(.asleepDeep), .some(.asleepREM), .some(.asleepUnspecified): return true
-        default: return false
         }
     }
 }
