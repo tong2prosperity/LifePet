@@ -191,7 +191,7 @@ extension PetStateStore {
     /// 22:00–02:00 collection window.
     var pluckWindowOpen: Bool {
         let h = Calendar.current.component(.hour, from: Date())
-        return h >= 22 || h < 2
+        return PiboCorePluckAdapter.windowOpen(localHour: Double(h))
     }
 
     /// True when the window is open and the user hasn't collected tonight.
@@ -213,11 +213,11 @@ extension PetStateStore {
 
     /// Grade tonight's 花籽 from sleep + movement (spec §3.5).
     var pluckGrade: PluckGrade {
-        let sleptWell = rawSleepHours >= 7
-        let moved = hasWorkoutToday || rawSteps >= 3_000
-        if sleptWell && hasWorkoutToday { return .good }
-        if rawSleepHours < 6 || rawSteps < 3_000 { return moved && rawSleepHours >= 6 ? .fair : .poor }
-        return .fair
+        PiboCorePluckAdapter.grade(
+            sleepHours: rawSleepHours,
+            steps: rawSteps,
+            hasWorkoutToday: hasWorkoutToday
+        )
     }
 
     /// Collect tonight's 花籽. Records the night, drops Pibo into a 5-min 深眠,
