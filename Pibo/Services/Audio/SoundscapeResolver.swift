@@ -66,55 +66,10 @@ nonisolated enum SoundscapeResolver {
         calendar: Calendar = .autoupdatingCurrent
     ) -> SoundscapeProfile {
         let biome = biome(for: date, petID: petID, calendar: calendar)
-        let day = dayWeight(at: environment.localHour)
-        let night = 1 - day
-
-        let baseScale: Float
-        let wildlifeScale: Float
-        let lightRain: Float
-        let heavyRain: Float
-        let thunderEnabled: Bool
-        switch environment.weather {
-        case .rain:
-            baseScale = 0.75
-            wildlifeScale = 0.25
-            lightRain = 0.36
-            heavyRain = 0
-            thunderEnabled = false
-        case .thunderstorm:
-            baseScale = 0.55
-            wildlifeScale = 0
-            lightRain = 0
-            heavyRain = 0.55
-            thunderEnabled = true
-        case .clear, .cloudy, .snow:
-            baseScale = 1
-            wildlifeScale = 1
-            lightRain = 0
-            heavyRain = 0
-            thunderEnabled = false
-        }
-
-        var volumes = Dictionary(
-            uniqueKeysWithValues: SoundscapeAsset.loopAssets.map { ($0, Float.zero) }
-        )
-        switch biome {
-        case .forest:
-            volumes[.forestDay] = 0.32 * day * baseScale
-            volumes[.forestNight] = 0.22 * night * wildlifeScale
-            volumes[.forestWind] = (0.06 + 0.04 * day) * baseScale
-        case .rainforest:
-            volumes[.rainforestRiver] = 0.26 * baseScale
-            volumes[.rainforestBirds] = 0.24 * day * wildlifeScale
-            volumes[.rainforestTwilight] = 0.18 * night * wildlifeScale
-        }
-        volumes[.lightRain] = lightRain
-        volumes[.heavyRain] = heavyRain
-
-        return SoundscapeProfile(
-            biome: biome,
-            loopVolumes: volumes,
-            thunderEnabled: thunderEnabled
+        return PiboCoreSoundscapeAdapter.resolve(
+            localHour: environment.localHour,
+            weather: environment.weather,
+            biome: biome
         )
     }
 
@@ -133,21 +88,6 @@ nonisolated enum SoundscapeResolver {
     }
 
     static func dayWeight(at rawHour: Double) -> Float {
-        let hour = PiboStageEnvironmentResolver.normalizedHour(rawHour)
-        switch hour {
-        case 5..<9:
-            return Float(smoothstep((hour - 5) / 4))
-        case 9..<16.5:
-            return 1
-        case 16.5..<20.5:
-            return Float(1 - smoothstep((hour - 16.5) / 4))
-        default:
-            return 0
-        }
-    }
-
-    private static func smoothstep(_ value: Double) -> Double {
-        let x = min(max(value, 0), 1)
-        return x * x * (3 - 2 * x)
+        PiboCoreSoundscapeAdapter.dayWeight(at: rawHour)
     }
 }
