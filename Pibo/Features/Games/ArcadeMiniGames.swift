@@ -666,20 +666,23 @@ struct PotStackGameView: View {
     private func dropPot(at now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
         guard !showResult, isRunning, let last = stack.last else { return }
         let movement = movementState(at: now)
-        let overlap = max(0, last.width - abs(movement.x - last.x))
-        guard overlap > 0.12 else {
+        let drop = PiboCorePotStackAdapter.drop(
+            topX: last.x,
+            topWidth: last.width,
+            movingX: movement.x,
+            perfectStreak: perfectStreak
+        )
+        guard drop.success else {
             finish(title: "花塔倒了", message: "Pibo 说刚刚是风。")
             LPHaptics.decline()
             return
         }
-        let offset = abs(movement.x - last.x)
-        let isPerfect = offset < 0.018
-        perfectStreak = isPerfect ? perfectStreak + 1 : 0
-        let nextWidth = isPerfect ? min(0.78, last.width + min(0.035, Double(perfectStreak) * 0.006)) : min(last.width, overlap)
-        let nextX = isPerfect ? last.x : (movement.x + last.x) / 2
-        stack.append(StackPot(width: nextWidth, x: nextX, level: stack.count))
-        score += 1 + (isPerfect ? min(3, perfectStreak) : 0)
-        feedbackText = isPerfect ? "完美！连续 \(perfectStreak) 次" : "削掉了 \(Int(((last.width - nextWidth) / last.width) * 100))%"
+        perfectStreak = drop.newStreak
+        stack.append(StackPot(width: drop.nextWidth, x: drop.nextX, level: stack.count))
+        score += drop.scoreGain
+        feedbackText = drop.perfect
+            ? "完美！连续 \(perfectStreak) 次"
+            : "削掉了 \(drop.cutPercent)%"
         movementDirection = -movement.direction
         movementStartX = movementDirection > 0 ? 0.12 : 0.88
         movementStartedAt = now
