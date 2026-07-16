@@ -419,7 +419,6 @@ final class HealthDataService {
                 var deep: TimeInterval = 0
                 var rem: TimeInterval = 0
             }
-            let sessionGap: TimeInterval = 4 * 3600
             var sessions: [SleepSession] = []
             for s in samples {
                 let v = HKCategoryValueSleepAnalysis(rawValue: s.value)
@@ -437,7 +436,9 @@ final class HealthDataService {
                 let deepDur: TimeInterval = v == .some(.asleepDeep) ? dur : 0
                 let remDur: TimeInterval  = v == .some(.asleepREM)  ? dur : 0
                 if var last = sessions.last,
-                   s.startDate.timeIntervalSince(last.end) < sessionGap {
+                   PiboCoreSleepAdapter.samplesShareSession(
+                       gapSeconds: s.startDate.timeIntervalSince(last.end)
+                   ) {
                     last.end = max(last.end, s.endDate)
                     last.total += dur
                     last.deep += deepDur

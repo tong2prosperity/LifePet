@@ -295,8 +295,11 @@ extension HealthDataService {
     /// many back-to-back samples per stage.
     private func appendSegment(_ segments: inout [SleepSegmentValue],
                                _ start: Date, _ end: Date, _ stage: SleepStage) {
-        if let last = segments.last, last.stage == stage,
-           start.timeIntervalSince(last.end) <= 60 {
+        if let last = segments.last,
+           PiboCoreSleepAdapter.segmentsShouldMerge(
+               sameStage: last.stage == stage,
+               gapSeconds: start.timeIntervalSince(last.end)
+           ) {
             segments[segments.count - 1].end = max(last.end, end)
         } else {
             segments.append(SleepSegmentValue(start: start, end: end, stage: stage))
