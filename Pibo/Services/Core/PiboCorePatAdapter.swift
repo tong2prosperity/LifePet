@@ -26,5 +26,8 @@ enum PiboCorePatAdapter {
         case .storySpeech: .storySpeech
         }
     }
-}
 
+    static func shouldIdleMutter(roll: Double) -> Bool {
+        PiboCorePat.shouldIdleMutter(roll: roll)
+    }
+}

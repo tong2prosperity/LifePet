@@ -136,8 +136,7 @@ extension PetStateStore {
     /// 初醒 sub-state: did the user sleep enough last night (≥7h)? `nil` when no
     /// sleep data, so the UI can fall back to the neutral 初醒 art.
     var wakingSleptEnough: Bool? {
-        guard rawSleepHours > 0 else { return nil }
-        return rawSleepHours >= 7
+        PiboCoreActivityAdapter.wakingSleptEnough(sleepHours: rawSleepHours)
     }
 
     // MARK: 拍一拍 (spec §3.2 + Figma 76:6758)
@@ -178,18 +177,16 @@ extension PetStateStore {
     /// Bubble treatment for the current state: 烦躁/被打扰 grumble in the black
     /// 生气 bubble, 深眠 talks in its sleep (呓语), everything else is 正常.
     private var speechMood: PiboSpeechMood {
-        switch activityState {
-        case .irritated, .disturbed: return .angry
-        case .deepSleep:             return .murmur
-        default:                     return .normal
-        }
+        PiboCoreActivityAdapter.speechMood(for: activityState)
     }
 
     /// Idle self-mutter (spec §3.3): ~20% chance, drawn from the 发呆 pool,
     /// drifting by as a 呓语. Driven by a timer in the view, not a pat — does
     /// not consume the caps.
     func idleMutter() -> PiboSpeechLine? {
-        guard Double.random(in: 0..<1) < 0.2 else { return nil }
+        guard PiboCorePatAdapter.shouldIdleMutter(
+            roll: Double.random(in: 0..<1)
+        ) else { return nil }
         guard let text = PiboActivityState.idle.speechPool.randomElement() else { return nil }
         return PiboSpeechLine(text: text, mood: .murmur)
     }

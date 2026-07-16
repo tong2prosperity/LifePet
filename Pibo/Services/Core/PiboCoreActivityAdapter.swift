@@ -30,4 +30,28 @@ enum PiboCoreActivityAdapter {
         case .disturbed: PiboActivityState.disturbed
         }
     }
+
+    static func wakingSleptEnough(sleepHours: Double) -> Bool? {
+        switch PiboCorePetBehavior.wakingSleepStatus(sleepHours: sleepHours) {
+        case .noData: nil
+        case .insufficient: false
+        case .enough: true
+        }
+    }
+
+    static func speechMood(for state: PiboActivityState) -> PiboSpeechMood {
+        let coreState: PiboCoreActivityState = switch state {
+        case .deepSleep: .deepSleep
+        case .waking: .waking
+        case .active: .active
+        case .irritated: .irritated
+        case .idle: .idle
+        case .disturbed: .disturbed
+        }
+        return switch PiboCorePetBehavior.speechMood(for: coreState) {
+        case .normal: .normal
+        case .angry: .angry
+        case .murmur: .murmur
+        }
+    }
 }
