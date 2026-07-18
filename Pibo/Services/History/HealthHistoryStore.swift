@@ -267,10 +267,17 @@ final class HealthHistoryStore {
     /// Dev-only: seed ~5 weeks of plausible history so the 二楼 is demonstrable on
     /// a simulator with no HealthKit data. Compiled out of Release; on a real
     /// authorized device the HK backfill overwrites these rows anyway.
-    func seedSampleHistoryIfEmpty(days: Int = 35) {
+    func seedSampleHistoryIfEmpty(days: Int = 35, forceFill: Bool = false) {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
-        guard records(from: cal.date(byAdding: .day, value: -days, to: today) ?? today, to: today).isEmpty else { return }
+        let existing = records(
+            from: cal.date(byAdding: .day, value: -days, to: today) ?? today,
+            to: today
+        )
+        // A zero-only row may be created before the demo seeder runs (for
+        // example by a stress reconcile). That is not meaningful history and
+        // must not prevent the simulator from getting demonstrable data.
+        guard forceFill || !existing.contains(where: \.hasData) else { return }
         for offset in 0...days {
             guard let day = cal.date(byAdding: .day, value: -offset, to: today) else { continue }
             // Deterministic pseudo-values (no RNG): vary by day-of-year.
@@ -311,15 +318,16 @@ final class HealthHistoryStore {
 
     /// Dev-only umbrella: seed days + workouts + food, each guarded independently
     /// so a store half-populated by an older build still gets the missing pieces.
-    func seedSampleAllIfEmpty(days: Int = 35) async {
+    func seedSampleAllIfEmpty(days: Int = 35, forceMaintenance: Bool = false) async {
         let today = Calendar.current.startOfDay(for: .now)
         let seedState = "2:\(Int(today.timeIntervalSinceReferenceDate))"
         let defaults = UserDefaults.standard
-        guard defaults.string(forKey: PiboPersistenceKeys.Defaults.debugHistorySeedState) != seedState else {
+        guard forceMaintenance
+            || defaults.string(forKey: PiboPersistenceKeys.Defaults.debugHistorySeedState) != seedState else {
             return
         }
 
-        seedSampleHistoryIfEmpty(days: days)
+        seedSampleHistoryIfEmpty(days: days, forceFill: forceMaintenance)
         upgradeSeededRows(days: days)
         seedSampleWorkoutsIfEmpty(days: days)
         let seededFood = await seedSampleFoodIfEmpty()

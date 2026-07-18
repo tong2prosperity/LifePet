@@ -4,8 +4,9 @@ import SwiftUI
 //
 // The 历史数据页 is now reached by tapping the home's hand-drawn 「足迹」 icon
 // (see `HomeView`) — it presents as a full-screen cover instead of riding the old
-// 上滑数据二楼 drawer. This wrapper hosts `HistoryFloorView` (数据 / 自定义 tabs)
-// over the #E8EEF1 surface + a close affordance. `floorIsOpen` defaults to `true`,
+// 上滑数据二楼 drawer. This wrapper hosts `HistoryFloorView` (新版足迹 / 原版 /
+// 自定义 tabs)
+// over the page surface + a close affordance. `floorIsOpen` defaults to `true`,
 // so the history page's `WaterSurface` animates whenever this cover is on screen.
 
 struct HistoryScreen: View {
@@ -39,5 +40,6 @@ struct HistoryScreen: View {
 #Preview {
     HistoryScreen()
         .environment(PetStateStore(demoMode: true))
+        .environment(PiboSpeechService())
         .environment(HistoryPreviewData.store)
 }

@@ -111,6 +111,21 @@ struct PendingWorkout: Identifiable, Equatable, Sendable, Codable {
     let gainVitality: Int
 }
 
+/// Maps the workout vitality score to a bounded, perceptually smooth growth
+/// step. The minimum keeps short workouts visible; the cap makes the sprout a
+/// cumulative reward instead of allowing one workout to complete it.
+enum PiboSproutGrowthModel {
+    static func increment(forVitalityScore score: Int) -> Double {
+        let normalized = min(max(Double(score) / 60, 0), 1)
+        let smooth = normalized * normalized * (3 - 2 * normalized)
+        return 0.08 + (0.24 - 0.08) * smooth
+    }
+
+    static func target(current: Double, vitalityScore: Int) -> Double {
+        min(1, max(0, current) + increment(forVitalityScore: vitalityScore))
+    }
+}
+
 // MARK: - Step cards (PRD §4)
 
 enum StepStatus: Hashable { case done, suggest }
@@ -307,11 +322,23 @@ final class PetStateStore {
     }
 
     private static let growthStageKey = "pibo.growth.v1"
+    private static let sproutGrowthProgressKey = "pibo.sproutGrowthProgress.v1"
     /// 魔丸 head growth — the 「?」卷芽 until the first collected 运动能量,
     /// then 发芽带叶 (Figma《识别到用户的活动》74:6102: 播完缩回主页面,
     /// pibo头顶发生变化). Loaded in `init`; per-pet, so `reset()` wipes it.
     var growthStage: PiboGrowthStage = .mystery {
         didSet { UserDefaults.standard.set(growthStage.rawValue, forKey: Self.growthStageKey) }
+    }
+
+    /// Continuous 0...1 extension of the head sprout. Existing users who had
+    /// already sprouted before this value existed migrate to a full-length leaf.
+    private(set) var headSproutGrowthProgress: Double = 0 {
+        didSet {
+            UserDefaults.standard.set(
+                headSproutGrowthProgress,
+                forKey: Self.sproutGrowthProgressKey
+            )
+        }
     }
 
     private static let appearanceKey = "pibo.appearance.v1"
@@ -383,6 +410,28 @@ final class PetStateStore {
         growthStage = .sprouted
         LPLog.petState.notice("growth → sprouted")
     }
+
+    func sproutGrowthTarget(for workout: PendingWorkout) -> Double {
+        PiboSproutGrowthModel.target(
+            current: headSproutGrowthProgress,
+            vitalityScore: workout.gainVitality
+        )
+    }
+
+    private func applySproutGrowth(for workout: PendingWorkout) {
+        headSproutGrowthProgress = sproutGrowthTarget(for: workout)
+        if headSproutGrowthProgress > 0 { markSprouted() }
+        LPLog.petState.notice(
+            "sprout growth +score=\(workout.gainVitality, privacy: .public) → \(self.headSproutGrowthProgress, privacy: .public)"
+        )
+    }
+
+    #if DEBUG
+    func debugResetSproutGrowth() {
+        headSproutGrowthProgress = 0
+        growthStage = .mystery
+    }
+    #endif
 
     /// Pibo 故事线 progress — 拍一拍 can surface the next clue of the current
     /// chapter (app 叙事). Owned here so `pat()` and `reset()` reach it.
@@ -598,6 +647,17 @@ final class PetStateStore {
         // Growth persistence (didSet doesn't fire from init).
         self.growthStage = PiboGrowthStage(
             rawValue: UserDefaults.standard.string(forKey: Self.growthStageKey) ?? "") ?? .mystery
+        if UserDefaults.standard.object(forKey: Self.sproutGrowthProgressKey) != nil {
+            self.headSproutGrowthProgress = UserDefaults.standard.double(
+                forKey: Self.sproutGrowthProgressKey
+            )
+        } else {
+            self.headSproutGrowthProgress = self.growthStage == .sprouted ? 1 : 0
+            UserDefaults.standard.set(
+                self.headSproutGrowthProgress,
+                forKey: Self.sproutGrowthProgressKey
+            )
+        }
         self.appearance = PiboAppearance.decoded(from: UserDefaults.standard.data(forKey: Self.appearanceKey))
         self.selectedThemeID = PiboThemeSelectionPersistence.restore()
         self.weather = PiboWeather(rawValue: UserDefaults.standard.string(forKey: Self.weatherKey) ?? "") ?? .clear
@@ -799,6 +859,8 @@ final class PetStateStore {
         // New pet = back to 魔丸 D1: 「?」卷芽, default theme, fresh story.
         growthStage = .mystery
         UserDefaults.standard.removeObject(forKey: Self.growthStageKey)
+        headSproutGrowthProgress = 0
+        UserDefaults.standard.removeObject(forKey: Self.sproutGrowthProgressKey)
         appearance = .default
         UserDefaults.standard.removeObject(forKey: Self.appearanceKey)
         selectedThemeID = PiboThemeCatalog.defaultTheme.id
@@ -1404,6 +1466,7 @@ final class PetStateStore {
         guard let pw = pendingWorkout else { return }
         LPLog.petState.notice("consume pending: \(pw.label, privacy: .public) \(pw.durationMin, privacy: .public)min +\(pw.gainVitality, privacy: .public) (user-confirmed)")
         pendingWorkout = nil
+        applySproutGrowth(for: pw)
         insertDoneCard(for: pw, time: AppLocalization.text("刚刚"))
         applyGain(to: .vitality, by: pw.gainVitality, reason: pw.label)
         showToast(AppLocalization.format("%@ 醒过来一点！+%d 活力星光", petName, pw.gainVitality))
@@ -1418,6 +1481,7 @@ final class PetStateStore {
         guard let pw = pendingWorkout else { return }
         LPLog.petState.notice("dismiss pending: \(pw.label, privacy: .public) \(pw.durationMin, privacy: .public)min +\(pw.gainVitality, privacy: .public) (silent)")
         pendingWorkout = nil
+        applySproutGrowth(for: pw)
         insertDoneCard(for: pw, time: "刚刚")
         applyGain(to: .vitality, by: pw.gainVitality, reason: pw.label)
         finishPendingWorkoutActivity(for: pw, completed: false)

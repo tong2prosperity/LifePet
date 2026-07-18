@@ -18,9 +18,14 @@ struct PiboApp: App {
     /// Single HealthKit pipeline for the app. Lives for the lifetime of the
     /// process; `RootView` reads it from the environment.
     @State private var health: HealthDataService
+    /// Cross-process sleep notification state + the one-shot morning sheet item.
+    @State private var morningSleep: MorningSleepCoordinator
     /// Sole consumer of `health.events`. The store is the only thing that
     /// mutates pet state; views observe it via `@Environment`.
     @State private var store: PetStateStore
+    /// One app-wide resolver for all contextual Pibo copy. Views submit cues;
+    /// the service owns scarcity, deduplication, and authored-line selection.
+    @State private var piboSpeech: PiboSpeechService
     /// Backend auth + economy clients (pibo-server). App-owned so any screen can
     /// drive login / sync via `@Environment`. The demo runs without a server;
     /// these only do work once the user logs in (see `BackendLoginView`).
@@ -40,7 +45,12 @@ struct PiboApp: App {
         Analytics.track(.appLaunch)
         let id = PetIdentityStore()
         let snaps = DailySnapshotStore()
-        let h = HealthDataService()
+        let morning = MorningSleepCoordinator()
+        AppNotificationRouter.shared.onMorningSleepOpened = { [weak morning] wakeDay, isMock in
+            morning?.handleNotificationOpen(wakeDayKey: wakeDay, isMock: isMock)
+        }
+        AppNotificationRouter.shared.install()
+        let h = HealthDataService(morningSleepCoordinator: morning)
         let s = PetStateStore(identity: id, snapshots: snaps, events: h.events)
         // Wire rollover → reconcile. The store doesn't know about
         // HealthDataService; this closure is the only seam.
@@ -54,7 +64,11 @@ struct PiboApp: App {
         _identity = State(initialValue: id)
         self.snapshots = snaps
         _health = State(initialValue: h)
+        _morningSleep = State(initialValue: morning)
         _store = State(initialValue: s)
+        _piboSpeech = State(initialValue: PiboSpeechService(
+            narrativeProgress: { s.story.revealedCount }
+        ))
 
         modelContainer = Self.makeModelContainer()
         let hist = HealthHistoryStore(context: modelContainer.mainContext)
@@ -143,7 +157,9 @@ struct PiboApp: App {
             RootView()
                 .environment(identity)
                 .environment(health)
+                .environment(morningSleep)
                 .environment(store)
+                .environment(piboSpeech)
                 .environment(history)
                 .environment(auth)
                 .environment(economy)
@@ -158,16 +174,26 @@ struct PiboApp: App {
                     // Set up foreground presentation + quiet provisional auth so
                     // passive users are covered without a prompt.
                     await StressNotifier.shared.start()
+                    morningSleep.setAppActive(scenePhase == .active)
+                    if scenePhase == .active, health.authState == .granted {
+                        await health.requestMorningSleepEnrichmentAuthorizationIfNeeded()
+                        await health.refreshMorningSleep()
+                    }
+                    morningSleep.presentLatestIfEligible()
                     // Backfill the SwiftData history once per launch. On a real
                     // authorized device this is HK data; on a simulator with no
                     // HK, DEBUG-seed so the 二楼 is demonstrable.
                     #if DEBUG
-                    if health.authState != .granted {
+                    let forceHistoryDemo = ProcessInfo.processInfo.arguments
+                        .contains("-PiboHistoryDemoContent")
+                    if health.authState != .granted || forceHistoryDemo {
                         // Let Home commit its first frame before optional demo
                         // data maintenance. Image generation inside the seeder
                         // runs off the main actor and is versioned per day.
                         await Task.yield()
-                        await history.seedSampleAllIfEmpty()
+                        await history.seedSampleAllIfEmpty(
+                            forceMaintenance: forceHistoryDemo
+                        )
                         store.debugSeedStressIfNeeded()
                     }
                     #endif
@@ -190,6 +216,7 @@ struct PiboApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     LPLog.app.debug("scenePhase → \(String(describing: phase), privacy: .public)")
+                    morningSleep.setAppActive(phase == .active)
                     // 打点: session boundaries (the SDK itself also flushes +
                     // persists its queue on backgrounding).
                     if phase == .active { Analytics.track(.appForeground) }
@@ -216,7 +243,9 @@ struct PiboApp: App {
                         if health.authState == .granted {
                             LPLog.app.debug("Foreground reconcile triggered")
                             Task {
+                                await health.requestMorningSleepEnrichmentAuthorizationIfNeeded()
                                 await health.reconcile()
+                                morningSleep.presentLatestIfEligible()
                                 // Keep today's hourly-step grass fresh; the full
                                 // history backfill only runs once at launch.
                                 let hourly = await health.fetchTodayHourlySteps()
@@ -224,6 +253,8 @@ struct PiboApp: App {
                                     history.upsert(day: .now) { $0.hourlySteps = hourly }
                                 }
                             }
+                        } else {
+                            morningSleep.presentLatestIfEligible()
                         }
                     }
                 }

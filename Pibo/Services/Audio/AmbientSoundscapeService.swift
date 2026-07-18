@@ -245,7 +245,7 @@ final class AmbientSoundscapeService {
     private func activateSession() -> Bool {
         guard !sessionActive else { return true }
         do {
-            try session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setActive(true)
             sessionActive = true
             didLogSessionFailure = false

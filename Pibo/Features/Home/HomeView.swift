@@ -15,6 +15,8 @@ import os
 struct HomeView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(HealthHistoryStore.self) private var history
+    @Environment(PiboSpeechService.self) private var piboSpeech
+    @Environment(MorningSleepCoordinator.self) private var morningSleep
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var speech: PiboSpeechLine? = nil
@@ -23,21 +25,18 @@ struct HomeView: View {
     @State private var showGames = false
     @State private var showHistory = false
     @State private var showWalkDoodle = false
-    @State private var showSettings = false
+    @State private var activeSheet: HomeSheetDestination?
     #if DEBUG
     @State private var debugOpenedGames = false
+    @State private var debugOpenedHistory = false
     #endif
     /// A meal passed by the detail sheet's “重拍” action. Normal home entry leaves
     /// this nil and lets the camera own purpose + meal selection.
     @State private var cameraInitialMeal: MealType? = nil
-    @State private var detailMeal: MealType? = nil
     @State private var recognizer = FoodRecognitionService()
-    @State private var energyToken: UUID? = nil
-    @State private var pluckToken: PluckToken? = nil
-    @State private var turnAwayToken: UUID? = nil
+    @State private var stageCommands = PiboStageCommandController()
     /// 发芽 close-up trigger + phase (Figma 74:6102: workout detected → 特写
     /// pibo头顶动画 → 能量已收集 pop). See `EnergySproutFlow.swift`.
-    @State private var sproutToken: UUID? = nil
     @State private var sproutPhase: SproutFlowPhase = .idle
     /// Greeting / day-label cached once (they're "drawn once per day").
     @State private var greetingText: String = ""
@@ -58,7 +57,11 @@ struct HomeView: View {
     /// too (`MealDetailView` in particular can sit open a while during 卡路里 识别).
     private var stagePaused: Bool {
         showCamera || showGames || showHistory || showWalkDoodle
-            || showSettings || detailMeal != nil
+            || activeSheet != nil
+    }
+
+    private var fullScreenFeaturePresented: Bool {
+        showCamera || showGames || showHistory || showWalkDoodle
     }
 
     private var stageEnvironment: PiboStageEnvironment {
@@ -75,10 +78,14 @@ struct HomeView: View {
 
     private var soundscapePresentation: SoundscapePresentation {
         guard scenePhase == .active else { return .suspended }
-        if showCamera || showGames || showHistory || showWalkDoodle || detailMeal != nil {
+        if fullScreenFeaturePresented {
             return .suspended
         }
-        return showSettings ? .ducked : .active
+        switch activeSheet {
+        case .settings: return .ducked
+        case .meal, .morningSleep: return .suspended
+        case nil: return .active
+        }
     }
 
     var body: some View {
@@ -86,18 +93,16 @@ struct HomeView: View {
             PiboStageView(
                 theme: store.currentTheme,
                 state: store.activityState,
+                commandController: stageCommands,
                 growth: store.growthStage,
+                sproutGrowthProgress: store.headSproutGrowthProgress,
                 environment: stageEnvironment,
                 tuning: forestTuning,
                 onPat: handlePat,
                 onHairPulled: handleHairPull,
-                energyGainToken: energyToken,
-                pluckToken: pluckToken,
-                turnAwayToken: turnAwayToken,
-                sproutToken: sproutToken,
-                onSproutPhase: handleSproutPhase,
                 isPaused: stagePaused
             )
+            .equatable()
             .ignoresSafeArea()
             .accessibilityHidden(stagePaused)
 
@@ -142,6 +147,7 @@ struct HomeView: View {
         .onAppear {
             greetingText = store.mowanGreeting
             dayLabelText = store.relationshipDayLabel
+            speakForWeather(trigger: .entered)
             #if DEBUG
             if let hourArgument = ProcessInfo.processInfo.arguments.first(where: {
                 $0.hasPrefix("-PiboForestHour=")
@@ -159,6 +165,16 @@ struct HomeView: View {
                     showGames = true
                 }
             }
+            if !debugOpenedHistory, ProcessInfo.processInfo.arguments.contains("-PiboOpenHistory") {
+                debugOpenedHistory = true
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    showHistory = true
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-PiboShowMorningSleep") {
+                morningSleep.debugPresentFixture()
+            }
             #endif
             if store.pendingWorkout != nil {
                 Task {
@@ -167,6 +183,7 @@ struct HomeView: View {
                 }
             }
             startSoundscape()
+            presentMorningSleepIfPossible()
         }
         .onDisappear {
             soundscape.setPresentation(.suspended)
@@ -178,6 +195,9 @@ struct HomeView: View {
                 date: atmosphereNow,
                 petID: store.identity.currentPetId
             )
+        }
+        .onChange(of: store.weather) { _, _ in
+            speakForWeather(trigger: .environmentChanged)
         }
         .onChange(of: store.identity.currentPetId) { _, petID in
             soundscape.apply(environment: stageEnvironment, date: atmosphereNow, petID: petID)
@@ -191,15 +211,25 @@ struct HomeView: View {
         .onChange(of: store.pendingWorkout?.id) { _, id in
             if id != nil { maybeStartEnergyFlow() }
         }
+        .onChange(of: morningSleep.pendingPresentation?.id) { _, _ in
+            presentMorningSleepIfPossible()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { presentMorningSleepIfPossible() }
+        }
+        .onChange(of: activeSheet?.id) { _, id in
+            if id == nil { presentMorningSleepIfPossible() }
+        }
+        .onChange(of: fullScreenFeaturePresented) { _, presented in
+            if !presented { presentMorningSleepIfPossible() }
+        }
+        .onChange(of: sproutPhase) { _, phase in
+            if phase == .idle { presentMorningSleepIfPossible() }
+        }
         .fullScreenCover(isPresented: $showCamera) {
             PiboCameraView(initialMeal: cameraInitialMeal, onPhotoSaved: { image, label, meal in
                 handlePhotoSaved(image, label, meal: meal)
             }).environment(store)
-        }
-        .sheet(item: $detailMeal) { meal in
-            MealDetailView(meal: meal, onRecapture: startMealCapture)
-                .environment(history)
-                .environment(recognizer)
         }
         .fullScreenCover(isPresented: $showGames) {
             GameListView(onWalkDoodleSaved: handleDoodleSaved)
@@ -214,14 +244,28 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showWalkDoodle) {
             WalkDoodleView(onSaved: handleDoodleSaved)
         }
-        .sheet(isPresented: $showSettings) {
-            #if DEBUG
-            SettingsSheet(onReset: performReset, onSimulateMeal: debugSimulateMeal)
-                .environment(store)
-            #else
-            SettingsSheet(onReset: performReset)
-                .environment(store)
-            #endif
+        .sheet(item: $activeSheet) { destination in
+            switch destination {
+            case .meal(let meal):
+                MealDetailView(meal: meal, onRecapture: startMealCapture)
+                    .environment(history)
+                    .environment(recognizer)
+            case .settings:
+                #if DEBUG
+                SettingsSheet(onReset: performReset, onSimulateMeal: debugSimulateMeal)
+                    .environment(store)
+                #else
+                SettingsSheet(onReset: performReset)
+                    .environment(store)
+                #endif
+            case .morningSleep(let summary):
+                MorningSleepCard(
+                    summary: summary,
+                    appearance: store.appearance,
+                    weekly: SleepWeeklyReport.make(store: store, history: history)
+                )
+                    .onAppear { morningSleep.markPresented(summary) }
+            }
         }
     }
 
@@ -313,7 +357,7 @@ struct HomeView: View {
             }
             cornerButton(systemImage: "gearshape", label: "设置", rotation: -2) {
                 Analytics.track(.settingsOpen, screen: "home")
-                showSettings = true
+                activeSheet = .settings
             }
         }
         .frame(width: 96)
@@ -383,7 +427,7 @@ struct HomeView: View {
     private func handlePat() {
         LPHaptics.tap()
         let response = store.pat()
-        if response.turnsAway { turnAwayToken = UUID() }
+        if response.turnsAway { stageCommands.playTurnAway() }
         if let line = response.line { show(line) }
         let reaction = response.line.map { $0.isStoryClue ? "story" : "spoke" } ?? "ignored"
         Analytics.track(.pat, screen: "home", ["reaction": .string(reaction)])
@@ -396,29 +440,46 @@ struct HomeView: View {
         if store.pluckAvailable {
             doPluck()
         } else {
-            turnAwayToken = UUID()
+            stageCommands.playTurnAway()
         }
     }
 
     // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)
 
     private func maybeStartEnergyFlow() {
-        guard store.pendingWorkout != nil, sproutPhase == .idle else { return }
+        guard let workout = store.pendingWorkout, sproutPhase == .idle else { return }
+        let growthStart = store.headSproutGrowthProgress
+        let growthTarget = store.sproutGrowthTarget(for: workout)
         let canSprout = store.growthStage == .mystery
             && store.currentTheme.sproutedHeadSprite != nil
         if canSprout {
             switch SproutAnimationStyle.current {
             case .stagePlaceholder:
                 setSproutPhase(.collecting)
-                sproutToken = UUID()
+                stageCommands.playSproutCloseup(
+                    growthFrom: growthStart,
+                    growthTo: growthTarget,
+                    onPhase: handleSproutPhase
+                )
             case .lottie:
                 // TODO(design): full-screen Lottie player once the asset lands.
                 setSproutPhase(.collecting)
-                sproutToken = UUID()
+                stageCommands.playSproutCloseup(
+                    growthFrom: growthStart,
+                    growthTo: growthTarget,
+                    onPhase: handleSproutPhase
+                )
             }
         } else {
-            energyToken = UUID()
-            setSproutPhase(.pop)
+            setSproutPhase(.collecting)
+            stageCommands.playSproutGrowth(from: growthStart, to: growthTarget)
+            let workoutID = workout.id
+            Task { @MainActor in
+                let delay = UIAccessibility.isReduceMotionEnabled ? 0.15 : 1.35
+                try? await Task.sleep(for: .seconds(delay))
+                guard store.pendingWorkout?.id == workoutID, sproutPhase == .collecting else { return }
+                setSproutPhase(.pop)
+            }
         }
     }
 
@@ -451,7 +512,7 @@ struct HomeView: View {
     private func doPluck() {
         let grade = store.pluck()
         Analytics.track(.pluck, screen: "home", ["grade": .string(grade.rawValue)])
-        pluckToken = PluckToken(id: UUID(), color: grade.seedColor)
+        stageCommands.playPluck(color: grade.seedColor)
         show(PiboSpeechLine(text: grade.piboLines.randomElement() ?? "...给...你..."))
     }
 
@@ -467,7 +528,7 @@ struct HomeView: View {
         // 拍照 = 认知能量. Nudge the head 毛 + let Pibo react (spec §4.3).
         LPLog.cutout.notice("photo saved → post-processing (hasImage=\(image != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public) meal=\(meal?.rawValue ?? "—", privacy: .public))")
         cameraInitialMeal = nil
-        energyToken = UUID()
+        stageCommands.playEnergyGain()
         Analytics.track(.photoSaved, screen: "camera",
                         ["meal": .string(meal?.rawValue ?? "none"),
                          "has_subject": .bool(subjectLabel != nil)])
@@ -497,7 +558,7 @@ struct HomeView: View {
             // a short grace for the dismiss animation.
             while showCamera { try? await Task.sleep(for: .milliseconds(80)) }
             try? await Task.sleep(for: .milliseconds(420))
-            detailMeal = meal
+            activeSheet = .meal(meal)
             await recognizer.analyze(photoID: photo.id, fullImage: image,
                                      hint: subjectLabel, meal: meal, history: history)
         }
@@ -513,8 +574,18 @@ struct HomeView: View {
                          "area_m2": .int(Int(result.areaSquareMeters)),
                          "duration_s": .int(Int(result.duration))])
         history.addWalkDoodle(result)
-        energyToken = UUID()
-        show(PiboSpeechLine(text: WalkDoodleCopy.savedLines.randomElement() ?? "...画...完了..."))
+        stageCommands.playEnergyGain()
+        if let line = piboSpeech.resolve(
+            cues: [
+                .walkCompleted(
+                    distanceMeters: result.distanceMeters,
+                    duration: result.duration
+                ),
+            ],
+            context: .home(trigger: .completed)
+        ) {
+            show(line)
+        }
         LPLog.app.notice("walk doodle saved: \(Int(result.distanceMeters), privacy: .public)m \(Int(result.areaSquareMeters), privacy: .public)m²")
     }
 
@@ -532,12 +603,44 @@ struct HomeView: View {
         }
     }
 
-    /// Idle self-mutter loop (spec §3.3) — every 15–30s, ~20% chance Pibo drifts a
-    /// line on its own.
+    private func show(_ resolved: PiboSpeech) {
+        let mood: PiboSpeechMood = switch resolved.presentation {
+        case .normal, .story: .normal
+        case .angry: .angry
+        case .murmur: .murmur
+        }
+        show(PiboSpeechLine(
+            text: resolved.text,
+            mood: mood,
+            isStoryClue: resolved.presentation == .story
+        ))
+    }
+
+    private func speakForWeather(trigger: PiboSpeechTrigger) {
+        guard !stagePaused,
+              let weather = PiboSpeechWeather(rawValue: store.weather.rawValue),
+              let line = piboSpeech.resolve(
+                cues: [.weather(weather)],
+                context: .home(trigger: trigger)
+              )
+        else { return }
+        show(line)
+    }
+
+    /// Offers an idle speech opportunity every 15–30s. The app-wide resolver
+    /// usually returns silence because it owns the daily budget and cooldown.
     private func idleMutterLoop() async {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(Double.random(in: 15...30)))
-            if speech == nil, sproutPhase == .idle, let line = store.idleMutter() { show(line) }
+            if speech == nil,
+               sproutPhase == .idle,
+               !stagePaused,
+               let line = piboSpeech.resolve(
+                cues: [.idle(activity: store.activityState.rawValue)],
+                context: .home(trigger: .idle)
+               ) {
+                show(line)
+            }
         }
     }
 
@@ -548,6 +651,16 @@ struct HomeView: View {
             try? await Task.sleep(for: .seconds(60))
             if !Task.isCancelled { atmosphereNow = Date() }
         }
+    }
+
+    private func presentMorningSleepIfPossible() {
+        guard scenePhase == .active,
+              activeSheet == nil,
+              !fullScreenFeaturePresented,
+              sproutPhase == .idle,
+              let summary = morningSleep.pendingPresentation
+        else { return }
+        activeSheet = .morningSleep(summary)
     }
 
     private func startSoundscape() {
@@ -563,6 +676,7 @@ struct HomeView: View {
 
     private func performReset() {
         Analytics.track(.reset, screen: "settings")
+        piboSpeech.resetHistory()
         store.reset()
         onboardingDone = false
     }
@@ -591,6 +705,20 @@ struct HomeView: View {
         }
     }
 #endif
+}
+
+private enum HomeSheetDestination: Equatable, Identifiable {
+    case meal(MealType)
+    case settings
+    case morningSleep(MorningSleepSummary)
+
+    var id: String {
+        switch self {
+        case .meal(let meal): "meal-\(meal.rawValue)"
+        case .settings: "settings"
+        case .morningSleep(let summary): "morning-sleep-\(summary.wakeDayKey)"
+        }
+    }
 }
 
 #if DEBUG
@@ -664,6 +792,12 @@ private struct ForestTuningPanel: View {
                 title: "树叶晃动",
                 value: $tuning.ambientMotionScale,
                 range: 0...2
+            )
+
+            tuningSlider(
+                title: "Pibo 草叶柔韧度",
+                value: $tuning.headSproutFlexibility,
+                range: 0...1
             )
         }
         .padding(LP.Spacing.m)
@@ -848,5 +982,7 @@ private struct ForestTuningPanel: View {
 #Preview {
     HomeView()
         .environment(PetStateStore(demoMode: true))
+        .environment(PiboSpeechService())
+        .environment(MorningSleepCoordinator())
         .environment(HistoryPreviewData.store)
 }

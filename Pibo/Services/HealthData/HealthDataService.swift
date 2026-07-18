@@ -64,6 +64,9 @@ final class HealthDataService {
     /// `HealthDataService+History.swift` can reuse the same authorized store.
     let store: HKHealthStore
     private let metrics: Set<HealthMetric>
+    /// Optional app-owned sink for the once-per-wake-day notification + card.
+    /// Nil in focused previews/tests that construct a bare HealthDataService.
+    private let morningSleepCoordinator: MorningSleepCoordinator?
     private let continuation: AsyncStream<HealthEvent>.Continuation
     /// Anchored only for workouts — those are *discrete events* and we want
     /// just the new ones since last fetch. Aggregate metrics use snapshot
@@ -97,8 +100,12 @@ final class HealthDataService {
 
     // MARK: - Init
 
-    init(metrics: Set<HealthMetric> = Set(HealthMetric.allCases)) {
+    init(
+        metrics: Set<HealthMetric> = Set(HealthMetric.allCases),
+        morningSleepCoordinator: MorningSleepCoordinator? = nil
+    ) {
         self.metrics = metrics
+        self.morningSleepCoordinator = morningSleepCoordinator
         self.store = HKHealthStore()
         self.workoutAnchor = Self.loadAnchor()
 
@@ -142,7 +149,9 @@ final class HealthDataService {
             // 活动环目标 (`HKActivitySummary`) 不是 `HealthMetric`，单独并入读权限集。
             try await store.requestAuthorization(
                 toShare: [],
-                read: metrics.hkReadTypes.union([HKObjectType.activitySummaryType()]))
+                read: metrics.hkReadTypes
+                    .union([HKObjectType.activitySummaryType()])
+                    .union(MorningSleepHealthTypes.enrichmentReadTypes))
             authState = .granted
             Self.persistAuthorizedFlag(true)
             LPLog.healthKit.notice("Auth granted (HK doesn't disclose per-type grants — verify via query results)")
@@ -162,6 +171,14 @@ final class HealthDataService {
             await refresh(metric)
         }
         LPLog.healthKit.debug("Reconcile end")
+    }
+
+    /// Refresh only the latest sleep session. Used on foreground activation so
+    /// the morning sheet waits for a fresh summary instead of presenting the
+    /// payload captured when the background notification was scheduled.
+    func refreshMorningSleep() async {
+        guard metrics.contains(.sleep) else { return }
+        await refresh(.sleep)
     }
 
     // MARK: - Observer setup
@@ -362,123 +379,20 @@ final class HealthDataService {
 
     // MARK: - Sleep
 
-    /// Sum sleep stages across the most recent overnight window.
-    ///
-    /// Window: 36h back from `now`. Loose enough to catch last night even when
-    /// the user opens the app late in the evening — stage samples are tiny
-    /// (often < 1 min each) and `predicateForSamples` matches on overlap, so
-    /// the early portion of a 23:00–07:00 sleep would fall outside an 18h
-    /// window if the user opened the app at 22:00.
-    ///
-    /// Counting (prefer stages, fall back to legacy):
-    /// - If the window contains **any** stage-style sample
-    ///   (`.asleepCore/.asleepDeep/.asleepREM/.asleepUnspecified`), the watch
-    ///   is considered authoritative — sum stage samples for `total` and
-    ///   ignore legacy `.asleep` (raw = 1). This prevents the very common
-    ///   double-count where Apple Watch writes per-stage segments AND a
-    ///   third-party tracker (Withings / Mi Band / some iCloud imports)
-    ///   writes a covering whole-night `.asleep` block on the same range.
-    /// - If no stage samples exist, fall back to summing legacy `.asleep`,
-    ///   so old devices / third-party-only setups still produce a card.
-    /// - `.asleepDeep` and `.asleepREM` additionally feed their own buckets.
-    ///   Legacy `.asleep` has no stage info, so even in fallback mode the
-    ///   deep/rem terms degrade to 0 (energy formula handles that).
-    ///
-    /// Sessioning: a 36h window can hold *two* nights when the user opens
-    /// the app between morning and night — e.g. 04-24 morning sleep ends
-    /// 09:28, 04-25 morning sleep starts 03:59 (~18.5h gap). Summing every
-    /// asleep* sample double-reports yesterday's sleep on top of last
-    /// night's. Group asleep* samples into sessions by gap (>4h between an
-    /// asleep sample's start and the previous asleep endDate starts a new
-    /// session), and report only the latest session — that's "last night".
+    /// Build the complete latest session once, then feed both the existing raw
+    /// pet-state event and the persisted morning notification/card pipeline.
     private func postSleep() async {
-        let now = Date()
-        let start = Calendar.current.date(byAdding: .hour, value: -36, to: now) ?? now
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: now)
-        let descriptor = HKSampleQueryDescriptor(
-            predicates: [.categorySample(type: HKCategoryType(.sleepAnalysis), predicate: predicate)],
-            sortDescriptors: [SortDescriptor(\.startDate)]
-        )
-        do {
-            let samples = try await descriptor.result(for: store)
-            let hasStages = samples.contains { sample in
-                PiboCoreSleepAdapter.sampleIsDetailed(
-                    HKCategoryValueSleepAnalysis(rawValue: sample.value)
-                )
-            }
-            // Group asleep* samples into sessions; pick the most recent.
-            // 4h gap is comfortably larger than any normal mid-night arousal
-            // and small enough to split a same-day nap from overnight sleep.
-            struct SleepSession {
-                var start: Date
-                var end: Date
-                var total: TimeInterval = 0
-                var deep: TimeInterval = 0
-                var rem: TimeInterval = 0
-            }
-            var sessions: [SleepSession] = []
-            for s in samples {
-                let v = HKCategoryValueSleepAnalysis(rawValue: s.value)
-                let resolved = PiboCoreSleepAdapter.resolveSample(
-                    v,
-                    hasDetailedSamples: hasStages
-                )
-                switch resolved {
-                case .legacyAsleep, .core, .deep, .rem, .unspecified:
-                    break
-                case .ignored, .awake:
-                    continue
-                }
-                let dur = s.endDate.timeIntervalSince(s.startDate)
-                let deepDur: TimeInterval = resolved == .deep ? dur : 0
-                let remDur: TimeInterval = resolved == .rem ? dur : 0
-                if var last = sessions.last,
-                   PiboCoreSleepAdapter.samplesShareSession(
-                       gapSeconds: s.startDate.timeIntervalSince(last.end)
-                   ) {
-                    last.end = max(last.end, s.endDate)
-                    last.total += dur
-                    last.deep += deepDur
-                    last.rem += remDur
-                    sessions[sessions.count - 1] = last
-                } else {
-                    sessions.append(SleepSession(start: s.startDate, end: s.endDate,
-                                                 total: dur, deep: deepDur, rem: remDur))
-                }
-            }
-            let latest = sessions.max(by: { $0.end < $1.end })
-            let total = latest?.total ?? 0
-            let deep = latest?.deep ?? 0
-            let rem = latest?.rem ?? 0
-            let earliestAsleep = latest?.start
-            // Per-sample full dump at .debug level — read top to bottom in
-            // Console.app (filter on category `HealthKit.Sleep`). Every field
-            // reachable via `HKCategorySample` → `HKSample` → `HKObject` is
-            // emitted so a duplicated total can be traced back to a specific
-            // sample / source / metadata key without round-tripping through
-            // the debugger. Look for:
-            // (a) overlapping ranges from different `src=` values → multi-source
-            //     double count (already mitigated by `hasStages` for legacy
-            //     `.asleep`, but two stage-writing sources would still overlap);
-            // (b) `awake` / `inBed` (we exclude these — sanity check);
-            // (c) entries far from "last night" — may be a daytime nap;
-            // (d) suspicious metadata (timezone shift, external UUID
-            //     patterns) when overlap looks like it came from re-imports.
-            LPLog.sleep.debug("=== \(samples.count, privacy: .public) samples · window=36h · hasStages=\(hasStages, privacy: .public) · sessions=\(sessions.count, privacy: .public) ===")
-            #if DEBUG
-            // Per-sample dump eagerly builds DateFormatter / metadata strings for
-            // *every* stage sample (a night can be dozens–hundreds) on the
-            // MainActor — a pure diagnostic, so keep it out of Release entirely.
-            for (idx, s) in samples.enumerated() {
-                Self.dumpSleepSample(s, index: idx)
-            }
-            #endif
-            let startStr = earliestAsleep.map { LPLog.dateFormatter.string(from: $0) } ?? "nil"
-            LPLog.sleep.info(">>> total=\(Int(total/60), privacy: .public)min deep=\(Int(deep/60), privacy: .public)min rem=\(Int(rem/60), privacy: .public)min start=\(startStr, privacy: .public)")
-            continuation.yield(.sleep(total: total, deep: deep, rem: rem, start: earliestAsleep))
-        } catch {
-            LPLog.sleep.error("postSleep threw: \(error.localizedDescription, privacy: .public)")
+        guard let summary = await fetchLatestMorningSleepSummary() else {
+            continuation.yield(.sleep(total: 0, deep: 0, rem: 0, start: nil))
+            return
         }
+        continuation.yield(.sleep(
+            total: summary.total,
+            deep: summary.deep,
+            rem: summary.rem,
+            start: summary.start
+        ))
+        await morningSleepCoordinator?.receive(summary)
     }
 
     // MARK: - Sleep sample dump

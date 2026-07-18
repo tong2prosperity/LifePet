@@ -1,0 +1,29 @@
+[
+  {
+    "id": "walk.completed.001",
+    "cue": "walk.completed",
+    "surfaces": ["home", "walkCard"],
+    "text": "你用脚画完了。地图没有提出异议。",
+    "cooldownHours": 48,
+    "topicCooldownHours": 2,
+    "maximumUses": 20
+  },
+  {
+    "id": "walk.completed.002",
+    "cue": "walk.completed",
+    "surfaces": ["home", "walkCard"],
+    "text": "走了 {distance}{distanceUnit}，最后还是回来了。……还行。",
+    "cooldownHours": 72,
+    "topicCooldownHours": 2,
+    "maximumUses": 16
+  },
+  {
+    "id": "walk.completed.003",
+    "cue": "walk.completed",
+    "surfaces": ["home", "walkCard"],
+    "text": "这条线歪歪扭扭。花认得。",
+    "cooldownHours": 72,
+    "topicCooldownHours": 2,
+    "maximumUses": 16
+  }
+]

@@ -269,6 +269,16 @@
         }
       }
     },
+    "%@ – %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ – %2$@"
+          }
+        }
+      }
+    },
     "%@ · %@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -292,6 +302,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ · %d 天"
+          }
+        }
+      }
+    },
+    "%@ · %lld min" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld min"
           }
         }
       }
@@ -489,12 +509,38 @@
     "%lld kcal" : {
 
     },
+    "%lld 个有效日" : {
+
+    },
+    "%lld 步" : {
+
+    },
+    "%lld–%lld bpm" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld–%2$lld bpm"
+          }
+        }
+      }
+    },
     "%lld. %@" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$lld. %2$@"
+          }
+        }
+      }
+    },
+    "%lld/%lld 个有效日" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld 个有效日"
           }
         }
       }
@@ -1052,6 +1098,9 @@
         }
       }
     },
+    "24" : {
+
+    },
     "24h 持续" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1225,6 +1274,9 @@
     "kcal" : {
 
     },
+    "kcal · 估算" : {
+
+    },
     "NOCT 只活了 14 天。它从没见过早晨的太阳——你总在凌晨才睡，醒来直接坐到电脑前。它等了很久，你始终没动。慢慢地，它懒得再动。被你熬死的第 3 只。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1322,6 +1374,9 @@
     "Pibo 每天会从你这里获取能量，结出一株幼苗" : {
 
     },
+    "PIBO 注意到了" : {
+
+    },
     "Pibo 状态" : {
 
     },
@@ -1358,6 +1413,9 @@
           }
         }
       }
+    },
+    "PIBO 看见的趋势" : {
+
     },
     "Pibo 读取了你的能量…" : {
 
@@ -1446,6 +1504,19 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下午好"
+          }
+        }
+      }
+    },
+    "个人中位数" : {
+
+    },
+    "个人中位数 %@ %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "个人中位数 %1$@ %2$@"
           }
         }
       }
@@ -2235,6 +2306,9 @@
         }
       }
     },
+    "再走一遍" : {
+
+    },
     "最近 · %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2409,6 +2483,9 @@
       }
     },
     "压力指数" : {
+
+    },
+    "原版" : {
 
     },
     "去设置打开定位" : {
@@ -2760,6 +2837,9 @@
         }
       }
     },
+    "基线" : {
+
+    },
     "壳里很安静。我还听得见你，别一下子做太多。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2884,6 +2964,9 @@
           }
         }
       }
+    },
+    "如何理解" : {
+
     },
     "如果你今天走一小段路，我应该能睁开眼。" : {
       "extractionState" : "manual",
@@ -3114,6 +3197,9 @@
           }
         }
       }
+    },
+    "小时" : {
+
     },
     "小满" : {
       "extractionState" : "manual",
@@ -4032,7 +4118,7 @@
         }
       }
     },
-    "数据" : {
+    "数据怎么来的" : {
 
     },
     "无名星壳" : {
@@ -4051,6 +4137,9 @@
           }
         }
       }
+    },
+    "日期" : {
+
     },
     "早上好" : {
       "extractionState" : "manual",
@@ -4476,6 +4565,12 @@
           }
         }
       }
+    },
+    "暂无可用数据" : {
+
+    },
+    "暂无脚步" : {
+
     },
     "曾经用于召回迷路的 Pibo。" : {
       "extractionState" : "manual",
@@ -5655,6 +5750,9 @@
         }
       }
     },
+    "足迹" : {
+
+    },
     "足迹涂鸦" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5935,6 +6033,12 @@
           }
         }
       }
+    },
+    "选中小时" : {
+
+    },
+    "选中日期" : {
+
     },
     "邀请 TA 加入" : {
       "extractionState" : "manual",

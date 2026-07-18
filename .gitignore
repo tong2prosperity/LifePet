@@ -33,3 +33,6 @@ xcuserdata/
 *.swp
 *~
 tmp/
+
+# Godot editor/import cache (tool projects under Tools/)
+**/.godot/

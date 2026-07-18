@@ -10,9 +10,15 @@ struct RootView: View {
     @State private var showWaterLab = false
     @State private var debugMiniGame: MiniGameKind? = MiniGameKind.debugRequestedLaunchGame()
 
+    private var debugOpensHistory: Bool {
+        ProcessInfo.processInfo.arguments.contains("-PiboOpenHistory")
+    }
+
     private var debugBypassesOnboarding: Bool {
         let arguments = ProcessInfo.processInfo.arguments
-        return arguments.contains("-PiboOpenGames")
+        return debugOpensHistory
+            || arguments.contains("-PiboOpenGames")
+            || arguments.contains("-PiboShowMorningSleep")
             || arguments.contains("-PiboOpenMiniGame")
             || arguments.contains { $0.hasPrefix("-PiboOpenMiniGame=") }
     }
@@ -66,6 +72,8 @@ struct RootView: View {
 #Preview {
     RootView()
         .environment(HealthDataService(metrics: []))
+        .environment(MorningSleepCoordinator())
         .environment(PetStateStore())
+        .environment(PiboSpeechService())
         .preferredColorScheme(.light)
 }

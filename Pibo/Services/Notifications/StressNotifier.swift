@@ -33,7 +33,7 @@ enum StressAlertKind: Sendable {
 /// hears both the warning and the "缓过来了 / 今天不错" all-clear.
 ///
 /// Delivery model:
-/// - **Foreground** notifications are shown as banners via `ForegroundPresenter`
+/// - **Foreground** notifications are shown as banners via `AppNotificationRouter`
 ///   (iOS otherwise suppresses them).
 /// - Authorization is requested **provisionally** at launch (quiet, no prompt),
 ///   so a passive user is covered without ever opening settings; toggling the
@@ -62,12 +62,17 @@ final class StressNotifier {
         didSet { UserDefaults.standard.set(notifyEveryReading, forKey: Self.everyKey) }
     }
 
+    /// Whether the once-a-morning sleep summary may post a system banner
+    /// (`MorningSleepCoordinator` reads this gate). It shares the app's single
+    /// notification grant with stress alerts — turning it on requests full
+    /// authorization, which also un-silences stress banners. Default on.
+    var sleepSummaryPushEnabled: Bool {
+        didSet { UserDefaults.standard.set(sleepSummaryPushEnabled, forKey: Self.sleepEnabledKey) }
+    }
+
     /// System authorization state, refreshed lazily. `false` until authorized
     /// (provisional counts).
     private(set) var authorized = false
-
-    /// Foreground banner presenter — retained here (the center holds it weakly).
-    private let presenter = ForegroundPresenter()
 
     /// In-flight guard: `maybeNotify` has `await` suspension points between the
     /// throttle check and the state write, and two HK triggers (observer +
@@ -78,6 +83,7 @@ final class StressNotifier {
     // Persisted keys.
     private static let enabledKey = "pibo.stress.push.enabled.v1"
     private static let everyKey = "pibo.stress.push.every.v1"
+    private static let sleepEnabledKey = "pibo.sleep.push.enabled.v1"
     private static let lastAtKey = "pibo.stress.push.lastAt.v1"
     private static let lastLevelKey = "pibo.stress.push.lastLevel.v1"
     /// App-Group defaults so the throttle/escalation ratchet survives a
@@ -90,14 +96,14 @@ final class StressNotifier {
     private init() {
         pushEnabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true
         notifyEveryReading = UserDefaults.standard.bool(forKey: Self.everyKey)   // default off
-        // Set the delegate once, up front, so foreground notifications present.
-        UNUserNotificationCenter.current().delegate = presenter
+        sleepSummaryPushEnabled = UserDefaults.standard.object(forKey: Self.sleepEnabledKey) as? Bool ?? true
     }
 
     /// Called once at launch. Sets up quiet provisional authorization (so a
     /// passive user is covered without a prompt) or just reflects current state
     /// when the user has turned pushes off.
     func start() async {
+        AppNotificationRouter.shared.install()
         if pushEnabled {
             await requestAuthorization(provisional: true)
         } else {
@@ -266,16 +272,5 @@ final class StressNotifier {
             LPLog.app.error("stress push add threw: \(error.localizedDescription, privacy: .public)")
             return false
         }
-    }
-}
-
-/// Presents Pibo's local notifications as banners while the app is foregrounded
-/// (iOS suppresses them by default without a delegate). Retained by
-/// `StressNotifier`; the notification center references it weakly.
-private final class ForegroundPresenter: NSObject, UNUserNotificationCenterDelegate {
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                willPresent notification: UNNotification) async
-        -> UNNotificationPresentationOptions {
-        [.banner, .sound]
     }
 }

@@ -95,6 +95,11 @@ struct PiboHistoryView: View {
                 totalSeconds: day.sleepTotal, deepSeconds: day.sleepDeep,
                 remSeconds: day.sleepREM, start: day.sleepStart, end: day.sleepEnd,
                 segments: day.sleepSegments)
+            // 睡眠周报 — 始终是"近 7 晚"，与选中日无关，故只在今天展示（同压力卡）。
+            if day.isToday {
+                HistorySleepWeeklyCard(
+                    report: SleepWeeklyReport.make(store: store, history: history))
+            }
             // 没有运动就整卡不渲染；体征同理（全部缺数据才隐藏）。
             if !day.workouts.isEmpty {
                 HistoryWorkoutsCard(workouts: day.workouts)

@@ -3,7 +3,6 @@ import UIKit
 
 final class ForestThemeRenderer: PiboThemeRenderer {
     let themeID = PiboTheme.forest.id
-    var callbacks = PiboThemeRendererCallbacks()
     private(set) var wind = StageWind(direction: CGVector(dx: -0.9, dy: -0.08), strength: 0.35, gustiness: 0.28)
 
     private static let waterTextureName = "forest_water_static"
@@ -17,6 +16,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         lowPowerMode: ProcessInfo.processInfo.isLowPowerModeEnabled
     )
     private var flowTime: Float = 0
+    private var reflectionUpdateAccumulator: TimeInterval = .infinity
 
     private var foliage: [ForestFoliageNode] = []
     private var layerNodes: [String: SKSpriteNode] = [:]
@@ -90,6 +90,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     func update(time: TimeInterval, deltaTime: TimeInterval, reduceMotion: Bool) {
         flowTime.formTruncatingRemainder(dividingBy: 120)
         flowTime += Float(deltaTime)
+        reflectionUpdateAccumulator += deltaTime
         waterBaseNode?.shader?.uniformNamed("u_flow_time")?.floatValue = flowTime
         waterNode?.shader?.uniformNamed("u_flow_time")?.floatValue = flowTime
 
@@ -224,7 +225,6 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         )
         foliageDrag = nil
         for leaf in foliage { leaf.setNeighborTargetAngle(0) }
-        callbacks.highRefreshRequested(0.8)
     }
 
     func precipitationImpact(in scene: SKScene) -> ThemePrecipitationImpact? {
@@ -267,7 +267,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         waterDebugTuning = tuning.sanitized
         applyWaterPerformanceUniforms()
         updateWaterLighting()
-        updateReflections()
+        updateReflections(force: true)
         waterNode?.shader?.uniformNamed("u_mask_preview")?.floatValue = tuning.sanitized.showMask ? 1 : 0
     }
     #endif
@@ -359,6 +359,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         reflectionLayer.removeAllChildren()
         reflectionLayer.maskNode = nil
         reflectionProxies.removeAll(keepingCapacity: true)
+        reflectionUpdateAccumulator = .infinity
         waterBaseNode = nil
         waterNode = nil
         baseNode = nil
@@ -583,7 +584,8 @@ final class ForestThemeRenderer: PiboThemeRenderer {
             sourceVRange: ClosedRange<CGFloat> = 0 ... 1,
             alpha: CGFloat,
             z: CGFloat,
-            motionResponse: ForestReflectionProjection.MotionResponse = .mirrored
+            motionResponse: ForestReflectionProjection.MotionResponse = .mirrored,
+            geometryIsStatic: Bool = false
         ) {
             let proxy = ForestReflectionProxy(
                 source: source,
@@ -592,7 +594,8 @@ final class ForestThemeRenderer: PiboThemeRenderer {
                 sourceVRange: sourceVRange,
                 baseAlpha: alpha,
                 zPosition: z,
-                motionResponse: motionResponse
+                motionResponse: motionResponse,
+                geometryIsStatic: geometryIsStatic
             )
             reflectionLayer.addChild(proxy.reflected)
             reflectionProxies.append(proxy)
@@ -606,7 +609,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
             let contact = CGPoint(x: definition.frame.midX, y: ForestSceneManifest.river.frame.minY)
             let lowerV = min(max((definition.frame.maxY - contact.y) / definition.frame.height, 0), 1)
             append(source: source, contact: contact, height: contact.y - definition.frame.minY,
-                   sourceVRange: lowerV ... 1, alpha: 0.24, z: 0)
+                   sourceVRange: lowerV ... 1, alpha: 0.24, z: 0, geometryIsStatic: true)
         }
 
         for item in [
@@ -634,11 +637,14 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         if let head = context?.characterHead {
             append(source: head, contact: contact, height: 265, alpha: 0.16, z: 3)
         }
-        updateReflections()
+        updateReflections(force: true)
     }
 
-    private func updateReflections() {
+    private func updateReflections(force: Bool = false) {
         guard !reflectionProxies.isEmpty, size.width > 1, size.height > 1 else { return }
+        let cadence = lowPowerModeEnabled ? 1.0 / 15.0 : 1.0 / 30.0
+        guard force || reflectionUpdateAccumulator >= cadence else { return }
+        reflectionUpdateAccumulator = 0
         let mapper = ForestLayoutMapper(sceneSize: size)
         let phase = CGFloat(flowTime * waterFlowSpeed)
         let style: ForestReflectionProjection.Style

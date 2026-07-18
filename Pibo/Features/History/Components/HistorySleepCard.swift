@@ -16,6 +16,9 @@ struct HistorySleepCard: View {
     /// The night's stage segments. Empty (legacy rows) → clouds are derived
     /// from the stage totals instead.
     let segments: [SleepSegmentValue]
+    /// The morning modal shows the duration in its own hero, so it hides the
+    /// card's built-in duration line to avoid printing the same number twice.
+    var showsDuration: Bool = true
 
     @State private var selectedSegmentStart: Date?
     @State private var isVisible = false
@@ -26,10 +29,12 @@ struct HistorySleepCard: View {
         HistoryCard(title: "睡眠", dark: true, background: { LP.Neutral.grey850 }) {
             VStack(spacing: LP.Spacing.xs) {
                 if totalSeconds > 0 {
-                    durationLine
-                        .opacity(isRevealed ? 1 : 0)
-                        .offset(y: isRevealed ? 0 : 4)
-                        .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: isRevealed)
+                    if showsDuration {
+                        durationLine
+                            .opacity(isRevealed ? 1 : 0)
+                            .offset(y: isRevealed ? 0 : 4)
+                            .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: isRevealed)
+                    }
                     SleepClouds(
                         segments: displaySegments,
                         nightStart: effectiveStart,

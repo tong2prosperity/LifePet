@@ -877,7 +877,7 @@
 			repositoryURL = "https://github.com/PiboWorld/pibo-chess-sdk.git";
 			requirement = {
 				kind = exactVersion;
-				version = 0.1.0;
+				version = 0.1.1;
 			};
 		};
 		D0C000000000000000000003 /* XCRemoteSwiftPackageReference "pibo-core" */ = {

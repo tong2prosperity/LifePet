@@ -14,8 +14,8 @@ enum ForestReflectionProjection {
     static let farWaterY: CGFloat = ForestSceneManifest.river.frame.minY
     static let nearWaterY: CGFloat = ForestSceneManifest.designSize.height
 
-    static let columns = 4
-    static let rows = 6
+    static let columns = 3
+    static let rows = 4
     static let vertexCount = (columns + 1) * (rows + 1)
     static let sourcePositions: [SIMD2<Float>] = {
         var positions: [SIMD2<Float>] = []
@@ -58,9 +58,7 @@ enum ForestReflectionProjection {
         for source: CGPoint,
         contact: CGPoint,
         sourceHeight: CGFloat,
-        phase: CGFloat,
-        style: Style,
-        lowPower: Bool
+        style: Style
     ) -> CGPoint {
         let height = max(sourceHeight, 1)
         let normalizedHeight = min(max((contact.y - source.y) / height, 0), 1)
@@ -72,24 +70,10 @@ enum ForestReflectionProjection {
         let centerDrift = (contact.x - designCenterX)
             * style.outwardDrift
             * normalizedHeight
-        var destination = CGPoint(
+        return CGPoint(
             x: contact.x + centerDrift + (source.x - contact.x) * widthScale,
             y: contact.y + reflectedDepth
         )
-
-        let waterDepth = min(max(
-            (destination.y - farWaterY) / max(nearWaterY - farWaterY, 1),
-            0
-        ), 1)
-        let amplitude = (0.6 + 1.8 * waterDepth)
-            * style.rippleStrength
-            * (lowPower ? 0.52 : 1)
-        let broad = sin(waterDepth * 13.2 + source.x * 0.018 - phase * 5.7)
-        let fine = lowPower
-            ? 0
-            : sin(waterDepth * 31.0 + source.x * 0.041 - phase * 10.4) * 0.34
-        destination.x += (broad + fine) * amplitude
-        return destination
     }
 
     static func destination(
@@ -97,9 +81,7 @@ enum ForestReflectionProjection {
         restingAt restSource: CGPoint,
         contact: CGPoint,
         sourceHeight: CGFloat,
-        phase: CGFloat,
         style: Style,
-        lowPower: Bool,
         motionResponse: MotionResponse
     ) -> CGPoint {
         let projectionSource = motionResponse == .followSourceDeformation
@@ -109,9 +91,7 @@ enum ForestReflectionProjection {
             for: projectionSource,
             contact: contact,
             sourceHeight: sourceHeight,
-            phase: phase,
-            style: style,
-            lowPower: lowPower
+            style: style
         )
         guard motionResponse == .followSourceDeformation else { return destination }
 
@@ -139,9 +119,28 @@ final class ForestReflectionProxy {
 
     private let sourceVRange: ClosedRange<CGFloat>
     private let motionResponse: ForestReflectionProjection.MotionResponse
+    private let geometryIsStatic: Bool
     private var lastTexture: SKTexture?
+    private var lastSceneSize: CGSize = .zero
+    private var lastStyle: ForestReflectionProjection.Style?
+    private var lastSourceGeometry: SourceGeometry?
+    private var lastHidden: Bool?
+    private var lastAlpha: CGFloat?
+    private var lastHeightRange: ClosedRange<Float>?
+    private var lastRipplePhase: Float?
+    private var lastRippleStrength: Float?
+    private var lastRippleScale: Float?
+    private var lastRippleDetail: Float?
     private var restSourceDesignPositions: [CGPoint] = []
     private var destinationPositions: [SIMD2<Float>] = []
+
+    private struct SourceGeometry: Equatable {
+        let size: CGSize
+        let anchorPoint: CGPoint
+        let origin: CGPoint
+        let xAxis: CGPoint
+        let yAxis: CGPoint
+    }
 
     init(
         source: SKSpriteNode,
@@ -150,7 +149,8 @@ final class ForestReflectionProxy {
         sourceVRange: ClosedRange<CGFloat> = 0 ... 1,
         baseAlpha: CGFloat,
         zPosition: CGFloat,
-        motionResponse: ForestReflectionProjection.MotionResponse = .mirrored
+        motionResponse: ForestReflectionProjection.MotionResponse = .mirrored,
+        geometryIsStatic: Bool = false
     ) {
         self.source = source
         self.contactPoint = contactPoint
@@ -158,6 +158,7 @@ final class ForestReflectionProxy {
         self.sourceVRange = sourceVRange
         self.baseAlpha = baseAlpha
         self.motionResponse = motionResponse
+        self.geometryIsStatic = geometryIsStatic
 
         let texture = Self.croppedTexture(source.texture, vRange: sourceVRange)
         reflected = SKSpriteNode(texture: texture)
@@ -182,15 +183,49 @@ final class ForestReflectionProxy {
         lowPower: Bool,
         inheritedVisible: Bool = true
     ) {
-        if source.texture !== lastTexture {
+        let textureChanged = source.texture !== lastTexture
+        if textureChanged {
             reflected.texture = Self.croppedTexture(source.texture, vRange: sourceVRange)
             lastTexture = source.texture
         }
 
-        reflected.size = sceneSize
-        reflected.isHidden = !inheritedVisible || !sourceHierarchyVisible || source.texture == nil
-        reflected.alpha = baseAlpha * intensity * dayPhaseMultiplier * source.alpha
-        guard !reflected.isHidden, sceneSize.width > 1, sceneSize.height > 1 else { return }
+        if reflected.size != sceneSize { reflected.size = sceneSize }
+        let hidden = !inheritedVisible || !sourceHierarchyVisible || source.texture == nil
+        if lastHidden != hidden {
+            reflected.isHidden = hidden
+            lastHidden = hidden
+        }
+        let alpha = baseAlpha * intensity * dayPhaseMultiplier * source.alpha
+        if lastAlpha != alpha {
+            reflected.alpha = alpha
+            lastAlpha = alpha
+        }
+        guard !hidden, sceneSize.width > 1, sceneSize.height > 1 else { return }
+
+        updateRippleUniforms(
+            phase: Float(phase),
+            strength: Float(style.rippleStrength),
+            scale: Float(mapper.scale / sceneSize.width),
+            lowPower: lowPower
+        )
+
+        let sceneChanged = sceneSize != lastSceneSize
+        if sceneChanged {
+            restSourceDesignPositions.removeAll(keepingCapacity: true)
+        }
+        let sourceGeometry = geometryIsStatic && lastSourceGeometry != nil && !sceneChanged
+            ? lastSourceGeometry!
+            : captureSourceGeometry(in: target)
+        let geometryChanged = lastSourceGeometry != sourceGeometry
+        guard reflected.warpGeometry == nil
+                || textureChanged
+                || sceneChanged
+                || lastStyle != style
+                || (!geometryIsStatic && geometryChanged) else { return }
+
+        lastSceneSize = sceneSize
+        lastStyle = style
+        lastSourceGeometry = sourceGeometry
 
         destinationPositions.removeAll(keepingCapacity: true)
 
@@ -228,9 +263,7 @@ final class ForestReflectionProxy {
                     restingAt: restSourceDesign,
                     contact: contactPoint,
                     sourceHeight: projectionHeight,
-                    phase: phase,
                     style: style,
-                    lowPower: lowPower,
                     motionResponse: motionResponse
                 )
                 let reflectedPoint = mapper.point(reflectedDesign)
@@ -253,8 +286,47 @@ final class ForestReflectionProxy {
                 destinationPositions: destinationPositions
             )
         }
-        reflected.shader?.uniformNamed("u_height_min")?.floatValue = Float(minHeight)
-        reflected.shader?.uniformNamed("u_height_max")?.floatValue = Float(maxHeight)
+        let heightRange = Float(minHeight) ... Float(maxHeight)
+        if lastHeightRange != heightRange {
+            reflected.shader?.uniformNamed("u_height_min")?.floatValue = heightRange.lowerBound
+            reflected.shader?.uniformNamed("u_height_max")?.floatValue = heightRange.upperBound
+            lastHeightRange = heightRange
+        }
+    }
+
+    private func captureSourceGeometry(in target: SKNode) -> SourceGeometry {
+        SourceGeometry(
+            size: source.size,
+            anchorPoint: source.anchorPoint,
+            origin: source.convert(.zero, to: target),
+            xAxis: source.convert(CGPoint(x: 1, y: 0), to: target),
+            yAxis: source.convert(CGPoint(x: 0, y: 1), to: target)
+        )
+    }
+
+    private func updateRippleUniforms(
+        phase: Float,
+        strength: Float,
+        scale: Float,
+        lowPower: Bool
+    ) {
+        let detail: Float = lowPower ? 0 : 1
+        if lastRipplePhase != phase {
+            reflected.shader?.uniformNamed("u_ripple_phase")?.floatValue = phase
+            lastRipplePhase = phase
+        }
+        if lastRippleStrength != strength {
+            reflected.shader?.uniformNamed("u_ripple_strength")?.floatValue = strength
+            lastRippleStrength = strength
+        }
+        if lastRippleScale != scale {
+            reflected.shader?.uniformNamed("u_ripple_scale")?.floatValue = scale
+            lastRippleScale = scale
+        }
+        if lastRippleDetail != detail {
+            reflected.shader?.uniformNamed("u_ripple_detail")?.floatValue = detail
+            lastRippleDetail = detail
+        }
     }
 
     private var sourceHierarchyVisible: Bool {
@@ -284,6 +356,10 @@ final class ForestReflectionProxy {
         let shader = SKShader(fileNamed: "ForestReflection.fsh")
         shader.addUniform(SKUniform(name: "u_height_min", float: 0))
         shader.addUniform(SKUniform(name: "u_height_max", float: 1))
+        shader.addUniform(SKUniform(name: "u_ripple_phase", float: 0))
+        shader.addUniform(SKUniform(name: "u_ripple_strength", float: 1))
+        shader.addUniform(SKUniform(name: "u_ripple_scale", float: Float(1 / ForestSceneManifest.designSize.width)))
+        shader.addUniform(SKUniform(name: "u_ripple_detail", float: 1))
         return shader
     }
 }

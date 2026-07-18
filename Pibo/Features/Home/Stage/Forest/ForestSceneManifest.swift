@@ -109,6 +109,8 @@ enum ForestSceneManifest {
         Layer(image: "forest_flower", frame: CGRect(x: 265, y: 326.1251, width: 133.8292, height: 210.0371), zPosition: 8, lightingGroup: .midground),
         Layer(image: "forest_stone_3", frame: CGRect(x: 238, y: 505, width: 168, height: 94), zPosition: 9, lightingGroup: .midground),
         Layer(image: "forest_stone_4", frame: CGRect(x: 295, y: 430, width: 239.1742, height: 165.5062), zPosition: 10, lightingGroup: .midground),
+        // Export the complete Figma source group `3906:3293`. Its child
+        // `3906:3294` is only the flat base and omits all authored materials.
         Layer(image: "forest_main_tree", frame: CGRect(x: -25, y: 484, width: 461.3105, height: 218.4633), zPosition: 11, lightingGroup: .midground),
         Layer(image: "forest_stone_7", frame: CGRect(x: -50, y: 627, width: 186.7648, height: 125), zPosition: 12, lightingGroup: .foreground),
         Layer(image: "forest_stone_6", frame: CGRect(x: 58, y: 717, width: 165, height: 47), zPosition: 13, lightingGroup: .foreground),

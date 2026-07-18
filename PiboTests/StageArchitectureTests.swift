@@ -146,6 +146,16 @@ final class StageArchitectureTests: XCTestCase {
         XCTAssertFalse(mask.contains(u: 200.0 / 850.0, v: 1 - 550.0 / 1103.0))
     }
 
+    func testMainTreeUsesCompleteFigmaComposite() throws {
+        let image = try XCTUnwrap(UIImage(named: "forest_main_tree")?.cgImage)
+
+        // Figma `3906:3293` exports a 462×219 canvas at @3x. The previously
+        // exported `3906:3294` child was only 456.219×206.986 and omitted the
+        // moss, bark texture, scratches, and edge shading sibling layers.
+        XCTAssertEqual(image.width, 1_386)
+        XCTAssertEqual(image.height, 657)
+    }
+
     func testThemeSelectionPersistenceHealsUnknownIDsAndResets() {
         let suiteName = "PiboTests.theme.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

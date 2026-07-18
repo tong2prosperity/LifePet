@@ -94,16 +94,19 @@ struct StageWind: Equatable, Sendable {
 struct StageRenderTuning: Equatable, Sendable {
     var piboVisible: Bool
     var ambientMotionScale: Double
+    var headSproutFlexibility: Double
 
     static let standard = StageRenderTuning(
         piboVisible: true,
-        ambientMotionScale: 1
+        ambientMotionScale: 1,
+        headSproutFlexibility: 0.68
     )
 
     var sanitized: StageRenderTuning {
         StageRenderTuning(
             piboVisible: piboVisible,
-            ambientMotionScale: min(max(ambientMotionScale, 0), 2)
+            ambientMotionScale: min(max(ambientMotionScale, 0), 2),
+            headSproutFlexibility: min(max(headSproutFlexibility, 0), 1)
         )
     }
 }

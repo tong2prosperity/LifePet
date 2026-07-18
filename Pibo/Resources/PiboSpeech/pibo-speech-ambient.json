@@ -1,0 +1,119 @@
+[
+  {
+    "id": "weather.rain.001",
+    "cue": "weather.rain",
+    "surfaces": ["home"],
+    "text": "雨把远处擦掉了一点。近处还在。",
+    "cooldownHours": 72,
+    "topicCooldownHours": 6,
+    "maximumUses": 20
+  },
+  {
+    "id": "weather.rain.002",
+    "cue": "weather.rain",
+    "surfaces": ["home"],
+    "text": "下雨了。花知道得比天气早一点……大概。",
+    "cooldownHours": 72,
+    "topicCooldownHours": 6,
+    "maximumUses": 20
+  },
+  {
+    "id": "weather.rain.003",
+    "cue": "weather.rain",
+    "surfaces": ["home"],
+    "text": "天漏了一会儿。看样子没人打算修。",
+    "cooldownHours": 96,
+    "topicCooldownHours": 6,
+    "maximumUses": 12
+  },
+  {
+    "id": "weather.thunder.001",
+    "cue": "weather.thunderstorm",
+    "surfaces": ["home"],
+    "text": "天上在争论。声音很大，结论没有。",
+    "cooldownHours": 120,
+    "topicCooldownHours": 8,
+    "maximumUses": 10
+  },
+  {
+    "id": "weather.thunder.002",
+    "cue": "weather.thunderstorm",
+    "surfaces": ["home"],
+    "text": "别看我。那声不是花弄的。",
+    "cooldownHours": 96,
+    "topicCooldownHours": 8,
+    "maximumUses": 12
+  },
+  {
+    "id": "weather.snow.001",
+    "cue": "weather.snow",
+    "surfaces": ["home"],
+    "text": "外面正在慢慢变白。像谁忘了把颜色带来。",
+    "cooldownHours": 120,
+    "topicCooldownHours": 8,
+    "maximumUses": 10
+  },
+  {
+    "id": "weather.cloudy.001",
+    "cue": "weather.cloudy",
+    "surfaces": ["home"],
+    "text": "太阳今天躲得很普通。",
+    "length": "tiny",
+    "cooldownHours": 120,
+    "topicCooldownHours": 8,
+    "maximumUses": 10
+  },
+  {
+    "id": "ambient.idle.001",
+    "cue": "ambient.idle",
+    "surfaces": ["home"],
+    "text": "……刚才想起一点。风拿走了。",
+    "presentation": "murmur",
+    "cooldownHours": 96,
+    "topicCooldownHours": 3,
+    "maximumUses": 10
+  },
+  {
+    "id": "ambient.idle.002",
+    "cue": "ambient.idle",
+    "surfaces": ["home"],
+    "text": "云走得很慢。倒是很确定。",
+    "presentation": "murmur",
+    "cooldownHours": 72,
+    "topicCooldownHours": 3,
+    "maximumUses": 12
+  },
+  {
+    "id": "ambient.idle.003",
+    "cue": "ambient.idle",
+    "surfaces": ["home"],
+    "text": "你还在啊。……我只是确认背景。",
+    "presentation": "murmur",
+    "cooldownHours": 120,
+    "topicCooldownHours": 3,
+    "maximumUses": 8
+  },
+  {
+    "id": "ambient.idle.004",
+    "cue": "ambient.idle",
+    "surfaces": ["home"],
+    "text": "这里没发生什么。挺忙的。",
+    "presentation": "murmur",
+    "length": "tiny",
+    "cooldownHours": 72,
+    "topicCooldownHours": 3,
+    "maximumUses": 12
+  },
+  {
+    "id": "ambient.idle.005",
+    "cue": "ambient.idle",
+    "surfaces": ["home"],
+    "text": "……花在听。你不用说。",
+    "presentation": "murmur",
+    "length": "tiny",
+    "minimumStoryProgress": 2,
+    "cooldownHours": 144,
+    "topicCooldownHours": 3,
+    "maximumUses": 6
+  }
+]

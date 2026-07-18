@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/PiboWorld/pibo-chess-sdk.git",
       "state" : {
-        "revision" : "a72ed30066640885fcf39ae9e906194832fad6e8",
-        "version" : "0.1.0"
+        "revision" : "3ee0cc904c0ae3297d6a4d0dd6b99cc5b1348d54",
+        "version" : "0.1.1"
       }
     },
     {

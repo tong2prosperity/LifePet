@@ -1,0 +1,130 @@
+[
+  {
+    "id": "sleep.shorter.001",
+    "cue": "sleep.shorter",
+    "surfaces": ["dashboard", "sleepCard"],
+    "text": "夜少了一截。明明看起来是完整的。",
+    "cooldownHours": 96,
+    "maximumUses": 20
+  },
+  {
+    "id": "sleep.shorter.002",
+    "cue": "sleep.shorter",
+    "surfaces": ["dashboard", "sleepCard"],
+    "text": "少了 {minutes} 分钟。找到了……你今天困的那部分。",
+    "cooldownHours": 120,
+    "maximumUses": 16
+  },
+  {
+    "id": "sleep.shorter.003",
+    "cue": "sleep.shorter",
+    "surfaces": ["dashboard", "sleepCard"],
+    "text": "你醒得早了。天亮并没有因此提前。",
+    "cooldownHours": 144,
+    "maximumUses": 14
+  },
+  {
+    "id": "sleep.longer.001",
+    "cue": "sleep.longer",
+    "surfaces": ["dashboard", "sleepCard"],
+    "text": "夜晚多留了你 {minutes} 分钟。回来时，身体安静了一点。",
+    "cooldownHours": 120,
+    "maximumUses": 16
+  },
+  {
+    "id": "sleep.longer.002",
+    "cue": "sleep.longer",
+    "surfaces": ["dashboard", "sleepCard"],
+    "text": "你昨晚消失得很完整。花没有意见。",
+    "cooldownHours": 120,
+    "maximumUses": 16
+  },
+  {
+    "id": "sleep.longer.003",
+    "cue": "sleep.longer",
+    "surfaces": ["dashboard", "sleepCard"],
+    "text": "原来人类偶尔也会正确使用夜晚。",
+    "cooldownHours": 168,
+    "maximumUses": 12
+  },
+  {
+    "id": "steps.more.001",
+    "cue": "steps.more",
+    "surfaces": ["dashboard"],
+    "text": "你今天走了很远。奇怪的是，最后还是回到了这里。",
+    "cooldownHours": 120,
+    "maximumUses": 16
+  },
+  {
+    "id": "steps.more.002",
+    "cue": "steps.more",
+    "surfaces": ["dashboard"],
+    "text": "多走了 {steps} 步。路对此保持沉默。",
+    "cooldownHours": 96,
+    "maximumUses": 18
+  },
+  {
+    "id": "steps.fewer.001",
+    "cue": "steps.fewer",
+    "surfaces": ["dashboard"],
+    "text": "今天的足迹到这里就没有了。路明天也不会跑。",
+    "cooldownHours": 120,
+    "maximumUses": 16
+  },
+  {
+    "id": "steps.fewer.002",
+    "cue": "steps.fewer",
+    "surfaces": ["dashboard"],
+    "text": "今天没走多远。世界没有追上来。",
+    "cooldownHours": 144,
+    "maximumUses": 14
+  },
+  {
+    "id": "workout.completed.001",
+    "cue": "workout.completed",
+    "surfaces": ["dashboard"],
+    "text": "身体留下了 {minutes} 分钟的证词。至于值不值得，它拒绝评价。",
+    "cooldownHours": 120,
+    "maximumUses": 16
+  },
+  {
+    "id": "workout.completed.002",
+    "cue": "workout.completed",
+    "surfaces": ["dashboard"],
+    "text": "这段路已经发生了。花记得。",
+    "cooldownHours": 96,
+    "maximumUses": 18
+  },
+  {
+    "id": "health.accumulating.001",
+    "cue": "health.accumulating",
+    "surfaces": ["dashboard"],
+    "text": "我还不知道什么算你平常的样子。再留一些日子。",
+    "cooldownHours": 72,
+    "maximumUses": 12
+  },
+  {
+    "id": "health.accumulating.002",
+    "cue": "health.accumulating",
+    "surfaces": ["dashboard"],
+    "text": "这些信号还不肯组成一句话。我不会替它们编。",
+    "cooldownHours": 96,
+    "maximumUses": 10
+  },
+  {
+    "id": "health.missing.001",
+    "cue": "health.missing",
+    "surfaces": ["dashboard"],
+    "text": "这里是空的。我没说你没动……只是没看见。",
+    "cooldownHours": 72,
+    "maximumUses": 12
+  },
+  {
+    "id": "health.missing.002",
+    "cue": "health.missing",
+    "surfaces": ["dashboard"],
+    "text": "记录到这里断了。现实偶尔拒绝留下收据。",
+    "cooldownHours": 96,
+    "maximumUses": 10
+  }
+]

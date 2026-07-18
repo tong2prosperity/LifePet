@@ -4,9 +4,9 @@ import SpriteKit
 import SwiftUI
 import UIKit
 
-/// Runtime cadence for the home stage. Ambient animation stays fluid at 60Hz,
-/// direct manipulation and authored reactions may use ProMotion, and Low Power
-/// Mode deliberately caps the scene at 30Hz.
+/// Runtime cadence for the home stage. Ambient and authored animation stays at
+/// 60Hz; only direct finger tracking may use ProMotion. Low Power Mode caps the
+/// scene at 30Hz.
 enum PiboStageRenderMode: Equatable {
     case ambient
     case interactive
@@ -18,35 +18,23 @@ enum PiboStageRenderMode: Equatable {
 @Observable
 final class PiboStageRenderController {
     private(set) var directManipulationActive = false
-    private(set) var effectBoostActive = false
     private(set) var lowPowerModeEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled
 
-    @ObservationIgnored private var effectBoostDeadline = Date.distantPast
-    @ObservationIgnored private var effectBoostTask: Task<Void, Never>?
-
-    deinit {
-        effectBoostTask?.cancel()
-    }
-
-    func setDirectManipulation(active: Bool) {
+    func setDirectManipulation(active: Bool, displayMaximum: Int) {
+        guard displayMaximum > 60, directManipulationActive != active else { return }
         directManipulationActive = active
     }
 
-    func requestHighRefresh(for duration: TimeInterval) {
-        guard duration > 0 else { return }
-        effectBoostDeadline = max(effectBoostDeadline, Date().addingTimeInterval(duration))
-        effectBoostActive = true
-        scheduleEffectBoostExpiry()
-    }
-
     func refreshLowPowerMode() {
-        lowPowerModeEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled
+        let enabled = ProcessInfo.processInfo.isLowPowerModeEnabled
+        guard lowPowerModeEnabled != enabled else { return }
+        lowPowerModeEnabled = enabled
     }
 
     func renderMode(isPaused: Bool) -> PiboStageRenderMode {
         if isPaused { return .paused }
         if lowPowerModeEnabled { return .lowPower }
-        if directManipulationActive || effectBoostActive { return .interactive }
+        if directManipulationActive { return .interactive }
         return .ambient
     }
 
@@ -63,20 +51,6 @@ final class PiboStageRenderController {
         }
     }
 
-    private func scheduleEffectBoostExpiry() {
-        effectBoostTask?.cancel()
-        let deadline = effectBoostDeadline
-        effectBoostTask = Task { [weak self] in
-            let delay = max(0, deadline.timeIntervalSinceNow)
-            try? await Task.sleep(for: .seconds(delay))
-            guard !Task.isCancelled, let self else { return }
-            if Date() >= self.effectBoostDeadline {
-                self.effectBoostActive = false
-            } else {
-                self.scheduleEffectBoostExpiry()
-            }
-        }
-    }
 }
 
 /// A small SwiftUI bridge that exposes `SKView.preferredFramesPerSecond` for

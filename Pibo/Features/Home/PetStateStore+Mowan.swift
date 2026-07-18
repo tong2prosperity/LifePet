@@ -154,7 +154,9 @@ extension PetStateStore {
             now.timeIntervalSince($0) < PiboCorePatAdapter.recentWindowSeconds
         }
         // Prune so the array doesn't grow unbounded.
-        patSpeechTimes = in24h
+        if patSpeechTimes != in24h {
+            patSpeechTimes = in24h
+        }
 
         let decision = PiboCorePatAdapter.decide(
             spokenIn24Hours: in24h.count,

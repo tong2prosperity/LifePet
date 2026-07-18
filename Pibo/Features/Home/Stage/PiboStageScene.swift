@@ -45,17 +45,7 @@ final class PiboStageScene: SKScene {
     }
     /// Direct manipulation asks the SwiftUI bridge for the display's maximum
     /// cadence until the touch ends or is cancelled.
-    var onDirectManipulationChanged: ((Bool) -> Void)? {
-        didSet { configureThemeRendererCallbacks() }
-    }
-    /// Authored reactions request a temporary high-refresh lease. Overlapping
-    /// leases are coalesced by `PiboStageRenderController`.
-    var onHighRefreshRequested: ((TimeInterval) -> Void)? {
-        didSet {
-            configureThemeRendererCallbacks()
-            configureCharacterCallbacks()
-        }
-    }
+    var onDirectManipulationChanged: ((Bool) -> Void)?
 
     // — Nodes —
     private let backdrop = SKNode()
@@ -106,6 +96,18 @@ final class PiboStageScene: SKScene {
         themeRenderer?.update(
             time: currentTime,
             deltaTime: delta,
+            reduceMotion: UIAccessibility.isReduceMotionEnabled
+        )
+        var characterWind = themeRenderer?.wind ?? StageWind(
+            direction: CGVector(dx: -0.9, dy: -0.08),
+            strength: 0.3,
+            gustiness: 0.2
+        )
+        characterWind.strength *= CGFloat(tuning.ambientMotionScale)
+        character.update(
+            time: currentTime,
+            deltaTime: delta,
+            wind: characterWind,
             reduceMotion: UIAccessibility.isReduceMotionEnabled
         )
     }
@@ -225,6 +227,19 @@ final class PiboStageScene: SKScene {
         character.playEnergyGain()
     }
 
+    func setSproutGrowthProgress(_ progress: Double) {
+        character.setSproutGrowthProgress(CGFloat(progress))
+    }
+
+    func playSproutGrowth(from start: Double, to target: Double) {
+        guard built else { return }
+        character.playSproutGrowth(
+            from: CGFloat(start),
+            to: CGFloat(target),
+            duration: UIAccessibility.isReduceMotionEnabled ? 0.01 : 1.35
+        )
+    }
+
     /// 发芽 close-up (Figma 74:6102): the camera zooms onto Pibo's head, the 毛
     /// 抖动 (shake) → 发力 (strain) → 长出叶片 (texture swaps to the sprouted
     /// sprite, the 黑洞 fades), then the camera pulls back.
@@ -234,10 +249,18 @@ final class PiboStageScene: SKScene {
     /// 暂定为lottie素材) plugs in at `SproutAnimationStyle` in
     /// `EnergySproutFlow.swift` — when it lands, the SwiftUI overlay plays it
     /// full-screen instead of calling this.
-    func playSproutCloseup(onPhase: @escaping (SproutCloseupPhase) -> Void) {
+    func playSproutCloseup(
+        growthFrom start: Double,
+        growthTo target: Double,
+        onPhase: @escaping (SproutCloseupPhase) -> Void
+    ) {
         guard built, !character.isCloseupActive else { onPhase(.finished); return }
         cancelThemeInteraction()
-        character.playSproutCloseup(onPhase: onPhase)
+        character.playSproutCloseup(
+            growthFrom: CGFloat(start),
+            growthTo: CGFloat(target),
+            onPhase: onPhase
+        )
     }
 
     /// 拍一拍 不理睬 — Pibo 扭过头背对用户 (Figma 76:7115): hop, swap the body to
@@ -269,18 +292,19 @@ final class PiboStageScene: SKScene {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard built, !character.isCloseupActive, hairTouch == nil, themeTouch == nil, tapTouch == nil,
               let t = touches.first else { return }
-        onDirectManipulationChanged?(true)
         let p = t.location(in: self)
         let piboRegion = character.hitRegion(at: p, in: self)
         // 毛 is the smallest critical target, so it wins even when foreground
         // art overlaps it. Opaque foliage otherwise wins over the body.
         if piboRegion == .hair {
             hairTouch = t
+            onDirectManipulationChanged?(true)
             character.beginHairDrag(at: p)
             return
         }
         if themeRenderer?.beginInteraction(at: p, timestamp: t.timestamp) == true {
             themeTouch = t
+            onDirectManipulationChanged?(true)
             return
         }
         tapTouch = t
@@ -308,7 +332,6 @@ final class PiboStageScene: SKScene {
             let p = t.location(in: self)
             if hypot(p.x - tapOrigin.x, p.y - tapOrigin.y) > Self.tapSlop {
                 tapTouch = nil
-                onDirectManipulationChanged?(false)
             }
         }
     }
@@ -334,7 +357,6 @@ final class PiboStageScene: SKScene {
         }
         guard let t = tapTouch, touches.contains(t) else { return }
         tapTouch = nil
-        onDirectManipulationChanged?(false)
         handleTap(at: t.location(in: self))
     }
 
@@ -358,7 +380,6 @@ final class PiboStageScene: SKScene {
         }
         if let t = tapTouch, touches.contains(t) {
             tapTouch = nil
-            onDirectManipulationChanged?(false)
         }
     }
 
@@ -382,7 +403,6 @@ final class PiboStageScene: SKScene {
         cancelThemeInteraction()
         if tapTouch != nil {
             tapTouch = nil
-            onDirectManipulationChanged?(false)
         }
     }
 
@@ -457,7 +477,6 @@ final class PiboStageScene: SKScene {
     // 393-wide frame, node 74:5954); procedural bodies keep the prior sizing.
     private func installThemeRenderer() {
         guard let themeRenderer else { return }
-        configureThemeRendererCallbacks()
         let context = PiboThemeRendererContext(
             layers: PiboStageThemeLayers(
                 background: backdrop,
@@ -475,23 +494,13 @@ final class PiboStageScene: SKScene {
         themeRenderer.install(context: context, sceneSize: size)
     }
 
-    private func configureThemeRendererCallbacks() {
-        themeRenderer?.callbacks = PiboThemeRendererCallbacks(
-            highRefreshRequested: { [weak self] duration in
-                self?.onHighRefreshRequested?(duration)
-            }
-        )
-    }
-
     private func configureCharacterCallbacks() {
         character.onHairPulled = { [weak self] in self?.onHairPulled?() }
-        character.onHighRefreshRequested = { [weak self] duration in
-            self?.onHighRefreshRequested?(duration)
-        }
     }
 
     private func applyTuning(visibilityChanged: Bool) {
         character.setVisible(tuning.piboVisible)
+        character.setHeadRigFlexibility(CGFloat(tuning.headSproutFlexibility))
     }
 
     private func layoutAll() {

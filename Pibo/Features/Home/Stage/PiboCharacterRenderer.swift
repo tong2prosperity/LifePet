@@ -16,7 +16,6 @@ final class PiboCharacterRenderer {
     let effectsNode = SKNode()
 
     var onHairPulled: () -> Void = {}
-    var onHighRefreshRequested: (TimeInterval) -> Void = { _ in }
     private weak var scene: SKScene?
     private weak var camera: SKCameraNode?
     private var theme: PiboTheme = .forest
@@ -32,6 +31,8 @@ final class PiboCharacterRenderer {
     private var rightEye = SKNode()
     private var blush = SKNode()
     private let headNode = SKSpriteNode()
+    private let headRig = PiboHeadRigDeformer()
+    private var sproutGrowthProgress: CGFloat = 1
     private var headArtwork: PiboSVGArtwork?
     private var hairDragOrigin: CGPoint?
     private var surface: [CGPoint] = []
@@ -102,6 +103,11 @@ final class PiboCharacterRenderer {
     func hitRegion(at point: CGPoint, in scene: SKScene) -> PiboCharacterHitRegion {
         guard visible else { return .none }
         if !headNode.isHidden {
+            if headRig.isEnabled {
+                let local = scene.convert(point, to: rootNode)
+                let interactiveFrame = headNode.frame.insetBy(dx: -12, dy: -10)
+                if interactiveFrame.contains(local) { return .hair }
+            }
             if let headArtwork {
                 let local = scene.convert(point, to: headNode)
                 if headArtwork.contains(
@@ -134,12 +140,17 @@ final class PiboCharacterRenderer {
         hairDragOrigin = point
         headNode.removeAction(forKey: "headIdle")
         headNode.removeAction(forKey: "hairSettle")
+        headRig.beginInteraction()
     }
 
     func moveHairDrag(to point: CGPoint) {
         guard let origin = hairDragOrigin else { return }
         let dx = point.x - origin.x
         let up = max(0, point.y - origin.y)
+        if headRig.isEnabled {
+            headRig.setInteraction(horizontalDisplacement: dx, upwardDisplacement: up)
+            return
+        }
         headNode.zRotation = -0.55 * Self.rubberBand(dx, limit: 110) / 110
         headNode.yScale = 1 + 0.28 * Self.rubberBand(up, limit: 130) / 130
     }
@@ -148,7 +159,17 @@ final class PiboCharacterRenderer {
         guard let origin = hairDragOrigin else { return }
         hairDragOrigin = nil
         let pulled = !cancelled && hypot(point.x - origin.x, point.y - origin.y) > 30
-        onHighRefreshRequested(0.7)
+        if headRig.isEnabled {
+            headRig.endInteraction(pulled: pulled)
+            if pulled {
+                emitSparkles(at: CGPoint(
+                    x: rootNode.position.x + headNode.position.x,
+                    y: rootNode.position.y + headNode.position.y
+                ), count: 10)
+                onHairPulled()
+            }
+            return
+        }
         let releaseAngle = headNode.zRotation
         let settle: SKAction
         if pulled {
@@ -179,7 +200,6 @@ final class PiboCharacterRenderer {
     }
 
     func playBodyTap() {
-        onHighRefreshRequested(0.5)
         bodyForReflection?.removeAction(forKey: "squash")
         bodyForReflection?.run(.sequence([
             .scaleX(to: 1.12, y: 0.9, duration: 0.08),
@@ -189,7 +209,15 @@ final class PiboCharacterRenderer {
     }
 
     func playEnergyGain() {
-        onHighRefreshRequested(1)
+        if headRig.isEnabled {
+            headRig.addImpulse(1.7)
+            headNode.run(.sequence([.scale(to: 1.10, duration: 0.16), .scale(to: 1, duration: 0.24)]))
+            emitSparkles(
+                at: CGPoint(x: rootNode.position.x, y: rootNode.position.y + bodyHeight * 0.7),
+                count: 14
+            )
+            return
+        }
         headNode.removeAction(forKey: "headIdle")
         let shake = SKAction.sequence([
             .rotate(toAngle: 0.18, duration: 0.06),
@@ -205,9 +233,27 @@ final class PiboCharacterRenderer {
         )
     }
 
-    func playSproutCloseup(onPhase: @escaping (SproutCloseupPhase) -> Void) {
+    func setSproutGrowthProgress(_ progress: CGFloat) {
+        sproutGrowthProgress = min(max(progress, 0), 1)
+        headRig.setGrowthProgress(sproutGrowthProgress)
+    }
+
+    func playSproutGrowth(from start: CGFloat, to target: CGFloat, duration: TimeInterval) {
+        sproutGrowthProgress = min(max(target, 0), 1)
+        headRig.animateGrowth(from: start, to: sproutGrowthProgress, duration: duration)
+        headRig.addImpulse(0.8 + (sproutGrowthProgress - start) * 2.4)
+        emitSparkles(
+            at: CGPoint(x: rootNode.position.x, y: rootNode.position.y + bodyHeight * 0.7),
+            count: 12
+        )
+    }
+
+    func playSproutCloseup(
+        growthFrom start: CGFloat,
+        growthTo target: CGFloat,
+        onPhase: @escaping (SproutCloseupPhase) -> Void
+    ) {
         guard let scene, let camera, !isCloseupActive else { onPhase(.finished); return }
-        onHighRefreshRequested(5)
         isCloseupActive = true
         headNode.removeAction(forKey: "headIdle")
         let headWorld = CGPoint(
@@ -236,7 +282,10 @@ final class PiboCharacterRenderer {
         let swap = SKAction.run { [weak self] in
             guard let self else { return }
             self.growth = .sprouted
+            self.sproutGrowthProgress = start
             self.rebuildHead()
+            self.headRig.setGrowthProgress(start)
+            self.playSproutGrowth(from: start, to: target, duration: 1.35)
             self.overheadNode.run(.fadeOut(withDuration: 0.45))
             self.emitSparkles(at: headWorld, count: 18)
         }
@@ -261,7 +310,6 @@ final class PiboCharacterRenderer {
     }
 
     func playTurnAway() {
-        onHighRefreshRequested(2.1)
         if let backName = theme.bodyBackImage, let body = bodySprite {
             guard body.action(forKey: "turnAway") == nil else { return }
             let frontTexture = body.texture
@@ -287,22 +335,23 @@ final class PiboCharacterRenderer {
             body.run(.sequence([hop, swapBack, .wait(forDuration: 1.4), swapFront, hop.copy() as! SKAction]),
                      withKey: "turnAway")
         } else {
+            guard rootNode.action(forKey: "turnAway") == nil else { return }
             rootNode.run(.sequence([
                 .rotate(toAngle: 0.45, duration: 0.18),
                 .wait(forDuration: 1.2),
                 .rotate(toAngle: 0, duration: 0.22),
-            ]))
+            ]), withKey: "turnAway")
         }
     }
 
     func playPluck(color: SKColor) {
-        onHighRefreshRequested(1.4)
         let seed = SKShapeNode(ellipseOf: CGSize(width: 14, height: 18))
         seed.fillColor = color
         seed.strokeColor = .clear
         seed.position = CGPoint(x: rootNode.position.x, y: rootNode.position.y + bodyHeight * 0.65)
         seed.zPosition = 50
         effectsNode.addChild(seed)
+        headRig.addImpulse(CGFloat.random(in: -2.3 ... 2.3))
         let drop = SKAction.moveBy(x: CGFloat.random(in: -16...16), y: -bodyHeight * 0.5, duration: 0.8)
         drop.timingMode = .easeIn
         seed.run(.sequence([.wait(forDuration: 0.1), drop, .fadeOut(withDuration: 0.4), .removeFromParent()]))
@@ -421,10 +470,14 @@ final class PiboCharacterRenderer {
             headArtwork = PiboSVGAssets.artwork(named: head.image)
             headNode.texture = headArtwork?.makeTexture() ?? SKTexture(imageNamed: head.image)
             headNode.isHidden = false
+            headRig.attach(to: headNode, imageName: head.image)
+            headRig.setGrowthProgress(sproutGrowthProgress)
         } else if usesArt {
             headNode.isHidden = true
+            headRig.attach(to: headNode, imageName: nil)
         } else {
             headNode.isHidden = false
+            headRig.attach(to: headNode, imageName: nil)
             let side = bodyWidth * 0.9
             let renderer = ImageRenderer(content:
                 PiboHeadItemView(item: theme.headItem, size: side)
@@ -590,6 +643,12 @@ final class PiboCharacterRenderer {
 
     private func startHeadIdle() {
         headNode.removeAction(forKey: "headIdle")
+        guard !headRig.isEnabled else {
+            headNode.zRotation = 0
+            headNode.xScale = 1
+            headNode.yScale = 1
+            return
+        }
         let canonical = placement?.usesCanonicalMotion == true
         let center: CGFloat
         if canonical {
@@ -604,6 +663,24 @@ final class PiboCharacterRenderer {
         let left = SKAction.rotate(toAngle: center + amplitude, duration: 1.4); left.timingMode = .easeInEaseOut
         let right = SKAction.rotate(toAngle: center - amplitude, duration: 1.4); right.timingMode = .easeInEaseOut
         headNode.run(.repeatForever(.sequence([left, right])), withKey: "headIdle")
+    }
+
+    func update(
+        time: TimeInterval,
+        deltaTime: TimeInterval,
+        wind: StageWind,
+        reduceMotion: Bool
+    ) {
+        headRig.update(
+            time: time,
+            deltaTime: deltaTime,
+            wind: wind,
+            reduceMotion: reduceMotion
+        )
+    }
+
+    func setHeadRigFlexibility(_ flexibility: CGFloat) {
+        headRig.flexibility = flexibility
     }
 
     private func emitSparkles(at point: CGPoint, count: Int) {

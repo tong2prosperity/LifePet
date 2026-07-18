@@ -61,10 +61,6 @@ struct ThemePrecipitationImpact {
     var reaction: (() -> Void)? = nil
 }
 
-struct PiboThemeRendererCallbacks {
-    var highRefreshRequested: (TimeInterval) -> Void = { _ in }
-}
-
 #if DEBUG
 /// Optional water-renderer capability used by Water Lab. Keeping it separate
 /// prevents water concepts from leaking into every production theme renderer.
@@ -100,7 +96,6 @@ protocol WaterDebugTunable: AnyObject {
 protocol PiboThemeRenderer: AnyObject {
     var themeID: String { get }
     var wind: StageWind { get }
-    var callbacks: PiboThemeRendererCallbacks { get set }
 
     func install(context: PiboThemeRendererContext, sceneSize: CGSize)
     func teardown()
@@ -179,7 +174,6 @@ enum PiboThemeCatalog {
 final class BasicThemeRenderer: PiboThemeRenderer {
     let themeID: String
     var wind = StageWind(direction: CGVector(dx: -0.9, dy: -0.08), strength: 0.3, gustiness: 0.2)
-    var callbacks = PiboThemeRendererCallbacks()
 
     private let theme: PiboTheme
     private weak var background: SKNode?

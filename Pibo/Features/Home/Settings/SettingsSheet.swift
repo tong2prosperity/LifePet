@@ -10,6 +10,9 @@ struct SettingsSheet: View {
     @Environment(MembershipService.self) private var membership
     @Environment(StressNotifier.self) private var notifier
     @Environment(\.dismiss) private var dismiss
+    #if DEBUG
+    @Environment(MorningSleepCoordinator.self) private var morningSleep
+    #endif
 
     /// Performs the actual reset (store wipe + onboarding flag) — owned by
     /// `HomeView` because the onboarding flag lives there.
@@ -26,6 +29,8 @@ struct SettingsSheet: View {
     @State private var showStressProbe = false
     @State private var showWaterLab = false
     @State private var stressProbeText = ""
+    @State private var schedulingSleepMock = false
+    @State private var showSleepMockError = false
     #endif
 
     var body: some View {
@@ -57,6 +62,11 @@ struct SettingsSheet: View {
             Button("好") {}
         } message: {
             Text(stressProbeText)
+        }
+        .alert("睡眠 Mock", isPresented: $showSleepMockError) {
+            Button("好") {}
+        } message: {
+            Text("测试通知发送失败。请先在系统设置中允许 Pibo 通知。")
         }
         .fullScreenCover(isPresented: $showWaterLab) {
             WaterLabView()
@@ -231,6 +241,31 @@ struct SettingsSheet: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+
+                Divider().overlay(LP.Separator.primary)
+
+                HStack(spacing: LP.Spacing.m) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(AppLocalization.text("睡眠总结提醒"))
+                            .lpText(LP.Typography.b2Medium)
+                            .foregroundStyle(LP.Content.primary)
+                        Text(AppLocalization.text("睡醒后把昨晚睡眠整理成一条提醒。开启会请求通知权限，系统横幅对所有 Pibo 提醒生效"))
+                            .lpText(LP.Typography.c2Regular)
+                            .foregroundStyle(LP.Content.tertiary)
+                    }
+                    Spacer(minLength: 0)
+                    Toggle("", isOn: Binding(
+                        get: { notifier.sleepSummaryPushEnabled },
+                        set: { on in
+                            LPHaptics.tap()
+                            notifier.sleepSummaryPushEnabled = on
+                            if on { Task { await notifier.requestAuthorization() } }
+                        }))
+                        .labelsHidden()
+                        .tint(LP.Fill.foundationAccent)
+                }
+                .padding(.horizontal, LP.Spacing.m)
+                .padding(.vertical, LP.Spacing.s + 2)
             }
             .background(
                 RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
@@ -279,6 +314,29 @@ struct SettingsSheet: View {
 
             VStack(spacing: 0) {
                 Button {
+                    guard !schedulingSleepMock else { return }
+                    LPHaptics.tap()
+                    schedulingSleepMock = true
+                    Task {
+                        let scheduled = await morningSleep.debugScheduleFixtureNotification()
+                        schedulingSleepMock = false
+                        if scheduled {
+                            dismiss()
+                        } else {
+                            showSleepMockError = true
+                        }
+                    }
+                } label: {
+                    debugRow(
+                        schedulingSleepMock
+                            ? "正在安排睡眠通知…"
+                            : "模拟睡眠通知（点通知查看卡片）"
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(schedulingSleepMock)
+                Divider().overlay(LP.Separator.primary)
+                Button {
                     store.debugInjectWorkout()
                     dismiss()
                 } label: {
@@ -287,7 +345,7 @@ struct SettingsSheet: View {
                 .buttonStyle(.plain)
                 Divider().overlay(LP.Separator.primary)
                 Button {
-                    store.growthStage = .mystery
+                    store.debugResetSproutGrowth()
                 } label: {
                     debugRow("回到未发芽（「?」卷芽）")
                 }
@@ -495,4 +553,5 @@ struct SettingsSheet: View {
         .environment(PetStateStore(demoMode: true))
         .environment(MembershipService())
         .environment(StressNotifier.shared)
+        .environment(MorningSleepCoordinator())
 }
