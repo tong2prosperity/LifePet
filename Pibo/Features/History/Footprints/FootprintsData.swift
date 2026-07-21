@@ -201,10 +201,14 @@ struct FootprintsTrendPoint: Identifiable {
             to: today
         ) else { return [] }
 
+        // Rows written under a different timezone can collapse onto the same
+        // local day here, so duplicate keys must resolve (keep the freshest
+        // row) instead of trapping — this runs inside the morning-sheet build.
         let records = Dictionary(
-            uniqueKeysWithValues: history.records(from: start, to: today).map {
+            history.records(from: start, to: today).map {
                 (calendar.startOfDay(for: $0.date), $0)
-            }
+            },
+            uniquingKeysWith: { $0.updatedAt >= $1.updatedAt ? $0 : $1 }
         )
 
         return (0..<range.rawValue).compactMap { offset in
