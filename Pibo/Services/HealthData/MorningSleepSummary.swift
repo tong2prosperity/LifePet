@@ -102,28 +102,32 @@ enum SleepScore {
 extension MorningSleepSummary {
     static func debugFixture(now: Date = .now) -> MorningSleepSummary {
         let calendar = Calendar.current
-        var end = calendar.date(bySettingHour: 7, minute: 18, second: 0, of: now) ?? now
+        var end = calendar.date(bySettingHour: 9, minute: 32, second: 0, of: now) ?? now
         if end > now { end = calendar.date(byAdding: .day, value: -1, to: end) ?? now }
-        let start = end.addingTimeInterval(-(7 * 60 + 18) * 60)
-        let coreOneEnd = start.addingTimeInterval(100 * 60)
-        let deepEnd = coreOneEnd.addingTimeInterval(74 * 60)
-        let coreTwoEnd = deepEnd.addingTimeInterval(168 * 60)
+        let start = end.addingTimeInterval(-398 * 60)
+        var cursor = start
+        let plan: [(SleepStage, Int)] = [
+            (.core, 36), (.deep, 22), (.core, 42), (.rem, 18),
+            (.core, 31), (.deep, 19), (.core, 50), (.awake, 3),
+            (.rem, 31), (.core, 38), (.rem, 34), (.core, 28),
+            (.awake, 5), (.rem, 41),
+        ]
+        let segments = plan.map { stage, minutes in
+            let segmentEnd = cursor.addingTimeInterval(TimeInterval(minutes * 60))
+            defer { cursor = segmentEnd }
+            return SleepSegmentValue(start: cursor, end: segmentEnd, stage: stage)
+        }
         return MorningSleepSummary(
             wakeDay: calendar.startOfDay(for: end),
             generatedAt: now,
             start: start,
             end: end,
-            total: (7 * 60 + 18) * 60,
-            core: 268 * 60,
-            deep: 74 * 60,
-            rem: 96 * 60,
-            awake: 18 * 60,
-            segments: [
-                SleepSegmentValue(start: start, end: coreOneEnd, stage: .core),
-                SleepSegmentValue(start: coreOneEnd, end: deepEnd, stage: .deep),
-                SleepSegmentValue(start: deepEnd, end: coreTwoEnd, stage: .core),
-                SleepSegmentValue(start: coreTwoEnd, end: end, stage: .rem),
-            ],
+            total: 390 * 60,
+            core: 225 * 60,
+            deep: 41 * 60,
+            rem: 124 * 60,
+            awake: 8 * 60,
+            segments: segments,
             hasDetailedStages: true,
             hasInBedSignal: true,
             hasTerminalAwakeSignal: true,

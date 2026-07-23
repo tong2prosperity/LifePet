@@ -100,6 +100,7 @@ private struct WorkoutStyle {
         case .run:   return .init(name: "户外跑步", icon: "figure.run",  tint: LP.Colorful.green500, bg: LP.Colorful.green100)
         case .walk:  return .init(name: "户外散步", icon: "figure.walk", tint: LP.Colorful.teal500,  bg: LP.Colorful.teal100)
         case .cycle: return .init(name: "骑行",     icon: "figure.outdoor.cycle", tint: LP.Colorful.blue500, bg: LP.Colorful.blue100)
+        case .swim:  return .init(name: "游泳",     icon: "figure.pool.swim", tint: LP.Colorful.cyan500, bg: LP.Colorful.cyan100)
         case .hiit:  return .init(name: "高强度间歇", icon: "figure.highintensity.intervaltraining", tint: LP.Colorful.orange500, bg: LP.Colorful.orange100)
         case .yoga:  return .init(name: "瑜伽",     icon: "figure.yoga", tint: LP.Colorful.purple500, bg: LP.Colorful.purple100)
         case .other: return .init(name: "运动",     icon: "figure.mixed.cardio", tint: LP.Colorful.cyan500, bg: LP.Colorful.cyan100)

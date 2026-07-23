@@ -40,14 +40,15 @@ enum HealthEvent: Sendable, Equatable {
     case sleep(total: TimeInterval, deep: TimeInterval, rem: TimeInterval, start: Date?)
     /// Today's mindful-minutes total.
     case mindfulMinutes(Int)
-    /// A new workout finished. `kind` is a coarse bucket the home screen uses
+    /// A new workout finished. `id` is the HealthKit sample UUID used for
+    /// durable notification deduplication. `kind` is a coarse bucket the home screen uses
     /// to decide whether to auto-tick a matching suggest card. `end` is the
     /// workout's actual completion time — used by the home screen to label
     /// historical replay cards ("昨 22:30") and to decide whether to fire the
     /// "just happened" leading-indicator path (gain + toast) vs. display-only.
-    case workoutFinished(kind: WorkoutKind, duration: TimeInterval, kcal: Double?, end: Date)
+    case workoutFinished(id: UUID, kind: WorkoutKind, duration: TimeInterval, kcal: Double?, end: Date)
 
     enum WorkoutKind: String, Sendable, Codable {
-        case run, walk, cycle, hiit, yoga, other
+        case run, walk, cycle, swim, hiit, yoga, other
     }
 }

@@ -517,6 +517,7 @@ final class HealthDataService {
                 let src = workout.sourceRevision.source.name
                 LPLog.workout.debug("  \(kind.rawValue, privacy: .public) \(durMin, privacy: .public)min ended \(endStr, privacy: .public) kcal=\(kcal ?? 0, privacy: .public) src=\(src, privacy: .public)")
                 continuation.yield(.workoutFinished(
+                    id: workout.uuid,
                     kind: kind,
                     duration: workout.duration,
                     kcal: kcal,
@@ -592,6 +593,7 @@ final class HealthDataService {
         case .running:                                  return .run
         case .walking, .hiking:                         return .walk
         case .cycling, .handCycling:                    return .cycle
+        case .swimming:                                 return .swim
         case .highIntensityIntervalTraining,
              .functionalStrengthTraining,
              .traditionalStrengthTraining,

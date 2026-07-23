@@ -1,10 +1,12 @@
 import Foundation
 import UserNotifications
 
-enum AppNotificationCategory {
+nonisolated enum AppNotificationCategory {
     static let morningSleep = "pibo.notification.morning-sleep"
     static let morningSleepMock = "pibo.notification.morning-sleep.mock"
+    static let workoutCompleted = "pibo.notification.workout-completed"
     static let wakeDayUserInfoKey = "piboWakeDay"
+    static let workoutIDUserInfoKey = "piboWorkoutID"
 }
 
 /// The app has exactly one `UNUserNotificationCenterDelegate`. Stress and sleep

@@ -516,6 +516,7 @@ struct FootprintsWorkoutDetailView: View {
         case .run: "户外跑步"
         case .walk: "户外散步"
         case .cycle: "骑行"
+        case .swim: "游泳"
         case .hiit: "高强度间歇"
         case .yoga: "瑜伽"
         case .other: "运动"
@@ -527,6 +528,7 @@ struct FootprintsWorkoutDetailView: View {
         case .run: "figure.run"
         case .walk: "figure.walk"
         case .cycle: "figure.outdoor.cycle"
+        case .swim: "figure.pool.swim"
         case .hiit: "figure.highintensity.intervaltraining"
         case .yoga: "figure.yoga"
         case .other: "figure.mixed.cardio"
@@ -538,6 +540,7 @@ struct FootprintsWorkoutDetailView: View {
         case .run: LP.Colorful.green500
         case .walk: LP.Colorful.teal500
         case .cycle: LP.Colorful.blue500
+        case .swim: LP.Colorful.cyan500
         case .hiit: LP.Colorful.orange500
         case .yoga: LP.Colorful.purple500
         case .other: LP.Colorful.cyan500

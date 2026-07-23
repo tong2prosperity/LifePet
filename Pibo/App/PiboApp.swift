@@ -166,6 +166,7 @@ struct PiboApp: App {
                 .environment(coordinator)
                 .environment(membership)
                 .environment(StressNotifier.shared)
+                .environment(WorkoutCompletionNotifier.shared)
                 .modelContainer(modelContainer)
                 .preferredColorScheme(.light)   // LP palette is light-only paper
                 .task {
@@ -174,6 +175,7 @@ struct PiboApp: App {
                     // Set up foreground presentation + quiet provisional auth so
                     // passive users are covered without a prompt.
                     await StressNotifier.shared.start()
+                    await WorkoutCompletionNotifier.shared.start()
                     morningSleep.setAppActive(scenePhase == .active)
                     if scenePhase == .active, health.authState == .granted {
                         await health.requestMorningSleepEnrichmentAuthorizationIfNeeded()

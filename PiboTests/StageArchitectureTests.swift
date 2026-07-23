@@ -67,26 +67,20 @@ final class StageArchitectureTests: XCTestCase {
             for: restSource,
             contact: contact,
             sourceHeight: 249,
-            phase: 0,
-            style: style,
-            lowPower: false
+            style: style
         )
         let fixedMirrorReflection = ForestReflectionProjection.destination(
             for: draggedSource,
             contact: contact,
             sourceHeight: 249,
-            phase: 0,
-            style: style,
-            lowPower: false
+            style: style
         )
         let interactiveReflection = ForestReflectionProjection.destination(
             for: draggedSource,
             restingAt: restSource,
             contact: contact,
             sourceHeight: 249,
-            phase: 0,
             style: style,
-            lowPower: false,
             motionResponse: .followSourceDeformation
         )
 

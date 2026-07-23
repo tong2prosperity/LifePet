@@ -441,9 +441,17 @@ final class PetStateStore {
     /// Dev/demo helper (settings sheet): inject a fake "刚跑完步" so the 发芽
     /// energy-collection flow can be rehearsed without a real HKWorkout.
     func debugInjectWorkout() {
-        pendingWorkout = PendingWorkout(
+        let workout = PendingWorkout(
             id: UUID(), kind: .run, label: AppLocalization.text("跑步"),
             durationMin: 24, kcal: 186, endedAt: Date(), gainVitality: 18)
+        let notificationState = activityState
+        pendingWorkout = workout
+        Task {
+            await WorkoutCompletionNotifier.shared.maybeNotify(
+                workout: workout,
+                piboState: notificationState
+            )
+        }
     }
 
     /// Dev/demo (settings): inject a low RMSSD so the 压力卡 flips to 超载 and the
@@ -1354,8 +1362,8 @@ final class PetStateStore {
             // card manually.
             raw.mindfulMinutes = m
             LPLog.petState.debug("ingest mindfulMinutes=\(m, privacy: .public)")
-        case .workoutFinished(let kind, let duration, let kcal, let end):
-            handleNewWorkout(kind: kind, duration: duration, end: end, kcal: kcal)
+        case .workoutFinished(let id, let kind, let duration, let kcal, let end):
+            handleNewWorkout(id: id, kind: kind, duration: duration, end: end, kcal: kcal)
             return  // discrete event — skip recompute
         }
         hasIngestedAny = true
@@ -1383,7 +1391,7 @@ final class PetStateStore {
     ///
     /// Suggest-card dedup runs in both paths — a finished run still claims a
     /// running suggest card.
-    private func handleNewWorkout(kind: HealthEvent.WorkoutKind, duration: TimeInterval, end: Date, kcal: Double? = nil) {
+    private func handleNewWorkout(id: UUID, kind: HealthEvent.WorkoutKind, duration: TimeInterval, end: Date, kcal: Double? = nil) {
         // Only run / walk are "matchable" against suggest cards. Other
         // activities (yoga, cycle, hiit, other) feed vitality but never
         // claim a running suggest as completed.
@@ -1391,7 +1399,7 @@ final class PetStateStore {
             switch kind {
             case .run:  return .run
             case .walk: return .walk
-            case .cycle, .hiit, .yoga, .other: return nil
+            case .cycle, .swim, .hiit, .yoga, .other: return nil
             }
         }()
         if let mk = suggestMatch {
@@ -1405,6 +1413,10 @@ final class PetStateStore {
         let durMin = policy.durationMinutes
         let gain = policy.vitalityGain
         let label = workoutLabel(kind)
+        // Capture the state before this workout flips `hasWorkoutToday`; the
+        // notification should sound like the Pibo the user just left behind,
+        // rather than collapsing almost every completion into `.active`.
+        let notificationState = activityState
 
         // Track the latest endDate so the sprite picker can show `run` while
         // the workout is still "fresh" in the user's mind. Use max() because
@@ -1424,7 +1436,7 @@ final class PetStateStore {
                 dismissPendingWorkout()
             }
             let pw = PendingWorkout(
-                id: UUID(),
+                id: id,
                 kind: kind,
                 label: label,
                 durationMin: durMin,
@@ -1433,6 +1445,12 @@ final class PetStateStore {
                 gainVitality: gain
             )
             pendingWorkout = pw
+            Task {
+                await WorkoutCompletionNotifier.shared.maybeNotify(
+                    workout: pw,
+                    piboState: notificationState
+                )
+            }
             LPLog.petState.notice("workout fresh → pendingWorkout: \(label, privacy: .public) \(durMin, privacy: .public)min +\(gain, privacy: .public) (awaiting user 喂养)")
             return
         }
@@ -1492,7 +1510,7 @@ final class PetStateStore {
             switch pw.kind {
             case .run:  return .run
             case .walk: return .walk
-            case .cycle, .hiit, .yoga, .other: return nil
+            case .cycle, .swim, .hiit, .yoga, .other: return nil
             }
         }()
         let item = StepItem(
@@ -1515,6 +1533,7 @@ final class PetStateStore {
         case .run:   return AppLocalization.text("跑步")
         case .walk:  return AppLocalization.text("走路")
         case .cycle: return AppLocalization.text("骑行")
+        case .swim:  return AppLocalization.text("游泳")
         case .hiit:  return AppLocalization.text("高强度训练")
         case .yoga:  return AppLocalization.text("瑜伽")
         case .other: return AppLocalization.text("运动")

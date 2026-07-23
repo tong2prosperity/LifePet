@@ -226,3 +226,4 @@ xcodebuild -project Pibo.xcodeproj -scheme Pibo clean
 ```
 
 There is no test target yet; add one via Xcode before trying `xcodebuild test`.
+> HarmonyPibo sibling project: `/Users/trevorlink/Project/hackathon/HarmonyPibo`.

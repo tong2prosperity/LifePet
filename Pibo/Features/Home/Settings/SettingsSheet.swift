@@ -9,6 +9,7 @@ struct SettingsSheet: View {
     @Environment(PetStateStore.self) private var store
     @Environment(MembershipService.self) private var membership
     @Environment(StressNotifier.self) private var notifier
+    @Environment(WorkoutCompletionNotifier.self) private var workoutNotifier
     @Environment(\.dismiss) private var dismiss
     #if DEBUG
     @Environment(MorningSleepCoordinator.self) private var morningSleep
@@ -173,6 +174,31 @@ struct SettingsSheet: View {
                 .foregroundStyle(LP.Content.tertiary)
 
             VStack(spacing: 0) {
+                HStack(spacing: LP.Spacing.m) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(AppLocalization.text("运动完成提醒"))
+                            .lpText(LP.Typography.b2Medium)
+                            .foregroundStyle(LP.Content.primary)
+                        Text(AppLocalization.text("手表运动同步后，Pibo 会按当前状态说一声"))
+                            .lpText(LP.Typography.c2Regular)
+                            .foregroundStyle(LP.Content.tertiary)
+                    }
+                    Spacer(minLength: 0)
+                    Toggle("", isOn: Binding(
+                        get: { workoutNotifier.pushEnabled },
+                        set: { on in
+                            LPHaptics.tap()
+                            workoutNotifier.pushEnabled = on
+                            if on { Task { await workoutNotifier.requestAuthorization() } }
+                        }))
+                        .labelsHidden()
+                        .tint(LP.Fill.foundationAccent)
+                }
+                .padding(.horizontal, LP.Spacing.m)
+                .padding(.vertical, LP.Spacing.s + 2)
+
+                Divider().overlay(LP.Separator.primary)
+
                 HStack(spacing: LP.Spacing.m) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(AppLocalization.text("压力提醒"))
@@ -553,5 +579,6 @@ struct SettingsSheet: View {
         .environment(PetStateStore(demoMode: true))
         .environment(MembershipService())
         .environment(StressNotifier.shared)
+        .environment(WorkoutCompletionNotifier.shared)
         .environment(MorningSleepCoordinator())
 }
