@@ -110,25 +110,25 @@ final class PiboHeadRigDeformer {
         applyGeometry()
     }
 
-    /// Immediately restores persisted growth without replaying an animation.
+    /// The canonical forest sprout has no un-grown state (its headSprite ==
+    /// sproutedHeadSprite), so growth is pinned to full: the 毛 always renders at
+    /// its normal size and the mesh never folds, regardless of any persisted
+    /// growth value or a stale 魔丸-era 0 progress. Kept accepting a parameter so
+    /// the 发芽 flow's existing calls remain valid (they resolve to full size).
     func setGrowthProgress(_ progress: CGFloat) {
-        let value = Self.clamp01(progress)
-        displayedGrowth = value
-        growthStart = value
-        growthTarget = value
+        displayedGrowth = 1
+        growthStart = 1
+        growthTarget = 1
         growthElapsed = 0
         growthDuration = 0
         applyGeometry()
     }
 
-    /// Animates the existing skinned mesh, so growth and wind remain additive.
+    /// No-op fold animation — the forest sprout stays at full size (see
+    /// `setGrowthProgress`). The 发芽 celebration is carried by the close-up
+    /// camera + captions, not a mesh unfold.
     func animateGrowth(from start: CGFloat, to target: CGFloat, duration: TimeInterval) {
-        growthStart = Self.clamp01(start)
-        growthTarget = max(growthStart, Self.clamp01(target))
-        displayedGrowth = growthStart
-        growthElapsed = 0
-        growthDuration = max(0.01, duration)
-        applyGeometry()
+        setGrowthProgress(1)
     }
 
     func beginInteraction() {

@@ -653,8 +653,12 @@ final class PetStateStore {
         self.state = .excited
         self.steps = demoMode ? Self.demoSteps : []
         // Growth persistence (didSet doesn't fire from init).
+        // Default fresh pets to a full-size head 毛. The mystery→sprouted fold is
+        // a 魔丸-era concept; the forest theme's grass has no un-sprouted variant
+        // (headSprite == sproutedHeadSprite), so an un-grown default just renders
+        // the 毛 folded to near-nothing. Start sprouted so it shows at normal size.
         self.growthStage = PiboGrowthStage(
-            rawValue: UserDefaults.standard.string(forKey: Self.growthStageKey) ?? "") ?? .mystery
+            rawValue: UserDefaults.standard.string(forKey: Self.growthStageKey) ?? "") ?? .sprouted
         if UserDefaults.standard.object(forKey: Self.sproutGrowthProgressKey) != nil {
             self.headSproutGrowthProgress = UserDefaults.standard.double(
                 forKey: Self.sproutGrowthProgressKey
@@ -864,10 +868,11 @@ final class PetStateStore {
         }
         pendingWorkout = nil
         feedToken = nil
-        // New pet = back to 魔丸 D1: 「?」卷芽, default theme, fresh story.
-        growthStage = .mystery
+        // New pet starts with a full-size head 毛 (forest grass has no un-sprouted
+        // variant — the 魔丸 mystery-fold no longer applies), default theme, fresh story.
+        growthStage = .sprouted
         UserDefaults.standard.removeObject(forKey: Self.growthStageKey)
-        headSproutGrowthProgress = 0
+        headSproutGrowthProgress = 1
         UserDefaults.standard.removeObject(forKey: Self.sproutGrowthProgressKey)
         appearance = .default
         UserDefaults.standard.removeObject(forKey: Self.appearanceKey)

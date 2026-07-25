@@ -309,40 +309,12 @@ final class PiboCharacterRenderer {
         ]), withKey: "sprout")
     }
 
-    func playTurnAway() {
-        if let backName = theme.bodyBackImage, let body = bodySprite {
-            guard body.action(forKey: "turnAway") == nil else { return }
-            let frontTexture = body.texture
-            let frontSize = body.size
-            let backTexture = SKTexture(imageNamed: backName)
-            let natural = backTexture.size()
-            let backWidth = (scene?.size.width ?? 393) * (232 / 393)
-            let backSize = CGSize(width: backWidth, height: backWidth * natural.height / max(natural.width, 1))
-            let swapBack = SKAction.run {
-                body.texture = backTexture
-                body.size = backSize
-                body.position.y = -(frontSize.height - backSize.height) / 2
-            }
-            let swapFront = SKAction.run {
-                body.texture = frontTexture
-                body.size = frontSize
-                body.position.y = 0
-            }
-            let hop = SKAction.sequence([
-                .scaleX(to: 0.86, y: 1.04, duration: 0.10),
-                .scaleX(to: 1, y: 1, duration: 0.12),
-            ])
-            body.run(.sequence([hop, swapBack, .wait(forDuration: 1.4), swapFront, hop.copy() as! SKAction]),
-                     withKey: "turnAway")
-        } else {
-            guard rootNode.action(forKey: "turnAway") == nil else { return }
-            rootNode.run(.sequence([
-                .rotate(toAngle: 0.45, duration: 0.18),
-                .wait(forDuration: 1.2),
-                .rotate(toAngle: 0, duration: 0.22),
-            ]), withKey: "turnAway")
-        }
-    }
+    /// Turn-away is intentionally disabled (removed per product direction): the
+    /// 不理睬 / 生气 / 被打扰 reactions and 拖毛 rejection no longer tilt, spin, or
+    /// swap Pibo to a back-facing pose. Kept as a no-op so the existing call sites
+    /// stay valid; restore the body below to bring the effect back.
+    func playTurnAway() {}
+
 
     func playPluck(color: SKColor) {
         let seed = SKShapeNode(ellipseOf: CGSize(width: 14, height: 18))
@@ -677,6 +649,21 @@ final class PiboCharacterRenderer {
             wind: wind,
             reduceMotion: reduceMotion
         )
+        followBodyDeformation()
+    }
+
+    /// Keep the head 毛 glued to the body while the body squash-stretches (拍一拍)
+    /// or scales for a state change. The head is a *sibling* of the body under
+    /// `rootNode`, so without this it floats in place while the body deforms — the
+    /// 毛 visibly detaches from the head. The body scales about its own centre
+    /// (which sits at `rootNode`'s origin), so re-mapping the head's rest offset
+    /// through the body's live scale reproduces a rigid attachment at the body top.
+    /// Runs every frame; at rest (scale 1) it resolves to the layout position.
+    private func followBodyDeformation() {
+        guard usesArt, !isCloseupActive,
+              let body = bodySprite,
+              let rest = placement?.head?.position else { return }
+        headNode.position = CGPoint(x: rest.x * body.xScale, y: rest.y * body.yScale)
     }
 
     func setHeadRigFlexibility(_ flexibility: CGFloat) {
