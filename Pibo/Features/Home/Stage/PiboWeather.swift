@@ -22,18 +22,14 @@ enum PiboWeather: String, CaseIterable, Sendable {
     case thunderstorm   // 雷雨(v1 走 rain,强度更大)
     case snow           // 雪(占位,暂无特效)
 
-    /// 降水强度 0–1 —— 驱动雨幕粒子量 / 水花频率。晴/多云 = 0。
-    var precipitation: Double {
-        switch self {
-        case .clear, .cloudy: return 0
-        case .rain:           return 0.6
-        case .thunderstorm:   return 1.0
-        case .snow:           return 0.5   // 预留:雪量
-        }
-    }
-
-    /// v1 是否渲染"下雨三件套"。雷雨也算(更大的雨)。
-    var isRainy: Bool { self == .rain || self == .thunderstorm }
+    // 降水强度不在这里定义。它是跨平台规则,由 `pibo-core` 的 `rain_intensity`
+    // 独占,经 `PiboCoreEnvironmentAdapter.rainIntensity(for:)` 取用 ——
+    // 见 `PiboStageEnvironment.rainIntensity`。此处曾留有一份 Swift 副本,
+    // 其中雪 = 0.5 与 Core 的 0 不一致;因无人引用而未造成故障,但正是这条
+    // 「规则只有一处实现」的约束所要防的漂移,故删除而非修正。
+    //
+    // 「是否在下雨」同样不需要本地判据:强度 > 0 即为下雨,
+    // `PiboWeatherEffectController.rebuild()` 就是这么判的。
 
     /// 中文短名 —— DEBUG 天气开关用。
     var displayName: String {
