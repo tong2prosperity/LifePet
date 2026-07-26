@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import os
 
 enum WorkoutSessionError: Error {
     case healthDataUnavailable
@@ -128,13 +129,15 @@ extension WorkoutSessionManager: HKWorkoutSessionDelegate {
         from fromState: HKWorkoutSessionState,
         date: Date
     ) {
-        print("[Pibo watch] workout state: \(fromState.rawValue) -> \(toState.rawValue)")
+        LPLog.watchWorkout.notice(
+            "session state \(fromState.rawValue, privacy: .public) -> \(toState.rawValue, privacy: .public)"
+        )
     }
 
     nonisolated func workoutSession(
         _ workoutSession: HKWorkoutSession,
         didFailWithError error: Error
     ) {
-        print("[Pibo watch] workout error: \(error)")
+        LPLog.watchWorkout.error("session failed: \(String(describing: error), privacy: .public)")
     }
 }

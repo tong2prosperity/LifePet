@@ -21,7 +21,6 @@ final class EconomySyncCoordinator {
     private let auth: AuthService
     private let economy: EconomyService
     private let history: HealthHistoryStore
-    private let log = Logger(subsystem: "fun.tiebao.co.Pibo", category: "economy-sync")
 
     init(auth: AuthService, economy: EconomyService, history: HealthHistoryStore) {
         self.auth = auth
@@ -69,7 +68,7 @@ final class EconomySyncCoordinator {
             return nil
         }
         let samples = todaySamples()
-        log.debug("syncToday: \(samples.count) samples")
+        LPLog.economySync.debug("syncToday: \(samples.count) samples")
         let resp = await economy.sync(samples: samples)
         lastResult = resp
         lastError = economy.lastError

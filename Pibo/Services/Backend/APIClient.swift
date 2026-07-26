@@ -15,7 +15,6 @@ actor APIClient {
     private let config: APIConfig
     private let tokens: TokenStore
     private let session: URLSession
-    private let log = Logger(subsystem: "fun.tiebao.co.Pibo", category: "api")
 
     /// In-flight refresh, shared by all callers that 401 concurrently.
     private var refreshInFlight: Task<Void, Error>?
@@ -126,7 +125,7 @@ actor APIClient {
                                                  body: RefreshRequest(refreshToken: refresh),
                                                  authed: false)
             tokens.save(access: pair.accessToken, refresh: pair.refreshToken)
-            log.debug("token refreshed")
+            LPLog.api.debug("token refreshed")
         } catch {
             tokens.clear()
             throw APIError.unauthorized

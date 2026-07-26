@@ -23,7 +23,6 @@ final class AuthService {
 
     private let api: APIClient
     private let tokens: TokenStore
-    private let log = Logger(subsystem: "fun.tiebao.co.Pibo", category: "auth")
 
     init(api: APIClient = .shared, tokens: TokenStore = .shared) {
         self.api = api
@@ -44,7 +43,7 @@ final class AuthService {
             return true
         } catch {
             lastError = .from(error)
-            log.error("startLogin failed: \(String(describing: error))")
+            LPLog.auth.error("startLogin failed: \(String(describing: error))")
             return false
         }
     }
@@ -61,13 +60,13 @@ final class AuthService {
             tokens.save(access: result.tokens.accessToken, refresh: result.tokens.refreshToken)
             userId = result.user.userId
             phase = .loggedIn
-            log.notice("logged in as \(result.user.userId, privacy: .public)")
+            LPLog.auth.notice("logged in as \(result.user.userId, privacy: .public)")
             Analytics.setUser(result.user.userId)
             Analytics.track(.login)
             return true
         } catch {
             lastError = .from(error)
-            log.error("completeLogin failed: \(String(describing: error))")
+            LPLog.auth.error("completeLogin failed: \(String(describing: error))")
             return false
         }
     }

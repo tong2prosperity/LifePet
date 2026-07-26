@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import os
 
 @MainActor
 final class CRCTrainingViewModel: ObservableObject {
@@ -113,7 +114,9 @@ final class CRCTrainingViewModel: ObservableObject {
             guard await validateBaselineSignals() else { return }
             beginCoupledTraining()
         } catch {
-            print("[Pibo watch] failed to start HealthKit workout: \(error)")
+            LPLog.watchBreathing.error(
+                "start HealthKit workout failed: \(String(describing: error), privacy: .public)"
+            )
             errorMessage = healthStartErrorMessage(for: error)
             step = .error
             motionDetector.stop()

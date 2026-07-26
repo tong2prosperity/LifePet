@@ -17,7 +17,6 @@ final class EconomyService {
     private(set) var lastError: APIError?
 
     private let api: APIClient
-    private let log = Logger(subsystem: "fun.tiebao.co.Pibo", category: "economy")
 
     init(api: APIClient = .shared) {
         self.api = api
@@ -41,11 +40,11 @@ final class EconomyService {
             state = EconomyState(boPending: resp.boPending, boBalance: resp.boBalance,
                                  energyPool: resp.energyPool, piboState: resp.piboState,
                                  serverTime: resp.serverTime)
-            log.debug("sync → pending=\(resp.boPending) minted=\(resp.minted.count) state=\(resp.piboState, privacy: .public)")
+            LPLog.economy.debug("sync → pending=\(resp.boPending) minted=\(resp.minted.count) state=\(resp.piboState, privacy: .public)")
             return resp
         } catch {
             lastError = .from(error)
-            log.error("sync failed: \(String(describing: error))")
+            LPLog.economy.error("sync failed: \(String(describing: error))")
             return nil
         }
     }

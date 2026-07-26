@@ -6,7 +6,8 @@
 
 - `Pibo/App/`: app entry point, root view, environment wiring, scene phase hooks.
 - `Pibo/Features/`: SwiftUI/SpriteKit feature surfaces. `Home` is the full-screen horizontally pannable SpriteKit world (`PiboStageView` / `PiboStageScene`) with 拍一拍 / 拔毛 / 能量收集 / 露珠相机 entry; `History` is the 足迹 full-screen history page; `Games` hosts health mini-games; `WalkDoodle` is the map doodle recorder; `Onboarding` handles HealthKit auth. `Catalog` / `Together` were removed 2026-06-13.
-- `Pibo/Services/`: HealthKit, SwiftData history, identity/auth/backend, membership, analytics, Vision, localization, logging, and app services. Do not extend the old connectivity/playback/session/music-generation direction.
+- `Pibo/Services/`: HealthKit, SwiftData history, identity/auth/backend, membership, analytics, Vision, localization, and app services. Do not extend the old connectivity/playback/session/music-generation direction.
+- `Shared/Logging/LPLog.swift`: the one logging entry point for app + watch + widget. Add a category to the table; never construct an `os.Logger` at a call site.
 - `Pibo/Services/Core/`: thin iOS adapters over the shared Rust `pibo-core` SDK. Keep type mapping and platform presentation here; shared thresholds and deterministic rules belong in the SDK.
 - `Pibo Watch App/Features/CRCBreathing/`: the only current watch feature. Older `Recording`, `Start`, and watch connectivity code are WCSession-era leftovers.
 - `PiboWidgets/`: Home Screen widget and Live Activity extension. Shared payloads live in `Shared/WidgetSupport/` and are live, not legacy.

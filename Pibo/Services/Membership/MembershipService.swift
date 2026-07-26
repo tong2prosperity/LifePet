@@ -37,7 +37,6 @@ final class MembershipService {
     var isMember: Bool { entitlement != nil }
 
     private let api: APIClient
-    private let log = Logger(subsystem: "fun.tiebao.co.Pibo", category: "membership")
     private var updatesTask: Task<Void, Never>?
 
     init(api: APIClient = .shared) {
@@ -68,7 +67,7 @@ final class MembershipService {
             let loaded = try await Product.products(for: MembershipProduct.all)
             products = loaded.sorted { $0.price < $1.price }
         } catch {
-            log.error("load products failed: \(String(describing: error))")
+            LPLog.membership.error("load products failed: \(String(describing: error))")
             lastError = AppLocalization.text("商店暂时不可用")
         }
     }
@@ -101,7 +100,7 @@ final class MembershipService {
                 return false
             }
         } catch {
-            log.error("purchase failed: \(String(describing: error))")
+            LPLog.membership.error("purchase failed: \(String(describing: error))")
             lastError = AppLocalization.text("购买失败，请重试")
             Analytics.track(.purchase, screen: "membership",
                             ["product": .string(product.id), "result": "failed"])
@@ -117,7 +116,7 @@ final class MembershipService {
         do {
             try await AppStore.sync()
         } catch {
-            log.error("restore failed: \(String(describing: error))")
+            LPLog.membership.error("restore failed: \(String(describing: error))")
             lastError = AppLocalization.text("恢复购买失败，请重试")
         }
         await refreshEntitlement()
@@ -150,7 +149,7 @@ final class MembershipService {
             let status: MembershipStatusDTO = try await api.get("/api/v1/membership/status", authed: true)
             serverStatus = status
         } catch {
-            log.debug("server status unavailable: \(String(describing: error))")
+            LPLog.membership.debug("server status unavailable: \(String(describing: error))")
         }
     }
 
@@ -158,7 +157,7 @@ final class MembershipService {
 
     private func handle(_ result: VerificationResult<StoreKit.Transaction>) async {
         guard case .verified(let tx) = result else {
-            log.error("dropping unverified transaction")
+            LPLog.membership.error("dropping unverified transaction")
             return
         }
         guard MembershipProduct.all.contains(tx.productID) else {
@@ -170,7 +169,7 @@ final class MembershipService {
         } else if entitlement?.productID == tx.productID {
             entitlement = nil
         }
-        log.notice("membership tx \(tx.id) product=\(tx.productID, privacy: .public) expires=\(String(describing: tx.expirationDate), privacy: .public)")
+        LPLog.membership.notice("membership tx \(tx.id) product=\(tx.productID, privacy: .public) expires=\(String(describing: tx.expirationDate), privacy: .public)")
         await syncToServer(jws: result.jwsRepresentation)
         await tx.finish()
     }
@@ -185,9 +184,9 @@ final class MembershipService {
                 body: MembershipVerifyRequest(signedTransaction: jws),
                 authed: true)
             serverStatus = status
-            log.debug("server verified membership: active=\(status.isActive) plan=\(status.plan ?? "-", privacy: .public)")
+            LPLog.membership.debug("server verified membership: active=\(status.isActive) plan=\(status.plan ?? "-", privacy: .public)")
         } catch {
-            log.error("server verify failed (keeping local entitlement): \(String(describing: error))")
+            LPLog.membership.error("server verify failed (keeping local entitlement): \(String(describing: error))")
         }
     }
 }

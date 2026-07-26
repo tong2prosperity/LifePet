@@ -5,6 +5,12 @@ import os
 /// category per subsystem so live-device logs in Console.app can be filtered
 /// by area (e.g., `subsystem:fun.tiebao.co.Pibo category:HealthKit.Sleep`).
 ///
+/// Lives in `Shared/`, so the iOS app, the watch app, and the widget extension
+/// all log through the same table. `subsystem` is read from the *running*
+/// bundle, so each process files its lines under its own identifier
+/// (`…Pibo` / `…Pibo.watchkitapp` / `…Pibo.PiboWidgets`) — the three surfaces
+/// stay separable in Console.app while sharing one category vocabulary.
+///
 /// Why `os.Logger` instead of `print`:
 /// - Categorized + filterable in Console.app and Xcode's filter bar.
 /// - Persistent ring buffer — failures from yesterday are still readable
@@ -25,6 +31,14 @@ import os
 ///                failed, background delivery rejected). Persisted.
 /// - `.fault`   — programmer errors / invariant violations. Used sparingly.
 ///
+/// Category naming: a dotted prefix groups a family, so one predicate can pull
+/// a whole area (`category BEGINSWITH "Backend."`) or a single noisy leaf
+/// (`category:Vision.Cutout`). Add to this table rather than constructing a
+/// `Logger` at a call site — an ad-hoc logger re-declares the subsystem and
+/// drifts out of the naming scheme, which is exactly what makes a log
+/// unfilterable. HarmonyPibo mirrors these category names in its own
+/// `PiboLog`, so keep the two vocabularies in step.
+///
 /// Privacy: `os.Logger` redacts string interpolations in production unless
 /// marked `.public`. We're not a user-facing logging product — these logs
 /// only exist for developers reading Xcode/Console, so most labels are
@@ -35,26 +49,59 @@ import os
 nonisolated enum LPLog {
     private static let subsystem = Bundle.main.bundleIdentifier ?? "fun.tiebao.co.Pibo"
 
+    // MARK: - App shell
+
     static let app          = Logger(subsystem: subsystem, category: "App")
     static let onboarding   = Logger(subsystem: subsystem, category: "Onboarding")
     static let identity     = Logger(subsystem: subsystem, category: "Identity")
     static let snapshot     = Logger(subsystem: subsystem, category: "Snapshot")
     static let petState     = Logger(subsystem: subsystem, category: "PetState")
     static let audio        = Logger(subsystem: subsystem, category: "Audio.Soundscape")
+
+    // MARK: - HealthKit
+
     static let healthKit    = Logger(subsystem: subsystem, category: "HealthKit")
     /// Split out so the verbose per-sample dump can be filtered on its own
     /// without drowning the rest of `HealthKit`'s output.
     static let sleep        = Logger(subsystem: subsystem, category: "HealthKit.Sleep")
     static let workout      = Logger(subsystem: subsystem, category: "HealthKit.Workout")
-    /// 拍照 pipeline. `camera` = capture session + shutter + save; the two
-    /// on-device Vision passes are split — `Vision.Classify` (识图 subject
-    /// label) and `Vision.Cutout` (抠图 mask + 贴纸白描边 + persist) — so each
-    /// verbose dump can be filtered apart from the other.
+
+    // MARK: - 拍照 pipeline
+
+    /// `camera` = capture session + shutter + save; the two on-device Vision
+    /// passes are split — `Vision.Classify` (识图 subject label) and
+    /// `Vision.Cutout` (抠图 mask + 贴纸白描边 + persist) — so each verbose dump
+    /// can be filtered apart from the other.
     static let camera       = Logger(subsystem: subsystem, category: "Camera")
     static let classify     = Logger(subsystem: subsystem, category: "Vision.Classify")
     static let cutout       = Logger(subsystem: subsystem, category: "Vision.Cutout")
+
+    // MARK: - Backend (pibo-server)
+
+    /// Transport layer — request plumbing and token refresh, not endpoints.
+    static let api          = Logger(subsystem: subsystem, category: "Backend.API")
+    static let auth         = Logger(subsystem: subsystem, category: "Backend.Auth")
+    static let economy      = Logger(subsystem: subsystem, category: "Backend.Economy")
+    /// The health-sample → sync scheduler sitting above `Backend.Economy`;
+    /// separate because its cadence chatter would bury the economy's results.
+    static let economySync  = Logger(subsystem: subsystem, category: "Backend.EconomySync")
     /// 拍照识别卡路里 — the backend Kimi VLM round-trip for meal photos.
-    static let food         = Logger(subsystem: subsystem, category: "Food")
+    static let food         = Logger(subsystem: subsystem, category: "Backend.Food")
+
+    // MARK: - StoreKit
+
+    /// Deliberately not under `Backend.` — the entitlement's source of truth is
+    /// StoreKit on-device, and the server round-trip is only one step inside it.
+    static let membership   = Logger(subsystem: subsystem, category: "Membership")
+
+    // MARK: - watchOS
+
+    /// The watch's only live feature: the CRC breathing trainer.
+    static let watchBreathing = Logger(subsystem: subsystem, category: "Watch.Breathing")
+    /// `HKWorkoutSession` lifecycle backing that trainer. Split from
+    /// `Watch.Breathing` because state transitions arrive on a delegate,
+    /// interleaved with — but not part of — the training flow.
+    static let watchWorkout   = Logger(subsystem: subsystem, category: "Watch.Workout")
 
     /// Shared "MM-dd HH:mm:ss" formatter for log timestamps. Local-time
     /// output reads more naturally than `Date`'s default UTC `description`.
