@@ -1,6 +1,15 @@
 {
-  "originHash" : "415c7cffbbb35df5d02c94356b87caef988f180f662ab2053715471e3d69b58e",
+  "originHash" : "08eb0fbd507813020ede5f2cb34342480bd4130afadcd5f0388590b5084d9ba1",
   "pins" : [
+    {
+      "identity" : "ds-swift-sdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/all2prosperity/ds-swift-sdk.git",
+      "state" : {
+        "revision" : "4e50109ffb0663aa18b4c2225529bf64070d8adb",
+        "version" : "0.1.0"
+      }
+    },
     {
       "identity" : "pibo-chess-sdk",
       "kind" : "remoteSourceControl",

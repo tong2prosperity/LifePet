@@ -31,7 +31,7 @@ xcodebuild -project Pibo.xcodeproj -scheme PiboWidgetsExtension -configuration D
 xcodebuild -project Pibo.xcodeproj -scheme Pibo clean
 ```
 
-Use Xcode with the `Pibo` scheme for normal run/debug. `PiboTests` is the unit/integration test target. There is no app-level `Package.swift`, CocoaPods, or Carthage setup. Dependencies go through Xcode Swift Package Manager. `PiboCore` is pinned to an exact release of the private `git@github.com:PiboWorld/pibo-core.git` package; DataSneaker remains a local package at `../../tiebao/utils/DataSneaker/sdk/swift`. Commit `Package.resolved` whenever a remote package version changes.
+Use Xcode with the `Pibo` scheme for normal run/debug. `PiboTests` is the unit/integration test target. There is no app-level `Package.swift`, CocoaPods, or Carthage setup. Dependencies go through Xcode Swift Package Manager, all three as exact-version remote packages: `PiboCore` from the private `git@github.com:PiboWorld/pibo-core.git` (needs an SSH key), `PiboChessUI` and `DataSneaker` (`https://github.com/all2prosperity/ds-swift-sdk.git`) public over HTTPS. Commit `Package.resolved` whenever a remote package version changes.
 
 ## Coding Style & Naming Conventions
 
