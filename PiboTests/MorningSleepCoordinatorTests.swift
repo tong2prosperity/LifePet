@@ -223,9 +223,16 @@ struct MorningSleepCoordinatorTests {
         #expect(coordinator.latestSummary?.wakeDayKey == tonight.wakeDayKey)
 
         // Tapping yesterday's notification still resolves to yesterday's night,
-        // flagged as a catch-up so the card shows its date.
+        // flagged as a catch-up so the card shows its date. The tap is stamped
+        // just after midnight — the moment the catch-up window exists for —
+        // rather than left on the wall clock: yesterday's wake-day starts at
+        // yesterday 00:00, so the 36h window closes at noon today and an
+        // afternoon test run would watch the coordinator correctly refuse it.
         coordinator.setAppActive(true)
-        coordinator.handleNotificationOpen(wakeDayKey: yesterday.wakeDayKey)
+        coordinator.handleNotificationOpen(
+            wakeDayKey: yesterday.wakeDayKey,
+            now: todayAt(1)
+        )
         #expect(coordinator.pendingPresentation?.summary.wakeDayKey == yesterday.wakeDayKey)
         #expect(coordinator.pendingPresentation?.isCatchUp == true)
     }
