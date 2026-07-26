@@ -425,6 +425,8 @@ struct SettingsSheet: View {
                 weatherDebugRow
                 Divider().overlay(LP.Separator.primary)
                 dayPhaseDebugRow
+                Divider().overlay(LP.Separator.primary)
+                sleepDeliveryHourDebugRow
             }
             .background(
                 RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
@@ -490,6 +492,35 @@ struct SettingsSheet: View {
     nonisolated private static func forestHourLabel(_ hour: Double) -> String {
         let totalMinutes = Int((hour * 60).rounded()) % (24 * 60)
         return String(format: "%02d:%02d", totalMinutes / 60, totalMinutes % 60)
+    }
+
+    /// Pretend the sleep summary arrived at this local hour, so the quiet-band
+    /// rule (nothing surfaces between 00:00 and 05:00) can be rehearsed without
+    /// moving the device clock.
+    private var sleepDeliveryHourDebugRow: some View {
+        HStack(spacing: LP.Spacing.s) {
+            Text("睡眠投递时刻")
+                .lpText(LP.Typography.b3Medium)
+                .foregroundStyle(LP.Content.secondary)
+            Spacer(minLength: 0)
+            Menu {
+                Button("自动（本地时间）") { morningSleep.debugLocalHourOverride = nil }
+                ForEach([2.0, 3.0, 6.0, 8.0, 16.0], id: \.self) { hour in
+                    Button(Self.forestHourLabel(hour)) {
+                        morningSleep.debugLocalHourOverride = hour
+                    }
+                }
+            } label: {
+                Text(morningSleep.debugLocalHourOverride.map(Self.forestHourLabel) ?? "自动")
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(LP.Content.secondary)
+                    .padding(.horizontal, LP.Spacing.s)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(LP.Fill.bgSurfaceSecondary))
+            }
+        }
+        .padding(.horizontal, LP.Spacing.m)
+        .padding(.vertical, LP.Spacing.s + 2)
     }
 
     private func debugRow(_ title: String) -> some View {

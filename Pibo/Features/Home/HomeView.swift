@@ -217,34 +217,33 @@ struct HomeView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { presentMorningSleepIfPossible() }
         }
-        .onChange(of: activeSheet?.id) { _, id in
-            if id == nil { presentMorningSleepIfPossible() }
-        }
-        .onChange(of: fullScreenFeaturePresented) { _, presented in
-            if !presented { presentMorningSleepIfPossible() }
-        }
         .onChange(of: sproutPhase) { _, phase in
-            if phase == .idle { presentMorningSleepIfPossible() }
+            if phase == .idle { resumePendingHomeFlows() }
         }
-        .fullScreenCover(isPresented: $showCamera) {
+        // Every cover/sheet resumes queued flows from `onDismiss`, i.e. once the
+        // dismissal animation has finished. Reacting to the presentation binding
+        // instead would try to present while the previous modal is still on its
+        // way out, which SwiftUI silently drops — leaving `activeSheet` non-nil
+        // with nothing on screen and no way back.
+        .fullScreenCover(isPresented: $showCamera, onDismiss: resumePendingHomeFlows) {
             PiboCameraView(initialMeal: cameraInitialMeal, onPhotoSaved: { image, label, meal in
                 handlePhotoSaved(image, label, meal: meal)
             }).environment(store)
         }
-        .fullScreenCover(isPresented: $showGames) {
+        .fullScreenCover(isPresented: $showGames, onDismiss: resumePendingHomeFlows) {
             GameListView(onWalkDoodleSaved: handleDoodleSaved)
                 .environment(store)
                 .environment(history)
         }
-        .fullScreenCover(isPresented: $showHistory) {
+        .fullScreenCover(isPresented: $showHistory, onDismiss: resumePendingHomeFlows) {
             HistoryScreen()
                 .environment(store)
                 .environment(history)
         }
-        .fullScreenCover(isPresented: $showWalkDoodle) {
+        .fullScreenCover(isPresented: $showWalkDoodle, onDismiss: resumePendingHomeFlows) {
             WalkDoodleView(onSaved: handleDoodleSaved)
         }
-        .sheet(item: $activeSheet) { destination in
+        .sheet(item: $activeSheet, onDismiss: resumePendingHomeFlows) { destination in
             switch destination {
             case .meal(let meal):
                 MealDetailView(meal: meal, onRecapture: startMealCapture)
@@ -258,13 +257,13 @@ struct HomeView: View {
                 SettingsSheet(onReset: performReset)
                     .environment(store)
                 #endif
-            case .morningSleep(let summary):
+            case .morningSleep(let presentation):
                 MorningSleepCard(
-                    summary: summary,
+                    presentation: presentation,
                     appearance: store.appearance,
                     weekly: SleepWeeklyReport.make(store: store, history: history)
                 )
-                    .onAppear { morningSleep.markPresented(summary) }
+                    .onAppear { morningSleep.markPresented(presentation) }
             }
         }
     }
@@ -447,7 +446,14 @@ struct HomeView: View {
     // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)
 
     private func maybeStartEnergyFlow() {
-        guard let workout = store.pendingWorkout, sproutPhase == .idle else { return }
+        // The close-up runs on the SpriteKit stage, which `stagePaused` freezes
+        // while any sheet or cover is up — starting it behind one would play the
+        // whole beat where nobody can see it.
+        guard let workout = store.pendingWorkout,
+              sproutPhase == .idle,
+              activeSheet == nil,
+              !fullScreenFeaturePresented
+        else { return }
         let growthStart = store.headSproutGrowthProgress
         let growthTarget = store.sproutGrowthTarget(for: workout)
         let canSprout = store.growthStage == .mystery
@@ -658,9 +664,20 @@ struct HomeView: View {
               activeSheet == nil,
               !fullScreenFeaturePresented,
               sproutPhase == .idle,
-              let summary = morningSleep.pendingPresentation
+              // Re-validated at the moment of presentation, not when it was
+              // queued: a card queued late at night must not surface as "last
+              // night" after midnight, nor consume the wrong wake-day.
+              let presentation = morningSleep.consumablePresentation()
         else { return }
-        activeSheet = .morningSleep(summary)
+        activeSheet = .morningSleep(presentation)
+    }
+
+    /// Resume whatever the just-dismissed modal was covering. The sleep card
+    /// owns the wake-up moment, so it goes first; the 发芽 close-up follows once
+    /// the screen is genuinely free.
+    private func resumePendingHomeFlows() {
+        presentMorningSleepIfPossible()
+        maybeStartEnergyFlow()
     }
 
     private func startSoundscape() {
@@ -710,13 +727,13 @@ struct HomeView: View {
 private enum HomeSheetDestination: Equatable, Identifiable {
     case meal(MealType)
     case settings
-    case morningSleep(MorningSleepSummary)
+    case morningSleep(MorningSleepPresentation)
 
     var id: String {
         switch self {
         case .meal(let meal): "meal-\(meal.rawValue)"
         case .settings: "settings"
-        case .morningSleep(let summary): "morning-sleep-\(summary.wakeDayKey)"
+        case .morningSleep(let presentation): "morning-sleep-\(presentation.id)"
         }
     }
 }

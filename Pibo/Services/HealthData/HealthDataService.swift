@@ -79,6 +79,14 @@ final class HealthDataService {
     /// on it to gate the second fetch. Tracking UUIDs we've already yielded
     /// makes the dedup robust no matter how the two callers interleave.
     private var emittedWorkoutUUIDs: Set<UUID> = []
+    /// Coalesces concurrent sleep fetches. On a cold launch the observer fires
+    /// on registration while `refreshMorningSleep()` runs from the app's `.task`,
+    /// and each pass costs a sleep query plus five windowed quantity queries
+    /// (including 21 days of wrist temperature). Running the second pass *after*
+    /// the first, rather than alongside it, keeps every update without paying
+    /// twice. Mirrors `StressNotifier.isNotifying`.
+    private var isFetchingSleep = false
+    private var sleepFetchPending = false
     /// Last resting-HR reading, **App-Group-persisted** so `postStress()` can
     /// factor it into the stress tier even on a background heartbeat-series wake
     /// in a *fresh process* (where no `.restingHR` fetch has run this launch — an
@@ -382,6 +390,23 @@ final class HealthDataService {
     /// Build the complete latest session once, then feed both the existing raw
     /// pet-state event and the persisted morning notification/card pipeline.
     private func postSleep() async {
+        if isFetchingSleep {
+            // Fold the concurrent caller into the in-flight fetch; it re-runs
+            // once so a genuinely newer sample is never dropped.
+            sleepFetchPending = true
+            LPLog.healthKit.debug("postSleep: fetch already in flight, coalescing")
+            return
+        }
+        isFetchingSleep = true
+        defer { isFetchingSleep = false }
+
+        repeat {
+            sleepFetchPending = false
+            await fetchAndPostSleep()
+        } while sleepFetchPending
+    }
+
+    private func fetchAndPostSleep() async {
         guard let summary = await fetchLatestMorningSleepSummary() else {
             continuation.yield(.sleep(total: 0, deep: 0, rem: 0, start: nil))
             return

@@ -41,10 +41,44 @@ struct MorningSleepSummary: Codable, Equatable, Identifiable, Sendable {
     let sleepLatency: TimeInterval?
 
     /// Avoid turning a short incidental sample into the once-a-day morning
-    /// experience. An in-bed envelope is stronger evidence than duration;
-    /// without one, two hours is the inclusive lower bound for main sleep.
-    var isMorningEligible: Bool {
-        hasInBedSignal || total >= 2 * 60 * 60
+    /// experience, and never treat a still-growing session as a finished night.
+    /// Duration decides eligibility; quiet time (or a demonstrably awake user)
+    /// decides finality. All thresholds live in `pibo-core`.
+    func readiness(
+        now: Date = .now,
+        userIsInteracting: Bool
+    ) -> PiboCoreSleepAdapter.Readiness {
+        PiboCoreSleepAdapter.morningReadiness(
+            totalSeconds: total,
+            hasInBedSignal: hasInBedSignal,
+            hasTerminalAwakeSignal: hasTerminalAwakeSignal,
+            secondsSinceSessionEnd: now.timeIntervalSince(end),
+            userIsInteracting: userIsInteracting
+        )
+    }
+
+    /// The earliest moment this session could be considered finished. Used to
+    /// time a background notification and a foreground re-check.
+    var settledAt: Date {
+        end.addingTimeInterval(
+            PiboCoreSleepAdapter.morningSettleSeconds(
+                hasTerminalAwakeSignal: hasTerminalAwakeSignal
+            )
+        )
+    }
+
+    /// Whether this summary is still worth surfacing. Replaces a strict
+    /// "must be today" rule so a notification tapped after midnight resolves.
+    func isWithinCatchupWindow(now: Date = .now) -> Bool {
+        PiboCoreSleepAdapter.morningWithinCatchupWindow(
+            secondsSinceWakeDayStart: now.timeIntervalSince(wakeDay)
+        )
+    }
+
+    /// True once the wake-day is no longer the current calendar day — the card
+    /// then reads as a dated retrospective rather than "last night".
+    func isCatchUp(now: Date = .now) -> Bool {
+        !Calendar.current.isDate(wakeDay, inSameDayAs: now)
     }
 
     var wakeDayKey: String {
@@ -68,9 +102,14 @@ struct MorningSleepSummary: Codable, Equatable, Identifiable, Sendable {
 /// — NOT Pibo's tsundere/garbled register. Swap these strings freely; keep the
 /// tone plain.
 enum MorningSleepCopy {
-    static let notificationTitle = "昨晚睡眠已整理好"
-    static let notificationBody = "点开看看昨晚睡了多久，深睡、眼动和清醒的分布。"
+    /// Deliberately free of any time reference: the same notification serves a
+    /// morning riser, a night-shift worker waking mid-afternoon, and a summary
+    /// deferred out of the quiet band.
+    static let notificationTitle = "睡眠记录整理好了"
+    static let notificationBody = "点开看看这一觉睡了多久，深睡、眼动和清醒的分布。"
     static let cardPiboLine = "这是昨晚的睡眠记录，帮你做了个小结。"
+    /// Shown instead of `cardPiboLine` when the card is opened on a later day.
+    static let cardPiboCatchUpLine = "这是那天早上的睡眠记录，一直帮你留着。"
 }
 
 /// Pure 0–100 sleep score for **background use only** — it must never be shown

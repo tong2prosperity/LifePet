@@ -8,11 +8,13 @@ import SwiftUI
 struct MorningSleepCard: View {
     @Environment(\.dismiss) private var dismiss
 
-    let summary: MorningSleepSummary
+    let presentation: MorningSleepPresentation
     let appearance: PiboAppearance
     /// Built by the host (which owns store + history) so this view stays free of
     /// heavyweight @Environment and `#Preview` can pass a fixture directly.
     let weekly: SleepWeeklyReport
+
+    private var summary: MorningSleepSummary { presentation.summary }
 
     // A restrained nocturnal palette. Stage colors are the only hues that carry
     // meaning; everything else stays neutral ink.
@@ -67,7 +69,7 @@ struct MorningSleepCard: View {
                 .background(Circle().fill(LP.Colorful.purple100))
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(AppLocalization.text("昨夜睡眠"))
+                Text(titleText)
                     .lpText(LP.Typography.b2Medium)
                     .foregroundStyle(LP.Content.primary)
                 Text("\(Self.time.string(from: summary.start)) – \(Self.time.string(from: summary.end))")
@@ -114,7 +116,9 @@ struct MorningSleepCard: View {
         HStack(alignment: .center, spacing: LP.Spacing.s) {
             PiboPortraitView(appearance: appearance)
                 .frame(width: 30, height: 36)
-            Text(MorningSleepCopy.cardPiboLine)
+            Text(presentation.isCatchUp
+                 ? MorningSleepCopy.cardPiboCatchUpLine
+                 : MorningSleepCopy.cardPiboLine)
                 .lpText(LP.Typography.b4Regular)
                 .foregroundStyle(LP.Content.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -409,6 +413,20 @@ struct MorningSleepCard: View {
         formatter.dateFormat = "H:mm"
         return formatter
     }()
+
+    private static let day: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter
+    }()
+
+    /// A card opened on a later day is a dated retrospective, not "last night" —
+    /// saying 昨夜 there would misdate the night the user is looking at.
+    private var titleText: String {
+        guard presentation.isCatchUp else { return AppLocalization.text("昨夜睡眠") }
+        return "\(Self.day.string(from: summary.wakeDay))\(AppLocalization.text("的睡眠"))"
+    }
 }
 
 /// 7-night sleep-hours line with a soft area fill and the most recent night
@@ -497,34 +515,38 @@ private struct SleepSparkline: View {
         suggestions: ["最近睡眠质量不错，保持下去。"],
         trend: trend
     )
-    return MorningSleepCard(summary: MorningSleepSummary(
-        wakeDay: calendar.startOfDay(for: end),
-        generatedAt: .now,
-        start: start,
-        end: end,
-        total: 7.3 * 3_600,
-        core: 4.45 * 3_600,
-        deep: 75 * 60,
-        rem: 95 * 60,
-        awake: 18 * 60,
-        segments: [
-            SleepSegmentValue(start: start, end: deepEnd, stage: .deep),
-            SleepSegmentValue(start: deepEnd, end: coreEnd, stage: .core),
-            SleepSegmentValue(start: coreEnd, end: remEnd, stage: .rem),
-        ],
-        hasDetailedStages: true,
-        hasInBedSignal: true,
-        hasTerminalAwakeSignal: true,
-        awakeningCount: 2,
-        continuity: 0.93,
-        baselineDelta: 24 * 60,
-        overnightHRV: 46,
-        sleepingWristTemperature: 33.2,
-        sleepingWristTemperatureDelta: 0.2,
-        respiratoryRate: 14.2,
-        oxygenSaturation: nil,
-        sleepHeartRateAverage: 57,
-        sleepHeartRateMin: 49,
-        sleepLatency: 12 * 60
+    return MorningSleepCard(presentation: MorningSleepPresentation(
+        summary: MorningSleepSummary(
+            wakeDay: calendar.startOfDay(for: end),
+            generatedAt: .now,
+            start: start,
+            end: end,
+            total: 7.3 * 3_600,
+            core: 4.45 * 3_600,
+            deep: 75 * 60,
+            rem: 95 * 60,
+            awake: 18 * 60,
+            segments: [
+                SleepSegmentValue(start: start, end: deepEnd, stage: .deep),
+                SleepSegmentValue(start: deepEnd, end: coreEnd, stage: .core),
+                SleepSegmentValue(start: coreEnd, end: remEnd, stage: .rem),
+            ],
+            hasDetailedStages: true,
+            hasInBedSignal: true,
+            hasTerminalAwakeSignal: true,
+            awakeningCount: 2,
+            continuity: 0.93,
+            baselineDelta: 24 * 60,
+            overnightHRV: 46,
+            sleepingWristTemperature: 33.2,
+            sleepingWristTemperatureDelta: 0.2,
+            respiratoryRate: 14.2,
+            oxygenSaturation: nil,
+            sleepHeartRateAverage: 57,
+            sleepHeartRateMin: 49,
+            sleepLatency: 12 * 60
+        ),
+        isSettled: true,
+        isCatchUp: false
     ), appearance: .default, weekly: weekly)
 }

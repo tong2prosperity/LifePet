@@ -51,6 +51,11 @@ struct PiboApp: App {
         }
         AppNotificationRouter.shared.install()
         let h = HealthDataService(morningSleepCoordinator: morning)
+        // A night that is still settling gets a second look while the app stays
+        // open — once the last sample lands, no further observer wake-up comes.
+        morning.onRecheckNeeded = { [weak h] in
+            await h?.refreshMorningSleep()
+        }
         let s = PetStateStore(identity: id, snapshots: snaps, events: h.events)
         // Wire rollover → reconcile. The store doesn't know about
         // HealthDataService; this closure is the only seam.
@@ -178,10 +183,17 @@ struct PiboApp: App {
                     await WorkoutCompletionNotifier.shared.start()
                     morningSleep.setAppActive(scenePhase == .active)
                     if scenePhase == .active, health.authState == .granted {
-                        await health.requestMorningSleepEnrichmentAuthorizationIfNeeded()
                         await health.refreshMorningSleep()
                     }
                     morningSleep.presentLatestIfEligible()
+                    // The enrichment prompt is a system modal; asking for it
+                    // while a morning card is queued would either race the sheet
+                    // or bury it. It can wait for a launch with nothing pending.
+                    if scenePhase == .active,
+                       health.authState == .granted,
+                       morningSleep.pendingPresentation == nil {
+                        await health.requestMorningSleepEnrichmentAuthorizationIfNeeded()
+                    }
                     // Backfill the SwiftData history once per launch. On a real
                     // authorized device this is HK data; on a simulator with no
                     // HK, DEBUG-seed so the 二楼 is demonstrable.
@@ -245,9 +257,11 @@ struct PiboApp: App {
                         if health.authState == .granted {
                             LPLog.app.debug("Foreground reconcile triggered")
                             Task {
-                                await health.requestMorningSleepEnrichmentAuthorizationIfNeeded()
                                 await health.reconcile()
                                 morningSleep.presentLatestIfEligible()
+                                if morningSleep.pendingPresentation == nil {
+                                    await health.requestMorningSleepEnrichmentAuthorizationIfNeeded()
+                                }
                                 // Keep today's hourly-step grass fresh; the full
                                 // history backfill only runs once at launch.
                                 let hourly = await health.fetchTodayHourlySteps()

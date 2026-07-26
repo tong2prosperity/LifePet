@@ -45,9 +45,11 @@ Info.plist keys are usually generated from `INFOPLIST_KEY_*` build settings. Key
 
 ## Testing Guidelines
 
-No XCTest target exists yet. When adding tests, create `PiboTests`, mirror source paths where practical, and name files `TypeNameTests.swift`. Prioritize direct-data state derivation (6-state machine), 拍一拍 speech caps, 拔毛 grading, HealthKit event mapping/backfill, SwiftData history persistence, widget snapshots, membership entitlement handling, and CRC coupling logic.
+`PiboTests` (swift-testing) is wired into the `Pibo` scheme; run it with `xcodebuild test -project Pibo.xcodeproj -scheme Pibo -destination 'platform=iOS Simulator,name=iPhone 17'`. Mirror source paths where practical and name files `TypeNameTests.swift`. Suites that touch app-wide singletons (e.g. `StressNotifier.shared`) must be `@Suite(.serialized)`. Prioritize direct-data state derivation (6-state machine), 拍一拍 speech caps, 拔毛 grading, morning-sleep readiness/delivery, HealthKit event mapping/backfill, SwiftData history persistence, widget snapshots, membership entitlement handling, and CRC coupling logic.
 
-Until tests exist, run the relevant `xcodebuild ... build` command after implementation. For UI changes, include simulator screenshots or recordings where practical, especially for home SpriteKit, history, widgets/Live Activities, camera, and watch CRC surfaces.
+The suite is green; treat any failure as a regression. Sleep ingestion in particular is pinned by `PiboTests/PiboCoreSleepIntegrationTests.swift`, which encodes why HealthKit's ambiguous asleep value (`.asleep` == `.asleepUnspecified`) must resolve conservatively — see `CLAUDE.md` before changing that mapping.
+
+For UI changes, include simulator screenshots or recordings where practical, especially for home SpriteKit, history, widgets/Live Activities, camera, and watch CRC surfaces.
 
 ## Commit & Pull Request Guidelines
 

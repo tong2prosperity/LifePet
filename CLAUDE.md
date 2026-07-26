@@ -230,6 +230,63 @@ xcodebuild -project Pibo.xcodeproj -list
 
 # Clean.
 xcodebuild -project Pibo.xcodeproj -scheme Pibo clean
+
+# Unit tests (`PiboTests`, swift-testing; already wired into the `Pibo` scheme).
+xcodebuild test -project Pibo.xcodeproj -scheme Pibo \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
 
-There is no test target yet; add one via Xcode before trying `xcodebuild test`.
+**HealthKit's ambiguous asleep value.** `HKCategoryValueSleepAnalysis.asleep` and
+`.asleepUnspecified` are the same value (rawValue 1; iOS 16 only renamed it), so
+`PiboCoreSleepAdapter.coreSampleKind` cannot tell "modern API, stage unknown"
+from a pre-iOS-16 block that envelopes the real stages. It resolves that
+ambiguity to Core's `legacyAsleep`, and **both halves of that choice are
+load-bearing**: it keeps `hasDetailedStages` false for a phone-only sleep
+schedule (otherwise the card renders a fake 100%-浅睡 breakdown), and it makes
+`resolveSample` drop the span on a source that *does* carry stages — otherwise
+the enveloping block clips every interior stage away in
+`MorningSleepSessionBuilder.normalize` (a segment fully contained in the previous
+one is discarded). Core's `unspecified` kind stays reachable for platforms whose
+API separates the two. `PiboTests/PiboCoreSleepIntegrationTests.swift` pins both
+halves, including a characterization test for the clipping hazard.
+
+## Morning sleep summary (notification + card)
+
+`HealthDataService.postSleep` → `MorningSleepCoordinator.receive` → local
+notification / `pendingPresentation` → `HomeView.presentMorningSleepIfPossible` →
+`MorningSleepCard.onAppear → markPresented`. Reworked 2026-07-26; the rules that
+decide **when** a summary may reach the user live in `pibo-core` (`src/sleep.rs`,
+surfaced through `PiboCoreSleepAdapter`) — do not re-derive them in Swift:
+
+- **Readiness** (`morning_sleep_readiness`) — duration decides eligibility
+  (in-bed envelope, else ≥2h); *quiet time* decides finality (30 min, or 10 min
+  when the platform marked a terminal awake stage). A wearable writes a night in
+  batches, so a freshly synced batch is never proof the night is over. The app
+  being open shortens the terminal-awake wait to zero — the user holding the
+  phone is direct proof they are awake — but that shortcut does **not** count as
+  "settled" (see below).
+- **Delivery** (`morning_sleep_delivery`) — a finished night landing in the local
+  quiet band `[00:00, 05:00)` is deferred to 07:00 instead of pushed. The
+  deferred request stays *pending*, so a more complete summary simply replaces
+  it; that is what makes a partial overnight sync self-heal by morning. The same
+  decision gates the in-app card, so the two can never disagree.
+- **Upgrade** (`morning_sleep_supersedes`) — a card shown while the watch was
+  still syncing (final-by-interaction, i.e. `isSettled == false`) may be replaced
+  exactly once by a settled summary that adds ≥30 min. A settled night closes the
+  wake-day for good.
+- **Catch-up** (`morning_sleep_within_catchup_window`) — a summary stays
+  reachable for 36h from the start of its wake-day, so a notification tapped
+  after midnight still resolves. The coordinator keeps the last three nights in
+  `pibo.sleep.morning.summaries.v2`; `MorningSleepCard` switches to a dated title
+  when `isCatchUp`.
+
+Only a *settled* night feeds the 28-day baseline behind the card's
+「比平时多睡/少睡」 line. `presentMorningSleepIfPossible` asks the coordinator for a
+freshly validated `consumablePresentation()` rather than trusting the queued one,
+and every cover/sheet resumes queued flows from `onDismiss` — reacting to the
+presentation binding instead would present while the previous modal is still
+animating out, which SwiftUI silently drops.
+
+Rehearse without moving the device clock: the DEV settings row 「睡眠投递时刻」
+(`MorningSleepCoordinator.debugLocalHourOverride`) plus 「模拟睡眠通知」, or launch
+with `-PiboShowMorningSleep`.

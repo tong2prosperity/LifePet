@@ -113,3 +113,106 @@ import Testing
     #expect(session?.hasDetailedStages == false)
     #expect(abs((session?.total ?? 0) - 8 * 3_600) < 1)
 }
+
+// MARK: - Readiness / catch-up on the summary itself
+
+private func summaryFixture(
+    end: Date,
+    total: TimeInterval = 7 * 3_600,
+    hasInBedSignal: Bool = true,
+    hasTerminalAwakeSignal: Bool = false
+) -> MorningSleepSummary {
+    MorningSleepSummary(
+        wakeDay: Calendar.current.startOfDay(for: end),
+        generatedAt: end,
+        start: end.addingTimeInterval(-total),
+        end: end,
+        total: total,
+        core: total,
+        deep: 0,
+        rem: 0,
+        awake: 0,
+        segments: [],
+        hasDetailedStages: true,
+        hasInBedSignal: hasInBedSignal,
+        hasTerminalAwakeSignal: hasTerminalAwakeSignal,
+        awakeningCount: nil,
+        continuity: nil,
+        baselineDelta: nil,
+        overnightHRV: nil,
+        sleepingWristTemperature: nil,
+        sleepingWristTemperatureDelta: nil,
+        respiratoryRate: nil,
+        oxygenSaturation: nil,
+        sleepHeartRateAverage: nil,
+        sleepHeartRateMin: nil,
+        sleepLatency: nil
+    )
+}
+
+@Test func aFreshlySyncedNightIsProvisionalUntilItSettles() {
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    // The exact mid-night shape: hours of sleep already written, a terminal
+    // awake stage that is really a brief awakening, nothing quiet yet.
+    let partial = summaryFixture(
+        end: now,
+        total: 2.5 * 3_600,
+        hasTerminalAwakeSignal: true
+    )
+    #expect(partial.readiness(now: now, userIsInteracting: false) == .provisional)
+    #expect(partial.readiness(
+        now: now.addingTimeInterval(10 * 60),
+        userIsInteracting: false
+    ) == .final)
+    // Holding the phone settles it immediately — the user is demonstrably awake.
+    #expect(partial.readiness(now: now, userIsInteracting: true) == .final)
+
+    let noAwakeMarker = summaryFixture(end: now)
+    #expect(noAwakeMarker.readiness(now: now, userIsInteracting: true) == .provisional)
+    #expect(noAwakeMarker.readiness(
+        now: now.addingTimeInterval(30 * 60),
+        userIsInteracting: false
+    ) == .final)
+}
+
+@Test func anIncidentalNapNeverBecomesTheMorningCard() {
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    let nap = summaryFixture(
+        end: now,
+        total: 40 * 60,
+        hasInBedSignal: false,
+        hasTerminalAwakeSignal: true
+    )
+    #expect(nap.readiness(
+        now: now.addingTimeInterval(3 * 3_600),
+        userIsInteracting: true
+    ) == .notEligible)
+}
+
+@Test func settledAtTracksTheEvidenceLevel() {
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    #expect(abs(summaryFixture(end: now, hasTerminalAwakeSignal: true)
+        .settledAt.timeIntervalSince(now) - 10 * 60) < 0.001)
+    #expect(abs(summaryFixture(end: now)
+        .settledAt.timeIntervalSince(now) - 30 * 60) < 0.001)
+}
+
+@Test func aSummaryStaysReachableAcrossMidnightThenAgesOut() {
+    let calendar = Calendar.current
+    let end = calendar.date(
+        bySettingHour: 7, minute: 0, second: 0,
+        of: Date(timeIntervalSince1970: 1_700_000_000)
+    )!
+    let summary = summaryFixture(end: end)
+
+    #expect(summary.isWithinCatchupWindow(now: end))
+    #expect(!summary.isCatchUp(now: end))
+    // Tapped the notification well after midnight: still resolvable, but now
+    // presented as a dated retrospective rather than "last night".
+    let afterMidnight = end.addingTimeInterval(18 * 3_600)
+    #expect(summary.isWithinCatchupWindow(now: afterMidnight))
+    #expect(summary.isCatchUp(now: afterMidnight))
+    #expect(!summary.isWithinCatchupWindow(
+        now: calendar.startOfDay(for: end).addingTimeInterval(36 * 3_600 + 60)
+    ))
+}
