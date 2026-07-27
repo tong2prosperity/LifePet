@@ -1,9 +1,9 @@
-import SwiftUI
-import os
-import UIKit
-import Darwin
 import AVFoundation
+import Darwin
+import os
 import Speech
+import SwiftUI
+import UIKit
 
 /// First-launch onboarding for the 魔丸态 prototype. This ports the 0603 HTML
 /// flow into SwiftUI: Pibo falls to Earth, finds light through the camera,
