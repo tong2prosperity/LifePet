@@ -1,8 +1,4 @@
-import AVFoundation
-import CoreMotion
-import Observation
 import SwiftUI
-import Vision
 
 private enum SimpleDifficulty: String, CaseIterable, Identifiable {
     case easy
