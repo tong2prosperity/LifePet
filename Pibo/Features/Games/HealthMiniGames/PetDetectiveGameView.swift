@@ -1,8 +1,4 @@
-import AVFoundation
-import CoreMotion
-import Observation
 import SwiftUI
-import Vision
 
 // MARK: - Pet Detective
 

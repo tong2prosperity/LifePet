@@ -1,8 +1,4 @@
-import AVFoundation
-import CoreMotion
-import Observation
 import SwiftUI
-import Vision
 
 // MARK: - 原地踏步点灯
 private enum StepInputMode: String, CaseIterable, Identifiable {
