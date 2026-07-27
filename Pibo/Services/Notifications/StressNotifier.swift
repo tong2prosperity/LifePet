@@ -74,6 +74,15 @@ final class StressNotifier {
     /// (provisional counts).
     private(set) var authorized = false
 
+    /// Raised when the user taps a stress notification, cleared by `HomeView`
+    /// once it has opened the history surface on the 压力卡.
+    ///
+    /// A flag rather than a counter: the destination is idempotent, so two taps
+    /// arriving behind one presentation should still open it exactly once. It
+    /// also has to survive a **cold** launch — the tap can arrive before
+    /// `HomeView` exists, so the view checks it on appear as well as on change.
+    var pendingCardOpen = false
+
     /// In-flight guard: `maybeNotify` has `await` suspension points between the
     /// throttle check and the state write, and two HK triggers (observer +
     /// `reconcile`) can call it concurrently for the same reading. This blocks
@@ -206,6 +215,7 @@ final class StressNotifier {
                                               AppLocalization.text(level.displayName),
                                               Int(rmssd.rounded()))
         content.sound = .default
+        content.categoryIdentifier = AppNotificationCategory.stress
         let request = UNNotificationRequest(
             identifier: "pibo.stress.\(UUID().uuidString)",
             content: content,
@@ -216,6 +226,39 @@ final class StressNotifier {
             return true
         } catch {
             LPLog.app.error("stress verbose push add threw: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// Diagnostic push for a window that **was** measured but failed the quality
+    /// gates, so it produced no RMSSD. Only fires in the every-reading mode, whose
+    /// contract is "每次测量都提醒" — going silent on a rejected window would read
+    /// as "没在算", which is the one conclusion that mode exists to rule out.
+    @discardableResult
+    func notifySkippedReading() async -> Bool {
+        guard pushEnabled, notifyEveryReading else { return false }
+        guard !isNotifying else { return false }
+        isNotifying = true
+        defer { isNotifying = false }
+
+        await refreshAuthState()
+        guard authorized else { return false }
+
+        let content = UNMutableNotificationContent()
+        content.title = AppLocalization.text("压力测量")
+        content.body = AppLocalization.text("测到了，但这段心跳噪声太多，这次不作数。")
+        content.sound = .default
+        content.categoryIdentifier = AppNotificationCategory.stress
+        let request = UNNotificationRequest(
+            identifier: "pibo.stress.\(UUID().uuidString)",
+            content: content,
+            trigger: nil)
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            LPLog.app.notice("stress verbose push: series rejected")
+            return true
+        } catch {
+            LPLog.app.error("stress skipped push add threw: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }
@@ -257,6 +300,7 @@ final class StressNotifier {
         content.title = AppLocalization.text("Pibo")
         content.body = AppLocalization.text(kind.body(for: level))
         content.sound = .default
+        content.categoryIdentifier = AppNotificationCategory.stress
         let request = UNNotificationRequest(
             identifier: "pibo.stress.\(UUID().uuidString)",
             content: content,

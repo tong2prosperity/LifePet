@@ -81,5 +81,18 @@ enum StressScore {
         PiboCoreStressAdapter.tier(for: score)
     }
 
+    /// The 0…1 stress score projected onto the widget's 0–100 心情 bar.
+    ///
+    /// A presentation mapping, not scoring — it adds no thresholds of its own,
+    /// it just mirrors the anchor so "calm" reads high. It lives here rather
+    /// than in `PetStateStore` so 心情 and `tier(for:)` can be read side by side:
+    /// they must never contradict each other, and the boundaries line up on
+    /// purpose (score 0.70, the 超载 edge, lands on 心情 30, the `derivePetState`
+    /// 生病 edge — the worst stress tier is exactly when the widget's Pibo looks
+    /// unwell).
+    static func moodPoints(forAnchor anchor: Double) -> Int {
+        Int(((1 - clamp(anchor)) * 100).rounded())
+    }
+
     static func clamp(_ x: Double) -> Double { min(1, max(0, x)) }
 }

@@ -39,6 +39,7 @@ struct StressLogView: View {
 
     private var summary: some View {
         let notifiedCount = entries.filter(\.notified).count
+        let skippedCount = entries.filter(\.isSkipped).count
         return HStack(spacing: LP.Spacing.xs) {
             Text(AppLocalization.format("共 %d 次测量", entries.count))
                 .lpText(LP.Typography.c1Medium)
@@ -52,6 +53,14 @@ struct StressLogView: View {
             Text(AppLocalization.format("%d 次通知", notifiedCount))
                 .lpText(LP.Typography.c1Medium)
                 .foregroundStyle(LP.Fill.foundationAccent)
+            if skippedCount > 0 {
+                Text("·")
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(LP.Content.quarternary)
+                Text(AppLocalization.format("%d 次不合格", skippedCount))
+                    .lpText(LP.Typography.c1Medium)
+                    .foregroundStyle(LP.Content.quarternary)
+            }
             Spacer(minLength: 0)
         }
         .padding(.bottom, LP.Spacing.xs)
@@ -59,36 +68,44 @@ struct StressLogView: View {
 
     private func row(_ r: StressReading) -> some View {
         HStack(spacing: LP.Spacing.m) {
-            // Tier tag.
-            Text(AppLocalization.text(r.level.displayName))
+            // Tier tag — or a neutral marker when the window never produced one.
+            Text(AppLocalization.text(r.isSkipped ? "跳过" : r.level.displayName))
                 .lpText(LP.Typography.c1Medium)
-                .foregroundStyle(r.level.tint)
+                .foregroundStyle(r.isSkipped ? LP.Content.quarternary : r.level.tint)
                 .padding(.horizontal, LP.Spacing.s)
                 .padding(.vertical, 4)
-                .background(Capsule().fill(r.level.bg))
+                .background(Capsule().fill(r.isSkipped ? LP.Fill.bgSurfaceSecondary : r.level.bg))
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: LP.Spacing.xs) {
-                    Text(String(format: "%.0f", r.rmssd))
+                if r.isSkipped {
+                    Text(AppLocalization.text("测到了，但这段数据不合格"))
                         .lpText(LP.Typography.b2Medium)
-                        .foregroundStyle(LP.Content.primary)
-                    Text("RMSSD · ms")
-                        .lpText(LP.Typography.c2Regular)
-                        .foregroundStyle(LP.Content.quarternary)
-                    if r.synthetic {
-                        Text(AppLocalization.text("模拟"))
+                        .foregroundStyle(LP.Content.secondary)
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: LP.Spacing.xs) {
+                        Text(String(format: "%.0f", r.rmssd))
+                            .lpText(LP.Typography.b2Medium)
+                            .foregroundStyle(LP.Content.primary)
+                        Text("RMSSD · ms")
                             .lpText(LP.Typography.c2Regular)
                             .foregroundStyle(LP.Content.quarternary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(LP.Fill.bgSurfaceSecondary))
+                        if r.synthetic {
+                            Text(AppLocalization.text("模拟"))
+                                .lpText(LP.Typography.c2Regular)
+                                .foregroundStyle(LP.Content.quarternary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(LP.Fill.bgSurfaceSecondary))
+                        }
                     }
                 }
                 Text(timestamp(r.date))
                     .lpText(LP.Typography.c2Regular)
                     .foregroundStyle(LP.Content.tertiary)
 
-                Text(baselineDetail(r))
+                Text(r.isSkipped
+                     ? AppLocalization.text("心跳噪声太多（早搏 / 手表没戴稳），这次不作数")
+                     : baselineDetail(r))
                     .lpText(LP.Typography.c2Regular)
                     .foregroundStyle(LP.Content.quarternary)
             }

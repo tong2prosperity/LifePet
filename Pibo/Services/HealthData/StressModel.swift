@@ -136,9 +136,24 @@ enum StressHysteresis {
 /// self-inclusion bias. Only **resting** readings enter — active-time HRV is
 /// naturally low and would poison the baseline.
 enum StressBaselineStore {
-    private static let todayKey = "pibo.stress.today.v2"
-    private static let dailyKey = "pibo.stress.daily.v2"
-    private static let legacyKey = "pibo.stress.rmssd.window.v1"
+    /// **v3 = the local-median artifact rule** (see `HeartbeatSeriesReader.analyze`).
+    ///
+    /// The keys are versioned alongside the RMSSD algorithm and old values are
+    /// *not* migrated. A baseline is only meaningful against readings produced the
+    /// same way: the previous rule filtered on the successive difference itself and
+    /// so ran systematically low, and judging a v3 reading against a v2 baseline
+    /// would read as a large, permanent rise in HRV — every user parked at 优秀 for
+    /// weeks. Dropping the history costs `coldStartDays` (7) on population
+    /// thresholds, then a linear blend back to fully personal by day 14. That's the
+    /// honest trade; rescaling the old medians would need a conversion factor we
+    /// have no way to know.
+    private static let todayKey = "pibo.stress.today.v3"
+    private static let dailyKey = "pibo.stress.daily.v3"
+    private static let legacyKeys = [
+        "pibo.stress.rmssd.window.v1",
+        "pibo.stress.today.v2",
+        "pibo.stress.daily.v2",
+    ]
     /// Keep ~two months of daily medians.
     private static let maxDays = 60
 
@@ -177,10 +192,21 @@ enum StressBaselineStore {
     /// Personal baseline over the finalized daily medians (excludes today).
     static var baseline: StressBaseline? { stats(of: loadDaily()) }
 
+    /// That day's median resting RMSSD, if it has been finalized. This is the
+    /// only per-day RMSSD the app keeps — `HealthDayRecord` persists Apple's
+    /// SDNN, which is a different metric and not interchangeable — so it is what
+    /// the 体征 card reads for past days. `nil` for today (its bucket is still
+    /// open, so the live reading is the right source) and for any day with no
+    /// resting reading.
+    static func dailyMedian(for date: Date) -> Double? {
+        let dayStart = Calendar.current.startOfDay(for: date)
+        return loadDaily().first { $0.date == dayStart }?.median
+    }
+
     static func reset() {
         defaults.removeObject(forKey: todayKey)
         defaults.removeObject(forKey: dailyKey)
-        defaults.removeObject(forKey: legacyKey)
+        legacyKeys.forEach { defaults.removeObject(forKey: $0) }
     }
 
     // MARK: - Aggregation

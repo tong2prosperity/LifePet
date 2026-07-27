@@ -20,11 +20,11 @@ private struct RawMetrics {
     /// stress card drop a stale HR (e.g. a workout peak lingering as the latest
     /// sample) instead of reading it as current tension.
     var heartRateAt: Date? = nil
+    /// Apple's SDNN. Kept because HealthKit gives it for free and the 历史 record
+    /// persists it, but **nothing derives state from it** — 心情, the 压力卡 and
+    /// the stress push all read `rmssd` below. SDNN is a different metric (total
+    /// variability, slow components included) and reads systematically higher.
     var hrv: Double = 0
-    /// 7-day rolling baseline for HRV. `nil` until we accumulate enough
-    /// readings — until then we treat today's HRV as its own baseline so
-    /// 心情 sits at its 50 floor instead of swinging on a single sample.
-    var hrvBaseline: Double? = nil
     /// Latest RMSSD (ms) Pibo computes itself from the heartbeat series — the
     /// 压力卡's source, distinct from `hrv` (Apple SDNN). `nil` until a real
     /// reading lands (no simulator data).
@@ -347,8 +347,11 @@ final class PetStateStore {
     /// until a real reading lands. Distinct from `rawHRV` (Apple SDNN).
     var rmssd: Double? { raw.rmssd }
     /// Four-tier stress derived from `rmssd` vs the personal baseline + resting
-    /// HR. `nil` when no RMSSD reading yet. **Display-only** — deliberately not
-    /// fed into the mood formula / `recompute()`.
+    /// HR. `nil` when no RMSSD reading yet.
+    ///
+    /// Not the same thing as 心情, though both now come from RMSSD: this one
+    /// includes the resting-HR bump, while `computeMood` reads the pure
+    /// HRV-vs-baseline anchor. Two questions, one metric.
     var stressLevel: StressLevel? {
         guard let rmssd = raw.rmssd, rmssd > 0 else { return nil }
         return StressModel.level(rmssd: rmssd,
@@ -551,13 +554,11 @@ final class PetStateStore {
             }
         }
 
-        // Cold-launch HRV baseline load — reads up to 7 prior days of
-        // snapshots from disk and publishes `raw.hrvBaseline` so the first
-        // recompute that follows HK ingest derives mood against the right
-        // baseline instead of self-flooring at 50.
-        Task { [weak self] in
-            await self?.refreshBaseline()
-        }
+        // 心情's baseline now comes from `StressBaselineStore` (App Group,
+        // read on demand), so cold launch has nothing to preload — but the
+        // recompute that used to ride along still matters, to paint the restored
+        // stats before the first HK ingest lands.
+        refreshDerivedStats()
 
         // Cold-launch decay catchup. If app was killed for hours, this
         // applies the elapsed 4h ticks before the first ingest paints
@@ -747,13 +748,10 @@ final class PetStateStore {
         // dated against the old pet's session.
         decayPending = [:]
         saveLastDecayAt(Date())
-        // Drop the inherited HRV baseline — the new pet's UUID points at an
-        // empty snapshots dir, so any cached value from the old pet is
-        // meaningless. `refreshBaseline()` will publish `nil` and mood will
-        // floor at 50 until a few days of data accumulate under the new id.
-        Task { [weak self] in
-            await self?.refreshBaseline()
-        }
+        // The stress baseline is wiped separately by `StressBaselineStore.reset()`
+        // above, so there is no per-pet HRV cache left to drop here — just
+        // re-derive so the bars reflect the cleared state immediately.
+        refreshDerivedStats()
         publishWidgetSnapshot()
     }
 
@@ -847,13 +845,12 @@ final class PetStateStore {
         decayPending = [:]
         saveLastDecayAt(Date())
         LPLog.petState.notice("rollover — cleared day-bound state, awaiting reconcile (day=\(self.identity.daysSinceBirth, privacy: .public))")
-        // Refresh HRV baseline once the closing-day snapshot has landed —
-        // chaining via the same Task ensures the actor's serial queue
-        // executes the write before the read, so the new day picks up
-        // yesterday's HRV as part of its 7-day window.
+        // Re-derive once the closing-day snapshot has landed. Chaining via the
+        // same Task keeps the actor's serial queue ordering the write before the
+        // read, so the new day sees a finalized yesterday.
         Task { [weak self] in
             await closeWrite?.value
-            await self?.refreshBaseline()
+            self?.refreshDerivedStats()
         }
         publishWidgetSnapshot()
         onDayRollover?()
@@ -1028,52 +1025,23 @@ final class PetStateStore {
     private func finishPendingWorkoutActivity(for workout: PendingWorkout, completed: Bool) {}
     #endif
 
-    // MARK: - HRV baseline (PRD §3 心情)
+    // MARK: - Derived stats
 
-    /// Compute the HRV baseline from the last 7 prior days of snapshots and
-    /// publish it via `raw.hrvBaseline`. Triggers a `recompute()` so the
-    /// mood bar re-derives against the new baseline.
+    /// Re-derive the stat bars. Called on cold-launch restore, pet reset, and
+    /// day rollover — the moments where stored state changed underneath the last
+    /// computed values.
     ///
-    /// Window choice — last 7 days *excluding today*:
-    /// - "Baseline" = "what's normal for you," not "what you're doing now."
-    ///   Including today self-references and pulls mood toward 50.
-    /// - 7 days is enough to absorb a single bad night without flattening the
-    ///   signal.
+    /// This replaced `refreshBaseline()`, which averaged the last 7 days of
+    /// **SDNN** off disk to feed 心情. 心情 now reads Pibo's own RMSSD against
+    /// `StressBaselineStore`'s baseline (App Group, log-normal over daily
+    /// medians, read on demand), so there is nothing to preload — only the
+    /// recompute that call sites actually depended on.
     ///
-    /// Sample threshold — ≥ 3 prior days with `hrv > 0`:
-    /// - HRV requires the watch to be worn during sleep; users skip nights.
-    /// - With 1-2 samples the average is noisy enough to swing mood ±20
-    ///   between days. 3 is the smallest count that smooths that out.
-    /// - When the threshold isn't met, baseline stays `nil` → `computeMood`
-    ///   floors at 50 (its existing fallback).
-    ///
-    /// Idempotent + safe to call repeatedly. Demo mode short-circuits — we
-    /// don't want demo to carry baseline noise from a real prior session.
-    func refreshBaseline() async {
-        guard !demoMode else { return }
-        let petId = identity.currentPetId
-        // 8 = 7 prior days + today. We discard today below.
-        let entries = await snapshots.recent(petId: petId, days: 8)
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        let priorHRVs = entries
-            .filter { cal.startOfDay(for: $0.date) < today && $0.hrv > 0 }
-            .map(\.hrv)
-        let baseline: Double?
-        if priorHRVs.count >= 3 {
-            baseline = priorHRVs.reduce(0, +) / Double(priorHRVs.count)
-        } else {
-            baseline = nil
-        }
-        raw.hrvBaseline = baseline
-        let baselineStr = baseline.map { String(format: "%.1fms", $0) } ?? "nil"
-        LPLog.petState.notice("HRV baseline refreshed: \(baselineStr, privacy: .public) from \(priorHRVs.count, privacy: .public)/7 prior day(s)")
-        // Re-derive mood against the new baseline. Guarded by hasIngestedAny
-        // so we don't run the formula against an empty `RawMetrics` and slam
-        // the bars to 20/0/50 cold-start values.
-        if hasIngestedAny {
-            recompute()
-        }
+    /// Guarded by `hasIngestedAny` so the formulas never run against an empty
+    /// `RawMetrics` and slam the bars to their cold-start values.
+    func refreshDerivedStats() {
+        guard !demoMode, hasIngestedAny else { return }
+        recompute()
     }
 
     // MARK: - Decay (PRD §3)
@@ -1492,17 +1460,31 @@ final class PetStateStore {
     }
 
     private func computeMood() -> Int {
-        // PRD §3 心情 = 50 + (HRV_今 - HRV_基线)·0.8.
+        // 心情 rides **Pibo's own RMSSD** against the personal baseline, through
+        // the same `StressScore` kernel the 压力卡 and the stress push use — one
+        // judgment of how the wearer is doing, not a second opinion held only by
+        // the widget.
         //
-        // `raw.hrvBaseline` is populated by `refreshBaseline()` from the last
-        // 7 prior days of snapshots (≥3 valid samples required, else nil).
-        // Until enough history accumulates we fall back to today's own HRV
-        // as the baseline → contribution = 0 → mood floors at 50. That's the
-        // right cold-start behavior: a brand-new pet has no "normal" to
-        // compare against, so we don't pretend.
-        guard raw.hrv > 0 else { return 50 }
-        let baseline = raw.hrvBaseline ?? raw.hrv
-        return clamp(50 + Int((raw.hrv - baseline) * 0.8))
+        // It was `50 + (SDNN_today − SDNN_7day_mean) · 0.8`, which was wrong twice
+        // over. Apple's SDNN is a *different metric* from the RMSSD every other
+        // stress surface reads — it runs systematically higher and the gap widens
+        // as HRV rises — so the widget and the 压力卡 could disagree about the same
+        // moment and neither was reconcilable to the other. And `0.8` is a fixed
+        // ms→points rate, which assumes every wearer's HRV swings by the same
+        // amount: someone who moves ±5 ms never leaves 50, someone at ±20 ms
+        // saturates. The z-score inside `anchor` normalizes that per person.
+        //
+        // The anchor **expires**. `raw.rmssd` is never cleared, so without the
+        // cutoff a reading from last week would keep driving a widget that claims
+        // to be current — the same trap `DerivedStressModel` documents, and the
+        // reason it owns the bound rather than this call site inventing one.
+        guard let rmssd = raw.rmssd, rmssd > 0,
+              let measuredAt = raw.rmssdAt,
+              Date().timeIntervalSince(measuredAt) <= DerivedStressModel.maxAnchorAge,
+              let anchor = StressScore.anchor(rmssd: rmssd, baseline: stressBaseline)
+        else { return 50 }
+        // `anchor` is 0 (calm) … 1 (tense); 心情 is its mirror.
+        return clamp(StressScore.moodPoints(forAnchor: anchor))
     }
 
     private func derivePetState(v: Int, e: Int, m: Int) -> PetState {

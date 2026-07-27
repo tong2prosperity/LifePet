@@ -24,8 +24,20 @@ struct StressReading: Codable, Identifiable, Sendable, Equatable {
     var dayCount: Int?
     /// Whether the reading was at rest (entered the baseline). `nil` = legacy row.
     var isResting: Bool?
+    /// True when a heartbeat series **was** measured but its window failed the
+    /// quality gates (too many artifacts, too few usable differences), so no
+    /// RMSSD was produced. `nil`/false = a real reading.
+    ///
+    /// These rows exist because this log's entire job is answering "到底有没有在
+    /// 算". Omitting a rejected window would make a noisy-data user see an empty
+    /// list and conclude nothing runs — the exact wrong conclusion, drawn from the
+    /// exact screen built to prevent it.
+    var skipped: Bool?
 
     var level: StressLevel { StressLevel(rawValue: levelRaw) ?? .normal }
+
+    /// True when the window was measured but rejected — no usable RMSSD.
+    var isSkipped: Bool { skipped == true }
 
     /// True once the baseline drove the tier via personal z-score (vs. cold-start
     /// population thresholds).
@@ -95,6 +107,28 @@ enum StressLogStore {
               let decoded = try? JSONDecoder().decode([StressReading].self, from: data)
         else { return [] }
         return decoded.sorted { $0.date > $1.date }
+    }
+
+    /// Record that a heartbeat series was measured but rejected by the quality
+    /// gates. Carries no RMSSD — there isn't one — but keeps the log's count of
+    /// "how often did Pibo actually run" honest.
+    static func recordSkipped(date: Date = Date()) {
+        let reading = StressReading(
+            id: UUID(),
+            date: date,
+            rmssd: 0,
+            baseline: nil,
+            levelRaw: StressLevel.normal.rawValue,
+            notified: false,
+            synthetic: false,
+            z: nil,
+            dayCount: nil,
+            isResting: nil,
+            skipped: true)
+        var list = entries
+        list.append(reading)
+        if list.count > maxCount { list.removeFirst(list.count - maxCount) }
+        persist(list)
     }
 
     static func reset() {

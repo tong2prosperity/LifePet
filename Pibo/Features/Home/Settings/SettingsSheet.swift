@@ -586,6 +586,7 @@ struct SettingsSheet: View {
             "HRV(SDNN) 近30天: \(p.hrvCount) 条 · 最新 \(d(p.hrvLatest))",
             "心跳系列 近30天: \(p.seriesCount) 条 · 最新 \(d(p.seriesLatest))",
             "最新系列: \(p.rrCount) 拍 · RMSSD \(rmssd)",
+            "  质量: 伪迹 \(p.flagged) 拍 · 可用差值 \(p.diffs) 个",
         ].joined(separator: "\n")
 
         let verdict: String
@@ -598,7 +599,7 @@ struct SettingsSheet: View {
         } else if p.seriesCount == 0 {
             verdict = "→ 这 30 天手表没测到 HRV / 心跳系列。Apple 后台 HRV 很稀疏；在手表『正念』做一次 1–2 分钟呼吸可立刻生成一条，再来诊断。"
         } else {
-            verdict = "→ 系列存在但拍数不足以算 RMSSD（<2）。等一次更完整的测量。"
+            verdict = "→ 系列存在但这一条不合格：拍数太少，或伪迹过多被整窗丢弃（早搏 / 手表没戴稳都会）。等下一次测量，或看 Console 里的 `hrv rejected` 日志行确认是哪一种。"
         }
         return stats + "\n\n" + verdict
     }

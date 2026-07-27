@@ -14,15 +14,28 @@ import SwiftUI
 // for the tab bar is handled by the system.
 
 struct HistoryFloorView: View {
+    /// Deep-link target. Resolved to a tab **in `init`** rather than in
+    /// `onAppear`, so a routed open never flashes the default tab first.
+    var focus: HistoryFocus?
+
+    @State private var selection: FloorTab
+
+    private enum FloorTab: Hashable { case footprints, classic, custom }
+
+    init(focus: HistoryFocus? = nil) {
+        self.focus = focus
+        _selection = State(initialValue: focus == .stress ? .classic : .footprints)
+    }
+
     var body: some View {
-        TabView {
-            Tab("足迹", systemImage: "sparkles") {
+        TabView(selection: $selection) {
+            Tab("足迹", systemImage: "sparkles", value: FloorTab.footprints) {
                 PiboFootprintsView()
             }
-            Tab("原版", systemImage: "chart.bar.xaxis") {
-                PiboHistoryView()
+            Tab("原版", systemImage: "chart.bar.xaxis", value: FloorTab.classic) {
+                PiboHistoryView(focus: focus)
             }
-            Tab("自定义", systemImage: "wand.and.stars") {
+            Tab("自定义", systemImage: "wand.and.stars", value: FloorTab.custom) {
                 CustomPiboPage()
             }
         }

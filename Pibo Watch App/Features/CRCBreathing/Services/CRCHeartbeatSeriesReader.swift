@@ -1,15 +1,21 @@
 import Foundation
 import HealthKit
 
-/// Post-session **authoritative** RMSSD for the CRC trainer — mirrors the phone's
-/// `HeartbeatSeriesReader`, but scoped to a single training window.
+/// Post-session **authoritative** RMSSD for the CRC trainer — the same
+/// measurement the phone makes, scoped to a single training window.
 ///
 /// Unlike the live `CRCHRVEstimator` (which reads RSA off averaged BPM), this
 /// uses the real `HKHeartbeatSeriesSample`s the watch recorded *during* the
-/// session — genuine beat-to-beat timestamps → RR intervals → RMSSD with
-/// artifact rejection. There may be zero or several in a 5-minute window (the
+/// session — genuine beat-to-beat timestamps → RR intervals → RMSSD via the
+/// shared `HRVAnalysis`. There may be zero or several in a 5-minute window (the
 /// system samples opportunistically, favouring calm/still periods — which a
 /// breathing session usually is), so callers must handle `nil`.
+///
+/// The arithmetic is **not** duplicated here: this and the phone's
+/// `HeartbeatSeriesReader` both delegate to `HRVAnalysis`, so a session report
+/// and the next background stress reading can never disagree about the same
+/// wearer. Only the HealthKit enumeration is per-target (`HRVAnalysis` stays
+/// Foundation-only so the widget extension doesn't pull in HealthKit).
 enum CRCHeartbeatSeriesReader {
     /// Median RMSSD (ms) across every readable heartbeat series overlapping
     /// `[start, end]`, or `nil` if none yielded a trustworthy value. Median (not
@@ -19,8 +25,8 @@ enum CRCHeartbeatSeriesReader {
         guard !series.isEmpty else { return nil }
         var values: [Double] = []
         for s in series {
-            let rr = await rrIntervalsMs(for: s, store: store)
-            if let v = rmssd(rr) { values.append(v) }
+            let segments = await rrSegments(for: s, store: store)
+            if let v = HRVAnalysis.analyze(segments)?.rmssd { values.append(v) }
         }
         guard !values.isEmpty else { return nil }
         let sorted = values.sorted()
@@ -46,49 +52,41 @@ enum CRCHeartbeatSeriesReader {
         }
     }
 
-    /// Enumerate a series' beat timestamps → RR intervals (ms), dropping any beat
-    /// flagged `precededByGap` so we never bridge an interval across a hole.
-    private static func rrIntervalsMs(for series: HKHeartbeatSeriesSample,
-                                      store: HKHealthStore) async -> [Double] {
+    /// Enumerate a series' beat timestamps → **contiguous runs** of RR intervals
+    /// (ms), cut at every lost beat. Mirrors the phone's `rrSegments`; the split
+    /// is what stops a difference being formed between the interval before a hole
+    /// and the one after it, which are not temporally adjacent.
+    private static func rrSegments(for series: HKHeartbeatSeriesSample,
+                                   store: HKHealthStore) async -> [[Double]] {
         await withCheckedContinuation { continuation in
-            var rr: [Double] = []
+            var segments: [[Double]] = []
+            var current: [Double] = []
             var previous: TimeInterval?
             let query = HKHeartbeatSeriesQuery(heartbeatSeries: series) { _, timeSinceStart, precededByGap, done, error in
                 if error == nil {
                     if precededByGap {
+                        if current.count > 0 { segments.append(current) }
+                        current = []
                         previous = timeSinceStart
                     } else if let prev = previous {
-                        rr.append((timeSinceStart - prev) * 1000)   // seconds → ms
+                        current.append((timeSinceStart - prev) * 1000)   // seconds → ms
                         previous = timeSinceStart
                     } else {
                         previous = timeSinceStart
                     }
+                } else {
+                    // A skipped beat is a hole like any other — drop the anchor too,
+                    // or the next good beat differences back across it.
+                    if current.count > 0 { segments.append(current) }
+                    current = []
+                    previous = nil
                 }
-                if done { continuation.resume(returning: rr) }
+                if done {
+                    if current.count > 0 { segments.append(current) }
+                    continuation.resume(returning: segments)
+                }
             }
             store.execute(query)
         }
     }
-
-    /// RMSSD (ms) with artifact rejection — a successive difference counts only
-    /// when both RR intervals are physiologically plausible (~30–200 bpm) and
-    /// don't jump >20% (Malik ectopic criterion). Correct for real beat-to-beat
-    /// data (unlike the live BPM estimator, which must keep the breath swings).
-    static func rmssd(_ rrMs: [Double]) -> Double? {
-        guard rrMs.count >= 2 else { return nil }
-        var sumSq = 0.0
-        var n = 0
-        for (a, b) in zip(rrMs.dropLast(), rrMs.dropFirst()) {
-            guard plausibleRR(a), plausibleRR(b) else { continue }
-            guard abs(b - a) <= 0.2 * a else { continue }
-            let d = b - a
-            sumSq += d * d
-            n += 1
-        }
-        guard n >= 5 else { return nil }
-        return (sumSq / Double(n)).squareRoot()
-    }
-
-    /// RR interval within ~30–200 bpm.
-    private static func plausibleRR(_ ms: Double) -> Bool { ms >= 300 && ms <= 2000 }
 }

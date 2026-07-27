@@ -9,11 +9,18 @@ import os
 /// sample. Every periodic HRV measurement the watch records ships with an
 /// `HKHeartbeatSeriesSample` — a series of individual beat timestamps. We
 /// enumerate those, take successive differences to get **RR intervals (ms)**,
-/// drop any beat flagged `precededByGap` (a dropped/uncertain beat whose gap
-/// would poison the difference), and compute RMSSD (root-mean-square of
-/// successive RR differences). RMSSD is the short-window HRV metric most
-/// sensitive to acute stress, which is why it fits near-real-time monitoring
-/// better than SDNN.
+/// **split the run at any beat flagged `precededByGap`** (a dropped/uncertain
+/// beat: the intervals on either side of the hole are not temporally adjacent,
+/// so differencing across it is meaningless), and compute RMSSD (root-mean-square
+/// of successive RR differences) per segment. RMSSD is the short-window HRV
+/// metric most sensitive to acute stress, which is why it fits near-real-time
+/// monitoring better than SDNN.
+///
+/// **RMSSD ≠ SDNN.** Apple's `heartRateVariabilitySDNN` measures the *total*
+/// variability of the same window (slow components included); RMSSD only sees
+/// beat-to-beat. SDNN therefore reads systematically higher, and the gap widens
+/// as HRV rises. Comparing the two numbers directly is a category error —
+/// `latestSample` logs both precisely so that confusion can be settled with data.
 ///
 /// Availability: heartbeat series only exist on real hardware with a worn Apple
 /// Watch — the simulator has none. Callers must handle `nil`.
@@ -33,14 +40,34 @@ enum HeartbeatSeriesReader {
     }
 
     /// The newest heartbeat series as a `StressSample`, or `nil` if none is
-    /// readable (no series in the store, too few beats, or the type isn't
-    /// authorized).
+    /// readable (no series in the store, too few beats, too many artifacts, or
+    /// the type isn't authorized).
     static func latestSample(store: HKHealthStore) async -> StressSample? {
         guard let series = await latestSeries(store: store) else { return nil }
-        let rr = await rrIntervalsMs(for: series, store: store)
-        guard let value = rmssd(rr) else { return nil }
+        let measurement = HRVAnalysis.measure(await rrSegments(for: series, store: store))
+        let trusted = HRVAnalysis.isTrustworthy(measurement)
+        // Diagnostic: our RMSSD next to Apple's SDNN for the *same* window, plus
+        // how much of the window survived artifact rejection. This is what tells
+        // "our filter is eating real signal" apart from "the other app is simply
+        // showing SDNN". Cheap — one extra query per series (every 2–5h).
+        //
+        // Logged for **rejected** windows too, and before the gate: the trust
+        // gates are strict enough to drop a real reading, and a rejection that
+        // leaves no trace makes "为什么压力记录是空的" unanswerable — the counts
+        // here are exactly what says whether it was artifacts or a short series.
+        let sdnn = await sdnnMs(around: series, store: store)
+        LPLog.healthKit.notice("""
+            hrv \(trusted ? "ok" : "rejected", privacy: .public) \
+            rmssd=\(measurement.rmssd, format: .fixed(precision: 1), privacy: .public)ms \
+            sdnn=\(sdnn ?? -1, format: .fixed(precision: 1), privacy: .public)ms \
+            meanRR=\(measurement.meanRR, format: .fixed(precision: 0), privacy: .public)ms \
+            rr=\(measurement.rrCount, privacy: .public) \
+            flagged=\(measurement.flagged, privacy: .public) \
+            diffs=\(measurement.diffs, privacy: .public)
+            """)
+        guard trusted else { return nil }
         let resting = await isResting(during: series, store: store)
-        return StressSample(seriesID: series.uuid, rmssd: value,
+        return StressSample(seriesID: series.uuid, rmssd: measurement.rmssd,
                             date: series.startDate, isResting: resting)
     }
 
@@ -96,73 +123,78 @@ enum HeartbeatSeriesReader {
         }
     }
 
-    /// Enumerate a series' beat timestamps → RR intervals (ms).
-    /// `HKHeartbeatSeriesQuery` still uses the closure-callback API, so wrap it
-    /// in a continuation that resumes once, when `done == true`.
-    private static func rrIntervalsMs(for series: HKHeartbeatSeriesSample,
-                                      store: HKHealthStore) async -> [Double] {
+    /// Enumerate a series' beat timestamps → **contiguous runs** of RR intervals
+    /// (ms). `HKHeartbeatSeriesQuery` still uses the closure-callback API, so wrap
+    /// it in a continuation that resumes once, when `done == true`.
+    ///
+    /// Why segments and not one flat array: a beat flagged `precededByGap` means
+    /// the watch lost one or more beats before it. The RR *ending* at that beat is
+    /// unusable (we never append it), but so is the **difference** between the
+    /// interval before the hole and the interval after it — those two intervals
+    /// are not temporally adjacent. A flat array loses that boundary and
+    /// `zip(dropLast, dropFirst)` silently differences straight across it. Cutting
+    /// a new segment at every gap makes the boundary structural.
+    private static func rrSegments(for series: HKHeartbeatSeriesSample,
+                                   store: HKHealthStore) async -> [[Double]] {
         await withCheckedContinuation { continuation in
-            var rr: [Double] = []
+            var segments: [[Double]] = []
+            var current: [Double] = []
             var previous: TimeInterval?
             let query = HKHeartbeatSeriesQuery(heartbeatSeries: series) { _, timeSinceStart, precededByGap, done, error in
                 if error == nil {
                     if precededByGap {
-                        // The interval from the previous beat is unreliable — reset
-                        // the anchor so we never append an RR across the hole.
+                        // Close the run before the hole and re-anchor after it.
+                        if current.count > 0 { segments.append(current) }
+                        current = []
                         previous = timeSinceStart
                     } else if let prev = previous {
-                        rr.append((timeSinceStart - prev) * 1000)   // seconds → ms
+                        current.append((timeSinceStart - prev) * 1000)   // seconds → ms
                         previous = timeSinceStart
                     } else {
                         previous = timeSinceStart
                     }
+                } else {
+                    // A skipped beat is a hole like any other. Dropping the anchor
+                    // too is what stops the next good beat from differencing back
+                    // to a stale one across it — the same bridging hazard the gap
+                    // split exists to prevent.
+                    if current.count > 0 { segments.append(current) }
+                    current = []
+                    previous = nil
                 }
                 if done {
-                    continuation.resume(returning: rr)
+                    if current.count > 0 { segments.append(current) }
+                    continuation.resume(returning: segments)
                 }
             }
             store.execute(query)
         }
     }
 
-    /// RMSSD — root mean square of successive RR-interval differences, in ms.
-    /// Same math as the watch's `HRVCalculator`; duplicated here because that
-    /// type lives in the watch target and can't be imported across targets.
-    ///
-    /// Artifact rejection: RMSSD is acutely sensitive to ectopic/misdetected
-    /// beats — a single bad beat injects a huge successive difference that swamps
-    /// the true value. So a successive difference is only counted when **both**
-    /// RR intervals are physiologically plausible (`plausibleRR`, ~30–200 bpm)
-    /// **and** they don't jump more than 20% relative to each other (the Malik
-    /// criterion for ectopics). Pairs touching an artifact are dropped; because
-    /// each counted diff is a genuinely-adjacent pair, dropping one never bridges
-    /// two beats across the hole.
-    static func rmssd(_ rrMs: [Double]) -> Double? {
-        guard rrMs.count >= 2 else { return nil }
-        var sumSq = 0.0
-        var n = 0
-        for (a, b) in zip(rrMs.dropLast(), rrMs.dropFirst()) {
-            guard plausibleRR(a), plausibleRR(b) else { continue }
-            // Reject ectopic jumps: >20% change from the previous beat.
-            guard abs(b - a) <= 0.2 * a else { continue }
-            let d = b - a
-            sumSq += d * d
-            n += 1
+    /// Apple's own `heartRateVariabilitySDNN` for (approximately) the same window
+    /// as `series`. Diagnostic only — never feeds the stress tier. A ±60s slack
+    /// around the series covers the small offset between when the watch stamps the
+    /// series and when it stamps the derived SDNN sample.
+    private static func sdnnMs(around series: HKHeartbeatSeriesSample,
+                               store: HKHealthStore) async -> Double? {
+        await withCheckedContinuation { continuation in
+            let predicate = HKQuery.predicateForSamples(
+                withStart: series.startDate.addingTimeInterval(-60),
+                end: series.endDate.addingTimeInterval(60))
+            let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+            let query = HKSampleQuery(
+                sampleType: HKQuantityType(.heartRateVariabilitySDNN),
+                predicate: predicate,
+                limit: 1,
+                sortDescriptors: [sort]
+            ) { _, samples, _ in
+                let value = (samples?.first as? HKQuantitySample)?
+                    .quantity.doubleValue(for: .secondUnit(with: .milli))
+                continuation.resume(returning: value)
+            }
+            store.execute(query)
         }
-        // A genuine ~1-min HRV series yields dozens of successive differences; if
-        // artifact rejection leaves only a handful, the series is too noisy to
-        // classify — return nil (skip the reading) rather than emit a wild RMSSD
-        // off 1–2 beats.
-        guard n >= minValidDiffs else { return nil }
-        return (sumSq / Double(n)).squareRoot()
     }
-
-    /// Minimum artifact-free successive differences for a trustworthy RMSSD.
-    private static let minValidDiffs = 5
-
-    /// Physiologically plausible RR interval in ms: ~30–200 bpm. Anything outside
-    /// is a dropped/spurious beat, not a real heartbeat interval.
-    private static func plausibleRR(_ ms: Double) -> Bool { ms >= 300 && ms <= 2000 }
 
     #if DEBUG
     /// One end-to-end probe of the stress data path, for the settings DEV
@@ -179,24 +211,35 @@ enum HeartbeatSeriesReader {
         var seriesLatest: Date?
         var rrCount: Int
         var rmssd: Double?
+        /// RR intervals the newest series had rejected as artifacts, and the
+        /// successive differences that survived. When `rmssd` is nil these two
+        /// say *which* gate failed — noisy data vs. too short a series.
+        var flagged: Int
+        var diffs: Int
     }
 
     static func diagnose(store: HKHealthStore) async -> StressProbe {
         guard HKHealthStore.isHealthDataAvailable() else {
             return StressProbe(healthAvailable: false, hrvCount: 0, hrvLatest: nil,
-                               seriesCount: 0, seriesLatest: nil, rrCount: 0, rmssd: nil)
+                               seriesCount: 0, seriesLatest: nil, rrCount: 0, rmssd: nil,
+                               flagged: 0, diffs: 0)
         }
         let (hrvCount, hrvLatest) = await countAndLatest(HKQuantityType(.heartRateVariabilitySDNN), store: store)
         let (seriesCount, seriesLatest) = await countAndLatest(HKSeriesType.heartbeat(), store: store)
 
-        var rr: [Double] = []
+        var segments: [[Double]] = []
         if let series = await latestSeries(store: store) {
-            rr = await rrIntervalsMs(for: series, store: store)
+            segments = await rrSegments(for: series, store: store)
         }
+        let analysis = HRVAnalysis.analyze(segments)
+        let measurement = HRVAnalysis.measure(segments)
         return StressProbe(healthAvailable: true,
                            hrvCount: hrvCount, hrvLatest: hrvLatest,
                            seriesCount: seriesCount, seriesLatest: seriesLatest,
-                           rrCount: rr.count, rmssd: rmssd(rr))
+                           rrCount: segments.reduce(0) { $0 + $1.count },
+                           rmssd: analysis?.rmssd,
+                           flagged: measurement.flagged,
+                           diffs: measurement.diffs)
     }
 
     /// Count samples of a type in the last 30 days + the newest one's start.

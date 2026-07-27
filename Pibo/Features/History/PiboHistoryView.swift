@@ -14,6 +14,9 @@ struct PiboHistoryView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(HealthHistoryStore.self) private var history
 
+    /// Card to scroll to on open (notification deep link). `nil` = top of page.
+    var focus: HistoryFocus?
+
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: .now)
 
     private let cal = Calendar.current
@@ -24,14 +27,17 @@ struct PiboHistoryView: View {
         let _ = history.revision
         let day = makeDay(selectedDate)
 
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: LP.Spacing.s) {
-                header
-                dateSection
-                cardsStack(day)
-                Color.clear.frame(height: LP.Spacing.xxl)
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: LP.Spacing.s) {
+                    header
+                    dateSection
+                    cardsStack(day)
+                    Color.clear.frame(height: LP.Spacing.xxl)
+                }
+                .padding(.top, 88)   // clear the #E8EEF1 dome ceiling crown (drawn on top)
             }
-            .padding(.top, 88)   // clear the #E8EEF1 dome ceiling crown (drawn on top)
+            .task { await scrollToFocus(using: proxy) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Transparent — the opaque rising surface is `FloorContainer`'s single drawer
@@ -104,19 +110,50 @@ struct PiboHistoryView: View {
             if !day.workouts.isEmpty {
                 HistoryWorkoutsCard(workouts: day.workouts)
             }
-            if day.heartRate > 0 || day.restingHR > 0 || day.hrv > 0 || day.oxygen > 0 {
+            if day.heartRate > 0 || day.restingHR > 0 || day.rmssd > 0 || day.oxygen > 0 {
                 HistoryVitalsCard(
                     heartRate: day.heartRate, restingHR: day.restingHR,
-                    hrv: day.hrv, oxygen: day.oxygen)
+                    rmssd: day.rmssd, stressLevel: stressTier(day.rmssd),
+                    oxygen: day.oxygen)
             }
             // 压力 — today only. 派生分随每分钟心率刷新（HRV 锚点 + 心率调制）。
             if day.isToday, let stress = store.derivedStress {
                 HistoryStressCard(stress: stress, rmssd: store.rmssd, baseline: store.stressBaseline)
+                    .id(HistoryFocus.stress)
             }
             HistoryFoodCard(foods: day.foods)
             HistoryDoodleCard(doodles: day.doodles)
         }
         .padding(.horizontal, LP.Spacing.xl)
+    }
+
+    /// Tier for a day's RMSSD against the personal baseline. Routed through
+    /// `StressScore` so the 体征 tile, the 压力卡 and the notification all judge by
+    /// the same `pibo-core` kernel — this view must not carry its own cut-offs.
+    /// `nil` while the baseline is still cold-starting, which the tile says out
+    /// loud rather than dressing a population guess as a personal read.
+    private func stressTier(_ rmssd: Double) -> StressLevel? {
+        guard rmssd > 0, let baseline = store.stressBaseline,
+              baseline.dayCount >= StressScore.coldStartDays else { return nil }
+        return StressScore.anchor(rmssd: rmssd, baseline: baseline).map(StressScore.tier(for:))
+    }
+
+    // MARK: - Deep link
+
+    /// Scroll the routed card into view once the page has laid out.
+    ///
+    /// The frame delay is load-bearing: `cardsStack` is built from `makeDay`,
+    /// whose SwiftData reads land after the first layout pass, so scrolling
+    /// immediately targets an id that doesn't exist yet. A no-op is also the
+    /// correct outcome when the card genuinely isn't there — the 压力卡 renders
+    /// only for today and only with a derived score — so this never needs to
+    /// verify the target, just to ask after the page has settled.
+    private func scrollToFocus(using proxy: ScrollViewProxy) async {
+        guard let focus else { return }
+        try? await Task.sleep(for: .milliseconds(350))
+        withAnimation(.easeInOut(duration: 0.35)) {
+            proxy.scrollTo(focus, anchor: .center)
+        }
     }
 
     // MARK: - Data assembly
@@ -142,7 +179,10 @@ struct PiboHistoryView: View {
         var sleepSegments: [SleepSegmentValue]
         var heartRate: Double
         var restingHR: Double
-        var hrv: Double
+        var hrv: Double             // Apple SDNN — legacy, no longer displayed
+        /// Our own RMSSD for this day. Today = the live reading; past days = that
+        /// day's finalized median resting reading. A different metric from `hrv`.
+        var rmssd: Double
         var oxygen: Double          // fraction 0–1
         var workouts: [WorkoutRecord]
         var foods: [FoodPhoto]
@@ -178,6 +218,7 @@ struct PiboHistoryView: View {
                 heartRate: store.rawHeartRate,
                 restingHR: store.rawRestingHR,
                 hrv: store.rawHRV,
+                rmssd: store.rmssd ?? 0,
                 oxygen: store.rawOxygen,
                 workouts: workouts, foods: foods, doodles: doodles)
         }
@@ -201,6 +242,7 @@ struct PiboHistoryView: View {
             heartRate: r?.heartRateAvg ?? 0,
             restingHR: r?.restingHR ?? 0,
             hrv: r?.hrv ?? 0,
+            rmssd: StressBaselineStore.dailyMedian(for: date) ?? 0,
             oxygen: r?.oxygenSaturation ?? 0,
             workouts: workouts, foods: foods, doodles: doodles)
     }

@@ -323,13 +323,29 @@ final class HealthDataService {
         // first — a single `limit:1` query — and skip the expensive per-beat RR
         // enumeration + workout-overlap read when we've already processed it. The
         // synchronous check+set below still guards the rare concurrent race.
-        if let newestID = await HeartbeatSeriesReader.latestSeriesID(store: store),
-           newestID == StressLogStore.lastProcessedSeriesID {
+        guard let newestID = await HeartbeatSeriesReader.latestSeriesID(store: store) else {
+            LPLog.healthKit.debug("postStress: no heartbeat series in store")
+            return
+        }
+        guard newestID != StressLogStore.lastProcessedSeriesID else {
             LPLog.healthKit.debug("postStress: newest series already processed, skipping enumeration")
             return
         }
         guard let sample = await HeartbeatSeriesReader.latestSample(store: store) else {
-            LPLog.healthKit.debug("postStress: no readable heartbeat series")
+            // A window we *rejected* still counts as processed. A heartbeat series
+            // is immutable once written, so it will never become usable — but the
+            // dedup marker used to be set only on success, which meant every
+            // foreground `reconcile()` re-ran the full RR enumeration and emitted
+            // the same rejection log line again. That was harmless while almost
+            // nothing was rejected; with the artifact/quality gates it is not.
+            StressLogStore.lastProcessedSeriesID = newestID
+            // Record it as a measurement that happened but yielded nothing. Both
+            // surfaces that answer "有没有在算" — the 压力测量记录 list and the
+            // every-reading diagnostic push — would otherwise go silent exactly
+            // when the data is bad, which reads as "没在算".
+            StressLogStore.recordSkipped()
+            await StressNotifier.shared.notifySkippedReading()
+            LPLog.healthKit.debug("postStress: newest series unusable — marked processed")
             return
         }
         // Dedup: the observer (fires on registration) and every foreground

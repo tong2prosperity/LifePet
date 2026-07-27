@@ -49,6 +49,12 @@ struct PiboApp: App {
         AppNotificationRouter.shared.onMorningSleepOpened = { [weak morning] wakeDay, isMock in
             morning?.handleNotificationOpen(wakeDayKey: wakeDay, isMock: isMock)
         }
+        // Tapping a stress push lands on the 压力卡. Raised here rather than
+        // presented directly because the tap can arrive on a cold launch, before
+        // any view exists — `HomeView` drains the flag once it's on screen.
+        AppNotificationRouter.shared.onStressOpened = {
+            StressNotifier.shared.pendingCardOpen = true
+        }
         AppNotificationRouter.shared.install()
         let h = HealthDataService(morningSleepCoordinator: morning)
         // A night that is still settling gets a second look while the app stays

@@ -1,12 +1,21 @@
 import SwiftUI
 
-/// 体征 card — a 2×2 grid of vital tiles: 实时心率 / 静息心率 / 压力水平(HRV) /
+/// 体征 card — a 2×2 grid of vital tiles: 实时心率 / 静息心率 / HRV(RMSSD) /
 /// 血氧(SpO2), each a tinted tile with a qualitative word + value (Figma
 /// `body status content` 1405:4320).
 struct HistoryVitalsCard: View {
     let heartRate: Double      // bpm
     let restingHR: Double      // bpm
-    let hrv: Double            // SDNN ms
+    /// **Our own** RMSSD (`HRVAnalysis`), not Apple's `heartRateVariabilitySDNN`.
+    /// The tile used to show SDNN under a 「压力水平」 label while the 压力卡 right
+    /// below showed the RMSSD-derived index — two different numbers both
+    /// presented as "压力". SDNN reads systematically higher than RMSSD and the
+    /// gap widens as HRV rises, so they can never be reconciled by eye.
+    let rmssd: Double          // ms
+    /// Tier for `rmssd`, judged against the personal baseline by the caller.
+    /// Passed in rather than derived here so the scoring thresholds stay in
+    /// `pibo-core` — this view owns presentation only.
+    let stressLevel: StressLevel?
     let oxygen: Double         // fraction 0–1
 
     var body: some View {
@@ -39,9 +48,9 @@ struct HistoryVitalsCard: View {
                   tint: LP.Colorful.orange500, bg: LP.Colorful.orange100)
     }
     private var stressTile: VitalTile {
-        VitalTile(icon: "figure.mind.and.body", title: "压力水平",
-                  qualifier: hrv <= 0 ? "暂无" : (hrv >= 50 ? "放松" : (hrv >= 30 ? "一般" : "紧张")),
-                  value: hrv > 0 ? String(format: "%.1f", hrv) : "—", unit: "ms",
+        VitalTile(icon: "figure.mind.and.body", title: "HRV",
+                  qualifier: rmssd > 0 ? (stressLevel?.displayName ?? "个人化中") : "暂无",
+                  value: rmssd > 0 ? String(format: "%.0f", rmssd) : "—", unit: "ms",
                   tint: LP.Colorful.yellow500, bg: LP.Colorful.yellow100)
     }
     private var oxygenTile: VitalTile {

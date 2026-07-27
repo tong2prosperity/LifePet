@@ -17,6 +17,10 @@ struct HomeView: View {
     @Environment(HealthHistoryStore.self) private var history
     @Environment(PiboSpeechService.self) private var piboSpeech
     @Environment(MorningSleepCoordinator.self) private var morningSleep
+    /// Carries the "user tapped a stress push" request from the notification
+    /// router into this view (see `presentStressCardIfPossible`).
+    @Environment(StressNotifier.self) private var stressNotifier
+
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var speech: PiboSpeechLine? = nil
@@ -24,6 +28,10 @@ struct HomeView: View {
     @State private var showCamera = false
     @State private var showGames = false
     @State private var showHistory = false
+    /// Card the history cover should land on. Set only by the stress-notification
+    /// deep link; the 足迹 icon opens with `nil` (top of the 足迹 tab).
+    @State private var historyFocus: HistoryFocus?
+
     @State private var showWalkDoodle = false
     @State private var activeSheet: HomeSheetDestination?
     #if DEBUG
@@ -175,6 +183,15 @@ struct HomeView: View {
             if ProcessInfo.processInfo.arguments.contains("-PiboShowMorningSleep") {
                 morningSleep.debugPresentFixture()
             }
+            // Rehearse the stress-notification deep link without a real push:
+            // raise the same flag the router raises, so the whole
+            // present-history → 原版 tab → scroll-to-压力卡 path runs. Seed first —
+            // the 压力卡 renders only when a derived score exists, and a bare
+            // simulator has no heartbeat series to produce one.
+            if ProcessInfo.processInfo.arguments.contains("-PiboOpenStressCard") {
+                store.debugSeedStressIfNeeded()
+                stressNotifier.pendingCardOpen = true
+            }
             #endif
             if store.pendingWorkout != nil {
                 Task {
@@ -184,6 +201,7 @@ struct HomeView: View {
             }
             startSoundscape()
             presentMorningSleepIfPossible()
+            presentStressCardIfPossible()
         }
         .onDisappear {
             soundscape.setPresentation(.suspended)
@@ -217,6 +235,9 @@ struct HomeView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { presentMorningSleepIfPossible() }
         }
+        .onChange(of: stressNotifier.pendingCardOpen) { _, _ in
+            presentStressCardIfPossible()
+        }
         .onChange(of: sproutPhase) { _, phase in
             if phase == .idle { resumePendingHomeFlows() }
         }
@@ -235,8 +256,11 @@ struct HomeView: View {
                 .environment(store)
                 .environment(history)
         }
-        .fullScreenCover(isPresented: $showHistory, onDismiss: resumePendingHomeFlows) {
-            HistoryScreen()
+        .fullScreenCover(isPresented: $showHistory, onDismiss: {
+            historyFocus = nil
+            resumePendingHomeFlows()
+        }) {
+            HistoryScreen(focus: historyFocus)
                 .environment(store)
                 .environment(history)
         }
@@ -677,7 +701,24 @@ struct HomeView: View {
     /// the screen is genuinely free.
     private func resumePendingHomeFlows() {
         presentMorningSleepIfPossible()
+        presentStressCardIfPossible()
         maybeStartEnergyFlow()
+    }
+
+    /// Open the history surface on the 压力卡 after a stress notification tap.
+    ///
+    /// The request is a flag on `StressNotifier` rather than a direct present,
+    /// because the tap can land at any moment — including a cold launch before
+    /// this view exists, and while another cover is already up. Presenting over a
+    /// live modal is silently dropped by SwiftUI, so when the screen is busy the
+    /// flag simply stays raised and `resumePendingHomeFlows` retries from the next
+    /// `onDismiss`.
+    private func presentStressCardIfPossible() {
+        guard stressNotifier.pendingCardOpen else { return }
+        guard !fullScreenFeaturePresented, activeSheet == nil else { return }
+        stressNotifier.pendingCardOpen = false
+        historyFocus = .stress
+        showHistory = true
     }
 
     private func startSoundscape() {

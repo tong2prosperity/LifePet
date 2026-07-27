@@ -1,0 +1,152 @@
+import XCTest
+@testable import Pibo
+
+/// Pins the RMSSD contract in `HRVAnalysis.analyze`.
+///
+/// The rule these replaced filtered on the successive difference itself
+/// (reject when `|b − a| > 0.2 · a`), which could only ever bias RMSSD
+/// downward and did so harder the higher the true HRV. The tests below fix the
+/// two properties that rule violated — an artifact-free window must survive
+/// **intact**, and artifact rejection must key off an interval being an
+/// outlier, not off the size of the thing being measured.
+@MainActor
+final class HRVAnalysisTests: XCTestCase {
+
+    // MARK: - Fixtures
+
+    /// A strong but entirely physiological respiratory oscillation: RR swinging
+    /// 727…1073 ms (HR ≈ 56–83) on a ~6-beat breathing cycle. Every successive
+    /// difference here is real signal.
+    private func rsaSeries(count: Int = 48, mean: Double = 900, amplitude: Double = 200) -> [Double] {
+        (0..<count).map { mean + amplitude * sin(Double($0) * .pi / 3) }
+    }
+
+    /// The textbook definition, with no artifact handling at all — the value
+    /// `analyze` must reproduce exactly when there is nothing to reject.
+    private func referenceRMSSD(_ rr: [Double]) -> Double {
+        let diffs = zip(rr.dropFirst(), rr.dropLast()).map(-)
+        return (diffs.map { $0 * $0 }.reduce(0, +) / Double(diffs.count)).squareRoot()
+    }
+
+    // MARK: - Clean windows must pass through untouched
+
+    func testConstantAlternationMatchesHandComputedRMSSD() throws {
+        // 42 intervals alternating 900/940 → every successive difference is ±40,
+        // so RMSSD is exactly 40 by inspection.
+        let rr = (0..<42).map { $0.isMultiple(of: 2) ? 900.0 : 940.0 }
+
+        let analysis = try XCTUnwrap(HRVAnalysis.analyze([rr]))
+
+        XCTAssertEqual(analysis.rmssd, 40, accuracy: 1e-9)
+        XCTAssertEqual(analysis.diffs, rr.count - 1)
+        XCTAssertEqual(analysis.flagged, 0)
+    }
+
+    /// The core regression. A large, smooth RSA oscillation is exactly what the
+    /// old 20%-of-previous-RR rule destroyed: it rejected the 727→900 rise
+    /// (173 ms > 0.2 · 727) while keeping the identical 900→727 fall, deleting
+    /// one difference per breathing cycle and pulling RMSSD down with it.
+    /// Nothing here is an artifact, so nothing may be dropped.
+    func testRespiratoryOscillationSurvivesArtifactRejectionIntact() throws {
+        let rr = rsaSeries()
+
+        let analysis = try XCTUnwrap(HRVAnalysis.analyze([rr]))
+
+        XCTAssertEqual(analysis.flagged, 0, "a smooth oscillation contains no artifacts")
+        XCTAssertEqual(analysis.diffs, rr.count - 1, "every successive difference must be counted")
+        XCTAssertEqual(analysis.rmssd, referenceRMSSD(rr), accuracy: 1e-9)
+        XCTAssertEqual(analysis.meanRR, rr.reduce(0, +) / Double(rr.count), accuracy: 1e-9)
+    }
+
+    // MARK: - Artifacts must be rejected
+
+    /// A premature beat writes a short interval followed by a compensatory long
+    /// one. Both break the local pattern, so both are flagged — as is the
+    /// neighbour whose local median they drag — and every difference touching
+    /// them leaves the sum. RMSSD stays near the clean value instead of being
+    /// swamped by one bad beat, and the window still yields a reading.
+    func testEctopicPairIsRejectedRatherThanSwampingRMSSD() throws {
+        let clean = rsaSeries()
+        var dirty = clean
+        dirty[20] = 450     // premature beat
+        dirty[21] = 1350    // compensatory pause
+
+        let cleanRMSSD = try XCTUnwrap(HRVAnalysis.analyze([clean])).rmssd
+        let analysis = try XCTUnwrap(HRVAnalysis.analyze([dirty]),
+                                     "one ectopic must not cost the whole reading")
+
+        // The test has teeth only if the raw series really is wrecked.
+        XCTAssertGreaterThan(referenceRMSSD(dirty), 1.5 * cleanRMSSD)
+
+        XCTAssertGreaterThanOrEqual(analysis.flagged, 2)
+        XCTAssertLessThan(analysis.rmssd, 1.3 * cleanRMSSD)
+        XCTAssertGreaterThan(analysis.rmssd, 0.7 * cleanRMSSD)
+    }
+
+    /// Past the artifact budget the surviving beats are no longer a fair sample
+    /// of the window — and since rejection removes the extremes, what's left
+    /// reads systematically low. Discard the window instead of reporting it.
+    func testWindowIsDiscardedWhenArtifactShareExceedsBudget() {
+        var rr = rsaSeries()
+        for i in [6, 16, 26, 36] { rr[i] = 2500 }   // 4/48 ≈ 8.3% > 5%
+
+        XCTAssertNil(HRVAnalysis.analyze([rr]))
+    }
+
+    func testTooFewSurvivingDifferencesYieldsNoReading() {
+        XCTAssertNil(HRVAnalysis.analyze([rsaSeries(count: 10)]))
+        XCTAssertNil(HRVAnalysis.analyze([]))
+        XCTAssertNil(HRVAnalysis.analyze([[900]]))
+    }
+
+    /// A window that fails the trust gates must still report its numbers. The
+    /// gates are strict enough to drop real readings, and they arrive only every
+    /// 2–5h — a rejection that collapses to a bare `nil` leaves "为什么压力记录是
+    /// 空的" with no way to tell artifacts apart from a short series.
+    func testRejectedWindowStillReportsItsNumbers() {
+        var rr = rsaSeries()
+        for i in [6, 16, 26, 36] { rr[i] = 2500 }
+
+        XCTAssertNil(HRVAnalysis.analyze([rr]))
+
+        let measurement = HRVAnalysis.measure([rr])
+        XCTAssertFalse(HRVAnalysis.isTrustworthy(measurement))
+        XCTAssertEqual(measurement.rrCount, rr.count)
+        XCTAssertGreaterThan(measurement.flagged, 4)
+        XCTAssertGreaterThan(measurement.diffs, 0)
+        XCTAssertGreaterThan(measurement.meanRR, 0)
+    }
+
+    /// Degenerate input must not divide by zero on its way to being rejected.
+    func testEmptyInputMeasuresToZeroWithoutTrapping() {
+        for empty in [[], [[]], [[900.0]]] as [[[Double]]] {
+            let measurement = HRVAnalysis.measure(empty)
+            XCTAssertEqual(measurement.rmssd, 0)
+            XCTAssertEqual(measurement.diffs, 0)
+            XCTAssertFalse(HRVAnalysis.isTrustworthy(measurement))
+        }
+    }
+
+    // MARK: - Gap boundaries
+
+    /// Beats lost to a dropout split the run. The interval before the hole and
+    /// the interval after it are not temporally adjacent, so no difference may
+    /// be formed across the boundary — which is what a single flat array would
+    /// silently do.
+    func testGapBoundaryProducesNoCrossSegmentDifference() throws {
+        let first = rsaSeries(count: 24, mean: 900)
+        let second = rsaSeries(count: 24, mean: 600)   // HR jumps across the hole
+
+        let split = try XCTUnwrap(HRVAnalysis.analyze([first, second]))
+        let flattened = try XCTUnwrap(HRVAnalysis.analyze([first + second]))
+
+        // The hazard, stated directly: dropping the boundary invents one extra
+        // "successive" difference between two intervals that never touched.
+        XCTAssertEqual(flattened.diffs, first.count + second.count - 1)
+        XCTAssertEqual(split.diffs, (first.count - 1) + (second.count - 1))
+
+        // Both runs carry the same oscillation, so the honest answer is just that
+        // oscillation — the step between them must not enter the sum.
+        XCTAssertEqual(split.rmssd, referenceRMSSD(first), accuracy: 1e-9)
+    }
+}

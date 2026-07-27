@@ -5,6 +5,9 @@ nonisolated enum AppNotificationCategory {
     static let morningSleep = "pibo.notification.morning-sleep"
     static let morningSleepMock = "pibo.notification.morning-sleep.mock"
     static let workoutCompleted = "pibo.notification.workout-completed"
+    /// Stress readings + the every-reading diagnostic. Tapping opens the history
+    /// surface focused on the 压力卡 — the screen the notification is about.
+    static let stress = "pibo.notification.stress"
     static let wakeDayUserInfoKey = "piboWakeDay"
     static let workoutIDUserInfoKey = "piboWorkoutID"
 }
@@ -17,6 +20,8 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = AppNotificationRouter()
 
     var onMorningSleepOpened: ((String?, Bool) -> Void)?
+    /// Fired when a stress notification is tapped.
+    var onStressOpened: (() -> Void)?
 
     private override init() {
         super.init()
@@ -45,6 +50,10 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse
     ) async {
         let category = response.notification.request.content.categoryIdentifier
+        if category == AppNotificationCategory.stress {
+            await MainActor.run { [weak self] in self?.onStressOpened?() }
+            return
+        }
         guard category == AppNotificationCategory.morningSleep
                 || category == AppNotificationCategory.morningSleepMock
         else { return }
