@@ -1,8 +1,5 @@
-import AVFoundation
-import CoreMotion
 import Observation
 import SwiftUI
-import Vision
 
 // MARK: - Train of Thought
 
