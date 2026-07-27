@@ -286,7 +286,7 @@ struct PiboPlant: View {
 
 /// The exact Figma single-leaf fill path (Group 83 / Vector 41), viewBox
 /// 45.6353 × 127.067.
-struct PiboFigmaLeafShape: Shape {
+private struct PiboFigmaLeafShape: Shape {
     func path(in r: CGRect) -> Path {
         let w: CGFloat = 45.6353, h: CGFloat = 127.067
         var p = Path()
@@ -311,7 +311,7 @@ struct PiboFigmaLeafShape: Shape {
 }
 
 /// The leaf's white center vein (Vector 42).
-struct PiboFigmaLeafVein: Shape {
+private struct PiboFigmaLeafVein: Shape {
     func path(in r: CGRect) -> Path {
         let w: CGFloat = 45.6353, h: CGFloat = 127.067
         var p = Path()
@@ -325,7 +325,7 @@ struct PiboFigmaLeafVein: Shape {
 }
 
 /// A pointed leaf — used by the `sprout` variant.
-struct PiboLeafShape: Shape {
+private struct PiboLeafShape: Shape {
     func path(in r: CGRect) -> Path {
         var p = Path()
         p.move(to: CGPoint(x: r.midX, y: r.maxY))
