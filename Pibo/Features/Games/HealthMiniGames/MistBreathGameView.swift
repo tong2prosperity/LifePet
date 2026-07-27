@@ -1,8 +1,6 @@
 import AVFoundation
-import CoreMotion
 import Observation
 import SwiftUI
-import Vision
 
 private struct PiboBlobView: View {
     let tint: Color
@@ -308,7 +306,7 @@ private struct MistLayer: View {
 }
 
 @Observable
-final class BreathAudioInput {
+private final class BreathAudioInput {
     var level = 0.0
     var isRunning = false
     var statusText = "准备吹气"
