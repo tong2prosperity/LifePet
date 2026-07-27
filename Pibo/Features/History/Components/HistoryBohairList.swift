@@ -39,7 +39,7 @@ struct HistoryBohairList: View {
 
 /// A flat green seedling glyph (stem + two leaves) — stands in for the Figma
 /// `bohair` sprout vector (1194:1147) without shipping a raster asset.
-struct SproutGlyph: View {
+private struct SproutGlyph: View {
     var color: Color = LP.Colorful.green500
 
     var body: some View {

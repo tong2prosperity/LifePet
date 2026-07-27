@@ -34,7 +34,7 @@ struct HistoryCard<Background: View, Content: View>: View {
 }
 
 /// Card title row — `pt16 / pb8 / px20`, b3Medium (Figma `card header` 1374:855).
-struct HistoryCardHeader: View {
+private struct HistoryCardHeader: View {
     let title: String
     var dark: Bool = false
 
