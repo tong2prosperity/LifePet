@@ -1,8 +1,4 @@
-import AVFoundation
-import CoreMotion
-import Observation
 import SwiftUI
-import Vision
 
 private enum NBackLevel: Int, CaseIterable, Identifiable {
     case one = 1
