@@ -9,7 +9,7 @@ extension LP {
         case warm        // #f4f0e4 — quote block, inline code
         case kraft       // #e7e3d9 — secondary / section background
 
-        var color: Color {
+        fileprivate var color: Color {
             switch self {
             case .app:   return LP.Colors.paper
             case .stage: return LP.Colors.paperCool

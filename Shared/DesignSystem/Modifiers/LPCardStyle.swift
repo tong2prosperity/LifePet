@@ -7,7 +7,7 @@ extension LP {
         case sage        // P1 — health, social, achievement
         case ghost       // draft / unlocked-later (dashed)
 
-        var fill: Color {
+        fileprivate var fill: Color {
             switch self {
             case .default: return LP.Colors.paperCard
             case .coral:   return LP.Colors.coralSoft
@@ -16,7 +16,7 @@ extension LP {
             }
         }
 
-        var stroke: Color {
+        fileprivate var stroke: Color {
             switch self {
             case .default, .ghost: return LP.Colors.ink
             case .coral:           return LP.Colors.coral
@@ -24,7 +24,7 @@ extension LP {
             }
         }
 
-        var isDashed: Bool {
+        fileprivate var isDashed: Bool {
             switch self {
             case .ghost:                   return true
             case .default, .coral, .sage:  return false

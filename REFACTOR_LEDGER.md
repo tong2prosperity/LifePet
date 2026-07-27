@@ -54,7 +54,7 @@
 
 | #   | 模块 | 扇入 | 层级 | 状态 | commit | 备注 |
 | --- | ---- | ---- | ---- | ---- | ------ | ---- |
-| 1 | `Shared/DesignSystem/Modifiers/`（4 文件 213 行） | 0–1 | 叶子 | TODO | | 每文件一个 modifier，已很干净；预期只做 import 顺序 + 可见性收敛 |
+| 1 | `Shared/DesignSystem/Modifiers/`（4 文件 213 行） | 0–1 | 叶子 | DONE | 840df74 | 4 处成员 internal→fileprivate。import 本已最小且有序、两个 helper struct 本已 private，故未动。**观察**：整个目录在 App 三个 target 里零引用，只剩 `Shared/DesignSystem/` 内部 `#Preview` 在用（消费者 图鉴/一起 已于 2026-06-13 移除）；`lpStampedCard` 连 preview 外都无人调用。按 RULES 不删，留人工。 |
 | 2 | `Pibo/Features/Games/HealthMiniGames/SpeedMatchGameView.swift`（349 行 3 类型） | 1 | 叶子 | TODO | | 抽出 `SpeedMatchCard` / `SpeedMatchPace` 到同级文件 |
 | 3 | `Pibo/Features/Games/HealthMiniGames/MemoryMatrixGameView.swift`（417 行 3 类型） | 1 | 叶子 | TODO | | 抽出 `SimpleDifficulty` / `MemoryMatrixCellButtonStyle`；难度值持久化键在 PiboPersistenceKeys，不动 |
 | 4 | `Pibo/Features/Games/HealthMiniGames/TrainThoughtGameView.swift`（368 行 4 类型） | 1 | 叶子 | TODO | | model / stage / view 分离 |
