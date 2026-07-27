@@ -109,8 +109,8 @@
 | 48 | `Pibo/Services/Backend/APIClient.swift` | 中层 | SKIP | | actor 跨 MainActor 访问，占基线 16 条告警；挪代码即改隔离域 |
 | 49 | `Pibo Watch App/Features/CRCBreathing/**`（8 文件 2014 行） | 中层 | SKIP | | CoreMotion + HealthKit workout session 实时耦合，无测试 |
 | 50 | `Pibo/App/PiboApp.swift`、`Pibo/App/RootView.swift`、`Pibo Watch App/App/*`、`PiboWidgets/PiboWidgetsBundle.swift` | 根 | SKIP | | 入口 + 初始化顺序语义（源码原注释即写着 "Order matters"） |
-| 51 | `Shared/Connectivity/` + `Pibo/Services/Connectivity/` + `Pibo Watch App/Services/Connectivity/`（WCSession 时代孤岛） | 叶子 | SKIP | | 已确认只被自己人引用，但 RULES 白名单只放行"静态分析判定不可达"的删除，本仓库无此工具 → 留人工决策，agent 不得删 |
-| 52 | `Pibo/Services/{LiveCoding,MusicGeneration,Visualization}/` + `Playback/{AudioPlayer,FFTTap,MemorialAudioPlayer}.swift`（音乐生成时代孤岛） | 叶子 | SKIP | | 同 #51 |
+| 51 | `Shared/Connectivity/` + `Pibo/Services/Connectivity/` + `Pibo Watch App/Services/Connectivity/`（WCSession 时代孤岛） | 叶子 | DONE | 69b3339 | 经人工放行后删除（2026-07-27）。**连带删除了手表 `Features/Recording/`（2 文件）与 `Features/Start/`（1 文件）**：`RecordingViewModel` 是全仓库唯一引用 `WatchConnectivitySender` 的地方，不一并删则 sender 无法移除；CLAUDE.md 本就把三者与 sender 同列为 WCSession 时代死码，且手表 `RootView` 只挂 `CRCTrainingView`，整条链路不可达。 |
+| 52 | `Pibo/Services/{LiveCoding,MusicGeneration,Visualization}/` + `Playback/{AudioPlayer,FFTTap,MemorialAudioPlayer}.swift`（音乐生成时代孤岛） | 叶子 | DONE | 69b3339 | 经人工放行后删除（2026-07-27）。查证结论：**这不是废弃功能，是从未接通的脚手架**——岛外零引用，6 处 TODO 桩，`HTTPMusicGenerationClient.generate()` 直接 `throw "Not implemented"`，`FFTTap.install()` 从不 `installTap`；唯一写完的是 `VitalsToMusicMapping`（HR→BPM / HRV→density / SpO₂→brightness）。`MemorialAudioPlayer` 性质不同——实现完整，只是消费方 Catalog 图鉴详情已于 2026-06-13 删除；本次一并删除并移除 6 个 `memorial_*.mp3`（1.4 MB），即确认纪念曲玩法不再做。 |
 | 53 | `Pibo/Features/Games/MiniGameShell.swift`（721 行 16 类型） | 根 | SKIP | | 扇入 89，是全部 23 个小游戏的公共外壳；改一次要跟着改 3 个以上文件才能编过 |
 | 54 | `Pibo/Features/Home/HomeView.swift`（1005 行）、`Pibo/Features/Games/HuarongRoadView.swift`（1465 行 18 类型）、`Pibo/Features/Games/HealthMiniGames/MirrorPetalsGameView.swift`（720 行） | 中层 | SKIP | | too-wide：单文件超 700 行且与舞台/相机/UIKit 互操作耦合，本轮不拆；下一轮单独立项 |
 
@@ -125,12 +125,13 @@
 
 ## 汇总（全部处理完后由 agent 填写）
 
-- **DONE：31 个**
-  - 有 commit 的 20 个：#1–#9、#11、#12、#14、#16、#17、#22、#26、#28、#29、#30、#34
+- **DONE：33 个**
+  - 有 commit 的 22 个：#1–#9、#11、#12、#14、#16、#17、#22、#26、#28、#29、#30、#34，
+    以及后续经人工放行的删除 #51、#52（同一 commit `69b3339`）
   - 「白名单内无可做项」不改动的 11 个：#10、#13、#15、#20、#21、#23、#24、#25、#27、#32、#33
 - **SKIPPED：3 个**
   - `verify-failed` 3 个：#18、#19、#31 —— 三者根因相同，见下方第 1 条
-- **SKIP（人工预判，主循环未进入）：20 个**：#35–#54
+- **SKIP（人工预判，主循环未进入）：18 个**：#35–#50、#53、#54（#51/#52 已由人工放行并删除）
 - **未处理：0**
 - 收尾验证（clean 构建，与基线同口径）：`** BUILD SUCCEEDED **`、`** TEST SUCCEEDED **`、
   **30 条告警且逐文件分布与基线完全一致**（APIClient 16 / PiboCameraView 9 /
@@ -153,9 +154,14 @@
 2. **真正的结构债集中在 `Features/Games/`**：17 个小游戏文件共用同一段复制粘贴的 5 行
    import，其中 AVFoundation / CoreMotion / Vision / Observation 在多数文件里一处未用。
    本轮已全部清理（10 个 commit）。其余目录的 import 本就干净。
-3. **两个死代码孤岛仍在**（#51 WCSession 170 行 / #52 音乐生成 282 行，合计 452 行）。
-   已确认只被自己人引用，但 RULES 白名单只放行「静态分析判定不可达」的删除，
-   本仓库无此工具 → 需人工拍板。
+3. ~~两个死代码孤岛仍在~~ → **已于 2026-07-27 经人工放行删除**（commit `69b3339`，23 文件 593 行 + 1.4 MB mp3）。
+   查证时发现「音乐生成」并非废弃功能而是**从未接通的脚手架**（6 处 TODO 桩、`generate()` 直接抛
+   `Not implemented`、`FFTTap.install()` 从不 `installTap`），只有 `VitalsToMusicMapping` 写完了。
+   实际删除范围比 initializer 估的 452 行更大：`WatchConnectivitySender` 被手表 `RecordingViewModel`
+   钉住，连带删了 `Features/{Recording,Start}/`（CLAUDE.md 本就把它们同列为 WCSession 死码）。
+   **删除后新产生两个孤儿**，留给下一轮：`Pibo Watch App/Services/Health/HRVCalculator.swift`
+   （原仅被 RecordingViewModel 使用）与 `Shared/Models/VitalSnapshot.swift`（现已无任何引用者；
+   同目录的 `VitalSession`/`VitalSample`/`VitalKind` 仍被在用的手表 CRC 与 `WorkoutSessionManager` 引用，不可删）。
 4. **`Shared/DesignSystem/Modifiers/` 与 LP 暖色组件在 App 三个 target 里零引用**，
    只剩 `Shared/DesignSystem/` 内部的 `#Preview` 在用（消费者 图鉴/一起 已于 2026-06-13 移除）；
    `lpStampedCard` 连 preview 之外都无人调用。同样按 RULES 未删。
