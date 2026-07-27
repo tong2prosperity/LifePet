@@ -1,5 +1,5 @@
-import SwiftUI
 import Foundation
+import SwiftUI
 
 /// 今日脚步 card — big step count over a plant landscape with a time ruler
 /// (Figma `activity card` 1374:529 / `walk data-v` 186:1023). The waking window
