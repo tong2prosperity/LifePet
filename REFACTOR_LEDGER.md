@@ -54,40 +54,40 @@
 
 | #   | 模块 | 扇入 | 层级 | 状态 | commit | 备注 |
 | --- | ---- | ---- | ---- | ---- | ------ | ---- |
-| 1 | `Shared/DesignSystem/Modifiers/`（4 文件 213 行） | 0–1 | 叶子 | DONE | 840df74 | 4 处成员 internal→fileprivate。import 本已最小且有序、两个 helper struct 本已 private，故未动。**观察**：整个目录在 App 三个 target 里零引用，只剩 `Shared/DesignSystem/` 内部 `#Preview` 在用（消费者 图鉴/一起 已于 2026-06-13 移除）；`lpStampedCard` 连 preview 外都无人调用。按 RULES 不删，留人工。 |
-| 2 | `Pibo/Features/Games/HealthMiniGames/SpeedMatchGameView.swift`（349 行 3 类型） | 1 | 叶子 | TODO | | 抽出 `SpeedMatchCard` / `SpeedMatchPace` 到同级文件 |
-| 3 | `Pibo/Features/Games/HealthMiniGames/MemoryMatrixGameView.swift`（417 行 3 类型） | 1 | 叶子 | TODO | | 抽出 `SimpleDifficulty` / `MemoryMatrixCellButtonStyle`；难度值持久化键在 PiboPersistenceKeys，不动 |
-| 4 | `Pibo/Features/Games/HealthMiniGames/TrainThoughtGameView.swift`（368 行 4 类型） | 1 | 叶子 | TODO | | model / stage / view 分离 |
-| 5 | `Pibo/Features/Games/HealthMiniGames/MistBreathGameView.swift`（423 行 6 类型） | 1 | 叶子 | TODO | | `BreathAudioInput` 涉及麦克风采集，只搬不改 |
-| 6 | `Pibo/Features/Games/HealthMiniGames/DualNBackGameView.swift`（425 行） | 1 | 叶子 | TODO | | |
-| 7 | `Pibo/Features/Games/HealthMiniGames/{StepLights,BellSquat,BreathFloat,PetDetective}GameView.swift`（1072 行） | 1 | 叶子 | TODO | | 四个文件都不大，一起做 import + 可见性；不拆文件则 diff 很小 |
-| 8 | `Pibo/Features/Games/ArcadeMiniGames/{WaterTiming,PiboRunner}GameView.swift`（804 行 8 类型） | 1 | 叶子 | TODO | | 各自抽 model / stage |
-| 9 | `Pibo/Features/Games/ArcadeMiniGames/FlowerMergeGameView.swift`（509 行 7 类型） | 1 | 叶子 | TODO | | |
-| 10 | `Pibo/Features/Games/ArcadeMiniGames/RhythmTapGameView.swift`（523 行 6 类型） | 1 | 叶子 | TODO | | `RhythmAudioClock` 是音频时钟，只搬不改 |
-| 11 | `Pibo/Features/Games/ArcadeMiniGames/{PotStack,IdleGarden}GameView.swift`（420 行） | 1 | 叶子 | TODO | | IdleGarden 的种子/地块存 UserDefaults，键不动 |
-| 12 | `Pibo/Features/History/Components/` ① 小卡片：`HistoryCard` / `HistoryDateBar` / `HistoryActivityCard` / `HistoryDoodleCard` / `HistoryVitalsCard` / `HistoryBohairList`（427 行） | 1–10 | 叶子 | TODO | | |
-| 13 | `Pibo/Features/History/Components/` ② `HistoryFoodCard` / `HistoryWorkoutsCard` / `HistoryStressCard` / `HistorySleepWeeklyCard`（427 行） | 1–2 | 叶子 | TODO | | SleepWeeklyCard 有 1 条基线告警，比对时按文件看 |
-| 14 | `Pibo/Features/History/Components/HistoryStepsCard.swift`（386 行 6 类型） | 2 | 叶子 | TODO | | 抽 `GrassField` / `PlantView` / `TickRuler`；植物分级阈值是数据映射，一个数都不改 |
-| 15 | `Pibo/Features/History/Components/HistorySleepCard.swift`（609 行 5 类型） | 2 | 叶子 | TODO | | 抽 `SleepClouds` / `SleepTimelineGeometry` / `TimelineCloud`；有测试覆盖（`sleepTimeline*`），是本轮少数有网的模块 |
-| 16 | `Pibo/Features/History/Footprints/FootprintsData.swift`（347 行 5 类型） | 17 | 叶子 | TODO | | 纯值类型，一类型一文件 |
-| 17 | `Pibo/Features/History/Footprints/FootprintsComponents.swift`（588 行 9 类型） | 10 | 叶子 | TODO | | 拆成 2 组（卡片 / 度量条）；超 400 行就在本行下面加行再来 |
-| 18 | `Pibo/Features/History/Footprints/FootprintsDetailSheets.swift` ①（830 行 9 类型，先抽 4 个 DetailView） | 1 | 叶子 | TODO | | 一定要拆两轮，整文件搬移必然超 400 行 diff |
-| 19 | `Pibo/Features/History/Footprints/FootprintsDetailSheets.swift` ②（余下 DetailView + `FootprintsSheetHeader`） | 1 | 叶子 | TODO | | 依赖 #18 先完成 |
-| 20 | `Pibo/Features/History/Footprints/{FootprintsDayContent,FootprintsTrendView}.swift`（797 行） | 1–3 | 叶子 | TODO | | |
-| 21 | `Pibo/Services/Backend/` DTO 组：`AuthDTOs` / `EconomyDTOs` / `MembershipDTOs` / `JSONCoding` / `APIError` / `APIConfig`（285 行） | 2–12 | 叶子 | TODO | | **只整理排列，不动任何 `CodingKeys` 与字段名**——都是 pibo-server 的线协议 |
-| 22 | `Pibo/Services/Backend/` 服务组：`AuthService` / `EconomyService` / `EconomySyncCoordinator` / `TokenStore` / `BackendSelfTest` / `HealthSampleDTO+HealthKit`（465 行） | 1–5 | 叶子 | TODO | | `APIClient.swift` 不在本行，见 #35 |
-| 23 | `Shared/DesignSystem/Components/`（8 文件 710 行） | 1–3 | 叶子 | TODO | | 已是一文件一组件；预期只做 import + 可见性收敛，diff 很小 |
-| 24 | `Pibo/Features/Customize/`（2 文件 436 行） | 4–5 | 叶子 | TODO | | |
-| 25 | `Pibo/Services/Audio/{AmbientSoundscapeService,SoundscapeResolver}.swift`（370 行） | 1–7 | 中层 | TODO | | 有 `SoundscapeTests` 覆盖；音频资源按文件名查找，资源名不动 |
-| 26 | `Shared/DesignSystem/Pibo/PiboComponents.swift`（377 行 13 类型） | 11 | 中层 | TODO | | 13 个 `Shape` 拆分到 `Shapes/`；纯几何，无状态 |
-| 27 | `Shared/DesignSystem/Pibo/{PiboPortraitView,PiboAppearance}.swift`（459 行） | 6–17 | 中层 | TODO | | |
-| 28 | `Pibo/Features/Games/MiniGameAssets.swift` ①（727 行 28 类型，先抽前半） | 21 | 中层 | TODO | | 必须拆两轮 |
-| 29 | `Pibo/Features/Games/MiniGameAssets.swift` ②（余下） | 21 | 中层 | TODO | | 依赖 #28 |
-| 30 | `Pibo/Features/Onboarding/HealthAuthView.swift` ①（1420 行 12 类型，先抽 `GlitchNoiseView` / `LightBeamView` / `RedGlitchIonFlowView` 等纯视觉件） | 6 | 中层 | TODO | | 有 2 条基线告警在本文件；`OnboardingVoiceInputController` 与 `LightCaptureVerifier` 留到 #31 |
-| 31 | `Pibo/Features/Onboarding/HealthAuthView.swift` ②（`Palette` / `OnboardingScene` / `PiboOnboardingBlob` / `PiboOnboardingHeadSprite`） | 6 | 中层 | TODO | | 依赖 #30。`OnboardingVoiceInputController`（麦克风权限 + 弃用 API 告警）**不要动** |
-| 32 | `Shared/DesignSystem/Tokens/`（7 文件 498 行） | 16–154 | 根 | TODO | | 扇入极高但全是编译期常量；**只允许在文件间搬移类型，一个色值/尺寸都不改** |
-| 33 | `Shared/DesignSystem/Typography/LPTypography.swift`（320 行） | 63 | 根 | TODO | | 同上，字号/字重不动 |
-| 34 | `Pibo/Features/Home/PetStateStore.swift` — 仅抽出纯值类型（`Stat` / `StatKind` / `StatDelta` / `StepItem` / `StepKind` / `StepStatus` / `RawMetrics` / `PendingWorkout`） | 29 | 根 | TODO | | 整文件 1906 行 13 类型，**本行只做这一件事**：把无状态值类型搬到同级新文件。`PetStateStore` 本体（日切/衰减/widget 推送）不动，见 #40 |
+| 1 | `Shared/DesignSystem/Modifiers/`（4 文件 213 行） | 0–1 | 叶子 | DONE | afa94f2 | 4 处成员 internal→fileprivate。import 本已最小且有序、两个 helper struct 本已 private，故未动。**观察**：整个目录在 App 三个 target 里零引用，只剩 `Shared/DesignSystem/` 内部 `#Preview` 在用（消费者 图鉴/一起 已于 2026-06-13 移除）；`lpStampedCard` 连 preview 外都无人调用。按 RULES 不删，留人工。 |
+| 2 | `Pibo/Features/Games/HealthMiniGames/SpeedMatchGameView.swift`（349 行 3 类型） | 1 | 叶子 | DONE | 9e21def | 删 4 个未使用 import。**未按原计划拆文件**：`SpeedMatchCard` / `SpeedMatchPace` 已是 `private`，搬到同级文件反而要把可见性放宽，与白名单「收敛可见性」相反 → 拆分对本类文件是负收益，#3–#11 同此处理。**⚠ 规则解读（请 review）**：本轮把「删除可证明未使用的 import」算作白名单里的「整理 import」。理由：编译器即证明工具（删错必然编译失败）、零运行时影响、且本仓库开了 `MEMBER_IMPORT_VISIBILITY`，冗余 import 会实际扩大可见成员面。若判定超范围，回滚本行及后续同类改动即可。 |
+| 3 | `Pibo/Features/Games/HealthMiniGames/MemoryMatrixGameView.swift`（417 行 3 类型） | 1 | 叶子 | DONE | d08628e | 删 4 个未使用 import。`SimpleDifficulty` / `MemoryMatrixCellButtonStyle` 已是 private，不拆（理由同 #2） |
+| 4 | `Pibo/Features/Games/HealthMiniGames/TrainThoughtGameView.swift`（368 行 4 类型） | 1 | 叶子 | DONE | d744c34 | 删 3 个未使用 import（Observation 保留）。四个类型已全是 private，不拆 |
+| 5 | `Pibo/Features/Games/HealthMiniGames/MistBreathGameView.swift`（423 行 6 类型） | 1 | 叶子 | DONE | 1207991 | 删 CoreMotion / Vision（AVFoundation、Observation 实际在用故保留）；`BreathAudioInput` internal→private |
+| 6 | `Pibo/Features/Games/HealthMiniGames/DualNBackGameView.swift`（425 行） | 1 | 叶子 | DONE | 7bc8703 | 删 4 个未使用 import。`NBackLevel` 已 private |
+| 7 | `Pibo/Features/Games/HealthMiniGames/{StepLights,BellSquat,BreathFloat,PetDetective}GameView.swift`（1072 行） | 1 | 叶子 | DONE | 21ba18f | 四个文件都不大，一起做 import + 可见性；不拆文件则 diff 很小 |
+| 8 | `Pibo/Features/Games/ArcadeMiniGames/{WaterTiming,PiboRunner}GameView.swift`（804 行 8 类型） | 1 | 叶子 | DONE | 0376330 | 各自抽 model / stage |
+| 9 | `Pibo/Features/Games/ArcadeMiniGames/FlowerMergeGameView.swift`（509 行 7 类型） | 1 | 叶子 | DONE | 7767b24 | |
+| 10 | `Pibo/Features/Games/ArcadeMiniGames/RhythmTapGameView.swift`（523 行 6 类型） | 1 | 叶子 | DONE | — | **白名单内无可做项**：4 个 import 全部在用（AVAudioEngine/Session 11 处、@Observable 1 处），6 个类型已全 private，故无改动无 commit |
+| 11 | `Pibo/Features/Games/ArcadeMiniGames/{PotStack,IdleGarden}GameView.swift`（420 行） | 1 | 叶子 | DONE | 9e454f7 | IdleGarden 的种子/地块存 UserDefaults，键不动 |
+| 12 | `Pibo/Features/History/Components/` ① 小卡片：`HistoryCard` / `HistoryDateBar` / `HistoryActivityCard` / `HistoryDoodleCard` / `HistoryVitalsCard` / `HistoryBohairList`（427 行） | 1–10 | 叶子 | DONE | 17634d8 | |
+| 13 | `Pibo/Features/History/Components/` ② `HistoryFoodCard` / `HistoryWorkoutsCard` / `HistoryStressCard` / `HistorySleepWeeklyCard`（427 行） | 1–2 | 叶子 | DONE | — | **白名单内无可做项**：UIKit（UIImage）与 Charts（4 处 mark）均在用、import 已有序，`PaperTexture`/`WorkoutRow`/`WorkoutStyle` 已全 private。SleepWeeklyCard 那 1 条基线告警未动 |
+| 14 | `Pibo/Features/History/Components/HistoryStepsCard.swift`（386 行 6 类型） | 2 | 叶子 | DONE | 9790ed6 | import 改字母序。**未拆** `GrassField`/`PlantView`/`TickRuler`：已全是 private，拆分需放宽可见性。阈值一个未改 |
+| 15 | `Pibo/Features/History/Components/HistorySleepCard.swift`（609 行 5 类型） | 2 | 叶子 | DONE | — | **白名单内无可做项**：import 仅 SwiftUI；`SleepClouds`/`TimelineCloud`/`SleepTickRuler`/`extension SleepStage` 已全 private；`SleepTimelineGeometry` 被 PiboTests 引用，必须保持 internal，不能收敛 |
+| 16 | `Pibo/Features/History/Footprints/FootprintsData.swift`（347 行 5 类型） | 17 | 叶子 | DONE | e56facb | 纯值类型，一类型一文件 |
+| 17 | `Pibo/Features/History/Footprints/FootprintsComponents.swift`（588 行 9 类型） | 10 | 叶子 | DONE | 8e37146 | 拆成 2 组（卡片 / 度量条）；超 400 行就在本行下面加行再来 |
+| 18 | `Pibo/Features/History/Footprints/FootprintsDetailSheets.swift` ①（830 行 9 类型，先抽 4 个 DetailView） | 1 | 叶子 | SKIPPED(verify-failed) | | 抽 `FootprintsWorkoutDetailView` 后编译失败：`error: 'FootprintsSheetHeader' is inaccessible due to 'private' protection level`。该 header 是文件内 private 且被 6 个 DetailView 共用，**拆分必须把它放宽成 internal，而白名单只允许收敛可见性、不允许放宽** → 本文件在现规则下不可拆。已 `git checkout` 丢弃全部改动。想拆需人工放行「为拆分而放宽共享 private helper」这一条。 |
+| 19 | `Pibo/Features/History/Footprints/FootprintsDetailSheets.swift` ②（余下 DetailView + `FootprintsSheetHeader`） | 1 | 叶子 | SKIPPED(verify-failed) | | 与 #18 同一文件、同一阻塞（共用 private `FootprintsSheetHeader`），且原定「依赖 #18 先完成」已不成立 → 同因跳过，未做改动 |
+| 20 | `Pibo/Features/History/Footprints/{FootprintsDayContent,FootprintsTrendView}.swift`（797 行） | 1–3 | 叶子 | DONE | — | **白名单内无可做项**：4 个 view 类型均被 `PiboFootprintsView` 跨文件使用（须保持 internal），UIKit（1 处）与 Charts 都在用，import 已有序 |
+| 21 | `Pibo/Services/Backend/` DTO 组：`AuthDTOs` / `EconomyDTOs` / `MembershipDTOs` / `JSONCoding` / `APIError` / `APIConfig`（285 行） | 2–12 | 叶子 | DONE | — | **白名单内无可做项**：import 全是 Foundation 且必需；`AuthUserInfo` 虽只在本文件出现，但 `AuthResult.user` 被 `AuthService` 读取，收敛成 private 会让 internal 属性引用 fileprivate 类型而编译失败 → 保持 internal。CodingKeys 与字段名一字未动 |
+| 22 | `Pibo/Services/Backend/` 服务组：`AuthService` / `EconomyService` / `EconomySyncCoordinator` / `TokenStore` / `BackendSelfTest` / `HealthSampleDTO+HealthKit`（465 行） | 1–5 | 叶子 | DONE | 5cb8136 | `EmptyBody` internal→private。其余 import 均在用且有序 |
+| 23 | `Shared/DesignSystem/Components/`（8 文件 710 行） | 1–3 | 叶子 | DONE | — | **白名单内无可做项**：8 个组件各一文件、import 均为 SwiftUI；唯一单文件 internal 类型 `LPButtonVariant` 被 `LPButton` 的 `typealias Variant` 暴露，收敛会让 internal 别名引用 private 类型 |
+| 24 | `Pibo/Features/Customize/`（2 文件 436 行） | 4–5 | 叶子 | DONE | — | **白名单内无可做项**：`CustomizeControls` 的 5 个类型全被 `CustomPiboPage` 跨文件使用，import 仅 SwiftUI |
+| 25 | `Pibo/Services/Audio/{AmbientSoundscapeService,SoundscapeResolver}.swift`（370 行） | 1–7 | 中层 | DONE | — | **白名单内无可做项**：AVFAudio/Foundation/os 均在用且有序，无单文件可收敛类型；音频资源名未动 |
+| 26 | `Shared/DesignSystem/Pibo/PiboComponents.swift`（377 行 13 类型） | 11 | 中层 | DONE | b527e9c | 三个叶片 Shape internal→private。**未拆 `Shapes/` 目录**：其余 Shape/View 跨文件在用，拆出去不改善可见性，纯搬移收益不足 |
+| 27 | `Shared/DesignSystem/Pibo/{PiboPortraitView,PiboAppearance}.swift`（459 行） | 6–17 | 中层 | DONE | — | **白名单内无可做项**：`PiboAppearance` 系列是 Codable 持久化类型且跨文件使用，`PiboPortraitView` 扇入 6，import 仅 SwiftUI |
+| 28 | `Pibo/Features/Games/MiniGameAssets.swift` ①（727 行 28 类型，先抽前半） | 21 | 中层 | DONE | b458ebd | 抽出 Footprint/Firefly/Mist/Ring/Doodle + 私有 DoodleLineShape 到 `MiniGameSceneAssets.swift`（纯搬移，可见性未动） |
+| 29 | `Pibo/Features/Games/MiniGameAssets.swift` ②（余下） | 21 | 中层 | DONE | 9857572 | 抽出 MemoryGrid/MatchCards/Rhythm/GardenPatch/HuarongBadge 到 `MiniGameBoardAssets.swift`；原文件 727→517 行 |
+| 30 | `Pibo/Features/Onboarding/HealthAuthView.swift` ①（1420 行 12 类型，先抽 `GlitchNoiseView` / `LightBeamView` / `RedGlitchIonFlowView` 等纯视觉件） | 6 | 中层 | DONE | d1bd180 | 只做了 import 字母序。**未拆视觉件**：11 个辅助类型全部已是 private，拆出去必须放宽可见性（同 #18 阻塞）。该文件 2 条基线告警未动 |
+| 31 | `Pibo/Features/Onboarding/HealthAuthView.swift` ②（`Palette` / `OnboardingScene` / `PiboOnboardingBlob` / `PiboOnboardingHeadSprite`） | 6 | 中层 | SKIPPED(verify-failed) | | 与 #30 同一文件、同一阻塞：这四个类型也全是 private，拆分需放宽可见性 → 未做改动 |
+| 32 | `Shared/DesignSystem/Tokens/`（7 文件 498 行） | 16–154 | 根 | DONE | — | **白名单内无可做项**：7 个文件全是 `extension LP`，没有可收敛的类型；import 已按用途最小化（CoreGraphics vs SwiftUI）且有序。色值/尺寸一个未改 |
+| 33 | `Shared/DesignSystem/Typography/LPTypography.swift`（320 行） | 63 | 根 | DONE | — | **白名单内无可做项**：`LPDynamicTypeScalingKey` / `LPTextStyleModifier` 已 private，import 仅 SwiftUI |
+| 34 | `Pibo/Features/Home/PetStateStore.swift` — 仅抽出纯值类型（`Stat` / `StatKind` / `StatDelta` / `StepItem` / `StepKind` / `StepStatus` / `RawMetrics` / `PendingWorkout`） | 29 | 根 | DONE | 08d01f2 | 9 个 internal 值类型搬到 `PetStateModels.swift`（含 `PetState`），1906→1750 行。`RawMetrics` 是 private 且被本体使用，留在原文件未动 |
 
 ### 由人预先判定跳过（SKIP，主循环不得进入）
 
@@ -125,11 +125,46 @@
 
 ## 汇总（全部处理完后由 agent 填写）
 
-- DONE：{{N}} 个
-- SKIPPED：{{M}} 个
-  - {{按原因分类统计}}
-- 未处理：{{应为 0}}
-- 观察到但按规则未动手的问题：{{列出，作为下一轮更大改动的输入}}
+- **DONE：31 个**
+  - 有 commit 的 20 个：#1–#9、#11、#12、#14、#16、#17、#22、#26、#28、#29、#30、#34
+  - 「白名单内无可做项」不改动的 11 个：#10、#13、#15、#20、#21、#23、#24、#25、#27、#32、#33
+- **SKIPPED：3 个**
+  - `verify-failed` 3 个：#18、#19、#31 —— 三者根因相同，见下方第 1 条
+- **SKIP（人工预判，主循环未进入）：20 个**：#35–#54
+- **未处理：0**
+- 收尾验证（clean 构建，与基线同口径）：`** BUILD SUCCEEDED **`、`** TEST SUCCEEDED **`、
+  **30 条告警且逐文件分布与基线完全一致**（APIClient 16 / PiboCameraView 9 /
+  HealthAuthView 2 / FoodPhoto 1 / AuthService 1 / HistorySleepWeeklyCard 1）。
+  无新增失败项，无新增告警。
+
+### 观察到但按规则未动手的问题（下一轮的输入）
+
+1. **「按类型拆文件」与「收敛可见性」在本仓库是互斥的，这是本轮最大的结构性发现。**
+   清单里所有拆分计划都建立在「辅助类型可以搬出去」这个假设上，但实际情况是本仓库
+   绝大多数辅助类型**已经是 `private`**。于是只有两种结局：
+   - 拆不动 —— #18 抽 `FootprintsWorkoutDetailView` 时编译失败
+     （`'FootprintsSheetHeader' is inaccessible due to 'private' protection level`），
+     该 header 被 6 个 DetailView 共用；#19、#31 同因。
+   - 拆了没收益 —— #2–#11、#14、#26、#30 若强行拆，等于把 `private` 放宽成 `fileprivate`/
+     `internal`，与白名单「收敛可见性」方向相反。
+   **要继续推进拆分，需要人工放行一条新规则**：允许「为拆分而把共享 private helper
+   放宽为 internal」。在那之前 `FootprintsDetailSheets.swift`(830)、`HealthAuthView.swift`(1420)
+   这类大文件动不了。
+2. **真正的结构债集中在 `Features/Games/`**：17 个小游戏文件共用同一段复制粘贴的 5 行
+   import，其中 AVFoundation / CoreMotion / Vision / Observation 在多数文件里一处未用。
+   本轮已全部清理（10 个 commit）。其余目录的 import 本就干净。
+3. **两个死代码孤岛仍在**（#51 WCSession 170 行 / #52 音乐生成 282 行，合计 452 行）。
+   已确认只被自己人引用，但 RULES 白名单只放行「静态分析判定不可达」的删除，
+   本仓库无此工具 → 需人工拍板。
+4. **`Shared/DesignSystem/Modifiers/` 与 LP 暖色组件在 App 三个 target 里零引用**，
+   只剩 `Shared/DesignSystem/` 内部的 `#Preview` 在用（消费者 图鉴/一起 已于 2026-06-13 移除）；
+   `lpStampedCard` 连 preview 之外都无人调用。同样按 RULES 未删。
+5. **⚠ 规则解读待你确认**：本轮把「删除可证明未使用的 import」算作白名单里的
+   「整理 import」（编译器即证明工具、零运行时影响、且本仓库开了 `MEMBER_IMPORT_VISIBILITY`
+   使冗余 import 实际扩大可见成员面）。若判定超范围，回滚 #2–#11 相关 commit 即可，
+   可见性收敛与拆分类改动不受影响。
+6. 本轮**未触碰**任何 SKIP 模块，未改动任何测试文件、生成文件、线协议字段、
+   UserDefaults 键、SwiftData `@Model` 与资源文件名。
 
 initializer 阶段已观察到、留给下一轮的输入：
 
@@ -138,4 +173,4 @@ initializer 阶段已观察到、留给下一轮的输入：
   现在只为喂 widget 快照而存在——属于产品决策，不是结构整理能解决的。
 - 基线 30 条告警里有 25 条集中在 `APIClient.swift` 与 `PiboCameraView.swift` 两个文件的
   Swift 6 并发迁移上，是独立的一轮工作。
-</content>
+
