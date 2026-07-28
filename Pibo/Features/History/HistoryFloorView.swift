@@ -3,9 +3,8 @@ import SwiftUI
 // MARK: - 二楼内容容器 + 底部 tab bar
 //
 // Full-screen 足迹 content. During redesign evaluation a native `TabView` keeps
-// the new 足迹 page, the untouched original data page, and Pibo customization
-// side by side. Once the redesign is approved the 原版 comparison tab can be
-// removed without deleting `PiboHistoryView` itself.
+// the new 足迹 page and the untouched original data page side by side. Pibo
+// customization remains implemented, but its release entry is temporarily hidden.
 //
 // Using the system `TabView` + `Tab` API (rather than a hand-rolled bar) is what
 // lets iOS 26 render its Liquid Glass floating tab bar automatically — material,
@@ -21,9 +20,6 @@ struct HistoryFloorView: View {
             }
             Tab("原版", systemImage: "chart.bar.xaxis") {
                 PiboHistoryView()
-            }
-            Tab("自定义", systemImage: "wand.and.stars") {
-                CustomPiboPage()
             }
         }
     }

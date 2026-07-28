@@ -1,36 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!--
-  Partial Info.plist for the Pibo iOS app, MERGED with the keys generated from the
-  `INFOPLIST_KEY_*` build settings (GENERATE_INFOPLIST_FILE stays YES). It only
-  carries keys that have no `INFOPLIST_KEY_` build-setting form — here, the
-  `location` background mode that lets the 地图涂鸦 walk keep recording GPS while
-  the app is backgrounded / the screen is locked.
--->
 <plist version="1.0">
 <dict>
-	<!-- Allow Core Animation/UIKit surfaces to use the full ProMotion refresh
-	     range on supported iPhones instead of enforcing a 60 Hz minimum frame
-	     duration for the app. -->
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-	</array>
-	<!-- 统一后台打点 URL (DataSneaker server). Leave empty to disable analytics
-	     entirely; fill in once the server is deployed, e.g.
-	     https://track.example.com — or http://localhost:8080 to hit a locally
-	     running DataSneaker in the simulator. See Pibo/Services/Analytics. -->
-	<key>PIBO_ANALYTICS_URL</key>
-	<string></string>
-	<!-- Allow cleartext HTTP to localhost / .local hosts so the app can reach a
-	     locally-run pibo-server (http://localhost:8080) during development. This
-	     does NOT permit arbitrary cleartext loads. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>PIBO_ANALYTICS_URL</key>
+	<string></string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 </dict>
 </plist>

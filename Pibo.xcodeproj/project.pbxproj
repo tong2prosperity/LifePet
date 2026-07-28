@@ -547,7 +547,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Pibo Watch App/Supporting/Pibo_Watch_App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XD36G5SYYU;
+				DEVELOPMENT_TEAM = 7R7TG2824K;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Pibo-Watch-App-Info.plist";
@@ -557,13 +557,13 @@
 				INFOPLIST_KEY_NSMotionUsageDescription = "Pibo uses wrist motion to estimate breathing rhythm and check training posture during heart-breath coupling sessions.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = fun.tiebao.co.Pibo;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.emoo.PiboDev;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.emoo.PiboDev.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -586,7 +586,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Pibo Watch App/Supporting/Pibo_Watch_App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XD36G5SYYU;
+				DEVELOPMENT_TEAM = 7R7TG2824K;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Pibo-Watch-App-Info.plist";
@@ -596,13 +596,13 @@
 				INFOPLIST_KEY_NSMotionUsageDescription = "Pibo uses wrist motion to estimate breathing rhythm and check training posture during heart-breath coupling sessions.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = fun.tiebao.co.Pibo;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.emoo.PiboDev;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.emoo.PiboDev.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -626,7 +626,8 @@
 				CODE_SIGN_ENTITLEMENTS = Pibo/Supporting/Pibo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XD36G5SYYU;
+				DEVELOPMENT_TEAM = 7R7TG2824K;
+				ENABLE_DEBUG_DYLIB = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Pibo-Info.plist";
@@ -649,7 +650,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo;
+				PRODUCT_BUNDLE_IDENTIFIER = com.emoo.PiboDev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -670,7 +671,7 @@
 				CODE_SIGN_ENTITLEMENTS = Pibo/Supporting/Pibo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XD36G5SYYU;
+				DEVELOPMENT_TEAM = 7R7TG2824K;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Pibo-Info.plist";
@@ -693,7 +694,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo;
+				PRODUCT_BUNDLE_IDENTIFIER = com.emoo.PiboDev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -715,7 +716,7 @@
 				CODE_SIGN_ENTITLEMENTS = PiboWidgets/PiboWidgetsExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XD36G5SYYU;
+				DEVELOPMENT_TEAM = 7R7TG2824K;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PiboWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = PiboWidgets;
@@ -727,7 +728,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo.PiboWidgets;
+				PRODUCT_BUNDLE_IDENTIFIER = com.emoo.PiboDev.PiboWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -748,7 +749,7 @@
 				CODE_SIGN_ENTITLEMENTS = PiboWidgets/PiboWidgetsExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XD36G5SYYU;
+				DEVELOPMENT_TEAM = 7R7TG2824K;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PiboWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = PiboWidgets;
@@ -760,7 +761,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = fun.tiebao.co.Pibo.PiboWidgets;
+				PRODUCT_BUNDLE_IDENTIFIER = com.emoo.PiboDev.PiboWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
