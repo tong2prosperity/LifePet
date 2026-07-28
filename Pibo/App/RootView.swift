@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Pibo shell. On first launch we show `HealthAuthView`; once the user
 /// connects (or explicitly opts into demo / "later"), we flip to the tabs.
@@ -70,10 +71,21 @@ struct RootView: View {
 }
 
 #Preview {
-    RootView()
+    let defaults = UserDefaults(suiteName: "RootViewPreview")!
+    defaults.set(false, forKey: PiboPersistenceKeys.Defaults.onboardingDone)
+    return RootView()
+        .defaultAppStorage(defaults)
         .environment(HealthDataService(metrics: []))
         .environment(MorningSleepCoordinator())
         .environment(PetStateStore())
         .environment(PiboSpeechService())
         .preferredColorScheme(.light)
+}
+
+private enum RootPreviewData {
+    static let container = try! ModelContainer(
+        for: HealthDayRecord.self, WorkoutRecord.self, FoodPhoto.self,
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+
+    static let history = HealthHistoryStore(context: container.mainContext)
 }
