@@ -8,6 +8,7 @@ struct RootView: View {
     @AppStorage(PiboPersistenceKeys.Defaults.appLanguage) private var appLanguage: String = AppLanguage.preferred.rawValue
     #if DEBUG
     @State private var showWaterLab = false
+    @State private var showCharacterLab = false
     @State private var debugMiniGame: MiniGameKind? = MiniGameKind.debugRequestedLaunchGame()
 
     private var debugOpensHistory: Bool {
@@ -58,9 +59,15 @@ struct RootView: View {
             if ProcessInfo.processInfo.arguments.contains("-PiboWaterLab") {
                 showWaterLab = true
             }
+            if ProcessInfo.processInfo.arguments.contains("-PiboCharacterLab") {
+                showCharacterLab = true
+            }
         }
         .fullScreenCover(isPresented: $showWaterLab) {
             WaterLabView()
+        }
+        .fullScreenCover(isPresented: $showCharacterLab) {
+            CharacterLabView()
         }
         .fullScreenCover(item: $debugMiniGame) { game in
             MiniGameHostView(kind: game, onWalkDoodleSaved: { _ in })

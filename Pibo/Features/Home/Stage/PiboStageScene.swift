@@ -265,6 +265,10 @@ final class PiboStageScene: SKScene {
 
     /// 拍一拍 不理睬 — Pibo 扭过头背对用户 (Figma 76:7115): hop, swap the body to
     /// the turned-away art, hold, turn back. Procedural themes just swivel.
+    func playWorkoutCelebration() {
+        character.playWorkoutCelebration()
+    }
+
     func playTurnAway() {
         guard built else { return }
         character.playTurnAway()

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pibo 表情系统 · Expression System</title>
+<style>
+  :root { --ink:#454f58; --teal:#20937a; --line:#e2e8ea; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"PingFang SC","Helvetica Neue",sans-serif; color:var(--ink);
+         background:#f4f7f6; -webkit-font-smoothing:antialiased; }
+  header { text-align:center; padding:28px 16px 8px; }
+  header h1 { margin:0; font-size:22px; color:var(--teal); }
+  header p { margin:6px 0 0; font-size:13px; color:#7c8b95; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+          gap:18px; padding:20px; max-width:1120px; margin:0 auto; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden;
+          display:flex; flex-direction:column; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+  .card svg { width:100%; height:auto; display:block; }
+  .meta { padding:10px 12px 12px; }
+  .meta .t { font-size:15px; font-weight:600; }
+  .meta .m { font-size:11px; color:#8a97a0; margin-top:3px; line-height:1.4; }
+  .meta a { font-size:11px; color:var(--teal); text-decoration:none; }
+  /* builder */
+  .builder { max-width:1120px; margin:8px auto 40px; padding:20px; background:#fff;
+             border:1px solid var(--line); border-radius:16px; display:grid;
+             grid-template-columns:260px 1fr; gap:24px; }
+  .builder svg { width:220px; height:auto; }
+  .controls { display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; align-content:start; }
+  .controls label { font-size:12px; display:flex; flex-direction:column; gap:4px; color:#6b7880; }
+  select, .controls input { font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--line);
+           border-radius:8px; background:#fbfcfc; }
+  .builder h2 { grid-column:1/-1; margin:0 0 4px; font-size:16px; }
+  .stage { display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .stage button { font:inherit; font-size:12px; padding:6px 12px; border:1px solid var(--line);
+           border-radius:8px; background:#fff; color:var(--teal); cursor:pointer; }
+  @media(max-width:640px){ .builder{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pibo 表情系统 · Expression System</h1>
+  <p>矢量脸部 · 眉毛(小点) / 眼睛(大点) / 海豹鼻(muzzle) / 脸颊弧 / 嘴(按需)。基于 Figma node 3904:1804。</p>
+</header>
+
+<section class="builder">
+  <h2>🎨 自定义合成器 · Mix a face</h2>
+  <div class="stage">
+    <div id="preview"></div>
+    <button id="dl">下载 SVG</button>
+  </div>
+  <div class="controls" id="controls"></div>
+</section>
+
+<div class="grid" id="grid"></div>
+
+<script type="module">
+import { buildSVG } from './pibo-face.js';
+import { FACES } from './faces.js';
+
+// ---- preset gallery ----
+const grid = document.getElementById('grid');
+for (const f of FACES) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const svg = buildSVG(f, { bg:true });
+  const uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  card.innerHTML = svg +
+    `<div class="meta"><div class="t">${f.zh} · ${f.name}</div>
+     <div class="m">${f.maps}</div>
+     <a download="pibo-${f.id}.svg" href="${uri}">↓ 下载 SVG</a></div>`;
+  grid.appendChild(card);
+}
+
+// ---- interactive builder ----
+const OPTS = {
+  brows: ['flat','raised','angry','sad','none'],
+  eyes:  ['dot','wide','sparkle','happy','sleep','half','squeeze','x','spiral','heart'],
+  cheeks:['default','blush','none'],
+  mouth: ['none','smile','frown','wavy','open','o','cat'],
+};
+const EXTRAS = ['zzz','anger','sweat','tear','hearts','sparkle','glitch'];
+const state = { name:'Custom', zh:'自定义', brows:'flat', eyes:'dot', muzzle:true,
+                cheeks:'default', mouth:'none', extras:[], bg:'#d9ece2' };
+
+const controls = document.getElementById('controls');
+for (const [key, vals] of Object.entries(OPTS)) {
+  const lab = document.createElement('label');
+  lab.innerHTML = `${key}<select data-k="${key}">${vals.map(v=>`<option>${v}</option>`).join('')}</select>`;
+  lab.querySelector('select').value = state[key];
+  lab.querySelector('select').onchange = e => { state[key] = e.target.value; render(); };
+  controls.appendChild(lab);
+}
+// muzzle toggle
+const mz = document.createElement('label');
+mz.innerHTML = `muzzle 海豹鼻<select data-k="muzzle"><option>true</option><option>false</option></select>`;
+mz.querySelector('select').onchange = e => { state.muzzle = e.target.value==='true'; render(); };
+controls.appendChild(mz);
+// bg color
+const bg = document.createElement('label');
+bg.innerHTML = `背景 bg<input type="color" value="#d9ece2">`;
+bg.querySelector('input').oninput = e => { state.bg = e.target.value; render(); };
+controls.appendChild(bg);
+// extras multi
+const ex = document.createElement('label');
+ex.style.gridColumn = '1 / -1';
+ex.innerHTML = `附加 extras<div>${EXTRAS.map(x=>
+  `<label style="display:inline-flex;flex-direction:row;gap:3px;margin-right:10px;font-size:12px">
+     <input type="checkbox" value="${x}">${x}</label>`).join('')}</div>`;
+ex.querySelectorAll('input').forEach(cb => cb.onchange = () => {
+  state.extras = [...ex.querySelectorAll('input:checked')].map(i=>i.value); render();
+});
+controls.appendChild(ex);
+
+const preview = document.getElementById('preview');
+function render() { preview.innerHTML = buildSVG(state, { bg:true }); }
+document.getElementById('dl').onclick = () => {
+  const blob = new Blob([buildSVG(state,{bg:true})], {type:'image/svg+xml'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'pibo-custom.svg'; a.click();
+};
+render();
+</script>
+</body>
+</html>

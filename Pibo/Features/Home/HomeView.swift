@@ -53,7 +53,7 @@ struct HomeView: View {
     @State private var soundscape = AmbientSoundscapeService()
     #if DEBUG
     @State private var forestTuning: StageRenderTuning = .standard
-    @State private var tuningPanelExpanded = true
+    @State private var tuningPanelExpanded = !ProcessInfo.processInfo.arguments.contains("-PiboHideTuning")
     #else
     private let forestTuning: StageRenderTuning = .standard
     #endif
@@ -529,6 +529,12 @@ struct HomeView: View {
         LPHaptics.tap()
         Analytics.track(.energyCollected, screen: "home",
                         ["sprouted": .bool(store.growthStage == .sprouted)])
+        // 发芽那一段讲的是「收集到能量」；剧本讲的是「你今天动过了」。两件事接着
+        // 演，而不是抢同一个时刻。是否该演由 Core 判 —— 深眠里被叫醒秀肌肉，
+        // 或者正处在长期能量不足的颓势上突然亮相，都会读成 bug。
+        if PiboCoreAnimationAdapter.workoutCelebrationAllowed(for: store.activityState) {
+            stageCommands.playWorkoutCelebration()
+        }
         store.consumePendingWorkout()
         setSproutPhase(.idle)
     }

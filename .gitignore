@@ -23,6 +23,12 @@ xcuserdata/
 .swiftpm/
 .build/
 
+# 本地开发用的 workspace：把 pibo-core 的本地 checkout 覆盖到远程 exact pin 之上，
+# 免去每改一次 Rust 就发 tag。Pibo.xcodeproj 里的远程 pin 与 Package.resolved 全程不动，
+# 所以「回到正式依赖」= 打开 .xcodeproj 而不是 .xcworkspace，没有需要记得撤销的改动。
+# 发布前流程见 CLAUDE.md：pibo-core 发 SemVer tag → 更新 exact pin → 同步 HarmonyPibo。
+Pibo.xcworkspace/
+
 # ---- macOS ----
 .DS_Store
 .AppleDouble
@@ -36,3 +42,10 @@ tmp/
 
 # Godot editor/import cache (tool projects under Tools/)
 **/.godot/
+
+# ---- 生成产物 ----
+# 演示文稿导出（.key/.pptx/.pdf + 检查用 ndjson）与设计迭代截图。都是从别处
+# 生成出来的，几十 MB 且每次导出全量变动 —— 留在工作区随手看，不进历史。
+output/
+outputs/
+artifacts/

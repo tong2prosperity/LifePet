@@ -24,6 +24,15 @@ final class PiboCharacterRenderer {
     private var placement: PiboCharacterPlacement?
     private var visible = true
 
+    /// 矢量角色。开关打开时由它承担外观、命中几何与芽的形变；旧的双 sprite 路径
+    /// 原样保留在下面，两条路可以在真机上并排比较，见 PiboVectorCharacterFlag。
+    private var vector: PiboVectorCharacter?
+    private var vectorTransition: PiboStateTransition?
+    private var vectorIdle: PiboIdleAnimator?
+    private var vectorPlaybook: PiboCharacterPlaybook?
+    private var vectorRigInverted: Bool?
+    private let usesVector = PiboVectorCharacterFlag.isEnabled
+
     private var bodyNode: SKShapeNode?
     private var bodySprite: SKSpriteNode?
     private var bodyArtwork: PiboSVGArtwork?
@@ -38,8 +47,9 @@ final class PiboCharacterRenderer {
     private var surface: [CGPoint] = []
     private(set) var isCloseupActive = false
 
-    var bodyForReflection: SKNode? { bodySprite ?? bodyNode }
-    var headForReflection: SKSpriteNode { headNode }
+    var bodyForReflection: SKNode? { vector?.reflectionSource ?? bodySprite ?? bodyNode }
+    /// 矢量角色是一棵 shape 树、没有纹理，倒影靠一张定期快照的隐藏代理供图。
+    var headForReflection: SKSpriteNode { vector?.reflectionSource ?? headNode }
     var headNaturalSize: CGSize? { headNode.texture?.size() }
     var overheadNaturalSize: CGSize? { overheadNode.texture?.size() }
     var bodyWidth: CGFloat { placement?.body.size.width ?? 1 }
@@ -67,6 +77,15 @@ final class PiboCharacterRenderer {
         growth = newGrowth
         placement = newPlacement
 
+        if vector != nil {
+            layoutVector()
+            if stateChanged {
+                vectorPlaybook?.setAmbient(PiboAnimationStateMap.ambientStateID(for: newState))
+                showZzz(visible && newState == .deepSleep)
+            }
+            return
+        }
+
         if rootNode.parent != nil {
             if themeChanged {
                 rebuildBody()
@@ -80,6 +99,7 @@ final class PiboCharacterRenderer {
 
     func buildIfNeeded() {
         guard rootNode.children.isEmpty else { return }
+        if usesVector, buildVector() { return }
         buildBody()
         rebuildHead()
         layout()
@@ -91,17 +111,47 @@ final class PiboCharacterRenderer {
     func setVisible(_ isVisible: Bool) {
         visible = isVisible
         rootNode.isHidden = !isVisible
+        if vector != nil {
+            showZzz(isVisible && state == .deepSleep)
+            return
+        }
         overheadNode.isHidden = !isVisible || theme.resolvedHead(for: growth).overhead == nil
         showZzz(isVisible && state == .deepSleep)
     }
 
     func applyShader(_ shader: SKShader?) {
+        // 矢量角色不走 shader：材质 shader 是纯逐像素颜色变换，对 shape 树而言
+        // 把同一套数学算在颜色上更好 —— 不需要离屏，也就不会赔掉抗锯齿。
+        // 光照由 `setLighting(_:)` 从同一份 profile 喂进去。
+        guard vector == nil else { return }
         bodySprite?.shader = shader
         headNode.shader = shader
     }
 
+    /// 时段光照。与 `ForestMaterial.fsh` 同一套数学，只是算在颜色上。
+    func setVectorLighting(_ lighting: PiboCharacterLighting) {
+        vector?.setLighting(lighting)
+    }
+
+    /// 运动完成 → 秀肌肉 → 娇羞 → 回常驻态。
+    func playWorkoutCelebration() {
+        vectorPlaybook?.play(PiboAnimationStateMap.workoutCelebration)
+    }
+
     func hitRegion(at point: CGPoint, in scene: SKScene) -> PiboCharacterHitRegion {
         guard visible else { return .none }
+        if let vector {
+            // 命中几何直接来自正在显示的路径，所以看到的轮廓与可摸到的轮廓
+            // 不可能漂移 —— 旧路径靠贴图像素采样，形变时两者会分家。
+            let local = scene.convert(point, to: vector.rootNode)
+            if let sprout = vector.sproutPath(),
+               sprout.copy(strokingWithWidth: 24, lineCap: .round, lineJoin: .round, miterLimit: 10)
+                   .contains(local) || sprout.contains(local) {
+                return .hair
+            }
+            if let body = vector.bodyPath(), body.contains(local) { return .body }
+            return .none
+        }
         if !headNode.isHidden {
             if headRig.isEnabled {
                 let local = scene.convert(point, to: rootNode)
@@ -200,6 +250,15 @@ final class PiboCharacterRenderer {
     }
 
     func playBodyTap() {
+        if let vector {
+            vector.rootNode.removeAction(forKey: "squash")
+            vector.rootNode.run(.sequence([
+                .scaleX(to: 1.10, y: 0.92, duration: 0.08),
+                .scaleX(to: 0.96, y: 1.06, duration: 0.10),
+                .scaleX(to: 1, y: 1, duration: 0.12),
+            ]), withKey: "squash")
+            return
+        }
         bodyForReflection?.removeAction(forKey: "squash")
         bodyForReflection?.run(.sequence([
             .scaleX(to: 1.12, y: 0.9, duration: 0.08),
@@ -256,10 +315,21 @@ final class PiboCharacterRenderer {
         guard let scene, let camera, !isCloseupActive else { onPhase(.finished); return }
         isCloseupActive = true
         headNode.removeAction(forKey: "headIdle")
-        let headWorld = CGPoint(
-            x: rootNode.position.x + headNode.position.x,
-            y: rootNode.position.y + headNode.position.y
-        )
+        // 矢量路径下 headNode 是隐藏的遗留节点，位置永远是 0；聚焦点要取自
+        // 当前姿态的芽根，那是 `sproutAxis` 按状态混合出来的。
+        let headWorld: CGPoint
+        if let vector, let axis = vector.sproutAxis {
+            let local = axis.root.applying(vector.designToNodeTransform)
+            headWorld = CGPoint(
+                x: rootNode.position.x + vector.rootNode.position.x + local.x,
+                y: rootNode.position.y + vector.rootNode.position.y + local.y
+            )
+        } else {
+            headWorld = CGPoint(
+                x: rootNode.position.x + headNode.position.x,
+                y: rootNode.position.y + headNode.position.y
+            )
+        }
         let focus = CGPoint(x: headWorld.x, y: headWorld.y - scene.size.height * 0.06)
         let zoomIn = SKAction.group([.move(to: focus, duration: 0.55), .scale(to: 0.45, duration: 0.55)])
         zoomIn.timingMode = .easeInEaseOut
@@ -331,6 +401,22 @@ final class PiboCharacterRenderer {
     }
 
     func randomPrecipitationPoint() -> CGPoint? {
+        if let vector {
+            guard visible, let body = vector.bodyPath() else { return nil }
+            // 沿身体轮廓的上缘取样：矢量路径直接给出轮廓，不必再去贴图里逐列扫
+            // alpha 找顶点。
+            let box = body.boundingBoxOfPath
+            guard box.width > 0 else { return nil }
+            let u = CGFloat.random(in: 0.08 ... 0.92)
+            let x = box.minX + box.width * u
+            // 半圆近似上缘，足够天气系统用。
+            let arch = sin(u * .pi)
+            let y = box.minY + box.height * (0.52 + 0.44 * arch)
+            return CGPoint(
+                x: vector.rootNode.position.x + x,
+                y: vector.rootNode.position.y + y
+            )
+        }
         if surface.isEmpty { rebuildSurface() }
         guard visible, let local = surface.randomElement() else { return nil }
         return CGPoint(
@@ -340,6 +426,113 @@ final class PiboCharacterRenderer {
     }
 
     private var usesArt: Bool { theme.bodyImage != nil }
+
+    // MARK: - 矢量角色
+
+    private func buildVector() -> Bool {
+        guard let data = PiboCharacterData.shared,
+              let built = PiboVectorCharacter(
+                  stateID: PiboAnimationStateMap.ambientStateID(for: state),
+                  data: data
+              ) else { return false }
+        vector = built
+        rootNode.addChild(built.rootNode)
+
+        let driver = PiboStateTransition(data: data, stateID: built.currentStateID)
+        let animator = PiboIdleAnimator(data: data)
+        // 连招在落定后从自己的 0 秒起播，而不是接着上一个状态的时钟跑。
+        // 连招从登场结束后才起播；没有登场的状态，登场回调紧跟落定。
+        driver.onIntroFinished = { [weak animator] in animator?.restartTimeline() }
+        vectorTransition = driver
+        vectorIdle = animator
+        vectorPlaybook = PiboCharacterPlaybook(transition: driver, ambientStateID: built.currentStateID)
+        layoutVector()
+        showZzz(visible && state == .deepSleep)
+        return true
+    }
+
+    /// 站位。`rootNode` 仍停在主题给的身体中心上（火花、Zzz、天气都依赖它），
+    /// 所以落脚点用它的局部坐标表达；定位是按区一份，同区状态的相对位置已经
+    /// 烘在各自的 300×300 画板里。
+    private func layoutVector() {
+        guard let vector, let placement, let scene else { return }
+        let stateID = vectorTransition?.toStateID ?? vector.currentStateID
+        guard PiboAnimationStateMap.isNestState(stateID, data: PiboCharacterData.shared) else {
+            vector.fit(
+                bodyWidth: placement.body.size.width,
+                footPoint: CGPoint(x: 0, y: -placement.body.size.height / 2)
+            )
+            return
+        }
+        // 巢区：坐进椰壳洞口。锚点是设计空间里的绝对点，先换算到场景，再表达成
+        // rootNode 的局部坐标（火花、Zzz、天气都依赖 rootNode 停在原处）。
+        let mapper = ForestLayoutMapper(sceneSize: scene.size)
+        let anchor = mapper.point(ForestSceneManifest.piboNestAnchor)
+        vector.fit(
+            bodyWidth: ForestSceneManifest.piboNestBodyWidth * mapper.scale,
+            footPoint: CGPoint(
+                x: anchor.x - rootNode.position.x,
+                y: anchor.y - rootNode.position.y
+            )
+        )
+    }
+
+    private func updateVector(
+        time: TimeInterval,
+        deltaTime: TimeInterval,
+        wind: StageWind,
+        reduceMotion: Bool
+    ) {
+        guard let vector, let transition = vectorTransition else { return }
+        vectorPlaybook?.update(deltaTime: deltaTime)
+        transition.update(deltaTime: deltaTime)
+        vector.setTransition(
+            from: transition.fromStateID,
+            to: transition.toStateID,
+            progress: transition.progress
+        )
+        vector.setSettleScale(transition.settleScale * transition.introScale)
+        vector.setGlow(colorHex: transition.introGlowColor, intensity: transition.introGlow)
+        layoutVector()
+
+        // 先把上一帧的待机姿态与路径形变全部归位，再叠加这一帧 —— 待机原语因此
+        // 永远从一份干净的基准出发，不需要自己缓存「静止形状」。
+        vector.resetIdleTransforms()
+        // 亮相是定格 pose：登场期间常规连招暂停。
+        if !transition.suppressesIdle {
+            vectorIdle?.apply(
+                idle: PiboCharacterData.shared?.states[transition.toStateID]?.idle,
+                stateID: transition.toStateID,
+                character: vector,
+                time: time,
+                amplitude: transition.idleAmplitude
+            )
+        }
+        updateVectorRig(time: time, deltaTime: deltaTime, wind: wind, reduceMotion: reduceMotion)
+        if let view = scene?.view { vector.refreshReflectionSnapshotIfNeeded(in: view) }
+    }
+
+    /// 同一套六段骨骼阻尼弹簧，宿主换成矢量角色的芽。根梢方向随状态变化，
+    /// 翻转时必须重挂 —— 网格的第 0 行钉的是根部。
+    private func updateVectorRig(
+        time: TimeInterval,
+        deltaTime: TimeInterval,
+        wind: StageWind,
+        reduceMotion: Bool
+    ) {
+        guard let vector, let anchor = vector.sproutWarpAnchor else { return }
+        if vectorRigInverted != anchor.axisInverted {
+            vectorRigInverted = anchor.axisInverted
+            headRig.attach(
+                toSprout: vector.sproutNode,
+                axisInverted: anchor.axisInverted,
+                pivotFraction: anchor.pivotFraction
+            )
+        } else {
+            headRig.setPivotFraction(anchor.pivotFraction)
+        }
+        headRig.update(time: time, deltaTime: deltaTime, wind: wind, reduceMotion: reduceMotion)
+    }
 
     private func rebuildBody() {
         rootNode.removeAllChildren()
@@ -643,6 +836,10 @@ final class PiboCharacterRenderer {
         wind: StageWind,
         reduceMotion: Bool
     ) {
+        if vector != nil {
+            updateVector(time: time, deltaTime: deltaTime, wind: wind, reduceMotion: reduceMotion)
+            return
+        }
         headRig.update(
             time: time,
             deltaTime: deltaTime,

@@ -16,6 +16,12 @@ enum ForestSceneManifest {
     static let designSize = CGSize(width: 393, height: 852)
     static let piboFootPoint = CGPoint(x: 196.5, y: 610)
 
+    /// 巢区锚点：睡眠三态坐在椰壳洞口里，不站在地面落脚点上。取椰壳图层
+    /// （20, -37, 252×475）洞口的中心，宽度按 Figma 里那组 129×143 的角色。
+    /// 跨区是 90ms 硬切，正因为两个区的位置差得太远，插值没有意义。
+    static let piboNestAnchor = CGPoint(x: 146, y: 358)
+    static let piboNestBodyWidth: CGFloat = 112
+
     struct FoliageInteraction: Hashable {
         enum Role: Hashable {
             case direct
@@ -117,6 +123,11 @@ enum ForestSceneManifest {
         Layer(image: "forest_stone_5", frame: CGRect(x: -58, y: 686, width: 217, height: 116), zPosition: 14, lightingGroup: .foreground),
         Layer(image: "forest_stone_2", frame: CGRect(x: 314, y: 664, width: 166, height: 147), zPosition: 15, lightingGroup: .foreground),
         Layer(image: "forest_stone_1", frame: CGRect(x: 227, y: 780, width: 202.5465, height: 77.7470), zPosition: 16, lightingGroup: .foreground),
+        // 椰壳（巢）。刻意只有一层、且垫在角色底下：睡眠三态的角色形状已经按洞口
+        // 手工裁切过（蒙版烘焙进美术里），整体压上去就是对的。把椰壳打进角色动画
+        // 会得到「空壳」与「带角色的壳」两份对不齐的资产，而且呼吸会把壳带歪
+        // （DESIGN-NOTES §3）。落位取自 Figma home 帧 5758:956 里的 yeke 组。
+        Layer(image: "forest_yeke", frame: CGRect(x: 20, y: -37, width: 252, height: 475), zPosition: 17, lightingGroup: .midground),
     ]
 
     static let river = Layer(

@@ -1,0 +1,39 @@
+<svg width="182" height="200" viewBox="0 0 182 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="182" height="200" fill="#0D0D0D"/>
+<g id="home">
+<rect x="-104" y="-379.991" width="393" height="852" rx="32" fill="url(#paint0_linear_3817_2130)"/>
+<g id="pibo">
+<g id="Group 256">
+<g id="Group 261">
+<path id="Line 1" d="M100.336 186.044C108.371 171.355 109.076 126.009 109.076 126.009" stroke="white" stroke-width="27.0922" stroke-linecap="round"/>
+<path id="Line 2" d="M73.3719 185.949C86.4027 168.308 89.414 143.511 89.414 143.511" stroke="white" stroke-width="27.0922" stroke-linecap="round"/>
+</g>
+<g id="Vector 9">
+<path d="M90.5801 0.0662246C-12.2899 4.0094 -12.7898 120.011 17.2101 156.011C47.2101 192.011 124.21 190.113 156.21 163.01C207.233 119.796 177.375 -3.26075 90.5801 0.0662246Z" fill="white"/>
+<path d="M90.5801 0.0662246C-12.2899 4.0094 -12.7898 120.011 17.2101 156.011C47.2101 192.011 124.21 190.113 156.21 163.01C207.233 119.796 177.375 -3.26075 90.5801 0.0662246Z" fill="url(#paint1_linear_3817_2130)"/>
+</g>
+<g id="Group 251">
+<circle id="Ellipse 11" cx="75.7101" cy="66.5094" r="4.5" fill="#454F58"/>
+<circle id="Ellipse 12" cx="76.2101" cy="56.0094" r="2" fill="#CDD7DD"/>
+<circle id="Ellipse 13" cx="122.21" cy="56.0094" r="2" fill="#CDD7DD"/>
+<circle id="Ellipse 14" cx="122.71" cy="66.5094" r="4.5" fill="#454F58"/>
+<g id="Group 250">
+<path id="Union" d="M105.71 63.0094C109.852 63.0094 113.21 66.3673 113.21 70.5094C113.21 74.6516 109.852 78.0094 105.71 78.0094C103.735 78.0094 101.939 77.2455 100.599 75.9973C100.112 75.5431 99.3082 75.5431 98.8209 75.9973C97.4817 77.2455 95.6853 78.0094 93.7101 78.0094C89.568 78.0094 86.2101 74.6516 86.2101 70.5094C86.2101 66.3673 89.568 63.0094 93.7101 63.0094C95.6852 63.0094 97.4817 63.773 98.821 65.0209C99.3083 65.475 100.112 65.475 100.599 65.0209C101.939 63.773 103.735 63.0094 105.71 63.0094Z" fill="#CDD7DD"/>
+</g>
+</g>
+<path id="Vector 61" d="M59.3781 86.6812C64.0892 93.1218 63.1534 101.663 56.0228 102.104C48.4538 102.572 41.9795 95.892 40.1778 86.8104" stroke="#D7E0E5" stroke-width="3" stroke-linecap="round"/>
+<path id="Vector 62" d="M138.787 86.8332C136.068 94.4085 139.411 102.405 146.435 100.796C153.891 99.0881 158.248 90.7781 157.399 81.4781" stroke="#D7E0E5" stroke-width="3" stroke-linecap="round"/>
+</g>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_3817_2130" x1="92.5" y1="-379.991" x2="92.5" y2="472.009" gradientUnits="userSpaceOnUse">
+<stop stop-color="#B9DED0"/>
+<stop offset="0.765992" stop-color="#CDE9DE"/>
+</linearGradient>
+<linearGradient id="paint1_linear_3817_2130" x1="95.4116" y1="94.4747" x2="59.9674" y2="152.474" gradientUnits="userSpaceOnUse">
+<stop stop-color="white" stop-opacity="0"/>
+<stop offset="1" stop-color="white"/>
+</linearGradient>
+</defs>
+</svg>

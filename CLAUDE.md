@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Goal
 
-The product is **Pibo · Life is Vibe**. The project, schemes, bundle identifiers, and user-facing strings have been migrated to Pibo; old LifePulse names should only appear in historical notes or compatibility migration code. It is an **iOS-only hackathon project** that turns the wearer's daily health data into a tamagotchi:
+The product is **Pibo · Life is Vibe**. The project, schemes, bundle identifiers, and user-facing strings have been migrated to Pibo; old LifePulse names should only appear in historical notes or compatibility migration code. This repository is the iOS implementation of a health product that makes daily sleep, walking, and exercise visible through Pibo and practical tools:
 
-> 你不是喂宠物，你的身体就是宠物的食物。养得好它陪你更久，养不好它早早走掉。
+> Pibo 是共同经历者，不是宠物或被照顾者。低活动、缺席或拒绝授权不会伤害 Pibo；健康行为形成的 `bo` 连接双方的故事与长期使用。
 
 - **iOS** is the primary surface. It owns the pet UI / 活动区 (拍一拍 · 拔毛) / 上滑数据二楼 (历史数据页) / 拍照 / share, and reads health data **passively** from HealthKit on-device. This is where almost all feature work belongs. (图鉴 / 一起 were cut 2026-06-13.)
 - **Apple Watch** no longer streams live samples to the phone. The watch the user already wears writes 步数 / HR / HRV / 睡眠 / workouts into HealthKit on its own; iOS reads those samples after the fact. **However, the watch target is no longer purely dead** — it now hosts a standalone **CRC (cardiorespiratory coupling) breathing trainer** (`Pibo Watch App/Features/CRCBreathing/`), the only active watch feature. Its `RootView` shows `CRCTrainingView()` directly and runs in dark mode.
@@ -27,6 +27,25 @@ Core owns time/environment mixing, the six-state activity machine, greeting sele
 
 For shared-rule work, update and verify `pibo-core` first, publish a new plain SemVer tag (`0.1.1`, no `v`), then update this project's exact package pin and HarmonyPibo's submodule pointer. Never use Core `main` or a local relative path for an App commit. Read the SDK's `AGENTS.md` and `CLAUDE.md` before changing its ABI or capability boundary.
 
+### 角色动画 · 12 状态路径变形 (2026-07-29)
+
+Pibo 的角色表现正在从「两张贴图 + SKAction」换成**矢量 12 状态变形**，源自设计交付包 `pibo_context`(lulu-design)。本轮落了 6 个状态：`default` / `muscle` / `pigu` / `sleep-1` / `sleep-2` / `awake`。**默认关着**，`PiboVectorCharacterFlag` 控制（`-PiboVectorCharacter` / `-PiboLegacyCharacter`），旧的双 sprite 路径原样保留可并排比较。
+
+运行时在 `Pibo/Features/Home/Stage/Character/`：`PiboCharacterData`(解码) / `PiboCharacterGeometry`(路径与插值) / `PiboVectorCharacter`(元素树) / `PiboStateTransition`(节奏) / `PiboIdleAnimator`(待机编排) / `PiboCharacterPlaybook`(剧本) / `PiboCharacterLighting` / `PiboAnimationStateMap`。验证台是 `Features/CharacterLab`（`-PiboCharacterLab`）。
+
+几条不显然但会反复咬人的约束：
+
+- **只有 `body` / `bo` / `boline` 三条路径跨状态变形**，其余一律按状态淡入淡出。这是数据事实不是偷懒 —— `angry`/`dive` 没有脸，五官无法跨状态对应。
+- **对应关系在构建期解决。** 生成器 `pibo-assets/tools/prematch/` 把全部状态重采样到同一套拓扑，运行时只剩逐点 lerp，N 个状态的 N² 种切换全部自动可用。**不要在运行时引入 morph 库。**
+- **芽（bo+boline）放在一个 `SKEffectNode` 里**，现有的 6 段骨骼弹簧 rig 原样驱动它。warp 作用在渲染网格上、不碰路径数据，所以 rig 与 morph 互不知道对方存在。代价是离屏栅格化会赔掉抗锯齿 —— **必须按 3 倍尺度建路径再把宿主缩回 1/3**（`sproutSupersample`）。
+- **时段光照走 CPU 颜色变换**（`PiboCharacterLighting`，数学与 `ForestMaterial.fsh` 逐行一致），不给矢量角色挂 shader：那会强制一次离屏，赔掉的正是抗锯齿。
+- **水面倒影靠隐藏的 `reflectionSource` 快照代理**（`ForestReflectionProxy` 的 `treatsSourceAsInvisibleProxy` 模式）。快照只跟几何变化走，不跟待机走。
+- **舞台定位按区一份**（地面 / 巢），不是按状态 —— 同区状态的相对位置已经烘在各自的 300×300 画板里。地面沿用 `piboFootPoint`，巢区是 `piboNestAnchor`。
+- **每帧顺序**：重建基准路径 → 归位上一帧待机 → 叠加这一帧待机。路径原语因此永远从干净基准出发，不需要自己缓存「静止形状」；SPEC §7 第 6、7 条那两个 Web 引擎的坑在这个结构下不成立。
+- **动画态的选择在 `pibo-core`**（`src/animation.rs`），不在 Swift。`dive` / `coolhide` 是同一条压力 z-score 的两端（焦虑 / 放松），所以没有独立的「开心度」输入。Core 已经会返回全部 12 态，App 用 `PiboAnimationStateMap.available` 白名单挡着降级。
+
+进度与决策记录见 `docs/character-animation-port.md`，待验证清单见 `docs/character-animation-verification.md`。
+
 ### Shared animation assets (pibo-assets)
 
 The sibling HarmonyOS app is `/Users/trevorlink/Project/hackathon/HarmonyPibo`; the shared animation source repository is `/Users/trevorlink/Project/hackathon/pibo-assets`. Cross-platform animation selection, semantic transitions, speech/bubble triggers, cooldowns, and deterministic content-key selection belong in `pibo-core`. MOV, image sequences, Rive files, audio, and localized strings do not: Core returns stable semantic IDs rather than filenames or absolute paths.
@@ -37,12 +56,12 @@ In `pibo-assets`, keep immutable source art and ProRes 4444 alpha MOV masters un
 
 Event tracking rides the **DataSneaker Swift SDK** — an **exact-version remote SwiftPM package**, `https://github.com/all2prosperity/ds-swift-sdk.git` pinned at `0.1.0` (public, HTTPS, so a fresh clone resolves it with no credentials). It was extracted from the DataSneaker monorepo on 2026-07-26: the sources had lived at `sdk/swift/` there, under a `sdk/` .gitignore rule that keeps the react and rust SDKs in their own repos (`ds-react-sdk` / `ds-rust-sdk`) — so the Swift one was tracked nowhere at all, and the old `XCLocalSwiftPackageReference` also forced every checkout into a fixed sibling-directory layout. Bump it the same way as PiboCore: change the SDK repo, tag a plain SemVer release, update the exact pin here, commit `Package.resolved`. The app-side seam is **`Pibo/Services/Analytics/Analytics.swift`**: all event names (`Analytics.Event`, snake_case strings — ClickHouse `event_type`s, treat renames as data migrations) + the endpoint config live there; call sites do `Analytics.track(.pat, screen: "home", ["reaction": .string(...)])` and never import DataSneaker (properties use the in-module `AnalyticsValue` because member-import-visibility would otherwise force the import). The 统一后台打点 URL is the **`PIBO_ANALYTICS_URL`** key in the partial `Pibo-Info.plist` — **currently empty = analytics fully disabled** (the SDK is never configured; every call no-ops); fill it once the DataSneaker server is deployed (`http://localhost:8080` hits a locally-run one in the simulator, but note pibo-server also defaults to 8080). Instrumented paths: app lifecycle (`PiboApp`), onboarding health auth, 拍一拍/拔毛/能量收集/photo/doodle/games/history/settings/theme/reset (`HomeView` + `SettingsSheet` + `WalkDoodleView`), meal 识别 result (`FoodRecognitionService`), IAP purchase/restore (`MembershipService`), login/logout (`AuthService`, which also calls `Analytics.setUser` → device→user identity alias). **Performance rule: only instrument discrete user actions — never per-frame paths (drag/pan/SpriteKit update).** SDK 行为契约 (`ds-swift-sdk`) — the parts that constrain call sites: `track()` is non-blocking and allocation-light (one lock read + an `AsyncStream` yield — no Task spawn, no encoding, no I/O), with all real work on a single `EventPipeline` actor; disk persistence happens only on flush failure and on backgrounding, never per-enqueue; a 4xx drops the batch (validation errors never succeed on retry) while network errors / 5xx re-queue with exponential backoff capped at 5 min; an unconfigured SDK makes every API a silent no-op, which is exactly what an empty `PIBO_ANALYTICS_URL` relies on. The wire format mirrors the Go server's `internal/models/event.go` (snake_case, ms timestamps, `event_type` + `device_id` always present), so a key rename breaks the server contract and has to land on both sides together. Full internals: `CLAUDE.md` in the ds-swift-sdk repo.
 
-## Core Product Logic (0603 rework + home spec — source of truth)
+## Core Product Logic (implementation lineage + narrative rebuild)
 
-**Narrative/worldview is now split from home-mechanics.** The **current narrative source of truth** lives under **`docs/narrative/`** (立项 2026-07-01) and **supersedes** the worldview in `0603Pibo世界观重构.md` (the 异世界种花小精灵 framing + the 魔丸→傲娇→伙伴 three-stage personality arc):
+**Narrative/worldview is split from home mechanics.** `docs/narrative/` describes the currently shipped lineage, but all new narrative, character, and copy work follows approved decisions under **`docs/narrative-rebuild/`**. In particular, [`docs/narrative-rebuild/decisions/005-Pibo人物基础.md`](docs/narrative-rebuild/decisions/005-Pibo%E4%BA%BA%E7%89%A9%E5%9F%BA%E7%A1%80.md) supersedes every older tsundere or pet-like personality instruction.
 
-- **`docs/narrative/pibo-narrative-bible.md`** — who Pibo is now: an **amnesiac creature** that made you sign a **约定 (pact)**; **personality is CONSTANT** (tsundere, garbled speech — the garble is now justified as an amnesia symptom, not a "stage"); Souls-style **fragmented, non-linear, never-fully-resolved** storytelling; the buried "AI resistance" sci-fi timeline is **deliberately NOT canon** — replaced by an undated, mythic **"people stopped living in their bodies"** theme (never names AI/years/等). Flower↔energy loop + glitch/sickness/离去 arc are retained.
-- **`docs/narrative/pibo-storyline-fragments.md`** — the authored content: the 12-clause 约定 (incl. the **第七条 终显** emotional anchor), the L0–L5 revelation tiers, the four fragment pools (记忆碎片 / 呓语 / 拍照误读 / 地图遗迹), carrier→mechanic mapping, the **记忆恢复度 (progress = cumulative health-behaviour depth, NOT days)**, and the decline-as-forgetting model.
+- **`docs/narrative-rebuild/decisions/`** — approved story, character, ethical, progression, and product-narrative rules. These win over conflicting older narrative text.
+- **`docs/narrative/`** — shipped lineage to preserve until an explicit migration; do not use its tsundere, coercive pact, or low-health-harms-Pibo framing for new work.
 
 The home-mechanics + copy spec is set by **`product-web-prototype/pibo-home-features-spec.md`** (still current for IA/features/greeting):
 
@@ -55,13 +74,13 @@ There is also a sibling `AGENTS.md` (concise repo guidelines) and `README.md` (�
 
 > **Pivot away from the three-stat model.** The shipped code still computes the old 体力/精力/心情 (`StatKind` vitality/energy/mood) numbers, the `[0,100]` star-light bars (活力星光/静息星光/心绪回声), and the 今日步骤 step cards. **That layer is superseded — do not extend it.** The product no longer surfaces stats or star-light at all; state and the flower are derived **directly from raw HealthKit data + time of day**. Migrate toward the model below; the three-stat / star-light / step-card code (`PetStateStore` stat math, `StatKind`, `LPStatBar` usage, `StepItem`) is prior-pivot scaffolding to be replaced.
 
-### What Pibo is (amnesiac creature + 约定 — see `docs/narrative/`)
+### What Pibo is (see `docs/narrative-rebuild/decisions/005-Pibo人物基础.md`)
 
-Pibo is a tsundere little creature that **fell into the present with no memory**. All it retains is one instinct: make a human sign a **约定 (pact)** and help them **care for their own body — because if they don't, Pibo itself fades**. Mutual survival: 你好好活，它才不散. It never explains itself (it *can't* — amnesia), talks in garbled-but-readable syllable fragments, is stingy with words, and only cares about the flower on its head (= "the part of you that's still alive in your body").
+Pibo is a real alien life form and a young firebringer on its first independent journey. It lost episodic memory and mission context but retained training, language habits, personality, and the procedural instinct to gather `bo` and return home. Its accidental App connection with the user becomes a temporary, revocable cooperation and eventually a relationship built through shared time.
 
-> 你不是喂宠物，是两个都快撑不住的存在，互相成为对方活下去的理由。养得好它陪你更久，养不好它发疯、生病、离去。
+Pibo is serious, curious, direct, procedural, and self-respecting. It likes measurement, classification, naming, and records; dislikes being treated as a pet or child; is poor at verbal comfort but remembers details and acts on them; and does not flee important responsibility. It is an organic person with its own work, errors, concealments, desires, and choices—not a robot or health coach.
 
-**Personality is CONSTANT** — Pibo does NOT "grow gentler over stages". The old `魔丸→傲娇→伙伴` three-stage arc is **dropped**; the garbled speech is now an **amnesia symptom**, not a stage. What deepens over time is its **memory recovery** (= cumulative health-behaviour depth) and your mutual trust — surfaced only through Souls-style fragments (记忆碎片 / 呓语 / 拍照误读 / 地图遗迹 / 约定条文显影), assembled by the player into a **mood, never a solved plot**. The buried "future/AI" origin is **never named** — the theme is an undated "people stopped living in their bodies" myth. Full detail: [docs/narrative/pibo-narrative-bible.md](docs/narrative/pibo-narrative-bible.md). (The garbled copy pools are retained as Pibo's voice; only the *stage/personality-arc framing* is superseded. The D1 `.demon` 魔丸 art that once carried the look has since been replaced by the single `.forest` home theme — see the Theme section.)
+**Personality is constant, but judgment and action change.** Pibo does not move through a cold/tsundere/gentle personality arc. It begins by measuring everything for mission utility, later preserves things with no measurable return, and eventually accepts responsibility for rewriting its mission. Garbling and missing words come from memory/translation damage and can decrease; brief, direct, restrained, unsweetened expression remains. Never write stock tsundere denial such as “才不是关心你” or “不是因为担心”. Let care appear through remembered details, altered plans, waiting, and costly choices.
 
 ### Energy → flower (no three-stat / no star-light / no nutrient layer)
 
@@ -146,8 +165,8 @@ Window **22:00–02:00**, triggered on first app open. Uncollected past 02:00 �
 
 ### Tone
 
-- ❌ 不卖惨, 不问责, 不悲情, 不直接说「你该运动了」("分身替你死" / "你没好好活着")
-- ✅ 傲娇、把健康提醒包进「花的状态」("花今天没精神…不是因为我在乎"), playful, expectant ("已经陪过 4 只" / "又被你熬死了")
+- ❌ 不卖惨、不问责、不用死亡威胁、不写标签式傲娇、不把低活动解释成 Pibo 受苦，也不直接命令“你该运动了”
+- ✅ 轻松、愉快、坦然、从容；简短、直接、克制、不甜腻；需要沉重时也保持坦然，通过观察、行动、选择和留白表达关系
 
 ### Demo defaults (when health data isn't wired up)
 

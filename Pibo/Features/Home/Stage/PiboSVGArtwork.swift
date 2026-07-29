@@ -225,7 +225,11 @@ private final class PiboSVGDocumentParser: NSObject, XMLParserDelegate {
     }
 }
 
-private struct PiboSVGPathParser {
+/// Minimal SVG path scanner covering the commands Figma emits for Pibo's fixed
+/// assets (M/L/H/V/C/S/Q/T/Z). Shared with the character runtime so the
+/// silhouette on screen, the hit-test geometry, and the morph geometry all come
+/// from one parser.
+struct PiboSVGPathParser {
     private let tokens: [String]
     private var index = 0
 
@@ -377,7 +381,10 @@ private extension String {
     }
 }
 
-private extension UIColor {
+extension UIColor {
+    /// Parses the colour forms Figma emits (`#RGB`, `#RRGGBB`, `white`, `black`).
+    /// Returns nil for `none` and `url(...)` paint servers, which callers treat
+    /// as "this element has no fill / no stroke".
     convenience init?(svgColor value: String?, opacity: CGFloat) {
         guard let value, value != "none", !value.hasPrefix("url(") else { return nil }
         let normalized: String

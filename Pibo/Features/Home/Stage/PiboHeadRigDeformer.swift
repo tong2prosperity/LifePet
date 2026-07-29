@@ -19,10 +19,18 @@ final class PiboHeadRigDeformer {
     private static let maximumAngle: CGFloat = .pi * 0.24
     private static let canonicalImageName = "forest_pibo_head"
 
-    private weak var sprite: SKSpriteNode?
+    /// Any `SKWarpable` — the legacy theme drives a sprite, the vector character
+    /// drives the `SKEffectNode` that hosts its sprout paths. The rig only ever
+    /// writes a warp mesh, so it does not care which it is.
+    private weak var target: (SKNode & SKWarpable)?
     private var bones = Array(repeating: BoneState(), count: rowCount)
     private var dragTarget: CGFloat?
     private var sourcePositions: [SIMD2<Float>] = []
+    private var axisInverted = false
+    /// Where the root sits across the warp box, 0...1. The legacy head sprite has
+    /// a fixed value baked from its SVG; the vector sprout supplies it per state,
+    /// because the leaf attaches at a different point in each pose.
+    private var pivotFraction: CGFloat = PiboHeadRigDeformer.pivotX
     private var displayedGrowth: CGFloat = 1
     private var growthStart: CGFloat = 1
     private var growthTarget: CGFloat = 1
@@ -40,17 +48,40 @@ final class PiboHeadRigDeformer {
     }
 
     func attach(to sprite: SKSpriteNode, imageName: String?) {
-        self.sprite = sprite
-        isEnabled = imageName == Self.canonicalImageName && sprite.texture != nil
+        attach(to: sprite, enabled: imageName == Self.canonicalImageName && sprite.texture != nil)
+    }
+
+    /// Attaches to the vector character's sprout host.
+    ///
+    /// `axisInverted` mirrors the mesh so row zero still lands on the root: the
+    /// rig's whole model is "the root is pinned, the tip is soft", and `awake`
+    /// hangs out of the coconut hole with its tip *below* its root. Without the
+    /// mirror that state would bend from the wrong end.
+    func attach(toSprout host: SKNode & SKWarpable, axisInverted: Bool, pivotFraction: CGFloat) {
+        self.axisInverted = axisInverted
+        self.pivotFraction = min(max(pivotFraction, 0), 1)
+        sourcePositions = Self.makeSourcePositions(inverted: axisInverted)
+        attach(to: host, enabled: true)
+    }
+
+    /// Updates the root anchor without rebuilding the attachment — the sprout's
+    /// root travels as states morph.
+    func setPivotFraction(_ fraction: CGFloat) {
+        pivotFraction = min(max(fraction, 0), 1)
+    }
+
+    private func attach(to warpable: SKNode & SKWarpable, enabled: Bool) {
+        target = warpable
+        isEnabled = enabled
         dragTarget = nil
         bones = Array(repeating: BoneState(), count: Self.rowCount)
 
         guard isEnabled else {
-            sprite.warpGeometry = nil
-            sprite.subdivisionLevels = 0
+            warpable.warpGeometry = nil
+            warpable.subdivisionLevels = 0
             return
         }
-        sprite.subdivisionLevels = 2
+        warpable.subdivisionLevels = 2
         applyGeometry()
     }
 
@@ -60,7 +91,7 @@ final class PiboHeadRigDeformer {
         wind: StageWind,
         reduceMotion: Bool
     ) {
-        guard isEnabled, sprite != nil else { return }
+        guard isEnabled, target != nil else { return }
         updateGrowth(deltaTime: deltaTime, reduceMotion: reduceMotion)
         let dt = CGFloat(min(max(deltaTime, 0), 1.0 / 30.0))
         guard dt > 0 else {
@@ -163,9 +194,9 @@ final class PiboHeadRigDeformer {
     }
 
     private func applyGeometry() {
-        guard let sprite, isEnabled else { return }
+        guard let target, isEnabled else { return }
         let destinations = destinationPositions()
-        sprite.warpGeometry = SKWarpGeometryGrid(
+        target.warpGeometry = SKWarpGeometryGrid(
             columns: Self.columnCount,
             rows: Self.rowCount,
             sourcePositions: sourcePositions,
@@ -175,7 +206,7 @@ final class PiboHeadRigDeformer {
 
     private func destinationPositions() -> [SIMD2<Float>] {
         let segmentLength = 1 / CGFloat(Self.rowCount)
-        var centers = [CGPoint(x: Self.pivotX, y: 0)]
+        var centers = [CGPoint(x: pivotFraction, y: 0)]
         for (index, bone) in bones.enumerated() {
             let activation = segmentActivation(index)
             let previous = centers[centers.count - 1]
@@ -198,10 +229,10 @@ final class PiboHeadRigDeformer {
                 // Keep the attachment row fixed. Higher cross-sections unfurl
                 // from a narrow fold as each bone becomes active.
                 let width = row == 0 ? 1 : 0.12 + activation * 0.88
-                let offset = (sourceX - Self.pivotX) * width
+                let offset = (sourceX - pivotFraction) * width
                 let x = center.x + cos(angle) * offset
                 let y = center.y - sin(angle) * offset
-                result.append(SIMD2(Float(x), Float(y)))
+                result.append(SIMD2(Float(x), Float(axisInverted ? 1 - y : y)))
             }
         }
         return result
@@ -232,15 +263,13 @@ final class PiboHeadRigDeformer {
         return t * t * (3 - 2 * t)
     }
 
-    private static func makeSourcePositions() -> [SIMD2<Float>] {
+    private static func makeSourcePositions(inverted: Bool = false) -> [SIMD2<Float>] {
         var result: [SIMD2<Float>] = []
         result.reserveCapacity((columnCount + 1) * (rowCount + 1))
         for row in 0 ... rowCount {
+            let v = Float(row) / Float(rowCount)
             for column in 0 ... columnCount {
-                result.append(SIMD2(
-                    Float(column) / Float(columnCount),
-                    Float(row) / Float(rowCount)
-                ))
+                result.append(SIMD2(Float(column) / Float(columnCount), inverted ? 1 - v : v))
             }
         }
         return result

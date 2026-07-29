@@ -120,6 +120,7 @@ final class ForestReflectionProxy {
     private let sourceVRange: ClosedRange<CGFloat>
     private let motionResponse: ForestReflectionProjection.MotionResponse
     private let geometryIsStatic: Bool
+    private let treatsSourceAsInvisibleProxy: Bool
     private var lastTexture: SKTexture?
     private var lastSceneSize: CGSize = .zero
     private var lastStyle: ForestReflectionProjection.Style?
@@ -150,7 +151,8 @@ final class ForestReflectionProxy {
         baseAlpha: CGFloat,
         zPosition: CGFloat,
         motionResponse: ForestReflectionProjection.MotionResponse = .mirrored,
-        geometryIsStatic: Bool = false
+        geometryIsStatic: Bool = false,
+        treatsSourceAsInvisibleProxy: Bool = false
     ) {
         self.source = source
         self.contactPoint = contactPoint
@@ -159,6 +161,7 @@ final class ForestReflectionProxy {
         self.baseAlpha = baseAlpha
         self.motionResponse = motionResponse
         self.geometryIsStatic = geometryIsStatic
+        self.treatsSourceAsInvisibleProxy = treatsSourceAsInvisibleProxy
 
         let texture = Self.croppedTexture(source.texture, vRange: sourceVRange)
         reflected = SKSpriteNode(texture: texture)
@@ -195,7 +198,8 @@ final class ForestReflectionProxy {
             reflected.isHidden = hidden
             lastHidden = hidden
         }
-        let alpha = baseAlpha * intensity * dayPhaseMultiplier * source.alpha
+        let sourceAlpha = treatsSourceAsInvisibleProxy ? 1 : source.alpha
+        let alpha = baseAlpha * intensity * dayPhaseMultiplier * sourceAlpha
         if lastAlpha != alpha {
             reflected.alpha = alpha
             lastAlpha = alpha
@@ -330,7 +334,12 @@ final class ForestReflectionProxy {
     }
 
     private var sourceHierarchyVisible: Bool {
-        var node: SKNode? = source
+        // A proxied source is deliberately invisible: it exists only to carry a
+        // texture and a placement for something drawn by other means (the vector
+        // character is a tree of shape nodes and has no texture of its own).
+        // Its own hidden/alpha state therefore says nothing about whether the
+        // reflection should show — start the walk at its parent.
+        var node: SKNode? = treatsSourceAsInvisibleProxy ? source.parent : source
         while let current = node {
             if current.isHidden || current.alpha <= 0 { return false }
             node = current.parent
