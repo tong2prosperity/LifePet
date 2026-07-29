@@ -31,7 +31,16 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().delegate = self
     }
 
-    nonisolated func userNotificationCenter(
+    // Both delegate methods stay on the main actor. They look isolation-free —
+    // they only read the notification and call back into `@MainActor` state —
+    // but the isolation that matters is the one they *finish* on: the `async`
+    // form is bridged to ObjC as a completion handler, and UIKit runs
+    // main-thread-only work (`_updateSnapshotAndStateRestoration…`) inside it.
+    // Marked `nonisolated`, the continuation lands on the cooperative pool and
+    // that completion fires off-main, tripping a UIKit assertion → SIGABRT on
+    // the notification tap. Hopping to `MainActor` *inside* the body doesn't
+    // help: execution hops straight back out before the completion runs.
+    func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
@@ -45,13 +54,13 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         return [.banner, .sound]
     }
 
-    nonisolated func userNotificationCenter(
+    func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
         let category = response.notification.request.content.categoryIdentifier
         if category == AppNotificationCategory.stress {
-            await MainActor.run { [weak self] in self?.onStressOpened?() }
+            onStressOpened?()
             return
         }
         guard category == AppNotificationCategory.morningSleep
@@ -59,11 +68,9 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         else { return }
         let wakeDay = response.notification.request.content
             .userInfo[AppNotificationCategory.wakeDayUserInfoKey] as? String
-        await MainActor.run { [weak self] in
-            self?.onMorningSleepOpened?(
-                wakeDay,
-                category == AppNotificationCategory.morningSleepMock
-            )
-        }
+        onMorningSleepOpened?(
+            wakeDay,
+            category == AppNotificationCategory.morningSleepMock
+        )
     }
 }
