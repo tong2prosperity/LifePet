@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "git@github.com:PiboWorld/pibo-core.git",
       "state" : {
-        "revision" : "acabb524914e6140e179e0a88b6ea8d228f5b7ef",
-        "version" : "0.3.0"
+        "revision" : "ee191c800923caabbde603d6573133e10e8621d7",
+        "version" : "0.4.0"
       }
     }
   ],
