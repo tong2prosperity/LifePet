@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The product is **Pibo · Life is Vibe**. The project, schemes, bundle identifiers, and user-facing strings have been migrated to Pibo; old LifePulse names should only appear in historical notes or compatibility migration code. This repository is the iOS implementation of a health product that makes daily sleep, walking, and exercise visible through Pibo and practical tools:
 
-> Pibo 是共同经历者，不是宠物或被照顾者。低活动、缺席或拒绝授权不会伤害 Pibo；健康行为形成的 `bo` 连接双方的故事与长期使用。
+> Pibo 是共同经历者，不是宠物或被照顾者。低活动、缺席或拒绝授权不会伤害 Pibo；较少的健康积累只会延后其高耗能行动、使命准备和部分故事节点。
 
 - **iOS** is the primary surface. It owns the pet UI / 活动区 (拍一拍 · 拔毛) / 上滑数据二楼 (历史数据页) / 拍照 / share, and reads health data **passively** from HealthKit on-device. This is where almost all feature work belongs. (图鉴 / 一起 were cut 2026-06-13.)
 - **Apple Watch** no longer streams live samples to the phone. The watch the user already wears writes 步数 / HR / HRV / 睡眠 / workouts into HealthKit on its own; iOS reads those samples after the fact. **However, the watch target is no longer purely dead** — it now hosts a standalone **CRC (cardiorespiratory coupling) breathing trainer** (`Pibo Watch App/Features/CRCBreathing/`), the only active watch feature. Its `RootView` shows `CRCTrainingView()` directly and runs in dark mode.
@@ -159,9 +159,9 @@ Window **22:00–02:00**, triggered on first app open. Uncollected past 02:00 �
 
 露珠相机 → 拍摄 → 扫描线 → 预览 + **Pibo 弹幕** (弹幕 copy stays time-bucketed + a generic pool) → 保存/重拍. Timestamp shown as `YYYY.M.D HH:mm AM/PM` (preview) / `YYYY.M.D HH:mm` (history card). **识图 (added 2026-06-13):** after the shutter, `SubjectClassifier` (Vision `VNClassifyImageRequest`, on-device taxonomy) best-effort names the main subject — 中文 via a built-in mapping, English identifier fallback, nil OK ("识别错了也没有大碍") — shown as a tag on the polaroid preview and stored on the record. After save: the shot is background-removed (抠图 via `SubjectCutout`, Vision foreground-instance mask), **镶嵌白色贴纸边框** (silhouette-hugging white border + hairline grey die-cut rim, `SubjectCutout.stickerize`) and persisted as a `FoodPhoto` (incl. `subjectLabel`) for the day, where it shows up on the 历史数据页's 今日记录 card with the label as a caption; 头顶花轻晃 + 50% chance a 拍照 line. Narrative: the user is Pibo's 地球向导 collecting world samples, not "showing Pibo a photo".
 
-### Glitch / sickness / death (0603 §5 — the decline arc)
+### Low accumulation consequences (rebuild rule)
 
-`正常 → 连续能量不足 → 发疯/glitch → 长期不管 → 生病 → 死亡/离去`. 发疯态 is **glitch 故障艺术** (UI 错位/抖动/像素剥落/Pibo 扭曲), recovered by completing **one** health task (运动 10 min / 睡够 / 拍一张指定照片). Thresholds inherit the original PRD (~3 days low energy → glitch, ~7 → sick, ~30 → death/离去; revival = N days on-target + a 找回仪式, no payment). Lifespan stays **uncapped** and the UI shows only 与Pibo相识的第 N 天 — never a denominator.
+The old `低能量 → glitch → sickness → death/离去` punishment arc is superseded and must not drive new narrative or copy. Low health accumulation may slow `bo` formation, delay high-energy actions, postpone mission preparation, and move some story nodes later. It never harms Pibo, degrades the relationship, erases memory, removes earned `bo`, or makes absence and permission refusal a moral failure. Pibo may state that an operation lacks sufficient accumulation, but cannot blame, plead, suffer, or threaten departure. See `docs/narrative-rebuild/decisions/027-低健康积累对Pibo的影响.md`.
 
 ### Tone
 

@@ -39,6 +39,7 @@
 - [`19-现有产品叙事承载盘点.md`](19-%E7%8E%B0%E6%9C%89%E4%BA%A7%E5%93%81%E5%8F%99%E4%BA%8B%E6%89%BF%E8%BD%BD%E7%9B%98%E7%82%B9.md)：基于当前代码、模拟器和素材仓库盘点可直接复用的叙事承载位置及旧逻辑冲突。
 - [`20-Onboarding叙事流程-v0.1.md`](20-Onboarding%E5%8F%99%E4%BA%8B%E6%B5%81%E7%A8%8B-v0.1.md)：新相遇、临时约定、双平台健康权限、通知权限与进入正式主页的首版完整流程。
 - [`21-Onboarding逐屏方案-v0.2.md`](21-Onboarding%E9%80%90%E5%B1%8F%E6%96%B9%E6%A1%88-v0.2.md)：六个场面的画面、工作台词、用户动作、状态、跳过路径与资产复用提案。
+- [`22-Onboarding台词与界面文案-v0.3.md`](22-Onboarding%E5%8F%B0%E8%AF%8D%E4%B8%8E%E7%95%8C%E9%9D%A2%E6%96%87%E6%A1%88-v0.3.md)：首次完整路径、跳过路径、结束分支与主页恢复气泡的文案提案。
 - [`drafts/Pibo故事基础圣经-v0.1.md`](drafts/Pibo%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E5%9C%A3%E7%BB%8F-v0.1.md)：三套竞争故事骨架、压力测试与当前建议，尚未拍板。
 - [`drafts/Pibo故事基础圣经-v0.2.md`](drafts/Pibo%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E5%9C%A3%E7%BB%8F-v0.2.md)：九项决定的合并草案、伦理边界与进入章节前的开放项审计。
 - [`process/2026-07-24-故事基础批次归纳.md`](process/2026-07-24-%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E6%89%B9%E6%AC%A1%E5%BD%92%E7%BA%B3.md)：本批回答的状态、冲突与 S11–S22 提案。
@@ -75,6 +76,7 @@
 - [`decisions/024-新用户Onboarding平台权限与产品说明.md`](decisions/024-%E6%96%B0%E7%94%A8%E6%88%B7Onboarding%E5%B9%B3%E5%8F%B0%E6%9D%83%E9%99%90%E4%B8%8E%E4%BA%A7%E5%93%81%E8%AF%B4%E6%98%8E.md)：新用户 onboarding 的平台权限、产品价值和视觉交互边界。
 - [`decisions/025-餐食相机与初版功能范围.md`](decisions/025-%E9%A4%90%E9%A3%9F%E7%9B%B8%E6%9C%BA%E4%B8%8E%E5%88%9D%E7%89%88%E5%8A%9F%E8%83%BD%E8%8C%83%E5%9B%B4.md)：餐食相机命名、首版相机能力、Walk Doodle 与其他游戏的产品范围。
 - [`decisions/026-Onboarding回应说明层与恢复方式.md`](decisions/026-Onboarding%E5%9B%9E%E5%BA%94%E8%AF%B4%E6%98%8E%E5%B1%82%E4%B8%8E%E6%81%A2%E5%A4%8D%E6%96%B9%E5%BC%8F.md)：初见回应按钮、单张产品说明层及暂缓后低打扰恢复规则。
+- [`decisions/027-低健康积累对Pibo的影响.md`](decisions/027-%E4%BD%8E%E5%81%A5%E5%BA%B7%E7%A7%AF%E7%B4%AF%E5%AF%B9Pibo%E7%9A%84%E5%BD%B1%E5%93%8D.md)：低积累影响行动能力、使命进度和故事节奏，但不伤害 Pibo 的生命、记忆或关系。
 
 ## 与现有叙事文档的关系
 
