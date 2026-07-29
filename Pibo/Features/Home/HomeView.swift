@@ -6,9 +6,9 @@ import os
 /// Pibo home — a fixed portrait SpriteKit forest. The scene never pans or
 /// scrolls; SwiftUI owns the four corner entries and the surrounding chrome.
 ///
-/// The top-right icon grid enters 露珠相机, 健康小游戏列表 (`GameListView`, walk
-/// doodle 等), 足迹历史页, and 设置. The old in-world studio/gym entries and 上滑
-/// 数据二楼 (`FloorModel` / `FloorContainer`) are retired.
+/// The top-right icon grid enters 露珠相机, 足迹历史页, and 设置. The old in-world
+/// studio/gym entries and 上滑数据二楼 (`FloorModel` / `FloorContainer`) are
+/// retired. 小游戏 remains implemented but its release entry is temporarily hidden.
 ///
 /// Pibo's state and the head-flower come straight off raw HealthKit + time of day
 /// (see `PetStateStore+Mowan`).
@@ -369,10 +369,6 @@ struct HomeView: View {
                 Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
                 cameraInitialMeal = nil
                 showCamera = true
-            }
-            cornerButton(systemImage: "gamecontroller.fill", label: "小游戏", rotation: 2) {
-                Analytics.track(.gamesOpen, screen: "home")
-                showGames = true
             }
             cornerButton(systemImage: "book.closed", label: "足迹", rotation: 2) {
                 Analytics.track(.historyOpen, screen: "home")

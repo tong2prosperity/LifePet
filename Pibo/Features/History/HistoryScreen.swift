@@ -15,8 +15,7 @@ enum HistoryFocus: Hashable {
 //
 // The 历史数据页 is now reached by tapping the home's hand-drawn 「足迹」 icon
 // (see `HomeView`) — it presents as a full-screen cover instead of riding the old
-// 上滑数据二楼 drawer. This wrapper hosts `HistoryFloorView` (新版足迹 / 原版 /
-// 自定义 tabs)
+// 上滑数据二楼 drawer. This wrapper hosts `HistoryFloorView` (新版足迹 / 原版 tabs)
 // over the page surface + a close affordance. `floorIsOpen` defaults to `true`,
 // so the history page's `WaterSurface` animates whenever this cover is on screen.
 
