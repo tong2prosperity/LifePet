@@ -1,7 +1,7 @@
 # Pibo 叙事重构工作室
 
 > 启动日期：2026-07-23  
-> 当前阶段：从零建立叙事方法，尚未拍板新的世界观与故事。  
+> 当前阶段：跨平台 MVP 架构方向已收口，正在确认 Core v0.1 数值结构与第一枚 `bo` 的时间目标。
 > 工作原则：旧设定可以提供素材，但不构成本轮推演的前提。
 
 这个目录记录 Pibo 新一轮叙事重构的完整过程。我们不从旧设定或具体情节开始，
@@ -11,7 +11,8 @@
 
 产品、设计、动画和开发不需要从过程文档开始阅读。请先看：
 
-- [`collaboration/README.md`](collaboration/README.md)：8 分钟快速简报，包含当前结论、设计红线、项目进度和按角色选读入口。
+- [`HANDOFF.md`](HANDOFF.md)：新对话和新 Agent 的第一入口，记录当前检查点、MVP 边界、未决问题和下一步。
+- [`collaboration/README.md`](collaboration/README.md)：完整快速简报，包含当前结论、设计红线和按角色选读入口。
 
 本目录其余文件主要用于创作推进与决策追溯。
 
@@ -40,6 +41,10 @@
 - [`20-Onboarding叙事流程-v0.1.md`](20-Onboarding%E5%8F%99%E4%BA%8B%E6%B5%81%E7%A8%8B-v0.1.md)：新相遇、临时约定、双平台健康权限、通知权限与进入正式主页的首版完整流程。
 - [`21-Onboarding逐屏方案-v0.2.md`](21-Onboarding%E9%80%90%E5%B1%8F%E6%96%B9%E6%A1%88-v0.2.md)：六个场面的画面、工作台词、用户动作、状态、跳过路径与资产复用提案。
 - [`22-Onboarding台词与界面文案-v0.3.md`](22-Onboarding%E5%8F%B0%E8%AF%8D%E4%B8%8E%E7%95%8C%E9%9D%A2%E6%96%87%E6%A1%88-v0.3.md)：首次完整路径、跳过路径、结束分支与主页恢复气泡的文案提案。
+- [`23-Onboarding与事件01-03跨平台MVP规格-v0.1.md`](23-Onboarding%E4%B8%8E%E4%BA%8B%E4%BB%B601-03%E8%B7%A8%E5%B9%B3%E5%8F%B0MVP%E8%A7%84%E6%A0%BC-v0.1.md)：六屏 Onboarding、事件 01–03、第一枚真实 `bo`、双平台职责、迁移清单和验收用例。
+- [`24-bo数值审计与Core-v0.1方向提案.md`](24-bo%E6%95%B0%E5%80%BC%E5%AE%A1%E8%AE%A1%E4%B8%8ECore-v0.1%E6%96%B9%E5%90%91%E6%8F%90%E6%A1%88.md)：现有后端公式与双端真实输入差异、第一枚时间模拟及 Core v0.1 数值结构提案。
+- [`25-pibo-server现有bo算法复核.md`](25-pibo-server%E7%8E%B0%E6%9C%89bo%E7%AE%97%E6%B3%95%E5%A4%8D%E6%A0%B8.md)：完整复核服务端复杂算法、事务与幂等链路、客户端接线缺口、匿名身份及 Core 迁移修正；当前结论优先于 24 号提案。
+- [`process/2026-07-30-MVP冻结与并行推进里程碑.md`](process/2026-07-30-MVP%E5%86%BB%E7%BB%93%E4%B8%8E%E5%B9%B6%E8%A1%8C%E6%8E%A8%E8%BF%9B%E9%87%8C%E7%A8%8B%E7%A2%91.md)：OF1–OF3、MP1–MP3 的确认背景、阶段切换与可追溯入口。
 - [`drafts/Pibo故事基础圣经-v0.1.md`](drafts/Pibo%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E5%9C%A3%E7%BB%8F-v0.1.md)：三套竞争故事骨架、压力测试与当前建议，尚未拍板。
 - [`drafts/Pibo故事基础圣经-v0.2.md`](drafts/Pibo%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E5%9C%A3%E7%BB%8F-v0.2.md)：九项决定的合并草案、伦理边界与进入章节前的开放项审计。
 - [`process/2026-07-24-故事基础批次归纳.md`](process/2026-07-24-%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E6%89%B9%E6%AC%A1%E5%BD%92%E7%BA%B3.md)：本批回答的状态、冲突与 S11–S22 提案。
@@ -77,6 +82,10 @@
 - [`decisions/025-餐食相机与初版功能范围.md`](decisions/025-%E9%A4%90%E9%A3%9F%E7%9B%B8%E6%9C%BA%E4%B8%8E%E5%88%9D%E7%89%88%E5%8A%9F%E8%83%BD%E8%8C%83%E5%9B%B4.md)：餐食相机命名、首版相机能力、Walk Doodle 与其他游戏的产品范围。
 - [`decisions/026-Onboarding回应说明层与恢复方式.md`](decisions/026-Onboarding%E5%9B%9E%E5%BA%94%E8%AF%B4%E6%98%8E%E5%B1%82%E4%B8%8E%E6%81%A2%E5%A4%8D%E6%96%B9%E5%BC%8F.md)：初见回应按钮、单张产品说明层及暂缓后低打扰恢复规则。
 - [`decisions/027-低健康积累对Pibo的影响.md`](decisions/027-%E4%BD%8E%E5%81%A5%E5%BA%B7%E7%A7%AF%E7%B4%AF%E5%AF%B9Pibo%E7%9A%84%E5%BD%B1%E5%93%8D.md)：低积累影响行动能力、使命进度和故事节奏，但不伤害 Pibo 的生命、记忆或关系。
+- [`decisions/028-养成社交战斗与商业化边界.md`](decisions/028-%E5%85%BB%E6%88%90%E7%A4%BE%E4%BA%A4%E6%88%98%E6%96%97%E4%B8%8E%E5%95%86%E4%B8%9A%E5%8C%96%E8%BE%B9%E7%95%8C.md)：四条成长线、付费分账、社交与战斗方向，以及返航后的远程连接。
+- [`decisions/029-Onboarding语言身份信息与临时合作文案.md`](decisions/029-Onboarding%E8%AF%AD%E8%A8%80%E8%BA%AB%E4%BB%BD%E4%BF%A1%E6%81%AF%E4%B8%8E%E4%B8%B4%E6%97%B6%E5%90%88%E4%BD%9C%E6%96%87%E6%A1%88.md)：语言损伤、授权前身份信息和临时合作按钮。
+- [`decisions/030-MVP叙事冻结点与并行推进.md`](decisions/030-MVP%E5%8F%99%E4%BA%8B%E5%86%BB%E7%BB%93%E7%82%B9%E4%B8%8E%E5%B9%B6%E8%A1%8C%E6%8E%A8%E8%BF%9B.md)：MVP 叙事冻结点、开发前收口范围与并行推进方式。
+- [`decisions/031-bo本地优先与Core单一规则源.md`](decisions/031-bo%E6%9C%AC%E5%9C%B0%E4%BC%98%E5%85%88%E4%B8%8ECore%E5%8D%95%E4%B8%80%E8%A7%84%E5%88%99%E6%BA%90.md)：`bo` 本地优先、Core 单一规则源、登录后合并及许可时间边界。
 
 ## 与现有叙事文档的关系
 

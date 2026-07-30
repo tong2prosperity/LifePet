@@ -168,6 +168,10 @@ The old `低能量 → glitch → sickness → death/离去` punishment arc is s
 - ❌ 不卖惨、不问责、不用死亡威胁、不写标签式傲娇、不把低活动解释成 Pibo 受苦，也不直接命令“你该运动了”
 - ✅ 轻松、愉快、坦然、从容；简短、直接、克制、不甜腻；需要沉重时也保持坦然，通过观察、行动、选择和留白表达关系
 
+### Monetization and post-return continuity
+
+These are future boundaries, not current MVP scope. Do not implement a paid meal-camera tier, cosmetic store, paid skins, social, signal station, battle, season, or PvP for the MVP unless the user explicitly changes scope. `bo`, story progress, relationship depth, memory recovery, and return readiness are never purchasable. StoreKit entitlements remain a separate ledger for future ongoing meal-camera services, cosmetics, space expression, and advanced social tools; basic social viewing and visits stay free. Physical return ends Earth cohabitation and the main storyline, then the App becomes a lower-frequency remote connection. Purchased cosmetics, social identity, inventory, and future game assets must remain usable after story completion. See `docs/narrative-rebuild/decisions/028-养成社交战斗与商业化边界.md`.
+
 ### Demo defaults (when health data isn't wired up)
 
 The shipped `PetStateStore.demoMode` still hard-codes the **prior-pivot** values (pet name **BEAN**, day **D07**, 体力 88 / 精力 74 / 心情 82, state `EXCITED`) so the app demos on any device — update these as the 魔丸态 model lands. The `mocks/` folder holds JSONL streams from the earlier watch workflow.
