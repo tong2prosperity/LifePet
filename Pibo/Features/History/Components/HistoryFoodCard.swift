@@ -68,12 +68,14 @@ struct HistoryFoodCard: View {
         .lpShadow(LP.Shadow.elevation1)
     }
 
+    // 空态不再指路相机 —— 露珠相机在首发范围外（`PiboReleaseScope.camera`），
+    // 写"去拍一张"会指向一个打不开的入口。卡片本身保留：老数据仍要能看。
     private var emptyState: some View {
         HStack(spacing: LP.Spacing.s) {
-            Image(systemName: "camera")
+            Image(systemName: "tray")
                 .font(.system(size: 18, weight: .regular))
                 .foregroundStyle(LP.Content.tertiary)
-            Text(AppLocalization.text("还没有记录，用露珠相机拍一张吧"))
+            Text(AppLocalization.text("这一天还没有记录"))
                 .lpText(LP.Typography.b4Regular)
                 .foregroundStyle(LP.Content.tertiary)
         }

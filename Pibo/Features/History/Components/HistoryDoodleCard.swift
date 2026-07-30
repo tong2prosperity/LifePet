@@ -55,12 +55,14 @@ struct HistoryDoodleCard: View {
         .frame(width: 128)
     }
 
+    // 空态不再指路涂鸦 —— 地图涂鸦属小游戏，在首发范围外
+    // （`PiboReleaseScope.miniGames`）。卡片保留，老数据仍要能看。
     private var emptyState: some View {
         HStack(spacing: LP.Spacing.s) {
             Image(systemName: "scribble.variable")
                 .font(.system(size: 18, weight: .regular))
                 .foregroundStyle(LP.Content.tertiary)
-            Text(AppLocalization.text("还没有涂鸦，让 Pibo 带你出门画一幅"))
+            Text(AppLocalization.text("这一天还没有涂鸦"))
                 .lpText(LP.Typography.b4Regular)
                 .foregroundStyle(LP.Content.tertiary)
         }

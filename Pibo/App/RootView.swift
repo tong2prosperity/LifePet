@@ -9,7 +9,11 @@ struct RootView: View {
     #if DEBUG
     @State private var showWaterLab = false
     @State private var showCharacterLab = false
-    @State private var debugMiniGame: MiniGameKind? = MiniGameKind.debugRequestedLaunchGame()
+    /// 小游戏在首发范围外（`PiboReleaseScope.miniGames`）。`-PiboOpenMiniGame`
+    /// 本身就算作打开，所以这里判一次开关只是让"谁在管这条直通"有据可查。
+    @State private var debugMiniGame: MiniGameKind? = PiboReleaseScope.miniGames
+        ? MiniGameKind.debugRequestedLaunchGame()
+        : nil
 
     private var debugOpensHistory: Bool {
         ProcessInfo.processInfo.arguments.contains("-PiboOpenHistory")

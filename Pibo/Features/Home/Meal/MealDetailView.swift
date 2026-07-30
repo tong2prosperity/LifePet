@@ -216,25 +216,30 @@ struct MealDetailView: View {
         }
     }
 
+    /// 重拍 is a door back into the camera, so it disappears with it. Both call
+    /// sites (the populated view and `emptyState`) then render nothing here.
+    @ViewBuilder
     private var recaptureButton: some View {
-        Button {
-            LPHaptics.tap()
-            dismiss()
-            onRecapture(meal)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "camera.fill").font(.system(size: 13))
-                Text(AppLocalization.text("重拍这一餐"))
-                    .lpText(LP.Typography.b3Medium)
+        if PiboReleaseScope.camera {
+            Button {
+                LPHaptics.tap()
+                dismiss()
+                onRecapture(meal)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "camera.fill").font(.system(size: 13))
+                    Text(AppLocalization.text("重拍这一餐"))
+                        .lpText(LP.Typography.b3Medium)
+                }
+                .foregroundStyle(LP.Content.secondary)
+                .padding(.horizontal, LP.Spacing.l)
+                .padding(.vertical, LP.Spacing.s)
+                .background(Capsule().fill(LP.Fill.bgContainer))
             }
-            .foregroundStyle(LP.Content.secondary)
-            .padding(.horizontal, LP.Spacing.l)
-            .padding(.vertical, LP.Spacing.s)
-            .background(Capsule().fill(LP.Fill.bgContainer))
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+            .padding(.top, LP.Spacing.s)
         }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
-        .padding(.top, LP.Spacing.s)
     }
 
     private var emptyState: some View {

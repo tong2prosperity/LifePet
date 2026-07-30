@@ -5977,19 +5977,70 @@
         }
       }
     },
-    "还没有涂鸦，让 Pibo 带你出门画一幅" : {
+    "还没有拍这一餐" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No doodles yet — let Pibo take you out to draw one"
+            "value" : "No photo of this meal yet"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "还没有涂鸦，让 Pibo 带你出门画一幅"
+            "value" : "还没有拍这一餐"
+          }
+        }
+      }
+    },
+    "这一天还没有涂鸦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No doodles on this day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天还没有涂鸦"
+          }
+        }
+      }
+    },
+    "这一天还没有记录" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing recorded on this day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天还没有记录"
+          }
+        }
+      }
+    },
+    "重拍这一餐" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retake this meal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重拍这一餐"
           }
         }
       }

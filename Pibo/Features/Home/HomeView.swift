@@ -4,11 +4,12 @@ import UIKit
 import os
 
 /// Pibo home — a fixed portrait SpriteKit forest. The scene never pans or
-/// scrolls; SwiftUI owns the four corner entries and the surrounding chrome.
+/// scrolls; SwiftUI owns the corner entries and the surrounding chrome.
 ///
-/// The top-right icon grid enters 露珠相机, 足迹历史页, and 设置. The old in-world
-/// studio/gym entries and 上滑数据二楼 (`FloorModel` / `FloorContainer`) are
-/// retired. 小游戏 remains implemented but its release entry is temporarily hidden.
+/// The top-right icon grid enters 足迹历史页 and 设置. The old in-world studio/gym
+/// entries and 上滑数据二楼 (`FloorModel` / `FloorContainer`) are retired.
+/// 露珠相机 and 小游戏 remain implemented but are outside the 首发 range — their
+/// entries are gated by `PiboReleaseScope` (see that file to restore them).
 ///
 /// Pibo's state and the head-flower come straight off raw HealthKit + time of day
 /// (see `PetStateStore+Mowan`).
@@ -70,6 +71,21 @@ struct HomeView: View {
 
     private var fullScreenFeaturePresented: Bool {
         showCamera || showGames || showHistory || showWalkDoodle
+    }
+
+    // 首发范围外的三张全屏功能页，呈现绑定统一过一遍 `PiboReleaseScope`。收在绑定
+    // 上而不是只收在按钮上，是因为按钮不是唯一入口（重拍、启动参数、以后新加的
+    // 任何一处赋值都会走这里），这样"关着"就不依赖调用方记得判断。
+    private var cameraPresented: Binding<Bool> {
+        Binding(get: { showCamera && PiboReleaseScope.camera }, set: { showCamera = $0 })
+    }
+
+    private var gamesPresented: Binding<Bool> {
+        Binding(get: { showGames && PiboReleaseScope.miniGames }, set: { showGames = $0 })
+    }
+
+    private var walkDoodlePresented: Binding<Bool> {
+        Binding(get: { showWalkDoodle && PiboReleaseScope.miniGames }, set: { showWalkDoodle = $0 })
     }
 
     private var stageEnvironment: PiboStageEnvironment {
@@ -166,7 +182,8 @@ struct HomeView: View {
             if ProcessInfo.processInfo.arguments.contains("-PiboSimulateMeal") {
                 Task { try? await Task.sleep(for: .seconds(1)); debugSimulateMeal(.lunch) }
             }
-            if !debugOpenedGames, ProcessInfo.processInfo.arguments.contains("-PiboOpenGames") {
+            if PiboReleaseScope.miniGames, !debugOpenedGames,
+               ProcessInfo.processInfo.arguments.contains("-PiboOpenGames") {
                 debugOpenedGames = true
                 Task {
                     try? await Task.sleep(for: .milliseconds(350))
@@ -246,12 +263,12 @@ struct HomeView: View {
         // instead would try to present while the previous modal is still on its
         // way out, which SwiftUI silently drops — leaving `activeSheet` non-nil
         // with nothing on screen and no way back.
-        .fullScreenCover(isPresented: $showCamera, onDismiss: resumePendingHomeFlows) {
+        .fullScreenCover(isPresented: cameraPresented, onDismiss: resumePendingHomeFlows) {
             PiboCameraView(initialMeal: cameraInitialMeal, onPhotoSaved: { image, label, meal in
                 handlePhotoSaved(image, label, meal: meal)
             }).environment(store)
         }
-        .fullScreenCover(isPresented: $showGames, onDismiss: resumePendingHomeFlows) {
+        .fullScreenCover(isPresented: gamesPresented, onDismiss: resumePendingHomeFlows) {
             GameListView(onWalkDoodleSaved: handleDoodleSaved)
                 .environment(store)
                 .environment(history)
@@ -264,7 +281,7 @@ struct HomeView: View {
                 .environment(store)
                 .environment(history)
         }
-        .fullScreenCover(isPresented: $showWalkDoodle, onDismiss: resumePendingHomeFlows) {
+        .fullScreenCover(isPresented: walkDoodlePresented, onDismiss: resumePendingHomeFlows) {
             WalkDoodleView(onSaved: handleDoodleSaved)
         }
         .sheet(item: $activeSheet, onDismiss: resumePendingHomeFlows) { destination in
@@ -365,10 +382,12 @@ struct HomeView: View {
         LazyVGrid(columns: [GridItem(.fixed(44), spacing: LP.Spacing.s),
                             GridItem(.fixed(44), spacing: LP.Spacing.s)],
                   spacing: LP.Spacing.s) {
-            cornerButton(systemImage: "camera.fill", label: "露珠相机", rotation: -2) {
-                Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
-                cameraInitialMeal = nil
-                showCamera = true
+            if PiboReleaseScope.camera {
+                cornerButton(systemImage: "camera.fill", label: "露珠相机", rotation: -2) {
+                    Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
+                    cameraInitialMeal = nil
+                    showCamera = true
+                }
             }
             cornerButton(systemImage: "book.closed", label: "足迹", rotation: 2) {
                 Analytics.track(.historyOpen, screen: "home")
@@ -550,7 +569,10 @@ struct HomeView: View {
 
     /// Open the camera for a specific meal slot (早/中/晚) — the saved photo goes
     /// to the backend for 卡路里 recognition and its detail modal pops up.
+    /// Guarded because 重拍 is a second door into the camera; with the feature out
+    /// of 首发 range there must be no way in at all.
     private func startMealCapture(_ meal: MealType) {
+        guard PiboReleaseScope.camera else { return }
         Analytics.track(.cameraOpen, screen: "home", ["meal": .string(meal.rawValue)])
         cameraInitialMeal = meal
         showCamera = true

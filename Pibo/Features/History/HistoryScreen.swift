@@ -15,9 +15,10 @@ enum HistoryFocus: Hashable {
 //
 // The 历史数据页 is now reached by tapping the home's hand-drawn 「足迹」 icon
 // (see `HomeView`) — it presents as a full-screen cover instead of riding the old
-// 上滑数据二楼 drawer. This wrapper hosts `HistoryFloorView` (新版足迹 / 原版 tabs)
-// over the page surface + a close affordance. `floorIsOpen` defaults to `true`,
-// so the history page's `WaterSurface` animates whenever this cover is on screen.
+// 上滑数据二楼 drawer. This wrapper hosts `HistoryFloorView` (首发只有「原版」页；
+// 新版足迹页的入口收在 `PiboReleaseScope.footprintsHistory`) over the page surface
+// + a close affordance. `floorIsOpen` defaults to `true`, so the history page's
+// `WaterSurface` animates whenever this cover is on screen.
 
 struct HistoryScreen: View {
     @Environment(\.dismiss) private var dismiss

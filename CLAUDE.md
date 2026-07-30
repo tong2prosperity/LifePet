@@ -95,7 +95,11 @@ HealthKit data maps **directly** onto Pibo's state and the head-flower's conditi
 
 ### Home screen IA (home spec §1)
 
-> **超越上滑二楼 — 横向逛场景 (2026-06-27 重构, source of truth for navigation).** The home is no longer a single vertical floor with a 上滑数据二楼. It is now a **horizontally-pannable SpriteKit world** (旅行青蛙-style diorama): the user **drags left/right inside the main scene** to roam between three zones, and **taps a zone to enter its feature**. The 上滑 pull-up (`FloorModel` / `FloorContainer` / `FloorDome`) is **retired and deleted**; feature entries are now in-world.
+> **首发范围裁剪 (2026-07-30) — read this before the navigation text below.** `Pibo/App/PiboReleaseScope.swift` is the single place that says what the 首发 build exposes. Currently off: `camera` (露珠相机 + 餐照识别), `miniGames` (游戏场 + 地图涂鸦), `footprintsHistory` (历史页的新版「足迹」tab), `customizePibo`. **All the implementations stay** — only the entries are gated, and each flag flips back with one `false → true`. In DEBUG a launch argument opens any of them (`-PiboEnableCamera` / `-PiboEnableGames` / `-PiboEnableFootprints` / `-PiboEnableCustomize`; the pre-existing `-PiboOpenGames` / `-PiboOpenMiniGame` also count as enabling games). Net effect on the home: the top-right grid is **足迹 + 设置 only**, and the history cover renders `PiboHistoryView`(原版, 有云朵睡眠卡) directly with **no `TabView`**.
+>
+> **The 横向逛场景 description below is stale.** `StageZone` / camera pan / zone dots / `onEnterCamera` / `onEnterGames` were all deleted in `f0a79f3` (2026-07-05); `PiboStageScene` is now a single fixed portrait world and `HomeView` owns every entry as corner chrome. The block is kept for lineage until the navigation section is rewritten.
+
+> **超越上滑二楼 — 横向逛场景 (2026-06-27 重构, superseded — see the note above).** The home is no longer a single vertical floor with a 上滑数据二楼. It is now a **horizontally-pannable SpriteKit world** (旅行青蛙-style diorama): the user **drags left/right inside the main scene** to roam between three zones, and **taps a zone to enter its feature**. The 上滑 pull-up (`FloorModel` / `FloorContainer` / `FloorDome`) is **retired and deleted**; feature entries are now in-world.
 >
 > ```
 > 照相馆 (studio)  ←   Pibo 的栖息地 (home, 默认居中)   →   游戏场 (gym)
