@@ -192,8 +192,7 @@ private struct GrassField: View {
             ZStack(alignment: .bottom) {
                 // 山丘从左往右铺开。Figma 中山丘约 355 × 100，植物数据区
                 // 内收 8pt 且位于其下方；额外石头会重复最低档位，因此不叠加。
-                Image("walk_hills")
-                    .resizable()
+                MintHills()
                     .frame(width: w + 2, height: min(100, h), alignment: .top)
                     .frame(width: w, height: h, alignment: .top)
                     .mask(alignment: .leading) {
@@ -251,6 +250,84 @@ private struct GrassField: View {
                 .shadow(color: Color(hex: 0xFFDF51, alpha: 0.9), radius: 2.5)
                 .position(x: w * Self.fireflySpots[i].0, y: h * Self.fireflySpots[i].1)
         }
+    }
+}
+
+// MARK: - Mint hills
+
+/// 薄荷色山丘 — Figma `activity card` (1496:5974) 里 `walk data-v` 的山丘层：
+/// 渐变填充 + 山脊描边。
+///
+/// **这里不用导出的矢量资源，是有原因的，别改回 `Image("walk_hills")`。**
+/// 该图形的渐变靠 `stop-opacity: 0.3 → 0` 实现，而仓库的
+/// SVG → `rsvg-convert -f pdf` → imageset 管线会把它拆成一个 luminosity
+/// soft mask；CoreGraphics 渲染这个 mask 时只覆盖到图形宽度的 **75%**，右侧
+/// 填充整块消失（描边不吃 mask，所以只剩一条线）。用一份新导出的 SVG 重跑管线
+/// 也一样断，所以那份 `walk_hills.pdf` 资源是坏的、并且不可能靠重新导出修好。
+/// 凡是带 `stop-opacity` 渐变的 Figma 图形，都要走这条路，别走 PDF。
+///
+/// 路径数值逐字来自 Figma 的 SVG 导出（设计尺寸 285 × 86.1717），因此这不是
+/// 手工描摹 —— 以后 Figma 改了形状，重新导一份 SVG 直接比对这些数字即可。
+///
+/// 配色取**卡片实例**而不是素材节点：素材区那个独立的 `Group 117` (1496:4495)
+/// 用深青 `#22B394` 描边，但卡片里用的是与填充同色的浅薄荷 `#70D6C1`（4× 导出
+/// 采样为 `#80DCCC`，抗锯齿后的结果；旧 PDF 资源里也正是 `#70D6C1`）。
+private struct MintHills: View {
+    /// 填充渐变的起止色 —— 山脊描边同样用这个色（不透明）。
+    private static let mint: UInt32 = 0x70D6C1
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            HillsShape(closed: true)
+                .fill(LinearGradient(
+                    colors: [Color(hex: Self.mint, alpha: 0.3),
+                             Color(hex: Self.mint, alpha: 0)],
+                    startPoint: .top, endPoint: .bottom))
+            HillsShape(closed: false)
+                .stroke(Color(hex: Self.mint), lineWidth: 1)
+        }
+    }
+}
+
+/// 山脊曲线。`closed` 时向下收成 `Vector 94` 的填充体 —— 填充和描边共用同一条
+/// 曲线，两者永远不会错位。按 `preserveAspectRatio="none"` 非等比拉伸到给定
+/// 矩形，和原先 `Image.resizable()` 的行为一致。
+private struct HillsShape: Shape {
+    var closed: Bool
+
+    nonisolated func path(in rect: CGRect) -> Path {
+        // 设计画板尺寸；下面的坐标都在这个空间里。
+        let design = CGSize(width: 285, height: 86.1717)
+        // `Vector 95` 的 C 命令：(控制点1, 控制点2, 终点)。
+        let crest: [(CGPoint, CGPoint, CGPoint)] = [
+            (CGPoint(x: 17, y: 26.3865), CGPoint(x: 12, y: 20.3111), CGPoint(x: 23, y: 20.3111)),
+            (CGPoint(x: 35.5, y: 20.3111), CGPoint(x: 34, y: 26.3865), CGPoint(x: 44, y: 26.3865)),
+            (CGPoint(x: 54, y: 26.3865), CGPoint(x: 54.7548, y: 11.6716), CGPoint(x: 66.7548, y: 11.6716)),
+            (CGPoint(x: 78.7548, y: 11.6716), CGPoint(x: 77, y: 20.3111), CGPoint(x: 88, y: 20.3111)),
+            (CGPoint(x: 99, y: 20.3111), CGPoint(x: 97.5, y: 0.5), CGPoint(x: 110.5, y: 0.5)),
+            (CGPoint(x: 125.5, y: 0.5), CGPoint(x: 124, y: 26.3865), CGPoint(x: 139, y: 26.3865)),
+            (CGPoint(x: 154, y: 26.3865), CGPoint(x: 157.03, y: 11.6716), CGPoint(x: 171.03, y: 11.6716)),
+            (CGPoint(x: 185.03, y: 11.6716), CGPoint(x: 182, y: 20.3111), CGPoint(x: 197, y: 20.3111)),
+            (CGPoint(x: 212, y: 20.3111), CGPoint(x: 207, y: 0.5), CGPoint(x: 220, y: 0.5)),
+            (CGPoint(x: 236, y: 0.5), CGPoint(x: 227.53, y: 11.6716), CGPoint(x: 240.03, y: 11.6716)),
+            (CGPoint(x: 250.53, y: 11.6716), CGPoint(x: 248.385, y: 0.5), CGPoint(x: 260, y: 0.5)),
+            (CGPoint(x: 273, y: 0.5), CGPoint(x: 272, y: 26.3865), CGPoint(x: 285, y: 26.3865)),
+        ]
+
+        var p = Path()
+        p.move(to: CGPoint(x: 0, y: 26.3865))
+        for (c1, c2, end) in crest {
+            p.addCurve(to: end, control1: c1, control2: c2)
+        }
+        if closed {
+            p.addLine(to: CGPoint(x: design.width, y: design.height))
+            p.addLine(to: CGPoint(x: 0, y: design.height))
+            p.closeSubpath()
+        }
+        return p.applying(
+            CGAffineTransform(scaleX: rect.width / design.width,
+                              y: rect.height / design.height)
+                .concatenating(CGAffineTransform(translationX: rect.minX, y: rect.minY)))
     }
 }
 
