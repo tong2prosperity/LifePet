@@ -17,9 +17,11 @@ import Foundation
 enum PiboAnimationStateMap {
     static let fallback = "default"
 
-    /// States with runtime artwork in this build. Core knows all twelve; the
-    /// other six are `scope: deferred` in the asset manifest.
-    static let available: Set<String> = ["default", "muscle", "pigu", "sleep-1", "sleep-2", "awake"]
+    /// Stable semantic IDs shipped by pibo-assets 0.3.0.
+    static let available: Set<String> = [
+        "default", "muscle", "pigu", "sleep-1", "sleep-2", "awake",
+        "weak", "angry", "boring", "tired", "dive", "coolhide",
+    ]
 
     /// The ambient pose for a condition.
     static func ambientStateID(
@@ -39,11 +41,10 @@ enum PiboAnimationStateMap {
         return available.contains(decided) ? decided : fallback
     }
 
-    /// The performance played when a workout lands: 秀肌肉 → 娇羞 → 回常驻态.
-    static let workoutCelebration: [PiboCharacterPlaybook.Beat] = [
-        .init("muscle", hold: 2.0),
-        .init("pigu", hold: 2.0),
-    ]
+    static func achievement(_ stateID: String) -> [PiboCharacterPlaybook.Beat] {
+        guard stateID == "pigu" || stateID == "muscle" else { return [] }
+        return [.init(stateID, hold: 6.0)]
+    }
 
     /// Whether a state belongs to the coconut, which decides hard cut vs morph.
     static func isNestState(_ stateID: String, data: PiboCharacterData?) -> Bool {
@@ -65,6 +66,7 @@ enum PiboVectorCharacterFlag {
         if ProcessInfo.processInfo.arguments.contains("-PiboVectorCharacter") { return true }
         if ProcessInfo.processInfo.arguments.contains("-PiboLegacyCharacter") { return false }
         #endif
+        if UserDefaults.standard.object(forKey: defaultsKey) == nil { return true }
         return UserDefaults.standard.bool(forKey: defaultsKey)
     }
 }

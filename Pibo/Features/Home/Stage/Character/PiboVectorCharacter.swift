@@ -26,6 +26,10 @@ final class PiboVectorCharacter {
     /// the settle pulse at 50% / 80% — near Pibo's feet, so the "biu" reads as
     /// landing rather than as the whole body breathing. This node sits at that
     /// anchor with the geometry offset back out of it.
+    /// Business `bounceCut` scales the complete 460×460 player around its
+    /// authored 50% / 58% origin. In artboard coordinates that origin is
+    /// 50% / 62.266…% because the 300×300 artboard has 80 px player padding.
+    private let presentationNode = SKNode()
     private let pulseNode = SKNode()
     private let contentNode = SKNode()
     private let bodyLayer = SKNode()
@@ -63,13 +67,18 @@ final class PiboVectorCharacter {
     private(set) var currentStateID: String
     private var targetStateID: String
     private var progress: CGFloat = 0
+    /// Shared-path control points captured when a morph is redirected before it
+    /// settles. They remain the source for the new transition's full duration.
+    private var capturedTransitionSource: [String: [CGFloat]]?
+    private var capturedTransitionTargetID: String?
 
     init?(stateID: String = "default", data: PiboCharacterData? = PiboCharacterData.shared) {
         guard let data, data.states[stateID] != nil else { return nil }
         self.data = data
         currentStateID = stateID
         targetStateID = stateID
-        rootNode.addChild(pulseNode)
+        rootNode.addChild(presentationNode)
+        presentationNode.addChild(pulseNode)
         pulseNode.addChild(contentNode)
         for glow in [glowOuter, glowInner] {
             glow.fillColor = .clear
@@ -84,12 +93,24 @@ final class PiboVectorCharacter {
         contentNode.addChild(bodyLayer)
         sproutNode.shouldEnableEffects = true
         sproutNode.shouldRasterize = false
+        // The sprout geometry is authored at 3× for antialiasing and its host
+        // always scales back to 1/3. Modal artboards use exactly scale == 1;
+        // relying on `setScale` to install this would hit its equality fast-path
+        // and leave bo/boline three times too large, outside the 300×300 frame.
+        sproutNode.setScale(1 / Self.sproutSupersample)
         contentNode.addChild(sproutNode)
-        // 挂在 rootNode 而不是 contentNode 上：快照拍的是 contentNode，代理本身
-        // 必须留在镜头外，否则会把上一帧的自己拍进去。
+        // The proxy is a sibling of contentNode under the animated presentation
+        // containers. It therefore follows bounce/settle scale in the water
+        // reflection, while `texture(from: contentNode)` still cannot capture
+        // the hidden proxy recursively.
         reflectionSource.isHidden = true
-        rootNode.addChild(reflectionSource)
+        pulseNode.addChild(reflectionSource)
         applyPulseAnchor()
+        // The initial state is already the transition driver's settled state,
+        // so its first `setTransition` call is intentionally a no-op. Build the
+        // authored geometry here instead of relying on a later state change to
+        // make the character appear.
+        rebuild()
     }
 
     /// Damped scale about the design package's anchor, applied to the container
@@ -97,6 +118,11 @@ final class PiboVectorCharacter {
     /// that killed the overshoot-easing experiment.
     func setSettleScale(_ value: CGFloat) {
         pulseNode.setScale(value)
+    }
+
+    func setPresentationScale(x: CGFloat, y: CGFloat) {
+        presentationNode.xScale = x
+        presentationNode.yScale = y
     }
 
     private func applyPulseAnchor() {
@@ -109,7 +135,16 @@ final class PiboVectorCharacter {
             x: (ax - 0.5) * designFrame.width * scale,
             y: (0.5 - ay) * designFrame.height * scale
         )
-        pulseNode.position = offset
+        let playerOriginY = CGFloat((460 * 0.58 - 80) / 300)
+        let presentationOffset = CGPoint(
+            x: 0,
+            y: (0.5 - playerOriginY) * designFrame.height * scale
+        )
+        presentationNode.position = presentationOffset
+        pulseNode.position = CGPoint(
+            x: offset.x - presentationOffset.x,
+            y: offset.y - presentationOffset.y
+        )
         contentRest = CGPoint(x: -offset.x, y: -offset.y)
         contentNode.position = contentRest
     }
@@ -162,6 +197,8 @@ final class PiboVectorCharacter {
         currentStateID = stateID
         targetStateID = stateID
         progress = 0
+        capturedTransitionSource = nil
+        capturedTransitionTargetID = nil
         rebuild()
     }
 
@@ -174,10 +211,55 @@ final class PiboVectorCharacter {
         // Geometry only depends on these three, so at rest this is a no-op and
         // the per-frame cost collapses to the idle animator's transform writes.
         guard from != currentStateID || to != targetStateID || clamped != self.progress else { return }
+        if to != targetStateID {
+            captureCurrentMorphSourceIfNeeded(for: to)
+        }
         currentStateID = from
         targetStateID = to
         self.progress = clamped
         rebuild()
+        if clamped >= 1 {
+            capturedTransitionSource = nil
+            capturedTransitionTargetID = nil
+        }
+    }
+
+    private func captureCurrentMorphSourceIfNeeded(for newTargetID: String) {
+        guard currentStateID != targetStateID,
+              progress > 0,
+              progress < 1 else {
+            capturedTransitionSource = nil
+            capturedTransitionTargetID = nil
+            return
+        }
+        var captured: [String: [CGFloat]] = [:]
+        for (id, morph) in data.morph {
+            if let values = currentMorphValues(id: id, morph: morph) {
+                captured[id] = values
+            }
+        }
+        capturedTransitionSource = captured.isEmpty ? nil : captured
+        capturedTransitionTargetID = captured.isEmpty ? nil : newTargetID
+    }
+
+    private func currentMorphValues(
+        id: String,
+        morph: PiboCharacterData.Morph
+    ) -> [CGFloat]? {
+        if capturedTransitionTargetID == targetStateID,
+           let source = capturedTransitionSource?[id],
+           let target = morph.values(for: targetStateID),
+           source.count == target.count {
+            return zip(source, target).map { first, second in
+                first + (second - first) * progress
+            }
+        }
+        return PiboCharacterGeometry.interpolatedValues(
+            for: morph,
+            from: currentStateID,
+            to: targetStateID,
+            progress: progress
+        )
     }
 
     /// Sprout skeleton for the current blend, in design coordinates. The rig
@@ -197,23 +279,44 @@ final class PiboVectorCharacter {
     /// interactive shape cannot drift apart.
     func bodyPath() -> CGPath? {
         guard let morph = data.morph["body"] else { return nil }
-        return PiboCharacterGeometry.interpolatedPath(
-            for: morph,
-            from: currentStateID,
-            to: targetStateID,
-            progress: progress,
-            transform: bodyTransform
-        )
+        return interpolatedPath(id: "body", morph: morph, transform: bodyTransform)
+    }
+
+    /// Converts a point sampled from `bodyPath()` into the character root's
+    /// current presentation space. Weather impacts use this so breathing,
+    /// landing pulse and business bounce transforms all move the target point
+    /// with the pixels on screen.
+    func rootPoint(forBodyPathPoint point: CGPoint) -> CGPoint {
+        rootNode.convert(point, from: contentNode)
     }
 
     func sproutPath() -> CGPath? {
         guard let morph = data.morph["bo"] else { return nil }
+        return interpolatedPath(id: "bo", morph: morph, transform: bodyTransform)
+    }
+
+    private func interpolatedPath(
+        id: String,
+        morph: PiboCharacterData.Morph,
+        transform: CGAffineTransform
+    ) -> CGPath? {
+        if capturedTransitionTargetID == targetStateID,
+           let source = capturedTransitionSource?[id],
+           let target = morph.values(for: targetStateID) {
+            return PiboCharacterGeometry.interpolatedPath(
+                for: morph,
+                fromValues: source,
+                toValues: target,
+                progress: progress,
+                transform: transform
+            )
+        }
         return PiboCharacterGeometry.interpolatedPath(
             for: morph,
             from: currentStateID,
             to: targetStateID,
             progress: progress,
-            transform: bodyTransform
+            transform: transform
         )
     }
 
@@ -274,13 +377,7 @@ final class PiboVectorCharacter {
 
         let rawPath: CGPath?
         if element.isShared, let morph = data.morph[element.id] {
-            rawPath = PiboCharacterGeometry.interpolatedPath(
-                for: morph,
-                from: currentStateID,
-                to: targetStateID,
-                progress: progress,
-                transform: matrix
-            )
+            rawPath = interpolatedPath(id: element.id, morph: morph, transform: matrix)
         } else {
             rawPath = PiboCharacterGeometry.path(svgPathData: element.d, transform: matrix)
         }
@@ -387,15 +484,52 @@ final class PiboVectorCharacter {
     /// the source artwork, so the character's ground line is `maxY`.
     var bodyDesignBounds: CGRect? {
         guard let morph = data.morph["body"],
-              let path = PiboCharacterGeometry.interpolatedPath(
-                  for: morph,
-                  from: currentStateID,
-                  to: targetStateID,
-                  progress: progress,
-                  transform: .identity
-              ) else { return nil }
+              let path = interpolatedPath(id: "body", morph: morph, transform: .identity)
+        else { return nil }
         let bounds = path.boundingBoxOfPath
         return bounds.isNull ? nil : bounds
+    }
+
+    /// Visible vector bounds in the root node's coordinate system. This is a
+    /// verification surface for the authored 300×300 Figma artboards; scene
+    /// placement must never infer a new per-state scale from these bounds.
+    var renderedContentBounds: CGRect {
+        var local = CGRect.null
+        for entry in elementNodes.values
+        where entry.node.alpha > 0.001 && Self.hasVisiblePaint(entry.element) {
+            guard let path = entry.node.path else { continue }
+            let frame = path.boundingBoxOfPath
+            let corners = [
+                CGPoint(x: frame.minX, y: frame.minY),
+                CGPoint(x: frame.maxX, y: frame.minY),
+                CGPoint(x: frame.minX, y: frame.maxY),
+                CGPoint(x: frame.maxX, y: frame.maxY),
+            ].map { contentNode.convert($0, from: entry.node) }
+            for point in corners {
+                local = local.union(CGRect(origin: point, size: .zero))
+            }
+        }
+        guard !local.isNull else { return .null }
+        let corners = [
+            CGPoint(x: local.minX, y: local.minY),
+            CGPoint(x: local.maxX, y: local.minY),
+            CGPoint(x: local.minX, y: local.maxY),
+            CGPoint(x: local.maxX, y: local.maxY),
+        ].map { rootNode.convert($0, from: contentNode) }
+        return corners.reduce(into: CGRect.null) { result, point in
+            result = result.union(CGRect(origin: point, size: .zero))
+        }
+    }
+
+    private static func hasVisiblePaint(_ element: PiboCharacterData.Element) -> Bool {
+        let fill = element.fill?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let stroke = element.stroke?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let hasFill = fill != nil && fill != "none" && fill != "transparent"
+        let hasStroke = stroke != nil
+            && stroke != "none"
+            && stroke != "transparent"
+            && (element.strokeWidth ?? 0) > 0
+        return hasFill || hasStroke
     }
 
     /// Stands the character on `footPoint` at a given body width.
@@ -458,10 +592,7 @@ final class PiboVectorCharacter {
         reflectionSource.texture = texture
         reflectionSource.size = texture.size()
         let frame = contentNode.calculateAccumulatedFrame()
-        reflectionSource.position = rootNode.convert(
-            CGPoint(x: frame.midX, y: frame.midY),
-            from: pulseNode
-        )
+        reflectionSource.position = CGPoint(x: frame.midX, y: frame.midY)
     }
 
     // MARK: - Idle transforms
@@ -480,6 +611,10 @@ final class PiboVectorCharacter {
 
     func setHopOffset(_ dy: CGFloat) {
         contentNode.position = CGPoint(x: contentRest.x, y: contentRest.y + dy)
+    }
+
+    func setBodyOffset(x: CGFloat, y: CGFloat) {
+        contentNode.position = CGPoint(x: contentRest.x + x, y: contentRest.y + y)
     }
 
     func setBodyRotation(_ angle: CGFloat) {
@@ -571,6 +706,11 @@ final class PiboVectorCharacter {
             entry.node.yScale = 1
             entry.node.position = .zero
             entry.node.path = entry.basePath
+            if let index = data.states[entry.stateID]?.elements.firstIndex(where: {
+                $0.id == entry.element.id
+            }) {
+                entry.node.zPosition = CGFloat(index)
+            }
         }
     }
 
@@ -617,6 +757,7 @@ private struct ElementStyle {
     let strokeWidth: CGFloat
     let lineCap: CGLineCap
     let lineJoin: CGLineJoin
+    let angryGradientScale: CGFloat?
     /// Whether the stroke is converted to a filled outline before drawing.
     let outlinesStroke: Bool
 
@@ -624,6 +765,7 @@ private struct ElementStyle {
         let rawFill = UIColor(svgColor: element.fill, opacity: 1).map(lighting.applied(to:))
         let rawStroke = UIColor(svgColor: element.stroke, opacity: 1).map(lighting.applied(to:))
         let width = (element.strokeWidth ?? 0) * strokeScale
+        angryGradientScale = element.fill == "url(#angryShade)" ? strokeScale : nil
         lineCap = PiboCharacterGeometry.lineCap(element.lineCap)
         lineJoin = PiboCharacterGeometry.lineJoin(element.lineJoin)
 
@@ -657,16 +799,62 @@ private struct ElementStyle {
             )
             shape.path = outline
             shape.fillColor = fill ?? .clear
+            shape.fillShader = nil
             shape.strokeColor = .clear
             shape.lineWidth = 0
             return outline
         }
         shape.path = path
-        shape.fillColor = fill ?? .clear
+        if let angryGradientScale {
+            shape.fillColor = .white
+            shape.fillShader = Self.makeAngryGradientShader(
+                pathBounds: path.boundingBoxOfPath,
+                scale: angryGradientScale
+            )
+        } else {
+            shape.fillColor = fill ?? .clear
+            shape.fillShader = nil
+        }
         shape.strokeColor = stroke ?? .clear
         shape.lineWidth = stroke == nil ? 0 : strokeWidth
         shape.lineCap = lineCap
         shape.lineJoin = lineJoin
         return path
+    }
+
+    /// The source artwork clips a blurred black ellipse to the angry body.
+    /// `SKShapeNode` cannot parse its SVG `url(...)` paint, so this deterministic
+    /// elliptical falloff preserves the same visible end state; without it the
+    /// entire angry body becomes transparent.
+    private static func makeAngryGradientShader(
+        pathBounds: CGRect,
+        scale: CGFloat
+    ) -> SKShader {
+        let source = """
+        void main() {
+            vec4 mask = texture2D(u_texture, v_tex_coord);
+            vec2 point = vec2(
+                u_min_x + v_tex_coord.x * u_width,
+                u_min_y + v_tex_coord.y * u_height
+            );
+            vec2 ellipse = (point - vec2(u_center_x, u_center_y))
+                / vec2(u_radius_x, u_radius_y);
+            float mixAmount = smoothstep(0.1, 1.8, length(ellipse));
+            vec3 color = vec3(mixAmount);
+            gl_FragColor = vec4(color * mask.a, mask.a);
+        }
+        """
+        let shader = SKShader(source: source)
+        shader.uniforms = [
+            SKUniform(name: "u_min_x", float: Float(pathBounds.minX)),
+            SKUniform(name: "u_min_y", float: Float(pathBounds.minY)),
+            SKUniform(name: "u_width", float: Float(pathBounds.width)),
+            SKUniform(name: "u_height", float: Float(pathBounds.height)),
+            SKUniform(name: "u_center_x", float: Float((151.9 - 150) * scale)),
+            SKUniform(name: "u_center_y", float: Float((150 - 63.1) * scale)),
+            SKUniform(name: "u_radius_x", float: Float(101.506 * scale)),
+            SKUniform(name: "u_radius_y", float: Float(92.6974 * scale)),
+        ]
+        return shader
     }
 }

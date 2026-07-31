@@ -63,6 +63,9 @@ struct PiboApp: App {
             await h?.refreshMorningSleep()
         }
         let s = PetStateStore(identity: id, snapshots: snaps, events: h.events)
+        AppNotificationRouter.shared.onAchievementOpened = { [weak s] in
+            s?.animationExperience.requestNotificationPresentation()
+        }
         // Wire rollover → reconcile. The store doesn't know about
         // HealthDataService; this closure is the only seam.
         s.onDayRollover = { [h] in

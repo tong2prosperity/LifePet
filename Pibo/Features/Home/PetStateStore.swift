@@ -75,6 +75,7 @@ final class PetStateStore {
     /// proxies the user-visible bits so views can keep reading from a single
     /// `@Environment(PetStateStore.self)`.
     let identity: PetIdentityStore
+    let animationExperience = PiboAnimationExperienceStore()
 
     var ownerName: String {
         get { identity.ownerName }
@@ -338,6 +339,7 @@ final class PetStateStore {
     // Raw HealthKit readings, exposed for the direct-data UI (state machine +
     // 上滑 Dashboard). The home no longer surfaces the three derived stats.
     var rawSteps: Int { raw.steps }
+    private(set) var hasStepsData = false
     var rawExerciseMinutes: Int { raw.exerciseMinutes }
     var rawActiveEnergy: Double { raw.activeEnergy }
     var rawStandMinutes: Int { raw.standMinutes }
@@ -346,6 +348,7 @@ final class PetStateStore {
     /// Pibo-computed HRV (RMSSD, ms) from the latest heartbeat series — `nil`
     /// until a real reading lands. Distinct from `rawHRV` (Apple SDNN).
     var rmssd: Double? { raw.rmssd }
+    var rmssdMeasuredAt: Date? { raw.rmssdAt }
     /// Four-tier stress derived from `rmssd` vs the personal baseline + resting
     /// HR. `nil` when no RMSSD reading yet.
     ///
@@ -480,6 +483,11 @@ final class PetStateStore {
     /// (e.g. `vitality = 20` when the steps stat hasn't arrived yet).
     private var hasIngestedAny = false
     private var ingestTask: Task<Void, Never>?
+    /// Only the latest achievement fact may publish the shared replaceable
+    /// notification. HealthKit can expose steps and workout in one acquisition
+    /// pair, so cancel the earlier notification task synchronously when the
+    /// later fact replaces it.
+    private var achievementNotificationTask: Task<Void, Never>?
     /// On-disk daily history. Written every meaningful state change so the
     /// catalog / HRV baseline / death-trigger consumers always see "what the
     /// home screen would have shown" for any past day.
@@ -1138,7 +1146,30 @@ final class PetStateStore {
         }
         switch event {
         case .steps(let n):
+            let previous = raw.steps
             raw.steps = n
+            let hadStepsData = hasStepsData
+            hasStepsData = true
+            if hadStepsData,
+               PiboCoreAnimationAdapter.stepsCrossed(previous: previous, current: n) {
+                if animationExperience.queueStepsAchievement() {
+                    // A later 10k achievement is allowed to replace a pending
+                    // workout's pigu presentation, but it must not replace the
+                    // workout fact itself. The old sprout flow no longer drains
+                    // `pendingWorkout`, and confirming a muscle Modal has a
+                    // different UUID, so leaving this slot populated would
+                    // strand the workout's bo/history effects indefinitely.
+                    // Settle it silently now; only the latest achievement owns
+                    // the visible Modal and notification.
+                    if pendingWorkout != nil {
+                        LPLog.petState.notice(
+                            "steps achievement replaced pigu presentation — silent-consuming pending workout"
+                        )
+                        dismissPendingWorkout()
+                    }
+                    scheduleStepsAchievementNotification()
+                }
+            }
             LPLog.petState.debug("ingest steps=\(n, privacy: .public)")
         case .exerciseMinutes(let m):
             raw.exerciseMinutes = m
@@ -1179,8 +1210,14 @@ final class PetStateStore {
             // card manually.
             raw.mindfulMinutes = m
             LPLog.petState.debug("ingest mindfulMinutes=\(m, privacy: .public)")
-        case .workoutFinished(let id, let kind, let duration, let kcal, let end):
-            handleNewWorkout(id: id, kind: kind, duration: duration, end: end, kcal: kcal)
+        case .workoutFinished(let id, let kind, let duration, let kcal, let end, _):
+            handleNewWorkout(
+                id: id,
+                kind: kind,
+                duration: duration,
+                end: end,
+                kcal: kcal
+            )
             return  // discrete event — skip recompute
         }
         hasIngestedAny = true
@@ -1208,7 +1245,13 @@ final class PetStateStore {
     ///
     /// Suggest-card dedup runs in both paths — a finished run still claims a
     /// running suggest card.
-    private func handleNewWorkout(id: UUID, kind: HealthEvent.WorkoutKind, duration: TimeInterval, end: Date, kcal: Double? = nil) {
+    private func handleNewWorkout(
+        id: UUID,
+        kind: HealthEvent.WorkoutKind,
+        duration: TimeInterval,
+        end: Date,
+        kcal: Double? = nil
+    ) {
         // Only run / walk are "matchable" against suggest cards. Other
         // activities (yoga, cycle, hiit, other) feed vitality but never
         // claim a running suggest as completed.
@@ -1244,7 +1287,12 @@ final class PetStateStore {
             lastWorkoutEndedAt = end
         }
 
-        if policy.isFresh {
+        // Core's wall-clock policy decides freshness. HealthKit's historical
+        // bit only says whether an anchor existed before this query.
+        if PiboCoreWorkoutAdapter.achievementShouldQueue(
+            policy: policy,
+            occurredToday: Calendar.current.isDateInToday(end)
+        ) {
             // If a previous pending workout never got consumed (e.g. user
             // killed app with sheet open), silently apply its gain + insert
             // its done card before overwriting — never lose data.
@@ -1262,12 +1310,8 @@ final class PetStateStore {
                 gainVitality: gain
             )
             pendingWorkout = pw
-            Task {
-                await WorkoutCompletionNotifier.shared.maybeNotify(
-                    workout: pw,
-                    piboState: notificationState
-                )
-            }
+            animationExperience.queueWorkout(pw)
+            scheduleWorkoutAchievementNotification(pw, piboState: notificationState)
             LPLog.petState.notice("workout fresh → pendingWorkout: \(label, privacy: .public) \(durMin, privacy: .public)min +\(gain, privacy: .public) (awaiting user 喂养)")
             return
         }
@@ -1285,6 +1329,28 @@ final class PetStateStore {
         )
         steps.insert(item, at: 0)
         LPLog.petState.info("workout replay: \(label, privacy: .public) \(durMin, privacy: .public)min ended \(LPLog.dateFormatter.string(from: end), privacy: .public) — display only")
+    }
+
+    private func scheduleStepsAchievementNotification() {
+        achievementNotificationTask?.cancel()
+        achievementNotificationTask = Task {
+            guard !Task.isCancelled else { return }
+            await WorkoutCompletionNotifier.shared.notifyStepsAchievement()
+        }
+    }
+
+    private func scheduleWorkoutAchievementNotification(
+        _ workout: PendingWorkout,
+        piboState: PiboActivityState
+    ) {
+        achievementNotificationTask?.cancel()
+        achievementNotificationTask = Task {
+            guard !Task.isCancelled else { return }
+            await WorkoutCompletionNotifier.shared.maybeNotify(
+                workout: workout,
+                piboState: piboState
+            )
+        }
     }
 
     // MARK: - Pending workout consumption

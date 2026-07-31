@@ -51,6 +51,7 @@ struct HomeView: View {
     @State private var greetingText: String = ""
     @State private var dayLabelText: String = ""
     @State private var atmosphereNow = Date()
+    @State private var semanticAnimationStateID = PiboAnimationStateMap.fallback
     @State private var soundscape = AmbientSoundscapeService()
     #if DEBUG
     @State private var forestTuning: StageRenderTuning = .standard
@@ -107,7 +108,7 @@ struct HomeView: View {
         }
         switch activeSheet {
         case .settings: return .ducked
-        case .meal, .morningSleep: return .suspended
+        case .meal, .morningSleep, .achievement: return .suspended
         case nil: return .active
         }
     }
@@ -117,6 +118,7 @@ struct HomeView: View {
             PiboStageView(
                 theme: store.currentTheme,
                 state: store.activityState,
+                animationStateID: semanticAnimationStateID,
                 commandController: stageCommands,
                 growth: store.growthStage,
                 sproutGrowthProgress: store.headSproutGrowthProgress,
@@ -152,11 +154,20 @@ struct HomeView: View {
         .accessibilityHidden(stagePaused)
         .task { await idleMutterLoop() }
         .task { await atmosphereClockLoop() }
+        .task(id: store.animationExperience.angryUntil) {
+            guard let expiry = store.animationExperience.angryUntil else { return }
+            let delay = max(0, expiry.timeIntervalSinceNow)
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            refreshAnimationState(now: expiry)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
             atmosphereNow = Date()
+            refreshAnimationState()
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             atmosphereNow = Date()
+            refreshAnimationState()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: AVAudioSession.interruptionNotification
@@ -172,6 +183,7 @@ struct HomeView: View {
             greetingText = store.mowanGreeting
             dayLabelText = store.relationshipDayLabel
             speakForWeather(trigger: .entered)
+            refreshAnimationState()
             #if DEBUG
             if let hourArgument = ProcessInfo.processInfo.arguments.first(where: {
                 $0.hasPrefix("-PiboForestHour=")
@@ -200,6 +212,39 @@ struct HomeView: View {
             if ProcessInfo.processInfo.arguments.contains("-PiboShowMorningSleep") {
                 morningSleep.debugPresentFixture()
             }
+            if let argument = ProcessInfo.processInfo.arguments.first(where: {
+                $0.hasPrefix("-PiboShowAchievement=")
+            }), let kind = PiboAnimationAchievementKind(
+                rawValue: String(argument.dropFirst("-PiboShowAchievement=".count))
+            ) {
+                let payload = PiboAnimationAchievementPayload(
+                    id: UUID(),
+                    kind: kind,
+                    occurredAt: .now,
+                    workoutLabel: kind == .pigu ? "跑步" : nil,
+                    workoutDurationMinutes: kind == .pigu ? 30 : nil
+                )
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    guard activeSheet == nil else { return }
+                    activeSheet = .achievement(payload)
+                }
+            }
+            if let argument = ProcessInfo.processInfo.arguments.first(where: {
+                $0.hasPrefix("-PiboBounceTo=")
+            }) {
+                let target = String(argument.dropFirst("-PiboBounceTo=".count))
+                if PiboAnimationStateMap.available.contains(target) {
+                    Task {
+                        // Deterministic Simulator capture hook. The delay leaves
+                        // one stable source frame before the exact 710 ms cut.
+                        try? await Task.sleep(for: .seconds(2))
+                        guard !Task.isCancelled else { return }
+                        semanticAnimationStateID = target
+                        stageCommands.transitionAnimation(to: target, intent: .bounceCut)
+                    }
+                }
+            }
             // Rehearse the stress-notification deep link without a real push:
             // raise the same flag the router raises, so the whole
             // present-history → 原版 tab → scroll-to-压力卡 path runs. Seed first —
@@ -210,12 +255,7 @@ struct HomeView: View {
                 stressNotifier.pendingCardOpen = true
             }
             #endif
-            if store.pendingWorkout != nil {
-                Task {
-                    try? await Task.sleep(for: .seconds(0.7))
-                    maybeStartEnergyFlow()
-                }
-            }
+            presentAchievementIfPossible()
             startSoundscape()
             presentMorningSleepIfPossible()
             presentStressCardIfPossible()
@@ -243,14 +283,27 @@ struct HomeView: View {
         .onChange(of: soundscapePresentation) { _, presentation in
             soundscape.setPresentation(presentation)
         }
-        .onChange(of: store.pendingWorkout?.id) { _, id in
-            if id != nil { maybeStartEnergyFlow() }
+        .onChange(of: animationRefreshToken) { oldValue, newValue in
+            refreshAnimationState()
+            let pendingChanged = oldValue.pendingAchievementID != newValue.pendingAchievementID
+            let notificationRequested = oldValue.notificationPresentationRequestID
+                != newValue.notificationPresentationRequestID
+            if pendingChanged {
+                reconcilePresentedAchievement()
+            }
+            if pendingChanged || notificationRequested {
+                presentAchievementIfPossible()
+            }
         }
         .onChange(of: morningSleep.pendingPresentation?.id) { _, _ in
             presentMorningSleepIfPossible()
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { presentMorningSleepIfPossible() }
+            if phase == .active {
+                refreshAnimationState()
+                presentAchievementIfPossible()
+                presentMorningSleepIfPossible()
+            }
         }
         .onChange(of: stressNotifier.pendingCardOpen) { _, _ in
             presentStressCardIfPossible()
@@ -285,27 +338,35 @@ struct HomeView: View {
             WalkDoodleView(onSaved: handleDoodleSaved)
         }
         .sheet(item: $activeSheet, onDismiss: resumePendingHomeFlows) { destination in
-            switch destination {
-            case .meal(let meal):
-                MealDetailView(meal: meal, onRecapture: startMealCapture)
-                    .environment(history)
-                    .environment(recognizer)
-            case .settings:
-                #if DEBUG
-                SettingsSheet(onReset: performReset, onSimulateMeal: debugSimulateMeal)
-                    .environment(store)
-                #else
-                SettingsSheet(onReset: performReset)
-                    .environment(store)
-                #endif
-            case .morningSleep(let presentation):
-                MorningSleepCard(
-                    presentation: presentation,
-                    appearance: store.appearance,
-                    weekly: SleepWeeklyReport.make(store: store, history: history)
-                )
-                    .onAppear { morningSleep.markPresented(presentation) }
-            }
+            homeSheet(destination)
+        }
+    }
+
+    @ViewBuilder
+    private func homeSheet(_ destination: HomeSheetDestination) -> some View {
+        switch destination {
+        case .meal(let meal):
+            MealDetailView(meal: meal, onRecapture: startMealCapture)
+                .environment(history)
+                .environment(recognizer)
+        case .settings:
+            #if DEBUG
+            SettingsSheet(onReset: performReset, onSimulateMeal: debugSimulateMeal)
+                .environment(store)
+            #else
+            SettingsSheet(onReset: performReset)
+                .environment(store)
+            #endif
+        case .morningSleep(let presentation):
+            MorningSleepCard(
+                presentation: presentation,
+                appearance: store.appearance,
+                weekly: SleepWeeklyReport.make(store: store, history: history)
+            )
+            .onAppear { morningSleep.markPresented(presentation) }
+        case .achievement(let payload):
+            PiboAchievementModal(payload: payload) { confirmAchievement(payload) }
+                .interactiveDismissDisabled()
         }
     }
 
@@ -464,6 +525,28 @@ struct HomeView: View {
 
     private func handlePat() {
         LPHaptics.tap()
+        let now = Date()
+        let hour = localHour(at: now)
+        let sourceStateID = semanticAnimationStateID
+        let enteredAngry = store.animationExperience.registerActualPat(localHour: hour, now: now)
+        refreshAnimationState(now: now)
+        let targetStateID = semanticAnimationStateID
+        if targetStateID != sourceStateID {
+            let intent = PiboCoreAnimationAdapter.transitionIntent(
+                fromStateID: sourceStateID,
+                toStateID: targetStateID,
+                angryEntered: enteredAngry
+            )
+            stageCommands.transitionAnimation(to: targetStateID, intent: intent)
+        }
+        if let contentID = PiboCoreAnimationAdapter.patContentID(
+            stateID: semanticAnimationStateID,
+            angryEntered: enteredAngry
+        ), let text = animationPatCopy(contentID) {
+            show(PiboSpeechLine(text: text, mood: enteredAngry ? .angry : .normal))
+            Analytics.track(.pat, screen: "home", ["reaction": .string(contentID)])
+            return
+        }
         let response = store.pat()
         if response.turnsAway { stageCommands.playTurnAway() }
         if let line = response.line { show(line) }
@@ -703,7 +786,141 @@ struct HomeView: View {
     private func atmosphereClockLoop() async {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(60))
-            if !Task.isCancelled { atmosphereNow = Date() }
+            if !Task.isCancelled {
+                atmosphereNow = Date()
+                refreshAnimationState()
+            }
+        }
+    }
+
+    private func refreshAnimationState(now: Date = .now) {
+        let experience = store.animationExperience
+        experience.refreshExpiries(now: now)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let historyStart = calendar.date(byAdding: .day, value: -40, to: today) ?? today
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        let sleepHistory = history.records(from: historyStart, to: yesterday)
+            .map(\.sleepTotal)
+            .filter { $0 > 0 }
+            .suffix(28)
+            .map { $0 / 3600 }
+        let sleepReference = PiboCoreAnimationAdapter.sleepReference(history: Array(sleepHistory))
+        let baseline = store.stressBaseline
+        let z = store.rmssd.flatMap { value in baseline.map { $0.z(for: value) } } ?? 0
+        let rmssdAge = store.rmssdMeasuredAt.map { max(0, now.timeIntervalSince($0)) }
+            ?? .greatestFiniteMagnitude
+        let components = calendar.dateComponents([.year, .month, .day], from: now)
+        let dayKey = Int64((components.year ?? 0) * 10_000 + (components.month ?? 0) * 100 + (components.day ?? 0))
+
+        var decided = PiboCoreAnimationAdapter.completeAmbientStateID(
+            localHour: localHour(at: now),
+            hasSleepData: store.rawSleepHours > 0,
+            sleepHours: store.rawSleepHours,
+            sleepReferenceHours: sleepReference.hours,
+            hasActivityData: store.hasStepsData,
+            steps: store.rawSteps,
+            hasWorkoutToday: store.hasWorkoutToday,
+            postPluckSleep: store.pluckSleepUntil.map { $0 > now } ?? false,
+            sleepDayKey: dayKey,
+            angryActive: experience.angryActive(at: now),
+            hasEligibleRMSSD: store.rmssd != nil && baseline != nil,
+            stressBaselineDays: baseline?.dayCount ?? 0,
+            stressZ: z,
+            rmssdAgeSeconds: rmssdAge,
+            previousStressStateID: experience.previousStressStateID
+        )
+        experience.previousStressStateID = PiboCoreAnimationAdapter.nextStressMemoryStateID(
+            decidedStateID: decided,
+            previousStressStateID: experience.previousStressStateID
+        )
+        decided = PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
+            to: decided,
+            held: experience.heldAchievement
+        )
+        #if DEBUG
+        if let argument = ProcessInfo.processInfo.arguments.first(where: {
+            $0.hasPrefix("-PiboAnimationState=")
+        }) {
+            let forced = String(argument.dropFirst("-PiboAnimationState=".count))
+            if PiboAnimationStateMap.available.contains(forced) { decided = forced }
+        }
+        #endif
+        semanticAnimationStateID = decided
+    }
+
+    private var animationRefreshToken: AnimationRefreshToken {
+        AnimationRefreshToken(
+            steps: store.rawSteps,
+            sleepHours: store.rawSleepHours,
+            hasWorkout: store.hasWorkoutToday,
+            rmssd: store.rmssd,
+            historyRevision: history.revision,
+            pendingAchievementID: store.animationExperience.pendingAchievement?.id,
+            notificationPresentationRequestID: store.animationExperience
+                .notificationPresentationRequestID
+        )
+    }
+
+    private func localHour(at date: Date) -> Double {
+        let values = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
+        return Double(values.hour ?? 0)
+            + Double(values.minute ?? 0) / 60
+            + Double(values.second ?? 0) / 3_600
+    }
+
+    private func presentAchievementIfPossible() {
+        guard scenePhase == .active,
+              activeSheet == nil,
+              !fullScreenFeaturePresented,
+              PiboCoreAnimationAdapter.achievementPresentationAllowed(
+                  in: semanticAnimationStateID
+              ),
+              let payload = store.animationExperience.pendingAchievement
+        else { return }
+        activeSheet = .achievement(payload)
+    }
+
+    /// HealthKit can deliver a newer workout while an achievement sheet is
+    /// already visible. Keep the sheet bound to the replaceable pending slot;
+    /// otherwise its Confirm button targets an obsolete UUID and becomes an
+    /// undismissable no-op because interactive dismissal is disabled.
+    private func reconcilePresentedAchievement() {
+        guard case .achievement(let presented) = activeSheet else { return }
+        guard let latest = store.animationExperience.pendingAchievement else {
+            activeSheet = nil
+            return
+        }
+        if latest.id != presented.id {
+            activeSheet = .achievement(latest)
+        }
+    }
+
+    private func confirmAchievement(_ payload: PiboAnimationAchievementPayload) {
+        #if DEBUG
+        if store.animationExperience.pendingAchievement?.id != payload.id,
+           ProcessInfo.processInfo.arguments.contains(where: {
+               $0.hasPrefix("-PiboShowAchievement=")
+           }) {
+            activeSheet = nil
+            return
+        }
+        #endif
+        guard store.animationExperience.pendingAchievement?.id == payload.id else { return }
+        _ = store.animationExperience.confirmPending()
+        if payload.kind == .pigu, store.pendingWorkout?.id == payload.id {
+            store.consumePendingWorkout()
+        }
+        refreshAnimationState()
+        activeSheet = nil
+    }
+
+    private func animationPatCopy(_ contentID: String) -> String? {
+        switch contentID {
+        case "animation.sleep.pat": AppLocalization.text("我正在睡。晚一点再说。")
+        case "animation.awake.pat": AppLocalization.text("我刚醒。让我再待一会儿。")
+        case "animation.angry.enter": AppLocalization.text("三次了。我需要安静一会儿。")
+        default: nil
         }
     }
 
@@ -724,9 +941,10 @@ struct HomeView: View {
     /// owns the wake-up moment, so it goes first; the 发芽 close-up follows once
     /// the screen is genuinely free.
     private func resumePendingHomeFlows() {
+        presentAchievementIfPossible()
+        guard activeSheet == nil else { return }
         presentMorningSleepIfPossible()
         presentStressCardIfPossible()
-        maybeStartEnergyFlow()
     }
 
     /// Open the history surface on the 压力卡 after a stress notification tap.
@@ -793,14 +1011,26 @@ private enum HomeSheetDestination: Equatable, Identifiable {
     case meal(MealType)
     case settings
     case morningSleep(MorningSleepPresentation)
+    case achievement(PiboAnimationAchievementPayload)
 
     var id: String {
         switch self {
         case .meal(let meal): "meal-\(meal.rawValue)"
         case .settings: "settings"
         case .morningSleep(let presentation): "morning-sleep-\(presentation.id)"
+        case .achievement(let payload): "animation-achievement-\(payload.id)"
         }
     }
+}
+
+private struct AnimationRefreshToken: Equatable {
+    let steps: Int
+    let sleepHours: Double
+    let hasWorkout: Bool
+    let rmssd: Double?
+    let historyRevision: Int
+    let pendingAchievementID: UUID?
+    let notificationPresentationRequestID: UUID?
 }
 
 #if DEBUG

@@ -10,6 +10,16 @@ import UIKit
 /// 不受森林场景的光照 / 倒影 / 天气干扰，能把角色本身的问题单独暴露出来。
 final class CharacterLabScene: SKScene {
     var zoom: CGFloat = 1 { didSet { character?.setScale(baseScale * zoom) } }
+    /// Pixel-comparison mode: preserve the authored 300×300 registration at
+    /// 1:1 and center it on Figma's neutral preview gray.
+    var artboardMode = false {
+        didSet {
+            backgroundColor = artboardMode
+                ? SKColor(white: 192 / 255, alpha: 1)
+                : SKColor(white: 0.94, alpha: 1)
+            layoutCharacter()
+        }
+    }
     /// 关掉就完全不驱动芽的 warp。开着时走真实的六段骨骼阻尼弹簧 rig。
     var warpProbe = true
     var autoCycle = false
@@ -47,7 +57,10 @@ final class CharacterLabScene: SKScene {
         guard character == nil, let data = PiboCharacterData.shared else { return }
         self.data = data
         // 固定顺序，让自动巡演与分段选择器的下标稳定。
-        let preferred = ["default", "muscle", "pigu", "sleep-1", "sleep-2", "awake"]
+        let preferred = [
+            "default", "weak", "pigu", "muscle", "tired", "angry",
+            "dive", "boring", "coolhide", "sleep-1", "sleep-2", "awake",
+        ]
         stateIDs = preferred.filter { data.states[$0] != nil }
 
         let built = PiboVectorCharacter(stateID: currentStateID, data: data)
@@ -80,6 +93,12 @@ final class CharacterLabScene: SKScene {
     /// 站位就是首页的站位。
     private func layoutCharacter() {
         guard let character else { return }
+        if artboardMode {
+            character.setScale(1)
+            character.rootNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+            groundLine.removeFromParent()
+            return
+        }
         let mapper = ForestLayoutMapper(sceneSize: size)
         let foot = mapper.point(ForestSceneManifest.piboFootPoint)
         character.fit(bodyWidth: 181.1602 * mapper.scale, footPoint: foot)

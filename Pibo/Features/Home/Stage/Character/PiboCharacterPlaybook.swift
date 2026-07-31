@@ -52,7 +52,21 @@ final class PiboCharacterPlaybook {
     func setAmbient(_ stateID: String) {
         ambientStateID = stateID
         guard !isPlaying else { return }
-        transition.transition(to: stateID)
+        // The business integration uses a true hard cut for data-driven state
+        // changes. Authored morphs remain available to explicit performances,
+        // but are not the ambient switching policy.
+        transition.hardCut(to: stateID)
+    }
+
+    /// Records a new ambient destination while another component owns the
+    /// visual transition (for example the `pibo_context` bounce cut). Without
+    /// this, the next achievement playbook would return to the pre-bounce pose.
+    func syncAmbientState(_ stateID: String) {
+        ambientStateID = stateID
+        queue.removeAll()
+        holdRemaining = 0
+        waitingOnSettle = false
+        isPlaying = false
     }
 
     func play(_ beats: [Beat]) {
@@ -69,7 +83,7 @@ final class PiboCharacterPlaybook {
         waitingOnSettle = false
         guard isPlaying else { return }
         isPlaying = false
-        transition.transition(to: ambientStateID)
+        transition.transition(to: ambientStateID, playsIntro: !Self.isAchievement(ambientStateID))
     }
 
     func update(deltaTime: TimeInterval) {
@@ -91,12 +105,30 @@ final class PiboCharacterPlaybook {
     private func advance() {
         guard let beat = queue.first else {
             isPlaying = false
-            transition.transition(to: ambientStateID)
+            transition.transition(to: ambientStateID, playsIntro: !Self.isAchievement(ambientStateID))
             return
         }
         queue.removeFirst()
         holdRemaining = beat.hold
         waitingOnSettle = true
+        // `transition(to:)` intentionally deduplicates its current target. A
+        // playbook can still legitimately start from that same state (for
+        // example replaying pigu while the held home pose is already pigu).
+        // Waiting for a settle callback that can never fire leaves the
+        // playbook permanently stuck. Restart the authored intro in place and
+        // begin the hold immediately, matching a remounted web player.
+        if beat.stateID == transition.toStateID {
+            if transition.isRunning {
+                transition.hardCut(to: beat.stateID)
+            }
+            waitingOnSettle = false
+            transition.startAuthoredIntro()
+            return
+        }
         transition.transition(to: beat.stateID)
+    }
+
+    private static func isAchievement(_ stateID: String) -> Bool {
+        stateID == "pigu" || stateID == "muscle"
     }
 }

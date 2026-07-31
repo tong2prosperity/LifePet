@@ -20,6 +20,7 @@ final class PiboCharacterRenderer {
     private weak var camera: SKCameraNode?
     private var theme: PiboTheme = .forest
     private var state: PiboActivityState = .idle
+    private var animationStateID = PiboAnimationStateMap.fallback
     private var growth: PiboGrowthStage = .mystery
     private var placement: PiboCharacterPlacement?
     private var visible = true
@@ -31,6 +32,7 @@ final class PiboCharacterRenderer {
     private var vectorIdle: PiboIdleAnimator?
     private var vectorPlaybook: PiboCharacterPlaybook?
     private var vectorRigInverted: Bool?
+    private var boringElapsed: TimeInterval = 0
     private let usesVector = PiboVectorCharacterFlag.isEnabled
 
     private var bodyNode: SKShapeNode?
@@ -65,6 +67,7 @@ final class PiboCharacterRenderer {
     func apply(
         theme newTheme: PiboTheme,
         state newState: PiboActivityState,
+        animationStateID newAnimationStateID: String? = nil,
         growth newGrowth: PiboGrowthStage,
         placement newPlacement: PiboCharacterPlacement,
         animated: Bool
@@ -72,17 +75,28 @@ final class PiboCharacterRenderer {
         let themeChanged = newTheme.id != theme.id
         let growthChanged = newGrowth != growth
         let stateChanged = newState != state
+        let resolvedAnimationStateID = newAnimationStateID
+            .flatMap { PiboAnimationStateMap.available.contains($0) ? $0 : nil }
+            ?? PiboAnimationStateMap.ambientStateID(for: newState)
+        let animationStateChanged = resolvedAnimationStateID != animationStateID
+        if animationStateChanged, resolvedAnimationStateID == "boring" {
+            boringElapsed = 0
+        }
         theme = newTheme
         state = newState
+        animationStateID = resolvedAnimationStateID
         growth = newGrowth
         placement = newPlacement
 
         if vector != nil {
-            layoutVector()
-            if stateChanged {
-                vectorPlaybook?.setAmbient(PiboAnimationStateMap.ambientStateID(for: newState))
+            if animationStateChanged {
+                vectorPlaybook?.setAmbient(resolvedAnimationStateID)
                 showZzz(visible && newState == .deepSleep)
             }
+            // `pibo_context` swaps the state and its placement in the same
+            // business update. Layout only after the hard cut so there is no
+            // one-frame stay at the previous state's position or z layer.
+            layoutVector()
             return
         }
 
@@ -133,9 +147,24 @@ final class PiboCharacterRenderer {
         vector?.setLighting(lighting)
     }
 
-    /// 运动完成 → 秀肌肉 → 娇羞 → 回常驻态。
-    func playWorkoutCelebration() {
-        vectorPlaybook?.play(PiboAnimationStateMap.workoutCelebration)
+    func playAchievement(_ stateID: String) {
+        vectorPlaybook?.play(PiboAnimationStateMap.achievement(stateID))
+    }
+
+    func transition(
+        to stateID: String,
+        intent: PiboCoreAnimationAdapter.TransitionIntent
+    ) {
+        guard PiboAnimationStateMap.available.contains(stateID), stateID != animationStateID else { return }
+        animationStateID = stateID
+        if stateID == "boring" { boringElapsed = 0 }
+        switch intent {
+        case .hardCut:
+            vectorPlaybook?.setAmbient(stateID)
+        case .bounceCut:
+            vectorPlaybook?.syncAmbientState(stateID)
+            vectorTransition?.bounceCut(to: stateID)
+        }
     }
 
     func hitRegion(at point: CGPoint, in scene: SKScene) -> PiboCharacterHitRegion {
@@ -402,7 +431,7 @@ final class PiboCharacterRenderer {
 
     func randomPrecipitationPoint() -> CGPoint? {
         if let vector {
-            guard visible, let body = vector.bodyPath() else { return nil }
+            guard visible, let scene, let body = vector.bodyPath() else { return nil }
             // 沿身体轮廓的上缘取样：矢量路径直接给出轮廓，不必再去贴图里逐列扫
             // alpha 找顶点。
             let box = body.boundingBoxOfPath
@@ -412,10 +441,8 @@ final class PiboCharacterRenderer {
             // 半圆近似上缘，足够天气系统用。
             let arch = sin(u * .pi)
             let y = box.minY + box.height * (0.52 + 0.44 * arch)
-            return CGPoint(
-                x: vector.rootNode.position.x + x,
-                y: vector.rootNode.position.y + y
-            )
+            let presented = vector.rootPoint(forBodyPathPoint: CGPoint(x: x, y: y))
+            return scene.convert(presented, from: vector.rootNode)
         }
         if surface.isEmpty { rebuildSurface() }
         guard visible, let local = surface.randomElement() else { return nil }
@@ -432,7 +459,7 @@ final class PiboCharacterRenderer {
     private func buildVector() -> Bool {
         guard let data = PiboCharacterData.shared,
               let built = PiboVectorCharacter(
-                  stateID: PiboAnimationStateMap.ambientStateID(for: state),
+                  stateID: animationStateID,
                   data: data
               ) else { return false }
         vector = built
@@ -451,30 +478,25 @@ final class PiboCharacterRenderer {
         return true
     }
 
-    /// 站位。`rootNode` 仍停在主题给的身体中心上（火花、Zzz、天气都依赖它），
-    /// 所以落脚点用它的局部坐标表达；定位是按区一份，同区状态的相对位置已经
-    /// 烘在各自的 300×300 画板里。
+    /// 站位严格复刻 `pibo_context` 的 300×300 整画板注册。不能按 body bounds
+    /// 逐状态 fit：pigu / muscle / weak 等轮廓宽度不同，那会让切换时角色自己改
+    /// 尺寸并漂移。特殊状态的遮挡层也属于该原型合同的一部分。
     private func layoutVector() {
-        guard let vector, let placement, let scene else { return }
-        let stateID = vectorTransition?.toStateID ?? vector.currentStateID
-        guard PiboAnimationStateMap.isNestState(stateID, data: PiboCharacterData.shared) else {
-            vector.fit(
-                bodyWidth: placement.body.size.width,
-                footPoint: CGPoint(x: 0, y: -placement.body.size.height / 2)
-            )
-            return
-        }
-        // 巢区：坐进椰壳洞口。锚点是设计空间里的绝对点，先换算到场景，再表达成
-        // rootNode 的局部坐标（火花、Zzz、天气都依赖 rootNode 停在原处）。
+        guard let vector, let scene else { return }
+        let stateID = vectorTransition?.displayStateID ?? vector.currentStateID
         let mapper = ForestLayoutMapper(sceneSize: scene.size)
-        let anchor = mapper.point(ForestSceneManifest.piboNestAnchor)
-        vector.fit(
-            bodyWidth: ForestSceneManifest.piboNestBodyWidth * mapper.scale,
-            footPoint: CGPoint(
-                x: anchor.x - rootNode.position.x,
-                y: anchor.y - rootNode.position.y
-            )
+        let player = ForestSceneManifest.piboPlayerPlacement(
+            stateID: stateID,
+            boringElapsed: boringElapsed
         )
+        let authored = player.artboardFrame
+        vector.setScale(authored.width / 300 * mapper.scale)
+        let center = mapper.point(CGPoint(x: authored.midX, y: authored.midY))
+        vector.rootNode.position = CGPoint(
+            x: center.x - rootNode.position.x,
+            y: center.y - rootNode.position.y
+        )
+        rootNode.zPosition = player.zPosition
     }
 
     private func updateVector(
@@ -484,6 +506,12 @@ final class PiboCharacterRenderer {
         reduceMotion: Bool
     ) {
         guard let vector, let transition = vectorTransition else { return }
+        // The traverse belongs to the player that is actually visible. During
+        // bounceCut the destination is selected before the 190 ms exit ends;
+        // advancing from animationStateID made boring enter mid-crossing.
+        if transition.displayStateID == "boring" {
+            boringElapsed += max(0, deltaTime)
+        }
         vectorPlaybook?.update(deltaTime: deltaTime)
         transition.update(deltaTime: deltaTime)
         vector.setTransition(
@@ -492,7 +520,12 @@ final class PiboCharacterRenderer {
             progress: transition.progress
         )
         vector.setSettleScale(transition.settleScale * transition.introScale)
+        vector.setPresentationScale(
+            x: transition.presentationScaleX,
+            y: transition.presentationScaleY
+        )
         vector.setGlow(colorHex: transition.introGlowColor, intensity: transition.introGlow)
+        vector.rootNode.alpha = transition.visualAlpha
         layoutVector()
 
         // 先把上一帧的待机姿态与路径形变全部归位，再叠加这一帧 —— 待机原语因此
@@ -500,16 +533,38 @@ final class PiboCharacterRenderer {
         vector.resetIdleTransforms()
         // 亮相是定格 pose：登场期间常规连招暂停。
         if !transition.suppressesIdle {
-            vectorIdle?.apply(
-                idle: PiboCharacterData.shared?.states[transition.toStateID]?.idle,
-                stateID: transition.toStateID,
-                character: vector,
-                time: time,
-                amplitude: transition.idleAmplitude
-            )
+            if Self.isAchievement(transition.toStateID), vectorPlaybook?.isPlaying != true {
+                applyAchievementHold(
+                    character: vector,
+                    time: time,
+                    amplitude: transition.idleAmplitude
+                )
+            } else {
+                vectorIdle?.apply(
+                    idle: PiboCharacterData.shared?.states[transition.toStateID]?.idle,
+                    stateID: transition.toStateID,
+                    character: vector,
+                    time: time,
+                    amplitude: transition.idleAmplitude
+                )
+            }
         }
         updateVectorRig(time: time, deltaTime: deltaTime, wind: wind, reduceMotion: reduceMotion)
         if let view = scene?.view { vector.refreshReflectionSnapshotIfNeeded(in: view) }
+    }
+
+    private static func isAchievement(_ stateID: String) -> Bool {
+        stateID == "pigu" || stateID == "muscle"
+    }
+
+    private func applyAchievementHold(
+        character: PiboVectorCharacter,
+        time: TimeInterval,
+        amplitude: CGFloat
+    ) {
+        let phase = CGFloat(sin(time * 2 * .pi / 4.8)) * amplitude
+        character.setBreath(x: 1 + phase * 0.004, y: 1 + phase * 0.008)
+        character.setBodyOffset(x: 0, y: phase * 1.2)
     }
 
     /// 同一套六段骨骼阻尼弹簧，宿主换成矢量角色的芽。根梢方向随状态变化，
@@ -779,7 +834,12 @@ final class PiboCharacterRenderer {
 
     private func showZzz(_ show: Bool) {
         effectsNode.childNode(withName: "zzz")?.removeFromParent()
-        guard show, visible else { return }
+        // The migrated sleep states already contain their authored Z / bubble
+        // decorations and animate them inside the 300×300 state artboard. The
+        // legacy label is positioned from the old procedural body's placement;
+        // layering it over the vector state produces a duplicate at the former
+        // ground location instead of beside the coconut nest.
+        guard vector == nil, show, visible else { return }
         let label = SKLabelNode(text: "Zzz")
         label.name = "zzz"
         label.fontName = "AvenirNext-Bold"

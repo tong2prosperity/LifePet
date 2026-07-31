@@ -18,6 +18,7 @@ struct CharacterLabView: View {
     @State private var zoom: Double = 1
     @State private var warpProbe = true
     @State private var autoCycle = false
+    @State private var cleanCapture = false
 
     private static func argument(_ name: String) -> String? {
         let arguments = ProcessInfo.processInfo.arguments
@@ -31,7 +32,7 @@ struct CharacterLabView: View {
                 SpriteView(
                     scene: scene,
                     preferredFramesPerSecond: 60,
-                    debugOptions: [.showsFPS, .showsDrawCount, .showsNodeCount]
+                    debugOptions: cleanCapture ? [] : [.showsFPS, .showsDrawCount, .showsNodeCount]
                 )
                 .onChange(of: geometry.size, initial: true) { _, size in
                     scene.size = size
@@ -39,7 +40,7 @@ struct CharacterLabView: View {
             }
             .ignoresSafeArea()
 
-            controls
+            if !cleanCapture { controls }
         }
         .onAppear(perform: applyLaunchArguments)
         .onChange(of: stateID) { _, value in scene.request(stateID: value) }
@@ -53,15 +54,25 @@ struct CharacterLabView: View {
         if let raw = Self.argument("-PiboLabZoom"), let value = Double(raw) {
             zoom = min(max(value, 0.5), 4)
         }
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-PiboLabClean") {
+            cleanCapture = true
+            warpProbe = false
+            scene.warpProbe = false
+            scene.idleEnabled = false
+        }
+        if arguments.contains("-PiboLabArtboard") {
+            scene.artboardMode = true
+        }
         scene.zoom = zoom
-        if ProcessInfo.processInfo.arguments.contains("-PiboLabNoWarp") { warpProbe = false }
+        if arguments.contains("-PiboLabNoWarp") { warpProbe = false }
         scene.warpProbe = warpProbe
-        if ProcessInfo.processInfo.arguments.contains("-PiboLabCycle") { autoCycle = true }
+        if arguments.contains("-PiboLabCycle") { autoCycle = true }
         scene.autoCycle = autoCycle
-        if ProcessInfo.processInfo.arguments.contains("-PiboLabReflection") {
+        if arguments.contains("-PiboLabReflection") {
             scene.showReflectionProxy = true
         }
-        if ProcessInfo.processInfo.arguments.contains("-PiboLabCelebrate") {
+        if arguments.contains("-PiboLabCelebrate") {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(600))
                 scene.playWorkoutCelebration()

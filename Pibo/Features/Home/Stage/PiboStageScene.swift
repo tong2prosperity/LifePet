@@ -33,6 +33,7 @@ final class PiboStageScene: SKScene {
     // — Inputs (set by the SwiftUI wrapper) —
     private(set) var theme: PiboTheme = PiboThemeCatalog.defaultTheme
     private(set) var activityState: PiboActivityState = .idle
+    private(set) var animationStateID: String?
     private(set) var growth: PiboGrowthStage = .mystery
     private(set) var stageEnvironment: PiboStageEnvironment = .daylight
     /// Fired on a tap that lands on Pibo's body (拍一拍).
@@ -119,13 +120,20 @@ final class PiboStageScene: SKScene {
 
     // MARK: Public API (called from the SwiftUI wrapper)
 
-    func apply(theme newTheme: PiboTheme, state newState: PiboActivityState, growth newGrowth: PiboGrowthStage) {
+    func apply(
+        theme newTheme: PiboTheme,
+        state newState: PiboActivityState,
+        animationStateID newAnimationStateID: String? = nil,
+        growth newGrowth: PiboGrowthStage
+    ) {
         let themeChanged = newTheme.id != theme.id
         let growthChanged = newGrowth != growth
         let stateChanged = newState != activityState
+        let animationStateChanged = newAnimationStateID != animationStateID
         if themeChanged, built { cancelActiveTouches() }
         theme = newTheme
         activityState = newState
+        animationStateID = newAnimationStateID
         growth = newGrowth
         if themeChanged { backgroundColor = SKColor(newTheme.scene.skyBottom) }
         guard built else { return }
@@ -137,6 +145,7 @@ final class PiboStageScene: SKScene {
             character.apply(
                 theme: newTheme,
                 state: newState,
+                animationStateID: newAnimationStateID,
                 growth: newGrowth,
                 placement: characterPlacement,
                 animated: false
@@ -150,16 +159,18 @@ final class PiboStageScene: SKScene {
             character.apply(
                 theme: newTheme,
                 state: newState,
+                animationStateID: newAnimationStateID,
                 growth: newGrowth,
                 placement: characterPlacement,
                 animated: false
             )
             layoutAll()
         }
-        if stateChanged || themeChanged {
+        if stateChanged || animationStateChanged || themeChanged {
             character.apply(
                 theme: newTheme,
                 state: newState,
+                animationStateID: newAnimationStateID,
                 growth: newGrowth,
                 placement: characterPlacement,
                 animated: true
@@ -174,6 +185,16 @@ final class PiboStageScene: SKScene {
         guard built else { return }
         themeRenderer?.apply(environment: newEnvironment)
         if rainChanged || newEnvironment.rainIntensity > 0 { applyWeather() }
+    }
+
+    func transitionAnimation(
+        to stateID: String,
+        intent: PiboCoreAnimationAdapter.TransitionIntent
+    ) {
+        guard PiboAnimationStateMap.available.contains(stateID), stateID != animationStateID else { return }
+        animationStateID = stateID
+        guard built else { return }
+        character.transition(to: stateID, intent: intent)
     }
 
     func setLowPowerMode(_ enabled: Bool) {
@@ -265,8 +286,8 @@ final class PiboStageScene: SKScene {
 
     /// 拍一拍 不理睬 — Pibo 扭过头背对用户 (Figma 76:7115): hop, swap the body to
     /// the turned-away art, hold, turn back. Procedural themes just swivel.
-    func playWorkoutCelebration() {
-        character.playWorkoutCelebration()
+    func playAchievement(_ stateID: String) {
+        character.playAchievement(stateID)
     }
 
     func playTurnAway() {
@@ -444,6 +465,7 @@ final class PiboStageScene: SKScene {
         character.apply(
             theme: theme,
             state: activityState,
+            animationStateID: animationStateID,
             growth: growth,
             placement: characterPlacement,
             animated: false
@@ -512,6 +534,7 @@ final class PiboStageScene: SKScene {
         character.apply(
             theme: theme,
             state: activityState,
+            animationStateID: animationStateID,
             growth: growth,
             placement: placement,
             animated: false

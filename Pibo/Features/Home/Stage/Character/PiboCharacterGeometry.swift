@@ -53,8 +53,28 @@ enum PiboCharacterGeometry {
         transform: CGAffineTransform
     ) -> CGPath? {
         guard let from = morph.values(for: fromStateID),
-              let to = morph.values(for: toStateID),
-              from.count == to.count else { return nil }
+              let to = morph.values(for: toStateID) else { return nil }
+
+        return interpolatedPath(
+            for: morph,
+            fromValues: from,
+            toValues: to,
+            progress: progress,
+            transform: transform
+        )
+    }
+
+    /// Interpolates from a captured in-flight shape. State-to-state retargeting
+    /// uses this overload so an interrupted morph continues from the exact
+    /// geometry currently on screen instead of jumping back to a named state.
+    static func interpolatedPath(
+        for morph: PiboCharacterData.Morph,
+        fromValues from: [CGFloat],
+        toValues to: [CGFloat],
+        progress: CGFloat,
+        transform: CGAffineTransform
+    ) -> CGPath? {
+        guard from.count == to.count else { return nil }
 
         if progress <= 0 { return makePath(morph: morph, values: from, transform: transform) }
         if progress >= 1 { return makePath(morph: morph, values: to, transform: transform) }
@@ -64,6 +84,21 @@ enum PiboCharacterGeometry {
             blended[index] = from[index] + (to[index] - from[index]) * progress
         }
         return makePath(morph: morph, values: blended, transform: transform)
+    }
+
+    static func interpolatedValues(
+        for morph: PiboCharacterData.Morph,
+        from fromStateID: String,
+        to toStateID: String,
+        progress: CGFloat
+    ) -> [CGFloat]? {
+        guard let from = morph.values(for: fromStateID),
+              let to = morph.values(for: toStateID),
+              from.count == to.count else { return nil }
+        let clamped = min(max(progress, 0), 1)
+        return zip(from, to).map { first, second in
+            first + (second - first) * clamped
+        }
     }
 
     // MARK: - Stroke → fill
@@ -134,12 +169,13 @@ enum PiboCharacterGeometry {
         _ path: CGPath,
         amplitude: CGFloat,
         waves: CGFloat,
-        phase: CGFloat
+        phase: CGFloat,
+        controlsOnly: Bool = false
     ) -> CGPath {
         let box = path.boundingBoxOfPath
         guard box.width > 0, box.height > 0 else { return path }
         let centre = CGPoint(x: box.midX, y: box.midY)
-        return mapped(path) { point in
+        let transform: (CGPoint) -> CGPoint = { point in
             let dx = point.x - centre.x
             let dy = point.y - centre.y
             let distance = max(hypot(dx, dy), 0.0001)
@@ -150,6 +186,28 @@ enum PiboCharacterGeometry {
                 y: point.y + dy / distance * offset
             )
         }
+        guard controlsOnly else { return mapped(path, transform) }
+
+        let result = CGMutablePath()
+        path.applyWithBlock { pointer in
+            let element = pointer.pointee
+            let points = element.points
+            switch element.type {
+            case .moveToPoint: result.move(to: points[0])
+            case .addLineToPoint: result.addLine(to: points[0])
+            case .addQuadCurveToPoint:
+                result.addQuadCurve(to: points[1], control: transform(points[0]))
+            case .addCurveToPoint:
+                result.addCurve(
+                    to: points[2],
+                    control1: transform(points[0]),
+                    control2: transform(points[1])
+                )
+            case .closeSubpath: result.closeSubpath()
+            @unknown default: break
+            }
+        }
+        return result.copy() ?? path
     }
 
     /// Rebuilds a path with every point passed through `transform`.

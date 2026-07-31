@@ -46,7 +46,14 @@ enum HealthEvent: Sendable, Equatable {
     /// workout's actual completion time — used by the home screen to label
     /// historical replay cards ("昨 22:30") and to decide whether to fire the
     /// "just happened" leading-indicator path (gain + toast) vs. display-only.
-    case workoutFinished(id: UUID, kind: WorkoutKind, duration: TimeInterval, kcal: Double?, end: Date)
+    case workoutFinished(
+        id: UUID,
+        kind: WorkoutKind,
+        duration: TimeInterval,
+        kcal: Double?,
+        end: Date,
+        isHistorical: Bool
+    )
 
     enum WorkoutKind: String, Sendable, Codable {
         case run, walk, cycle, swim, hiit, yoga, other

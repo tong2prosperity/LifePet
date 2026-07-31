@@ -27,14 +27,39 @@ import Testing
     #expect(!long.isFresh)
 }
 
+@Test func workoutFreshnessDependsOnAgeRatherThanHealthKitAnchorHistory() {
+    // The acquisition layer can label the first anchored query historical,
+    // but a workout that ended seconds ago still belongs to direct-open UX.
+    let fresh = PiboCoreWorkoutAdapter.eventPolicy(
+        durationSeconds: 1_800,
+        ageSeconds: 30
+    )
+    let stale = PiboCoreWorkoutAdapter.eventPolicy(
+        durationSeconds: 1_800,
+        ageSeconds: 301
+    )
+    #expect(PiboCoreWorkoutAdapter.achievementShouldQueue(
+        policy: fresh,
+        occurredToday: true
+    ))
+    #expect(!PiboCoreWorkoutAdapter.achievementShouldQueue(
+        policy: stale,
+        occurredToday: true
+    ))
+    #expect(!PiboCoreWorkoutAdapter.achievementShouldQueue(
+        policy: fresh,
+        occurredToday: false
+    ))
+}
+
 @Test func rustPendingWorkoutPolicyDrivesRestorationAndLiveActivityExpiry() {
     let maxAge = PiboCoreWorkoutAdapter.pendingWorkoutMaxAgeSeconds
-    #expect(maxAge == 3_600)
+    #expect(maxAge == 86_400)
     #expect(PiboCoreWorkoutAdapter.pendingWorkoutIsRestorable(
         ageSeconds: maxAge,
         sameDay: true
     ))
-    #expect(!PiboCoreWorkoutAdapter.pendingWorkoutIsRestorable(
+    #expect(PiboCoreWorkoutAdapter.pendingWorkoutIsRestorable(
         ageSeconds: maxAge + 0.001,
         sameDay: true
     ))

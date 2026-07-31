@@ -5,11 +5,13 @@ nonisolated enum AppNotificationCategory {
     static let morningSleep = "pibo.notification.morning-sleep"
     static let morningSleepMock = "pibo.notification.morning-sleep.mock"
     static let workoutCompleted = "pibo.notification.workout-completed"
+    static let achievement = "pibo.notification.animation-achievement"
     /// Stress readings + the every-reading diagnostic. Tapping opens the history
     /// surface focused on the 压力卡 — the screen the notification is about.
     static let stress = "pibo.notification.stress"
     static let wakeDayUserInfoKey = "piboWakeDay"
     static let workoutIDUserInfoKey = "piboWorkoutID"
+    static let achievementKindUserInfoKey = "piboAnimationAchievementKind"
 }
 
 /// The app has exactly one `UNUserNotificationCenterDelegate`. Stress and sleep
@@ -22,6 +24,7 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     var onMorningSleepOpened: ((String?, Bool) -> Void)?
     /// Fired when a stress notification is tapped.
     var onStressOpened: (() -> Void)?
+    var onAchievementOpened: (() -> Void)?
 
     private override init() {
         super.init()
@@ -61,6 +64,11 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let category = response.notification.request.content.categoryIdentifier
         if category == AppNotificationCategory.stress {
             onStressOpened?()
+            return
+        }
+        if category == AppNotificationCategory.workoutCompleted
+            || category == AppNotificationCategory.achievement {
+            onAchievementOpened?()
             return
         }
         guard category == AppNotificationCategory.morningSleep

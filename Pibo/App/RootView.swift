@@ -24,6 +24,7 @@ struct RootView: View {
         return debugOpensHistory
             || arguments.contains("-PiboOpenGames")
             || arguments.contains("-PiboShowMorningSleep")
+            || arguments.contains { $0.hasPrefix("-PiboShowAchievement=") }
             || arguments.contains("-PiboOpenMiniGame")
             || arguments.contains { $0.hasPrefix("-PiboOpenMiniGame=") }
     }

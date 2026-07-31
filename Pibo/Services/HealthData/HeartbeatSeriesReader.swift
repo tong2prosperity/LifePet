@@ -66,7 +66,7 @@ enum HeartbeatSeriesReader {
             diffs=\(measurement.diffs, privacy: .public)
             """)
         guard trusted else { return nil }
-        let resting = await isResting(during: series, store: store)
+        let resting = await isEligibleResting(during: series, store: store)
         return StressSample(seriesID: series.uuid, rmssd: measurement.rmssd,
                             date: series.startDate, isResting: resting)
     }
@@ -79,16 +79,20 @@ enum HeartbeatSeriesReader {
         await latestSeries(store: store)?.uuid
     }
 
-    /// Whether the series was measured at rest — true when **no HKWorkout
-    /// overlaps** its time window. A single lightweight query (heartbeat series
-    /// arrive only every 2–5h, so the cost is negligible). Read auth for
-    /// workouts is opaque; a denied read returns no samples → treated as resting,
-    /// the safe default (an occasional active reading slipping in is far less
-    /// harmful than dropping every reading).
-    private static func isResting(during series: HKHeartbeatSeriesSample,
-                                  store: HKHealthStore) async -> Bool {
+    /// Core only accepts a resting, awake RMSSD window. Workouts and actual
+    /// sleep both alter the signal enough that they must not enter the personal
+    /// daytime stress baseline.
+    private static func isEligibleResting(during series: HKHeartbeatSeriesSample,
+                                          store: HKHealthStore) async -> Bool {
+        async let workoutOverlap = hasWorkoutOverlap(during: series, store: store)
+        async let sleepOverlap = hasSleepOverlap(during: series, store: store)
+        let (hasWorkout, hasSleep) = await (workoutOverlap, sleepOverlap)
+        return !hasWorkout && !hasSleep
+    }
+
+    private static func hasWorkoutOverlap(during series: HKHeartbeatSeriesSample,
+                                          store: HKHealthStore) async -> Bool {
         await withCheckedContinuation { continuation in
-            // No options → matches any workout whose interval overlaps the series.
             let predicate = HKQuery.predicateForSamples(
                 withStart: series.startDate, end: series.endDate, options: [])
             let query = HKSampleQuery(
@@ -97,9 +101,37 @@ enum HeartbeatSeriesReader {
                 limit: 1,
                 sortDescriptors: nil
             ) { _, samples, _ in
-                continuation.resume(returning: (samples?.isEmpty ?? true))
+                continuation.resume(returning: !(samples?.isEmpty ?? true))
             }
             store.execute(query)
+        }
+    }
+
+    private static func hasSleepOverlap(during series: HKHeartbeatSeriesSample,
+                                        store: HKHealthStore) async -> Bool {
+        await withCheckedContinuation { continuation in
+            let predicate = HKQuery.predicateForSamples(
+                withStart: series.startDate, end: series.endDate, options: [])
+            let query = HKSampleQuery(
+                sampleType: HKCategoryType(.sleepAnalysis),
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
+            ) { _, samples, _ in
+                let overlapsSleep = (samples as? [HKCategorySample])?.contains {
+                    sleepValueMeansAsleep($0.value)
+                } ?? false
+                continuation.resume(returning: overlapsSleep)
+            }
+            store.execute(query)
+        }
+    }
+
+    static func sleepValueMeansAsleep(_ rawValue: Int) -> Bool {
+        switch HKCategoryValueSleepAnalysis(rawValue: rawValue) {
+        case .asleepUnspecified, .asleepCore, .asleepDeep, .asleepREM: true
+        case .inBed, .awake, .none: false
+        @unknown default: false
         }
     }
 

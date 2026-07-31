@@ -30,6 +30,11 @@ final class PiboIdleAnimator {
 
     private var timelineStart: TimeInterval?
     private var activeStateID: String?
+    private struct RandomBlinkSchedule {
+        var nextStart: TimeInterval
+        var activeStart: TimeInterval?
+    }
+    private var randomBlinks: [String: RandomBlinkSchedule] = [:]
 
     init(data: PiboCharacterData) {
         pathPrimitiveMinAmplitude = CGFloat(data.idleBlend.pathPrimitiveMinAmplitude)
@@ -51,6 +56,7 @@ final class PiboIdleAnimator {
         if activeStateID != stateID {
             activeStateID = stateID
             timelineStart = nil
+            randomBlinks.removeAll()
         }
         guard let idle else { return }
         if timelineStart == nil { timelineStart = time }
@@ -67,13 +73,20 @@ final class PiboIdleAnimator {
     /// through `gateFade` at each edge, 1 in the middle. Parts with no gate are
     /// always on.
     private func gate(_ part: PiboCharacterData.Idle.Part, elapsed: TimeInterval) -> CGFloat {
-        guard let cycle = part.gateCycle, cycle > 0, let range = part.gateRange, range.count == 2 else {
+        guard let cycle = part.gateCycle, cycle > 0 else {
             return 1
         }
         let offset = part.gateOffset ?? 0
         var phase = (elapsed / cycle + offset).truncatingRemainder(dividingBy: 1)
         if phase < 0 { phase += 1 }
 
+        let ranges = part.gateRanges ?? part.gateRange.map { [$0] } ?? []
+        guard !ranges.isEmpty else { return 1 }
+        return ranges.map { gateValue(phase: phase, range: $0, fade: part.gateFade ?? 0) }.max() ?? 0
+    }
+
+    private func gateValue(phase: Double, range: [Double], fade requestedFade: Double) -> CGFloat {
+        guard range.count == 2 else { return 0 }
         let (start, end) = (range[0], range[1])
         let inside: Bool
         let localPosition: Double
@@ -90,7 +103,7 @@ final class PiboIdleAnimator {
         }
         guard inside, span > 0 else { return 0 }
 
-        let fade = min(part.gateFade ?? 0, span / 2)
+        let fade = min(requestedFade, span / 2)
         guard fade > 0 else { return 1 }
         let rise = min(1, localPosition / fade)
         let fall = min(1, (span - localPosition) / fade)
@@ -139,10 +152,222 @@ final class PiboIdleAnimator {
         case "path-wiggle":
             guard amplitude > pathPrimitiveMinAmplitude else { break }
             applyPathWiggle(part, stateID: stateID, character: character, elapsed: elapsed, strength: strength)
+        case "sigh-sequence":
+            applySigh(part, character: character, elapsed: elapsed, strength: amplitude)
+        case "bring-to-front":
+            for selector in selectors(of: part) {
+                character.node(forSelector: selector, stateID: stateID)?.zPosition = 100
+            }
+        case "shake":
+            let x = sin(wave(part, elapsed: elapsed) * 2 * .pi * 5)
+                * (part.amplitude ?? 1.2) * Double(strength)
+            character.setBodyOffset(x: CGFloat(x), y: 0)
+        case "bob":
+            let y = sin(wave(part, elapsed: elapsed) * 2 * .pi)
+                * (part.amplitude ?? 3) * Double(strength)
+            character.setBodyOffset(x: 0, y: CGFloat(y))
+        case "sway":
+            let angle = sin(wave(part, elapsed: elapsed) * 2 * .pi)
+                * (part.amplitude ?? 1.5) * Double(strength) * .pi / 180
+            character.setBodyRotation(CGFloat(angle))
+        case "pop-loop":
+            applyPopLoop(part, stateID: stateID, character: character, elapsed: elapsed, strength: amplitude)
+        case "bubble-breathe":
+            applyBubble(part, stateID: stateID, character: character, elapsed: elapsed, strength: amplitude)
+        case "wink-morph":
+            applyWink(part, stateID: stateID, character: character, elapsed: elapsed, strength: amplitude)
         default:
             break
         }
     }
+
+    private func applySigh(
+        _ part: PiboCharacterData.Idle.Part,
+        character: PiboVectorCharacter,
+        elapsed: TimeInterval,
+        strength: CGFloat
+    ) {
+        let swell = part.swellDuration ?? 1.4
+        let flatten = part.flattenDuration ?? 1
+        let recover = part.recoverDuration ?? 2.6
+        let pause = part.pauseDuration ?? 2.5
+        let cycle = swell + flatten + recover + pause
+        guard cycle > 0 else { return }
+        let t = elapsed.truncatingRemainder(dividingBy: cycle)
+        let x: Double
+        let y: Double
+        if t < swell {
+            let u = smoothstep(t / swell)
+            x = 1 + (part.swellX ?? 0.016) * u
+            y = 1 + (part.swellY ?? 0.04) * u
+        } else if t < swell + flatten {
+            let u = smoothstep((t - swell) / flatten)
+            x = 1 + lerp(part.swellX ?? 0.016, -(part.flattenX ?? 0.028), u)
+            y = 1 + lerp(part.swellY ?? 0.04, -(part.flattenY ?? 0.06), u)
+        } else if t < swell + flatten + recover {
+            let u = smoothstep((t - swell - flatten) / recover)
+            x = 1 + lerp(-(part.flattenX ?? 0.028), 0, u)
+            y = 1 + lerp(-(part.flattenY ?? 0.06), 0, u)
+        } else {
+            x = 1; y = 1
+        }
+        character.setBreath(
+            x: 1 + (CGFloat(x) - 1) * strength,
+            y: 1 + (CGFloat(y) - 1) * strength
+        )
+    }
+
+    private func applyPopLoop(
+        _ part: PiboCharacterData.Idle.Part,
+        stateID: String,
+        character: PiboVectorCharacter,
+        elapsed: TimeInterval,
+        strength: CGFloat
+    ) {
+        let selectors = selectors(of: part)
+        let cycle = part.cycleDuration ?? 4.6
+        guard cycle > 0 else { return }
+        for (index, selector) in selectors.enumerated() {
+            guard let node = character.node(forSelector: selector, stateID: stateID) else { continue }
+            var phase = elapsed / cycle + Double(index) * (part.phaseStep ?? 0.18)
+            phase = phase.truncatingRemainder(dividingBy: 1)
+            if phase < 0 { phase += 1 }
+            let visible = part.visibilityFraction ?? 0.3
+            let fade = part.fadeFraction ?? 0.14
+            let range = part.scaleRange ?? [0.76, 1.04]
+            let rotations = part.rotateRange ?? [0, 0]
+            let translations = part.translateRange ?? [[0, 0], [0, 0]]
+            let fromTranslation = translations.first ?? [0, 0]
+            let toTranslation = translations.last ?? [0, 0]
+            let visibleEnd = fade + visible
+            let fadeOutEnd = visibleEnd + fade
+
+            let alpha: Double
+            let scale: Double
+            let rotation: Double
+            let translation: CGPoint
+            if phase < fade, fade > 0 {
+                let u = phase / fade
+                alpha = u
+                scale = lerp(range.first ?? 1, range.last ?? 1, smoothBack(u))
+                rotation = rotations.first ?? 0
+                translation = CGPoint(x: CGFloat(fromTranslation.first ?? 0),
+                                      y: CGFloat(fromTranslation.count > 1 ? fromTranslation[1] : 0))
+            } else if phase < visibleEnd, visible > 0 {
+                let u = (phase - fade) / visible
+                alpha = 1
+                scale = range.last ?? 1
+                rotation = lerp(rotations.first ?? 0, rotations.last ?? 0, u)
+                translation = CGPoint(
+                    x: CGFloat(lerp(fromTranslation.first ?? 0, toTranslation.first ?? 0, u)),
+                    y: CGFloat(lerp(fromTranslation.count > 1 ? fromTranslation[1] : 0,
+                                    toTranslation.count > 1 ? toTranslation[1] : 0, u))
+                )
+            } else if phase < fadeOutEnd, fade > 0 {
+                let u = (phase - visibleEnd) / fade
+                alpha = 1 - u
+                scale = lerp(range.last ?? 1, range.first ?? 1, u)
+                rotation = rotations.last ?? 0
+                translation = CGPoint(x: CGFloat(toTranslation.first ?? 0),
+                                      y: CGFloat(toTranslation.count > 1 ? toTranslation[1] : 0))
+            } else {
+                node.alpha = 0
+                continue
+            }
+            node.alpha = CGFloat(max(0, alpha)) * strength
+            character.setSparkleTransform(
+                offset: translation,
+                rotationDegrees: CGFloat(rotation),
+                scale: CGFloat(scale),
+                selector: selector,
+                for: node
+            )
+        }
+    }
+
+    private func applyBubble(
+        _ part: PiboCharacterData.Idle.Part,
+        stateID: String,
+        character: PiboVectorCharacter,
+        elapsed: TimeInterval,
+        strength: CGFloat
+    ) {
+        let phase = (sin(wave(part, elapsed: elapsed) * 2 * .pi - .pi / 2) + 1) / 2
+        let scale = lerp(part.minScale ?? 0.72, part.maxScale ?? 1.55, phase)
+        for selector in selectors(of: part) {
+            guard let node = character.node(forSelector: selector, stateID: stateID) else { continue }
+            character.setUniformScale(
+                1 + (CGFloat(scale) - 1) * strength,
+                pivot: part.pivot,
+                selector: selector,
+                for: node
+            )
+        }
+    }
+
+    private func applyWink(
+        _ part: PiboCharacterData.Idle.Part,
+        stateID: String,
+        character: PiboVectorCharacter,
+        elapsed: TimeInterval,
+        strength: CGFloat
+    ) {
+        guard strength > 0.5, let openPath = part.openPath,
+              let cycle = part.gateCycle, cycle > 0,
+              let range = part.gateRange, range.count == 2 else { return }
+        var phase = (elapsed / cycle).truncatingRemainder(dividingBy: 1)
+        if phase < 0 { phase += 1 }
+        let start = range[0], end = range[1]
+        let isActive = phase >= start && phase <= end
+        let u = isActive ? (phase - start) / max(0.0001, end - start) : 0
+        let closeEnd = part.closeFraction ?? 0.18
+        let holdUntil = part.holdUntil ?? 0.74
+        let morph: Double
+        if !isActive { morph = 0 }
+        else if u < closeEnd { morph = easeInOutSine(u / max(0.0001, closeEnd)) }
+        else if u <= holdUntil { morph = 1 }
+        else { morph = 1 - easeInOutSine((u - holdUntil) / max(0.0001, 1 - holdUntil)) }
+
+        for selector in selectors(of: part) {
+            guard let node = character.node(forSelector: selector, stateID: stateID),
+                  let closedPath = character.basePath(forSelector: selector, stateID: stateID),
+                  let parsedOpen = PiboCharacterGeometry.path(
+                    svgPathData: openPath,
+                    transform: character.transform(forSelector: selector)
+                  ) else { continue }
+            // The source preview uses topology-normalising path morphing. Native
+            // CoreGraphics has no equivalent, so cross at the fully closed eye:
+            // circle squashes out, the authored wink triangle grows in, and the
+            // reverse happens on reopen. There is no discontinuous path swap.
+            let usesClosed = morph >= 0.5
+            node.path = usesClosed ? closedPath : parsedOpen
+            let visibleScale = max(0.05, usesClosed ? (morph - 0.5) * 2 : 1 - morph * 2)
+            character.setVerticalSquash(
+                CGFloat(visibleScale),
+                originY: nil,
+                for: node,
+                selector: selector
+            )
+        }
+    }
+
+    private func easeInOutSine(_ value: Double) -> Double {
+        -(cos(.pi * min(max(value, 0), 1)) - 1) / 2
+    }
+
+    private func smoothBack(_ value: Double) -> Double {
+        let x = min(max(value, 0), 1)
+        let c1 = 1.70158
+        let c3 = c1 + 1
+        return 1 + c3 * pow(x - 1, 3) + c1 * pow(x - 1, 2)
+    }
+
+    private func smoothstep(_ value: Double) -> Double {
+        let x = min(max(value, 0), 1)
+        return x * x * (3 - 2 * x)
+    }
+
+    private func lerp(_ a: Double, _ b: Double, _ t: Double) -> Double { a + (b - a) * t }
 
     // MARK: - Whole-body primitives
 
@@ -260,20 +485,44 @@ final class PiboIdleAnimator {
         elapsed: TimeInterval,
         strength: CGFloat
     ) {
-        let period = part.period ?? 4
         let blink = part.blinkDuration ?? 0.16
-        guard period > 0, blink > 0 else { return }
-        let at = part.at ?? 0
-        var phase = (elapsed / period - at).truncatingRemainder(dividingBy: 1)
-        if phase < 0 { phase += 1 }
-        let window = blink / period
-
+        guard blink > 0 else { return }
         let squash: CGFloat
-        if phase < window {
-            let u = phase / window
-            squash = 1 - CGFloat(sin(u * .pi)) * strength
+        if part.randomize == true {
+            let minimumPeriod = part.minPeriod ?? 5
+            let maximumPeriod = max(minimumPeriod, part.maxPeriod ?? 8.5)
+            let key = stateID + ":" + selectors(of: part).joined(separator: ",")
+            var schedule = randomBlinks[key] ?? RandomBlinkSchedule(
+                nextStart: elapsed + Double.random(in: minimumPeriod...maximumPeriod),
+                activeStart: nil
+            )
+            if schedule.activeStart == nil, elapsed >= schedule.nextStart {
+                schedule.activeStart = elapsed
+            }
+            if let start = schedule.activeStart, elapsed - start <= blink {
+                let u = max(0, elapsed - start) / blink
+                let minimum = CGFloat(part.minScale ?? 0)
+                squash = 1 - CGFloat(sin(u * .pi)) * (1 - minimum) * strength
+            } else {
+                if schedule.activeStart != nil {
+                    schedule.activeStart = nil
+                    schedule.nextStart = elapsed + Double.random(in: minimumPeriod...maximumPeriod)
+                }
+                squash = 1
+            }
+            randomBlinks[key] = schedule
         } else {
-            squash = 1
+            let period = part.period ?? 4
+            guard period > 0, blink > 0 else { return }
+            let at = part.at ?? 1
+            let windowStart = period * at - blink
+            let phase = elapsed.truncatingRemainder(dividingBy: period)
+            let isBlinking = phase > windowStart && phase <= windowStart + blink
+            let u = isBlinking ? (phase - windowStart) / blink : 0
+            let minimum = CGFloat(part.minScale ?? 0)
+            squash = isBlinking
+                ? 1 - CGFloat(sin(u * .pi)) * (1 - minimum) * strength
+                : 1
         }
 
         for selector in selectors(of: part) {
@@ -423,7 +672,8 @@ final class PiboIdleAnimator {
                 base,
                 amplitude: amplitude * abs(transform.a),
                 waves: waves,
-                phase: phase
+                phase: phase,
+                controlsOnly: part.controlsOnly == true
             )
         }
     }

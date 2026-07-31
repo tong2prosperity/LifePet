@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 
 enum ForestLightingGroup: CaseIterable, Hashable {
     case far
@@ -15,12 +16,91 @@ enum ForestLightingGroup: CaseIterable, Hashable {
 enum ForestSceneManifest {
     static let designSize = CGSize(width: 393, height: 852)
     static let piboFootPoint = CGPoint(x: 196.5, y: 610)
+    private static let boringTraverseEasing = PiboUnitBezier([0.42, 0, 0.58, 1])
 
-    /// 巢区锚点：睡眠三态坐在椰壳洞口里，不站在地面落脚点上。取椰壳图层
-    /// （20, -37, 252×475）洞口的中心，宽度按 Figma 里那组 129×143 的角色。
-    /// 跨区是 90ms 硬切，正因为两个区的位置差得太远，插值没有意义。
-    static let piboNestAnchor = CGPoint(x: 146, y: 358)
-    static let piboNestBodyWidth: CGFloat = 112
+    /// Exact 460×460 player placement from `pibo_context`'s live integration.
+    /// The authored 300×300 artboard is inset by 80 player pixels on every
+    /// edge. Keeping the outer player is essential: business `bounceCut` scales
+    /// that box around 50% / 58%, not the cropped character artboard.
+    struct PiboPlayerPlacement: Equatable {
+        let frame: CGRect
+        let zPosition: CGFloat
+
+        var artboardFrame: CGRect {
+            let inset = frame.width * 80 / 460
+            return frame.insetBy(dx: inset, dy: inset)
+        }
+
+        /// Top-left design coordinates, matching CSS `transform-origin`.
+        var bounceOrigin: CGPoint {
+            CGPoint(
+                x: frame.minX + frame.width * 0.5,
+                y: frame.minY + frame.height * 0.58
+            )
+        }
+    }
+
+    struct PiboArtboardPlacement: Equatable {
+        let frame: CGRect
+        let zPosition: CGFloat
+    }
+
+    static func piboPlayerPlacement(
+        stateID: String,
+        boringElapsed: TimeInterval = 0
+    ) -> PiboPlayerPlacement {
+        switch stateID {
+        case "sleep-1", "sleep-2", "awake":
+            return PiboPlayerPlacement(
+                frame: CGRect(x: -31, y: 90.8, width: 322, height: 322),
+                zPosition: 20
+            )
+        case "coolhide":
+            return PiboPlayerPlacement(
+                frame: CGRect(x: 138, y: 240, width: 299, height: 299),
+                zPosition: 5.5
+            )
+        case "dive":
+            return PiboPlayerPlacement(
+                frame: CGRect(x: -10.5, y: 508, width: 414, height: 414),
+                zPosition: 11.5
+            )
+        case "boring":
+            let phase = boringElapsed.truncatingRemainder(dividingBy: 28)
+            let x: CGFloat
+            if phase < 12 {
+                let progress = CGFloat(boringTraverseEasing(phase / 12))
+                x = -372 + progress * 361.5
+            } else if phase < 16 {
+                x = -10.5
+            } else {
+                let progress = CGFloat(boringTraverseEasing((phase - 16) / 12))
+                x = -10.5 + progress * 331.5
+            }
+            return PiboPlayerPlacement(
+                frame: CGRect(x: x, y: 292, width: 414, height: 414),
+                zPosition: 10.5
+            )
+        case "weak":
+            return PiboPlayerPlacement(
+                frame: CGRect(x: -10.5, y: 370, width: 414, height: 414),
+                zPosition: 20
+            )
+        default:
+            return PiboPlayerPlacement(
+                frame: CGRect(x: -10.5, y: 284, width: 414, height: 414),
+                zPosition: 20
+            )
+        }
+    }
+
+    static func piboArtboardPlacement(
+        stateID: String,
+        boringElapsed: TimeInterval = 0
+    ) -> PiboArtboardPlacement {
+        let player = piboPlayerPlacement(stateID: stateID, boringElapsed: boringElapsed)
+        return PiboArtboardPlacement(frame: player.artboardFrame, zPosition: player.zPosition)
+    }
 
     struct FoliageInteraction: Hashable {
         enum Role: Hashable {
@@ -126,8 +206,10 @@ enum ForestSceneManifest {
         // 椰壳（巢）。刻意只有一层、且垫在角色底下：睡眠三态的角色形状已经按洞口
         // 手工裁切过（蒙版烘焙进美术里），整体压上去就是对的。把椰壳打进角色动画
         // 会得到「空壳」与「带角色的壳」两份对不齐的资产，而且呼吸会把壳带歪
-        // （DESIGN-NOTES §3）。落位取自 Figma home 帧 5758:956 里的 yeke 组。
-        Layer(image: "forest_yeke", frame: CGRect(x: 20, y: -37, width: 252, height: 475), zPosition: 17, lightingGroup: .midground),
+        // （DESIGN-NOTES §3）。落位取自 pibo_context 已验收的首页整合预览。
+        // Same visible 252×475 coconut cut and 0.7 placement used by the live
+        // `pibo_context` integration (`.nest-shell`).
+        Layer(image: "forest_yeke", frame: CGRect(x: 41.8, y: 18, width: 176.4, height: 332.5), zPosition: 17, lightingGroup: .midground),
     ]
 
     static let river = Layer(

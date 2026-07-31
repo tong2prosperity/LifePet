@@ -111,6 +111,17 @@ struct PiboCharacterData: Decodable {
         let kind: String
         let parts: [Part]?
         let intro: Intro?
+        private let singlePart: Part
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            kind = try container.decode(String.self, forKey: .kind)
+            parts = try container.decodeIfPresent([Part].self, forKey: .parts)
+            intro = try container.decodeIfPresent(Intro.self, forKey: .intro)
+            singlePart = try Part(from: decoder)
+        }
+
+        private enum CodingKeys: String, CodingKey { case kind, parts, intro }
 
         /// 闪亮登场。设计师要的是「切过去时第一次变化很强烈很快，闪亮登场秀肌肉
         /// 的感觉，后面默认态保持现状」。第一版做成「首轮连招压缩快放」被否了
@@ -125,7 +136,7 @@ struct PiboCharacterData: Decodable {
         /// Flattened view: a non-compound idle is a single part.
         var resolvedParts: [Part] {
             if let parts { return parts }
-            return []
+            return [singlePart]
         }
 
         struct Part: Decodable {
@@ -142,6 +153,7 @@ struct PiboCharacterData: Decodable {
             // Gate window on the shared timeline.
             let gateCycle: Double?
             let gateRange: [Double]?
+            let gateRanges: [[Double]]?
             let gateFade: Double?
             let gateOffset: Double?
 
@@ -155,6 +167,10 @@ struct PiboCharacterData: Decodable {
 
             // blink
             let blinkDuration: Double?
+            let randomize: Bool?
+            let minPeriod: Double?
+            let maxPeriod: Double?
+            let minScale: Double?
             /// Which phase of the period the blink lands on.
             let at: Double?
             let originY: Double?
@@ -176,6 +192,17 @@ struct PiboCharacterData: Decodable {
 
             // path-wiggle
             let waves: Double?
+            let controlsOnly: Bool?
+
+            // sigh-sequence
+            let swellDuration: Double?
+            let flattenDuration: Double?
+            let recoverDuration: Double?
+            let pauseDuration: Double?
+            let swellY: Double?
+            let flattenY: Double?
+            let swellX: Double?
+            let flattenX: Double?
 
             // waggle-sequence
             let cycleDuration: Double?
@@ -188,6 +215,19 @@ struct PiboCharacterData: Decodable {
             let scaleFrom: Double?
             let scalePeak: Double?
             let scaleEnd: Double?
+
+            // pop-loop / bubble-breathe / wink-morph
+            let visibilityFraction: Double?
+            let fadeFraction: Double?
+            let phaseStep: Double?
+            let originSelf: Bool?
+            let scaleRange: [Double]?
+            let translateRange: [[Double]]?
+            let rotateRange: [Double]?
+            let maxScale: Double?
+            let openPath: String?
+            let closeFraction: Double?
+            let holdUntil: Double?
         }
     }
 

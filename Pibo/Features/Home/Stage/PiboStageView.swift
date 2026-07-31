@@ -20,6 +20,7 @@ private final class PiboStageSceneOwner: ObservableObject {
 struct PiboStageView: View, Equatable {
     let theme: PiboTheme
     let state: PiboActivityState
+    var animationStateID: String? = nil
     let commandController: PiboStageCommandController
     /// 魔丸 head growth (「?」卷芽 ⇄ 发芽带叶) — drives which head sprite shows.
     var growth: PiboGrowthStage = .sprouted
@@ -86,9 +87,10 @@ struct PiboStageView: View, Equatable {
             .onChange(of: geo.size) { _, newSize in
                 if newSize.width > 1, newSize.height > 1 { scene.size = newSize }
             }
-            .onChange(of: theme.id) { _, _ in scene.apply(theme: theme, state: state, growth: growth) }
-            .onChange(of: state) { _, _ in scene.apply(theme: theme, state: state, growth: growth) }
-            .onChange(of: growth) { _, _ in scene.apply(theme: theme, state: state, growth: growth) }
+            .onChange(of: theme.id) { _, _ in applySceneState() }
+            .onChange(of: state) { _, _ in applySceneState() }
+            .onChange(of: animationStateID) { _, _ in applySceneState() }
+            .onChange(of: growth) { _, _ in applySceneState() }
             .onChange(of: sproutGrowthProgress) { _, value in
                 scene.setSproutGrowthProgress(value)
             }
@@ -117,15 +119,25 @@ struct PiboStageView: View, Equatable {
                 displayMaximum: UIScreen.main.maximumFramesPerSecond
             )
         }
-        scene.apply(theme: theme, state: state, growth: growth)
+        applySceneState()
         scene.setSproutGrowthProgress(sproutGrowthProgress)
         scene.setEnvironment(environment)
         scene.setTuning(tuning)
     }
 
+    private func applySceneState() {
+        scene.apply(
+            theme: theme,
+            state: state,
+            animationStateID: animationStateID,
+            growth: growth
+        )
+    }
+
     static func == (lhs: PiboStageView, rhs: PiboStageView) -> Bool {
         lhs.theme == rhs.theme
             && lhs.state == rhs.state
+            && lhs.animationStateID == rhs.animationStateID
             && lhs.growth == rhs.growth
             && lhs.sproutGrowthProgress == rhs.sproutGrowthProgress
             && lhs.environment == rhs.environment

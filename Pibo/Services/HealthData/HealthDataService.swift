@@ -175,7 +175,14 @@ final class HealthDataService {
     /// Cheap because all queries are bounded windows; safe to run unconditionally.
     func reconcile() async {
         LPLog.healthKit.debug("Reconcile begin (\(self.metrics.count, privacy: .public) metrics)")
-        for metric in metrics {
+        // Achievement ordering is a product contract: if this reconciliation
+        // discovers both a 10k crossing and one or more workouts, the workout
+        // (pigu) wins. Set iteration is intentionally unordered, so impose a
+        // stable order with steps before workout and keep workout last.
+        let orderedMetrics = metrics.sorted {
+            Self.reconcilePriority($0) < Self.reconcilePriority($1)
+        }
+        for metric in orderedMetrics {
             await refresh(metric)
         }
         LPLog.healthKit.debug("Reconcile end")
@@ -214,7 +221,15 @@ final class HealthDataService {
             // Observer callbacks land on a private background queue. Hop to
             // MainActor for the snapshot fetch + state mutation.
             Task { @MainActor [weak self] in
-                await self?.refresh(metric)
+                // Steps and workouts form one achievement acquisition pair.
+                // Query steps first so a HealthKit update that contains both
+                // facts deterministically ends on the latest pigu workout.
+                if metric == .steps || metric == .workout {
+                    await self?.refresh(.steps)
+                    await self?.refresh(.workout)
+                } else {
+                    await self?.refresh(metric)
+                }
                 // Tell HK we've handled this wake-up — required to avoid
                 // delivery throttling.
                 completionHandler()
@@ -229,6 +244,14 @@ final class HealthDataService {
             } catch {
                 LPLog.healthKit.error("Background delivery failed for \(metric.rawValue, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
+        }
+    }
+
+    private static func reconcilePriority(_ metric: HealthMetric) -> Int {
+        switch metric {
+        case .steps: 0
+        case .workout: 2
+        default: 1
         }
     }
 
@@ -539,7 +562,9 @@ final class HealthDataService {
             if !result.addedSamples.isEmpty {
                 LPLog.workout.info("Fetched \(result.addedSamples.count, privacy: .public) workout(s)")
             }
-            for workout in result.addedSamples {
+            // Anchored-query result ordering is unspecified. Process oldest to
+            // newest so the replaceable pending achievement ends on the latest.
+            for workout in result.addedSamples.sorted(by: { $0.endDate < $1.endDate }) {
                 guard emittedWorkoutUUIDs.insert(workout.uuid).inserted else {
                     LPLog.workout.debug("dedup skip uuid=\(workout.uuid.uuidString, privacy: .public) — already emitted this session")
                     continue
@@ -562,7 +587,8 @@ final class HealthDataService {
                     kind: kind,
                     duration: workout.duration,
                     kcal: kcal,
-                    end: workout.endDate
+                    end: workout.endDate,
+                    isHistorical: isFirstRun
                 ))
             }
         } catch {

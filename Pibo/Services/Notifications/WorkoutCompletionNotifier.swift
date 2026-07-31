@@ -3,6 +3,28 @@ import Observation
 import UserNotifications
 import os
 
+/// Small testable FIFO used for the shared achievement notification slot.
+/// Each submitted operation waits for the previous write to finish, so call
+/// order—not completion timing—decides which request is left delivered.
+@MainActor
+final class AchievementNotificationPublicationQueue {
+    private var tail: Task<Bool, Never>?
+
+    func submit(
+        _ operation: @escaping @MainActor () async -> Bool
+    ) -> Task<Bool, Never> {
+        let predecessor = tail
+        let publication = Task { @MainActor in
+            if let predecessor {
+                _ = await predecessor.value
+            }
+            return await operation()
+        }
+        tail = publication
+        return publication
+    }
+}
+
 /// Sends one immediate local notification when a newly synced HealthKit
 /// workout completes. HealthKit's UUID is the durable deduplication key, so a
 /// background observer wake and a later foreground reconcile cannot notify
@@ -23,10 +45,17 @@ final class WorkoutCompletionNotifier {
     @ObservationIgnored private let notificationCenter: UNUserNotificationCenter
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var inFlightIDs: Set<UUID> = []
+    /// Serializes writes to the one replaceable achievement request. A steps
+    /// observer and a workout observer can overlap while awaiting notification
+    /// authorization; without a publication tail, the older async add could
+    /// finish last and overwrite the newer product decision.
+    @ObservationIgnored private let achievementPublicationQueue =
+        AchievementNotificationPublicationQueue()
 
     private static let enabledKey = "pibo.workout.push.enabled.v1"
     private static let deliveredIDsKey = "pibo.workout.push.deliveredIDs.v1"
     private static let retainedIDLimit = 64
+    private static let achievementRequestID = "pibo.animation.achievement.latest"
 
     private init(
         notificationCenter: UNUserNotificationCenter = .current(),
@@ -72,35 +101,84 @@ final class WorkoutCompletionNotifier {
         defer { inFlightIDs.remove(workout.id) }
 
         let settings = await notificationCenter.notificationSettings()
+        guard !Task.isCancelled else { return false }
         authorized = Self.isAuthorized(settings.authorizationStatus)
         guard authorized else { return false }
 
         let content = UNMutableNotificationContent()
-        content.title = AppLocalization.format("%@完成 · Pibo %@", workout.label, piboState.displayName)
-        content.body = notificationBody(for: workout, state: piboState)
+        content.title = "Pibo"
+        if PiboCoreAnimationAdapter.achievementContentID(kind: .pigu, modal: false)
+            == "animation.workout.notification" {
+            content.body = AppLocalization.format("你刚完成了「%@」。我注意到了。", workout.label)
+        }
         content.sound = .default
         content.categoryIdentifier = AppNotificationCategory.workoutCompleted
-        content.threadIdentifier = "pibo.workout"
-        content.userInfo = [AppNotificationCategory.workoutIDUserInfoKey: workout.id.uuidString]
+        content.threadIdentifier = "pibo.animation.achievement"
+        content.userInfo = [
+            AppNotificationCategory.workoutIDUserInfoKey: workout.id.uuidString,
+            AppNotificationCategory.achievementKindUserInfoKey: "pigu",
+        ]
 
         let request = UNNotificationRequest(
-            identifier: "pibo.workout.\(workout.id.uuidString)",
+            identifier: Self.achievementRequestID,
             content: content,
             trigger: nil
         )
-        do {
-            try await notificationCenter.add(request)
+        if await enqueueAchievementRequest(request) {
             rememberDelivered(workout.id)
             LPLog.workout.notice(
                 "workout notification delivered id=\(workout.id.uuidString, privacy: .public) state=\(piboState.rawValue, privacy: .public)"
             )
             return true
-        } catch {
-            LPLog.workout.error(
-                "workout notification failed: \(error.localizedDescription, privacy: .public)"
-            )
-            return false
         }
+        return false
+    }
+
+    @discardableResult
+    func notifyStepsAchievement() async -> Bool {
+        guard pushEnabled else { return false }
+        let settings = await notificationCenter.notificationSettings()
+        guard !Task.isCancelled else { return false }
+        authorized = Self.isAuthorized(settings.authorizationStatus)
+        guard authorized else { return false }
+        let content = UNMutableNotificationContent()
+        content.title = "Pibo"
+        if PiboCoreAnimationAdapter.achievementContentID(kind: .muscle, modal: false)
+            == "animation.steps_10000.notification" {
+            content.body = AppLocalization.text("今天走到 10,000 步了。我注意到了。")
+        }
+        content.sound = .default
+        content.categoryIdentifier = AppNotificationCategory.achievement
+        content.threadIdentifier = "pibo.animation.achievement"
+        content.userInfo = [AppNotificationCategory.achievementKindUserInfoKey: "muscle"]
+        guard !Task.isCancelled else { return false }
+        return await enqueueAchievementRequest(UNNotificationRequest(
+            identifier: Self.achievementRequestID,
+            content: content,
+            trigger: nil
+        ))
+    }
+
+    /// Queueing, rather than merely cancelling the previous caller, is what
+    /// guarantees that the most recently observed achievement owns the final
+    /// delivered notification. Cancellation cannot reliably stop an
+    /// `UNUserNotificationCenter.add` that is already in flight.
+    private func enqueueAchievementRequest(_ request: UNNotificationRequest) async -> Bool {
+        let publication = achievementPublicationQueue.submit { @MainActor [notificationCenter] in
+            notificationCenter.removeDeliveredNotifications(
+                withIdentifiers: [Self.achievementRequestID]
+            )
+            do {
+                try await notificationCenter.add(request)
+                return true
+            } catch {
+                LPLog.workout.error(
+                    "achievement notification failed: \(error.localizedDescription, privacy: .public)"
+                )
+                return false
+            }
+        }
+        return await publication.value
     }
 
     private func notificationBody(for workout: PendingWorkout, state: PiboActivityState) -> String {

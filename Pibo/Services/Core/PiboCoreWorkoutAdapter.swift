@@ -39,6 +39,12 @@ enum PiboCoreWorkoutAdapter {
         )
     }
 
+    /// App lifecycle gate around Core's age policy. HealthKit anchor history is
+    /// intentionally absent: an anchor describes query provenance, not recency.
+    static func achievementShouldQueue(policy: EventPolicy, occurredToday: Bool) -> Bool {
+        policy.isFresh && occurredToday
+    }
+
     static func pendingWorkoutIsRestorable(ageSeconds: Double, sameDay: Bool) -> Bool {
         PiboCoreWorkout.pendingWorkoutIsRestorable(
             ageSeconds: ageSeconds,
