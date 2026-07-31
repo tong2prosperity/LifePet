@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum PiboWidgetConstants {
-    static let appGroupID = "group.fun.tiebao.co.Pibo"
+    static let appGroupID = "group.com.piboworld.app.iPibo"
     static let snapshotKey = "pibo.widget.snapshot.v1"
     static let homeWidgetKind = "fun.tiebao.co.Pibo.widget.home"
 }
