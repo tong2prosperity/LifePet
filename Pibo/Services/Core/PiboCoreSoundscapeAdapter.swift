@@ -35,10 +35,10 @@ nonisolated enum PiboCoreSoundscapeAdapter {
         switch weather {
         case .clear: .clear
         case .cloudy: .cloudy
+        case .fog: .fog
         case .rain: .rain
         case .thunderstorm: .thunderstorm
         case .snow: .snow
         }
     }
 }
-

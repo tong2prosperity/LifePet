@@ -24,6 +24,7 @@ struct HomeView: View {
     /// Carries the "user tapped a stress push" request from the notification
     /// router into this view (see `presentStressCardIfPossible`).
     @Environment(StressNotifier.self) private var stressNotifier
+    @Environment(WeatherDataService.self) private var weather
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -32,6 +33,8 @@ struct HomeView: View {
     @State private var showCamera = false
     @State private var showGames = false
     @State private var showHistory = false
+    @State private var showBoUnlockPage = false
+    @State private var showSettings = false
     /// Card the history cover should land on. Set only by the stress-notification
     /// deep link; the 足迹 icon opens with `nil` (top of the 足迹 tab).
     @State private var historyFocus: HistoryFocus?
@@ -69,12 +72,12 @@ struct HomeView: View {
     /// covers plus the two sheets (设置 / 餐食详情), which on iOS occlude the stage
     /// too (`MealDetailView` in particular can sit open a while during 卡路里 识别).
     private var stagePaused: Bool {
-        showCamera || showGames || showHistory || showWalkDoodle
+        showCamera || showGames || showHistory || showWalkDoodle || showBoUnlockPage || showSettings
             || activeSheet != nil
     }
 
     private var fullScreenFeaturePresented: Bool {
-        showCamera || showGames || showHistory || showWalkDoodle
+        showCamera || showGames || showHistory || showWalkDoodle || showBoUnlockPage || showSettings
     }
 
     // 首发范围外的三张全屏功能页，呈现绑定统一过一遍 `PiboReleaseScope`。收在绑定
@@ -94,14 +97,15 @@ struct HomeView: View {
 
     private var stageEnvironment: PiboStageEnvironment {
         #if DEBUG
+        let forcedHour = store.debugForestHour
+        #else
+        let forcedHour: Double? = nil
+        #endif
         return PiboStageEnvironmentResolver.resolve(
             date: atmosphereNow,
-            forcedHour: store.debugForestHour,
-            weather: store.weather
+            forcedHour: forcedHour,
+            weather: weather.condition
         )
-        #else
-        return PiboStageEnvironmentResolver.resolve(date: atmosphereNow)
-        #endif
     }
 
     private var soundscapePresentation: SoundscapePresentation {
@@ -110,9 +114,6 @@ struct HomeView: View {
             return .suspended
         }
         switch activeSheet {
-        // 兑换面板和设置一样是「在森林上面办事」—— 环境音压低而不是掐掉，
-        // 免得解锁完关掉面板时森林像刚开机。
-        case .settings, .boExchange: return .ducked
         case .meal, .morningSleep, .achievement: return .suspended
         case nil: return .active
         }
@@ -186,6 +187,7 @@ struct HomeView: View {
             soundscape.handleSecondaryAudioHint(notification)
         }
         .onAppear {
+            weather.activateForHome()
             greetingText = store.mowanGreeting
             dayLabelText = store.relationshipDayLabel
             speakForWeather(trigger: .entered)
@@ -260,8 +262,7 @@ struct HomeView: View {
             if ProcessInfo.processInfo.arguments.contains("-PiboOpenBoPanel") {
                 Task {
                     try? await Task.sleep(for: .milliseconds(500))
-                    guard activeSheet == nil else { return }
-                    activeSheet = .boExchange
+                    showBoUnlockPage = true
                 }
             }
             // Rehearse the stress-notification deep link without a real push:
@@ -292,7 +293,7 @@ struct HomeView: View {
                 petID: store.identity.currentPetId
             )
         }
-        .onChange(of: store.weather) { _, _ in
+        .onChange(of: weather.condition) { _, _ in
             speakForWeather(trigger: .environmentChanged)
         }
         .onChange(of: store.identity.currentPetId) { _, petID in
@@ -353,10 +354,7 @@ struct HomeView: View {
                 .environment(store)
                 .environment(history)
         }
-        .fullScreenCover(isPresented: $showHistory, onDismiss: {
-            historyFocus = nil
-            resumePendingHomeFlows()
-        }) {
+        .fullScreenCover(isPresented: $showHistory, onDismiss: historyDismissed) {
             HistoryScreen(focus: historyFocus)
                 .environment(store)
                 .environment(history)
@@ -364,9 +362,29 @@ struct HomeView: View {
         .fullScreenCover(isPresented: walkDoodlePresented, onDismiss: resumePendingHomeFlows) {
             WalkDoodleView(onSaved: handleDoodleSaved)
         }
+        .navigationDestination(isPresented: $showBoUnlockPage) {
+            BoUnlockPage()
+        }
+        .navigationDestination(isPresented: $showSettings) {
+            settingsDestination
+        }
         .sheet(item: $activeSheet, onDismiss: resumePendingHomeFlows) { destination in
             homeSheet(destination)
         }
+    }
+
+    @ViewBuilder
+    private var settingsDestination: some View {
+        #if DEBUG
+        SettingsView(onReset: performReset, onSimulateMeal: debugSimulateMeal)
+        #else
+        SettingsView()
+        #endif
+    }
+
+    private func historyDismissed() {
+        historyFocus = nil
+        resumePendingHomeFlows()
     }
 
     @ViewBuilder
@@ -376,14 +394,6 @@ struct HomeView: View {
             MealDetailView(meal: meal, onRecapture: startMealCapture)
                 .environment(history)
                 .environment(recognizer)
-        case .settings:
-            #if DEBUG
-            SettingsSheet(onReset: performReset, onSimulateMeal: debugSimulateMeal)
-                .environment(store)
-            #else
-            SettingsSheet(onReset: performReset)
-                .environment(store)
-            #endif
         case .morningSleep(let presentation):
             MorningSleepCard(
                 presentation: presentation,
@@ -394,8 +404,6 @@ struct HomeView: View {
         case .achievement(let payload):
             PiboAchievementModal(payload: payload) { confirmAchievement(payload) }
                 .interactiveDismissDisabled()
-        case .boExchange:
-            BoExchangeSheet()
         }
     }
 
@@ -411,11 +419,22 @@ struct HomeView: View {
             // Speech bubble floats just above Pibo's head (~30% down).
             if let speech {
                 GeometryReader { geo in
-                    PiboSpeechBubbleView(line: speech)
-                        .position(x: geo.size.width / 2, y: geo.size.height * 0.30)
+                    let scale = max(geo.size.width / 393, geo.size.height / 852)
+                    let originY = (geo.size.height - 852 * scale) / 2
+                    let bubbleBottom = originY + 317 * scale
+
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        PiboSpeechBubbleView(line: speech, onDetail: speech.data == nil ? nil : {
+                            dismissSpeech()
+                            Analytics.track(.historyOpen, screen: "home_speech")
+                            showHistory = true
+                        })
                         .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    }
+                    .frame(width: geo.size.width, height: max(0, bubbleBottom))
                 }
-                .allowsHitTesting(false)
+                .allowsHitTesting(speech.data != nil)
             }
 
             VStack(spacing: 0) {
@@ -456,19 +475,20 @@ struct HomeView: View {
                 BoCounterView(
                     balance: boLedger.balance,
                     growthProgress: boLedger.growthProgress,
-                    hasRipeBo: boLedger.hasRipeBo
+                    hasRipeBo: boLedger.hasRipeBo,
+                    highlightsExchange: ornamentUnlocks.shouldHighlightUnlockGuide(
+                        balance: boLedger.balance
+                    ),
+                    collectAction: {
+                        dismissSpeech()
+                        return doPluck()
+                    }
                 ) {
+                    dismissSpeech()
                     Analytics.track(.boPanelOpen, screen: "home",
                                     ["balance": .int(boLedger.balance)])
-                    activeSheet = .boExchange
+                    showBoUnlockPage = true
                 }
-
-                Text(greetingText.isEmpty ? store.mowanGreeting : greetingText)
-                    .lpText(LP.Typography.b4Medium)
-                    .foregroundStyle(LP.Content.secondary)
-                Text(dayLabelText.isEmpty ? store.relationshipDayLabel : dayLabelText)
-                    .lpText(LP.Typography.uiH4)
-                    .foregroundStyle(LP.Content.secondary)
             }
 
             Spacer(minLength: 0)
@@ -479,9 +499,7 @@ struct HomeView: View {
     }
 
     private var cornerActions: some View {
-        LazyVGrid(columns: [GridItem(.fixed(44), spacing: LP.Spacing.s),
-                            GridItem(.fixed(44), spacing: LP.Spacing.s)],
-                  spacing: LP.Spacing.s) {
+        HStack(spacing: LP.Spacing.s) {
             if PiboReleaseScope.camera {
                 cornerButton(systemImage: "camera.fill", label: "露珠相机", rotation: -2) {
                     Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
@@ -489,32 +507,29 @@ struct HomeView: View {
                     showCamera = true
                 }
             }
-            cornerButton(systemImage: "book.closed", label: "足迹", rotation: 2) {
-                Analytics.track(.historyOpen, screen: "home")
-                showHistory = true
-            }
-            cornerButton(systemImage: "gearshape", label: "设置", rotation: -2) {
+            cornerButton(systemImage: "gearshape", label: "设置", rotation: 0, size: 36) {
                 Analytics.track(.settingsOpen, screen: "home")
-                activeSheet = .settings
+                showSettings = true
             }
         }
-        .frame(width: 96)
     }
 
     private func cornerButton(
         systemImage: String,
         label: String,
         rotation: Double,
+        size: CGFloat = 44,
         action: @escaping () -> Void
     ) -> some View {
         Button {
             LPHaptics.tap()
+            dismissSpeech()
             action()
         } label: {
             Image(systemName: systemImage)
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(LP.Content.secondary)
-                .frame(width: 44, height: 44)
+                .frame(width: size, height: size)
                 .background(
                     RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
                         .fill(LP.Fill.bgContainer.opacity(0.90))
@@ -533,17 +548,46 @@ struct HomeView: View {
     // MARK: Bottom controls
 
     private var bottomControls: some View {
-        Group {
+        ZStack(alignment: .bottom) {
             if boLedger.hasRipeBo {
                 pluckButton
-                    .padding(.bottom, LP.Spacing.l)
+            }
+            HStack {
+                Spacer(minLength: 0)
+                historyButton
             }
         }
+        .padding(.bottom, LP.Spacing.l)
+    }
+
+    private var historyButton: some View {
+        Button {
+            LPHaptics.tap()
+            dismissSpeech()
+            Analytics.track(.historyOpen, screen: "home")
+            showHistory = true
+        } label: {
+            ZStack(alignment: .top) {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color(hex: 0x006650))
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(LP.Colorful.teal500)
+                    .frame(height: 64)
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 30, weight: .regular))
+                    .foregroundStyle(Color.white)
+                    .padding(.top, 16)
+            }
+            .frame(width: 72, height: 72)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppLocalization.text("足迹"))
     }
 
     private var pluckButton: some View {
         Button {
             LPHaptics.tap()
+            dismissSpeech()
             doPluck()
         } label: {
             HStack(spacing: 6) {
@@ -588,7 +632,7 @@ struct HomeView: View {
         }
         let response = store.pat()
         if response.turnsAway { stageCommands.playTurnAway() }
-        if let line = response.line { show(line) }
+        if let line = response.line { show(patLineWithData(line)) }
         let reaction = response.line.map { $0.isStoryClue ? "story" : "spoke" } ?? "ignored"
         Analytics.track(.pat, screen: "home", ["reaction": .string(reaction)])
     }
@@ -682,15 +726,17 @@ struct HomeView: View {
 
     // MARK: 拔毛 / 拍照
 
-    private func doPluck() {
+    @discardableResult
+    private func doPluck() -> Bool {
         // 账本先落，动画后播 —— 反过来的话，一次没成功的拔取会先演一遍收获。
-        guard boLedger.pluck() else { return }
+        guard boLedger.pluck() else { return false }
         let grade = store.pluck()
         Analytics.track(.pluck, screen: "home",
                         ["grade": .string(grade.rawValue),
                          "balance": .int(boLedger.balance)])
         stageCommands.playPluck(color: grade.seedColor)
         show(PiboSpeechLine(text: grade.piboLines.randomElement() ?? "...给...你..."))
+        return true
     }
 
     /// Open the camera for a specific meal slot (早/中/晚) — the saved photo goes
@@ -771,17 +817,48 @@ struct HomeView: View {
 
     // MARK: Speech plumbing
 
+    /// Adds a directly observed HealthKit fact to ordinary pat speech. This is
+    /// presentation-only: Core still decides whether Pibo speaks and which line
+    /// it uses; no activity threshold or state rule is duplicated here.
+    private func patLineWithData(_ line: PiboSpeechLine) -> PiboSpeechLine {
+        guard line.source == .pibo, line.mood == .normal, !line.isStoryClue else {
+            return line
+        }
+        var presented = line
+        if store.hasStepsData, store.rawSteps > 0 {
+            presented.data = PiboSpeechData(
+                prefix: AppLocalization.text("你今天走了 "),
+                value: AppLocalization.format("%d 步", store.rawSteps),
+                suffix: AppLocalization.text("。")
+            )
+        } else if store.rawSleepHours > 0 {
+            presented.data = PiboSpeechData(
+                prefix: AppLocalization.text("你昨晚睡了 "),
+                value: String(format: "%.1f %@", store.rawSleepHours, AppLocalization.text("小时")),
+                suffix: AppLocalization.text("。")
+            )
+        }
+        return presented
+    }
+
+    private func dismissSpeech() {
+        speechClear?.cancel()
+        withAnimation(.easeOut(duration: 0.2)) { speech = nil }
+    }
+
     private func show(_ line: PiboSpeechLine) {
         speechClear?.cancel()
         withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) { speech = line }
         // A system notice is a full sentence rather than a garbled fragment, so
         // it holds a beat longer than ordinary speech.
-        let linger: Double = if line.source == .system {
+        let linger: Double = if line.data != nil {
+            5.0
+        } else if line.source == .system {
             3.0
         } else if line.mood == .murmur || line.isStoryClue {
             3.4
         } else {
-            2.6
+            2.0
         }
         speechClear = Task {
             try? await Task.sleep(for: .seconds(linger))
@@ -806,7 +883,7 @@ struct HomeView: View {
 
     private func speakForWeather(trigger: PiboSpeechTrigger) {
         guard !stagePaused,
-              let weather = PiboSpeechWeather(rawValue: store.weather.rawValue),
+              let weather = PiboSpeechWeather(rawValue: weather.condition.rawValue),
               let line = piboSpeech.resolve(
                 cues: [.weather(weather)],
                 context: .home(trigger: trigger)
@@ -1099,18 +1176,14 @@ struct HomeView: View {
 
 private enum HomeSheetDestination: Equatable, Identifiable {
     case meal(MealType)
-    case settings
     case morningSleep(MorningSleepPresentation)
     case achievement(PiboAnimationAchievementPayload)
-    case boExchange
 
     var id: String {
         switch self {
         case .meal(let meal): "meal-\(meal.rawValue)"
-        case .settings: "settings"
         case .morningSleep(let presentation): "morning-sleep-\(presentation.id)"
         case .achievement(let payload): "animation-achievement-\(payload.id)"
-        case .boExchange: "bo-exchange"
         }
     }
 }
@@ -1389,4 +1462,5 @@ private struct ForestTuningPanel: View {
         .environment(PiboSpeechService())
         .environment(MorningSleepCoordinator())
         .environment(HistoryPreviewData.store)
+        .environment(WeatherDataService())
 }

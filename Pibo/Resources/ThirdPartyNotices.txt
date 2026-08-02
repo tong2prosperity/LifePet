@@ -22,3 +22,30 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+------------------------------------------------------------------------
+
+Pibo ambience audio
+
+Night crickets
+Underlying recording “Grillons1.WAV” by J - Luc, CC BY 3.0.
+https://www.freesound.org/people/J%20-%20Luc/sounds/57316/
+Selected local derivative distributed in ESC-50 under CC BY-NC 3.0.
+
+Fast river
+“Palalarivier, klank van sterk stroom, a.mp3” by JMK, CC BY-SA 4.0.
+https://commons.wikimedia.org/wiki/File:Palalarivier,_klank_van_sterk_stroom,_a.mp3
+https://creativecommons.org/licenses/by-sa/4.0
+
+Rain on leaves
+“Rain on leaves (Gravity Sound).wav” by Gravity Sound, CC BY 4.0.
+https://commons.wikimedia.org/wiki/File:Rain_on_leaves_(Gravity_Sound).wav
+https://creativecommons.org/licenses/by/4.0
+
+Slow rivulet
+“Welling rivulet in the woods.ogg” by stephan, public domain.
+Transferred to Wikimedia Commons by Fæ.
+https://commons.wikimedia.org/wiki/File:Welling_rivulet_in_the_woods.ogg
+
+The recordings were trimmed, loop-crossfaded, gain-adjusted, mixed where noted,
+and encoded to AAC-LC for Pibo.

@@ -28,6 +28,15 @@ enum PiboSpeechSource: Equatable {
     case system
 }
 
+/// Optional factual context shown above Pibo's spoken line. Values come from
+/// platform health data; this type owns presentation only, never thresholds or
+/// scoring rules.
+struct PiboSpeechData: Equatable {
+    let prefix: String
+    let value: String
+    let suffix: String
+}
+
 /// One bubble line + its presentation.
 struct PiboSpeechLine: Equatable {
     let text: String
@@ -36,6 +45,7 @@ struct PiboSpeechLine: Equatable {
     /// accent treatment so it reads as "this one matters".
     var isStoryClue: Bool = false
     var source: PiboSpeechSource = .pibo
+    var data: PiboSpeechData? = nil
 
     /// A system notice — the app explaining why Pibo is not answering.
     static func system(_ text: String) -> PiboSpeechLine {

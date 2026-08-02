@@ -218,18 +218,6 @@ final class PetStateStore {
         return true
     }
 
-    private static let weatherKey = "pibo.weather.v1"
-    /// 当前天气 — 驱动首页 SpriteKit 场景的氛围(雨幕 / 地面水花 / 滴在 Pibo 上)。
-    /// The DEBUG settings switch writes this value. Release Home clamps rain to
-    /// zero, so a persisted developer override can never affect production.
-    var weather: PiboWeather = .clear {
-        didSet {
-            guard weather != oldValue else { return }
-            UserDefaults.standard.set(weather.rawValue, forKey: Self.weatherKey)
-            LPLog.petState.notice("weather → \(self.weather.rawValue, privacy: .public)")
-        }
-    }
-
     #if DEBUG
     private static let debugForestHourKey = "pibo.debug.forestHour.v1"
     private static let legacyDebugForestDayPhaseKey = "pibo.debug.forestDayPhase.v1"
@@ -527,7 +515,6 @@ final class PetStateStore {
         }
         self.appearance = PiboAppearance.decoded(from: UserDefaults.standard.data(forKey: Self.appearanceKey))
         self.selectedThemeID = PiboThemeSelectionPersistence.restore()
-        self.weather = PiboWeather(rawValue: UserDefaults.standard.string(forKey: Self.weatherKey) ?? "") ?? .clear
         #if DEBUG
         let defaults = UserDefaults.standard
         if let persistedHour = defaults.object(forKey: Self.debugForestHourKey) as? NSNumber {
@@ -731,8 +718,6 @@ final class PetStateStore {
         UserDefaults.standard.removeObject(forKey: Self.appearanceKey)
         selectedThemeID = PiboThemeCatalog.defaultTheme.id
         PiboThemeSelectionPersistence.reset()
-        weather = .clear
-        UserDefaults.standard.removeObject(forKey: Self.weatherKey)
         #if DEBUG
         debugForestHour = nil
         UserDefaults.standard.removeObject(forKey: Self.debugForestHourKey)

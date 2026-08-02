@@ -3,13 +3,15 @@ import SwiftUI
 import HealthKit
 #endif
 
-/// Settings behind the home gear. The forest is the single production home
-/// appearance; this sheet owns membership, notifications, diagnostics and reset.
-struct SettingsSheet: View {
+/// Legacy diagnostics surface retained under production Settings in debug builds.
+/// The entire type is compiled out of release builds.
+#if DEBUG
+struct DebugSettingsView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(MembershipService.self) private var membership
     @Environment(StressNotifier.self) private var notifier
     @Environment(WorkoutCompletionNotifier.self) private var workoutNotifier
+    @Environment(WeatherDataService.self) private var weather
     @Environment(\.dismiss) private var dismiss
     #if DEBUG
     @Environment(MorningSleepCoordinator.self) private var morningSleep
@@ -49,8 +51,6 @@ struct SettingsSheet: View {
             .padding(LP.Spacing.l)
         }
         .background(LP.Fill.bgSurface)
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
         .sheet(isPresented: $showMembership) {
             MembershipSheet()
                 .onAppear { Analytics.track(.membershipOpen, screen: "settings") }
@@ -435,21 +435,20 @@ struct SettingsSheet: View {
         }
     }
 
-    /// 天气切换 — 驱动首页场景下雨三件套(雨幕 / 地面水花 / 滴在 Pibo 上)。
-    /// 接入 WeatherKit 前用它演示;选中即写 `store.weather` → 场景实时响应。
+    /// Debug-only WeatherKit override. “自动” returns to live system weather.
     private var weatherDebugRow: some View {
         HStack(spacing: LP.Spacing.s) {
             Text("天气")
                 .lpText(LP.Typography.b3Medium)
                 .foregroundStyle(LP.Content.secondary)
             Spacer(minLength: 0)
-            ForEach([PiboWeather.clear, .rain, .thunderstorm], id: \.self) { w in
-                let on = store.weather == w
+            ForEach([nil, PiboWeather.rain, .thunderstorm], id: \.self) { w in
+                let on = weather.debugCondition == w
                 Button {
                     LPHaptics.tap()
-                    store.weather = w
+                    weather.setDebugCondition(w)
                 } label: {
-                    Text(w.displayName)
+                    Text(w?.displayName ?? "自动")
                         .lpText(LP.Typography.c1Regular)
                         .foregroundStyle(on ? LP.Fill.foundationOnAccent : LP.Content.secondary)
                         .padding(.horizontal, LP.Spacing.s)
@@ -607,10 +606,12 @@ struct SettingsSheet: View {
 }
 
 #Preview {
-    SettingsSheet(onReset: {})
+    DebugSettingsView(onReset: {})
         .environment(PetStateStore(demoMode: true))
         .environment(MembershipService())
         .environment(StressNotifier.shared)
         .environment(WorkoutCompletionNotifier.shared)
         .environment(MorningSleepCoordinator())
+        .environment(WeatherDataService())
 }
+#endif

@@ -5,11 +5,17 @@ using namespace metal;
 // 「玻璃水面」着色器 —— 活动卡底部水池的折射 + 镜面高光。
 // 每个落点的相位 local(0..1) 与强度 amp(0..1) 由 WaterSurface.swift 算好后传入：
 // amp 对应该列的「雨量」（卡路里/运动/站立 各自的达成度），amp 越大起伏越强、
-// amp=0 的列保持静止水面；local 在 Swift 端以 Double 取模，避免把大数量级时间喂进
-// float32（每列周期还不同，更不能在 shader 里除时间）。
+// **波前也铺得越远**、amp=0 的列保持静止水面；local 在 Swift 端以 Double 取模，
+// 避免把大数量级时间喂进 float32（每列周期还不同，更不能在 shader 里除时间）。
+//
+// 半径也跟着 amp 走，是因为这张卡的要求就是「圈的大小映射数据大小」：静止环纹已经
+// 按达成度分档，Canvas 那层的皇冠水花也按 `kSizeFloor + ...` 同一个系数缩放，波前
+// 若只改强度不改半径，三列的水纹就会一样宽 —— 数据看不出来。
 
 constant float kImpactFrac = 0.36;   // 前 36% 在下落，之后才触水起波
-constant float kFrontSpeed = 132.0;  // 波前外扩的最大半径(像素)
+constant float kFrontSpeed = 132.0;  // 波前外扩的最大半径(像素)，满达成度时
+constant float kSizeFloor  = 0.6;    // 与 Canvas 层 `impact` 的缩放系数一致
+constant float kSizeGain   = 0.4;
 constant float kWaveK      = 0.20;   // 同心波纹空间频率
 constant float kDecay      = 0.010;  // 离落点越远越弱
 constant float kRefractPx  = 9.0;    // 折射位移强度(像素)
@@ -21,7 +27,8 @@ static float dropHeight(float2 uv, float2 c, float local, float amp) {
     if (amp <= 0.001 || local < kImpactFrac) return 0.0;      // 静止列 / 水滴还在下落
     float rt = (local - kImpactFrac) / (1.0 - kImpactFrac);   // 0..1 涟漪年龄
     float d  = length(uv - c);
-    float front = rt * kFrontSpeed;                           // 波前半径随时间外扩
+    float reach = kSizeFloor + kSizeGain * amp;               // 雨量越大铺得越远
+    float front = rt * kFrontSpeed * reach;                   // 波前半径随时间外扩
     float wave  = sin((d - front) * kWaveK);                  // 一圈圈同心波纹
     float lead  = smoothstep(front + 30.0, front - 10.0, d);  // 只在波前内侧有起伏
     float decay = exp(-d * kDecay);                           // 远处更弱

@@ -39,7 +39,8 @@ struct RootView: View {
     }
 
     var body: some View {
-        Group {
+        NavigationStack {
+            Group {
             #if DEBUG
             if debugMiniGame != nil {
                 Color.clear
@@ -59,6 +60,7 @@ struct RootView: View {
                 HealthAuthView(onContinue: { onboardingDone = true })
             }
             #endif
+            }
         }
         // Language follows the stored value; the in-app 中/EN switch button was
         // removed per product direction (2026-06-09).

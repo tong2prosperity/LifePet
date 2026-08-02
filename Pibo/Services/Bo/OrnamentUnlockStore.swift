@@ -12,6 +12,7 @@ import os
 final class OrnamentUnlockStore {
 
     private(set) var unlocked: Set<PiboOrnament.ID>
+    private(set) var hasSeenUnlockGuide: Bool
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let persistenceKey: String
@@ -22,6 +23,9 @@ final class OrnamentUnlockStore {
     ) {
         self.defaults = defaults
         self.persistenceKey = persistenceKey
+        self.hasSeenUnlockGuide = defaults.bool(
+            forKey: PiboPersistenceKeys.Defaults.boUnlockGuideSeen
+        )
 
         let stored = (defaults.array(forKey: persistenceKey) as? [String]) ?? []
         var resolved = Set(stored.compactMap(PiboOrnament.ID.init(rawValue:)))
@@ -35,6 +39,26 @@ final class OrnamentUnlockStore {
     }
 
     func isUnlocked(_ id: PiboOrnament.ID) -> Bool { unlocked.contains(id) }
+
+    var nextLocked: PiboOrnament? {
+        PiboOrnament.ordered.first { !unlocked.contains($0.id) }
+    }
+
+    func canUnlock(_ id: PiboOrnament.ID, balance: Int) -> Bool {
+        guard let nextLocked else { return false }
+        return nextLocked.id == id && balance >= nextLocked.cost
+    }
+
+    func shouldHighlightUnlockGuide(balance: Int) -> Bool {
+        guard !hasSeenUnlockGuide, let first = PiboOrnament.ordered.first else { return false }
+        return !isUnlocked(first.id) && balance >= first.cost
+    }
+
+    func markUnlockGuideSeen() {
+        guard !hasSeenUnlockGuide else { return }
+        hasSeenUnlockGuide = true
+        defaults.set(true, forKey: PiboPersistenceKeys.Defaults.boUnlockGuideSeen)
+    }
 
     /// 记录一次解锁。**不碰余额** —— 扣费由调用方先在账本上完成，成功了再调这里，
     /// 免得两份状态各自为政。

@@ -189,18 +189,17 @@ enum ForestSceneManifest {
         Layer(image: "forest_bg_tree", frame: CGRect(x: -40.0985, y: -25.7977, width: 449.6905, height: 642.7610), zPosition: 0, lightingGroup: .far),
         Layer(image: "forest_stone_10", frame: CGRect(x: 181.5289, y: 470, width: 86, height: 34.4974), zPosition: 2, lightingGroup: .midground),
         Layer(image: "forest_stone_9", frame: CGRect(x: 94.1058, y: 485, width: 129.1052, height: 35.3897), zPosition: 4, lightingGroup: .midground),
-        Layer(image: "forest_secondary_tree", frame: CGRect(x: -70, y: -25, width: 269.5, height: 592.1303), zPosition: 5, lightingGroup: .far),
-        Layer(image: "forest_grass_circle", frame: CGRect(x: 240, y: 378, width: 215.1110, height: 190.3749), zPosition: 6, lightingGroup: .midground),
+        Layer(image: "forest_secondary_tree", frame: CGRect(x: -85, y: -25, width: 269.5, height: 592.1303), zPosition: 5, lightingGroup: .far),
+        Layer(image: "forest_grass_circle", frame: CGRect(x: 239, y: 378, width: 215.1110, height: 190.3749), zPosition: 6, lightingGroup: .midground),
         Layer(image: "forest_stone_8", frame: CGRect(x: -93, y: 448, width: 252.2633, height: 149.5190), zPosition: 7, lightingGroup: .midground),
-        Layer(image: "forest_flower", frame: CGRect(x: 265, y: 326.1251, width: 133.8292, height: 210.0371), zPosition: 8, lightingGroup: .midground),
         Layer(image: "forest_stone_3", frame: CGRect(x: 238, y: 505, width: 168, height: 94), zPosition: 9, lightingGroup: .midground),
         Layer(image: "forest_stone_4", frame: CGRect(x: 295, y: 430, width: 239.1742, height: 165.5062), zPosition: 10, lightingGroup: .midground),
         // Export the complete Figma source group `3906:3293`. Its child
         // `3906:3294` is only the flat base and omits all authored materials.
         Layer(image: "forest_main_tree", frame: CGRect(x: -25, y: 484, width: 461.3105, height: 218.4633), zPosition: 11, lightingGroup: .midground),
-        Layer(image: "forest_stone_7", frame: CGRect(x: -50, y: 627, width: 186.7648, height: 125), zPosition: 12, lightingGroup: .foreground),
-        Layer(image: "forest_stone_6", frame: CGRect(x: 58, y: 717, width: 165, height: 47), zPosition: 13, lightingGroup: .foreground),
-        Layer(image: "forest_stone_5", frame: CGRect(x: -58, y: 686, width: 217, height: 116), zPosition: 14, lightingGroup: .foreground),
+        Layer(image: "forest_stone_7", frame: CGRect(x: -73, y: 627, width: 186.7648, height: 125), zPosition: 12, lightingGroup: .foreground),
+        Layer(image: "forest_stone_6", frame: CGRect(x: -1, y: 706, width: 165, height: 47), zPosition: 13, lightingGroup: .foreground),
+        Layer(image: "forest_stone_5", frame: CGRect(x: -81, y: 686, width: 217, height: 116), zPosition: 14, lightingGroup: .foreground),
         Layer(image: "forest_stone_2", frame: CGRect(x: 314, y: 664, width: 166, height: 147), zPosition: 15, lightingGroup: .foreground),
         Layer(image: "forest_stone_1", frame: CGRect(x: 227, y: 780, width: 202.5465, height: 77.7470), zPosition: 16, lightingGroup: .foreground),
         // 椰壳（巢）。刻意只有一层、且垫在角色底下：睡眠三态的角色形状已经按洞口
@@ -222,13 +221,13 @@ enum ForestSceneManifest {
     /// Every item is a complete independent foreground-plant frame from
     /// Figma. Hit testing and anchored rotation must use this same texture.
     static let foliage: [Foliage] = [
-        Foliage(image: "forest_main_leaf_2", sourceNodeID: "3906:3103", frame: CGRect(x: -33, y: 585, width: 210.1935, height: 259.6893), anchor: CGPoint(x: 0.48, y: 0.98), zPosition: 31, stiffness: 10.5, maximumAngle: 0.065, phase: 0.2, lightingGroup: .foreground, interaction: .direct(maximumAngle: .pi / 6, neighborInfluence: 0.12)),
+        Foliage(image: "forest_main_leaf_2", sourceNodeID: "6444:35815", frame: CGRect(x: -43, y: 592.0001, width: 163.0004, height: 202.0049), anchor: CGPoint(x: 0.48, y: 0.98), zPosition: 31, stiffness: 10.5, maximumAngle: 0.065, phase: 0.2, lightingGroup: .foreground, interaction: .direct(maximumAngle: .pi / 6, neighborInfluence: 0.12)),
         // Figma 3906:3081 is one complete blade-and-stem asset. Its whole
         // texture rotates around the authored attachment point below.
         Foliage(
             image: "forest_main_leaf_1",
             sourceNodeID: "3906:3081",
-            frame: CGRect(x: 199.5819, y: 481, width: 283.4227, height: 367.4554),
+            frame: CGRect(x: 211.6180, y: 494, width: 254.3036, height: 329.7027),
             anchor: CGPoint(x: 0.74, y: 0.98),
             zPosition: 32,
             stiffness: 9.0,

@@ -27,6 +27,7 @@ nonisolated enum PiboPersistenceKeys {
         static let boLedger = "pibo.bo.ledger.v1"
         /// 已解锁的森林物件 id 集合。
         static let boUnlockedOrnaments = "pibo.bo.ornaments.v1"
+        static let boUnlockGuideSeen = "pibo.bo.unlockGuideSeen.v1"
         /// 首枚 `bo` 成熟提醒是否已经发过（只发一次）。
         static let boFirstRipeNotified = "pibo.bo.firstRipeNotified.v1"
 

@@ -27,10 +27,10 @@ private extension PiboWeather {
         switch self {
         case .clear: .clear
         case .cloudy: .cloudy
+        case .fog: .fog
         case .rain: .rain
         case .thunderstorm: .thunderstorm
         case .snow: .snow
         }
     }
 }
-

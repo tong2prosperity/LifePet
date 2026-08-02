@@ -14,6 +14,32 @@ nonisolated enum AppNotificationCategory {
     static let achievementKindUserInfoKey = "piboAnimationAchievementKind"
 }
 
+/// A sendable value parsed from the immutable notification payload before the
+/// delegate hops to the main queue. Keeping UIKit objects out of that hop makes
+/// the executor boundary explicit and gives the routing contract a test seam.
+nonisolated enum AppNotificationRoute: Equatable, Sendable {
+    case stress
+    case achievement
+    case morningSleep(wakeDayKey: String?, isMock: Bool)
+    case none
+
+    init(category: String, wakeDayKey: String?) {
+        switch category {
+        case AppNotificationCategory.stress:
+            self = .stress
+        case AppNotificationCategory.workoutCompleted,
+             AppNotificationCategory.achievement:
+            self = .achievement
+        case AppNotificationCategory.morningSleep:
+            self = .morningSleep(wakeDayKey: wakeDayKey, isMock: false)
+        case AppNotificationCategory.morningSleepMock:
+            self = .morningSleep(wakeDayKey: wakeDayKey, isMock: true)
+        default:
+            self = .none
+        }
+    }
+}
+
 /// The app has exactly one `UNUserNotificationCenterDelegate`. Stress and sleep
 /// notifications share it so one feature can never silently replace the
 /// other's foreground presentation or response routing.
@@ -34,51 +60,68 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().delegate = self
     }
 
-    // Both delegate methods stay on the main actor. They look isolation-free —
-    // they only read the notification and call back into `@MainActor` state —
-    // but the isolation that matters is the one they *finish* on: the `async`
-    // form is bridged to ObjC as a completion handler, and UIKit runs
-    // main-thread-only work (`_updateSnapshotAndStateRestoration…`) inside it.
-    // Marked `nonisolated`, the continuation lands on the cooperative pool and
-    // that completion fires off-main, tripping a UIKit assertion → SIGABRT on
-    // the notification tap. Hopping to `MainActor` *inside* the body doesn't
-    // help: execution hops straight back out before the completion runs.
-    func userNotificationCenter(
+    // Use the protocol's native completion-handler requirements rather than the
+    // Swift async overlays. The async-to-ObjC thunk completes on a cooperative
+    // executor even when the async body is MainActor-isolated; UIKit then runs
+    // state restoration off-main and aborts when a notification is tapped.
+    // Calling the original completion block *inside* DispatchQueue.main keeps
+    // both our state mutation and UIKit's synchronous completion work on main.
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        if notification.request.content.categoryIdentifier == AppNotificationCategory.morningSleep {
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        let category = notification.request.content.categoryIdentifier
+        let options: UNNotificationPresentationOptions
+        if category == AppNotificationCategory.morningSleep {
             // When already foregrounded, the coordinator presents the native
             // morning sheet. Avoid showing a duplicate banner above it.
-            return []
+            options = []
+        } else {
+            // The DEBUG sleep mock intentionally uses a separate category so the
+            // complete banner-tap-card path can be rehearsed without backgrounding.
+            options = [.banner, .sound]
         }
-        // The DEBUG sleep mock intentionally uses a separate category so the
-        // complete banner-tap-card path can be rehearsed without backgrounding.
-        return [.banner, .sound]
+        DispatchQueue.main.async {
+            completionHandler(options)
+        }
     }
 
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
-        let category = response.notification.request.content.categoryIdentifier
-        if category == AppNotificationCategory.stress {
-            onStressOpened?()
-            return
-        }
-        if category == AppNotificationCategory.workoutCompleted
-            || category == AppNotificationCategory.achievement {
-            onAchievementOpened?()
-            return
-        }
-        guard category == AppNotificationCategory.morningSleep
-                || category == AppNotificationCategory.morningSleepMock
-        else { return }
-        let wakeDay = response.notification.request.content
-            .userInfo[AppNotificationCategory.wakeDayUserInfoKey] as? String
-        onMorningSleepOpened?(
-            wakeDay,
-            category == AppNotificationCategory.morningSleepMock
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let content = response.notification.request.content
+        let route = AppNotificationRoute(
+            category: content.categoryIdentifier,
+            wakeDayKey: content.userInfo[AppNotificationCategory.wakeDayUserInfoKey] as? String
         )
+        dispatch(route, completionHandler: completionHandler)
+    }
+
+    /// Kept internal so the regression suite can invoke the exact queue hop
+    /// without manufacturing private `UNNotificationResponse` instances.
+    nonisolated func dispatch(
+        _ route: AppNotificationRoute,
+        completionHandler: @escaping () -> Void
+    ) {
+        DispatchQueue.main.async { [weak self] in
+            self?.open(route)
+            completionHandler()
+        }
+    }
+
+    private func open(_ route: AppNotificationRoute) {
+        switch route {
+        case .stress:
+            onStressOpened?()
+        case .achievement:
+            onAchievementOpened?()
+        case let .morningSleep(wakeDayKey, isMock):
+            onMorningSleepOpened?(wakeDayKey, isMock)
+        case .none:
+            break
+        }
     }
 }

@@ -635,7 +635,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Pibo 会用相机记录食物，也会在镜前接花瓣小游戏中识别你的动作。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pibo 不会修改你已有的健康数据；只有在 Apple Watch 上完成心肺耦合呼吸训练后，才把这次训练作为一条体能训练记录写入健康 App。";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Pibo 想知道你走到哪儿：用定位把你走过的路画成地图涂鸦，帮它圈一块花田。";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Pibo 使用大致位置获取当地天气，并在你主动记录步行时把路线画成地图涂鸦。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pibo 会用麦克风确认呼唤，也会在吹散迷雾小游戏中感知长呼气。";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Pibo 使用手机动作来给原地踏步和摇花铃小游戏计步、计次。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pibo 使用语音识别确认你是否呼唤了它的名字。";
@@ -681,7 +681,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Pibo 会用相机记录食物，也会在镜前接花瓣小游戏中识别你的动作。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Pibo 不会修改你已有的健康数据；只有在 Apple Watch 上完成心肺耦合呼吸训练后，才把这次训练作为一条体能训练记录写入健康 App。";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Pibo 想知道你走到哪儿：用定位把你走过的路画成地图涂鸦，帮它圈一块花田。";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Pibo 使用大致位置获取当地天气，并在你主动记录步行时把路线画成地图涂鸦。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pibo 会用麦克风确认呼唤，也会在吹散迷雾小游戏中感知长呼气。";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Pibo 使用手机动作来给原地踏步和摇花铃小游戏计步、计次。";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pibo 使用语音识别确认你是否呼唤了它的名字。";

@@ -18,30 +18,53 @@ import SwiftUI
 /// cyan, so the color alone carries "this is not a voice".
 struct PiboSpeechBubbleView: View {
     let line: PiboSpeechLine
+    var onDetail: (() -> Void)? = nil
 
     var body: some View {
-        Group {
-            if line.source == .system {
-                systemContent
-            } else {
-                Text(displayText)
-                    .lpText(LP.Typography.b2Medium)
-                    .foregroundStyle(textColor)
-                    .multilineTextAlignment(.center)
+        VStack(alignment: line.data == nil ? .center : .leading, spacing: LP.Spacing.m) {
+            if let data = line.data {
+                dataText(data)
+                    .lpText(LP.Typography.b3Regular)
+            }
+
+            Group {
+                if line.source == .system {
+                    systemContent
+                } else {
+                    Text(displayText)
+                        .lpText(LP.Typography.b3Regular)
+                        .foregroundStyle(textColor)
+                        .multilineTextAlignment(line.data == nil ? .center : .leading)
+                }
+            }
+
+            if line.data != nil, let onDetail {
+                Button(action: onDetail) {
+                    Label(AppLocalization.text("查看今日详情"), systemImage: "list.bullet")
+                        .lpText(LP.Typography.b4Medium)
+                        .foregroundStyle(LP.Colorful.teal500)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(AppLocalization.text("打开足迹"))
             }
         }
-        .padding(.horizontal, LP.Spacing.l)
+        .padding(.horizontal, LP.Spacing.xxl)
         .padding(.vertical, LP.Spacing.m)
-        .background(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(bubbleFill)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(borderColor, lineWidth: borderWidth)
-        )
-        .lpShadow(LP.Shadow.elevation2)
+        .frame(maxWidth: line.data == nil ? nil : 280, alignment: .leading)
+        .background { bubbleBackground }
+        .overlay { bubbleBorder }
+        .lpShadow(usesDesignedPatBubble ? LP.Shadow.Spec(layers: []) : LP.Shadow.elevation2)
         .opacity(line.mood == .murmur ? 0.92 : 1)
+    }
+
+    private func dataText(_ data: PiboSpeechData) -> Text {
+        Text(data.prefix)
+            .foregroundColor(LP.Content.primary)
+        + Text(data.value)
+            .foregroundColor(LP.Colorful.teal500)
+            .fontWeight(.medium)
+        + Text(data.suffix)
+            .foregroundColor(LP.Content.primary)
     }
 
     /// 请勿打扰 reads as a status, not a sentence — the moon icon says "asleep"
@@ -60,6 +83,35 @@ struct PiboSpeechBubbleView: View {
 
     private var displayText: String {
         line.isStoryClue ? "✦ \(line.text)" : line.text
+    }
+
+    private var usesDesignedPatBubble: Bool {
+        line.source == .pibo && line.mood == .normal && !line.isStoryClue
+    }
+
+    @ViewBuilder
+    private var bubbleBackground: some View {
+        if usesDesignedPatBubble {
+            UnevenRoundedRectangle(
+                topLeadingRadius: LP.Radius.l,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: LP.Radius.l,
+                topTrailingRadius: LP.Radius.l,
+                style: .continuous
+            )
+            .fill(LP.Fill.bgPop)
+        } else {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(bubbleFill)
+        }
+    }
+
+    @ViewBuilder
+    private var bubbleBorder: some View {
+        if !usesDesignedPatBubble {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(borderColor, lineWidth: borderWidth)
+        }
     }
 
     private var cornerRadius: CGFloat {

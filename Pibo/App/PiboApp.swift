@@ -43,6 +43,8 @@ struct PiboApp: App {
     @State private var coordinator: EconomySyncCoordinator
     /// StoreKit 2 会员订阅 (Pibo 会员 monthly/yearly) + server registration.
     @State private var membership: MembershipService
+    /// WeatherKit + coarse foreground location, cached across launches.
+    @State private var weather: WeatherDataService
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -108,6 +110,7 @@ struct PiboApp: App {
         _economy = State(initialValue: e)
         _coordinator = State(initialValue: EconomySyncCoordinator(auth: a, economy: e, history: hist))
         _membership = State(initialValue: MembershipService())
+        _weather = State(initialValue: WeatherDataService())
     }
 
     /// Build the on-disk history store. If the store can't open (usually an
@@ -196,6 +199,7 @@ struct PiboApp: App {
                 .environment(economy)
                 .environment(coordinator)
                 .environment(membership)
+                .environment(weather)
                 .environment(StressNotifier.shared)
                 .environment(WorkoutCompletionNotifier.shared)
                 .modelContainer(modelContainer)
@@ -203,6 +207,7 @@ struct PiboApp: App {
                 .task {
                     // Lifetime StoreKit transaction listener + entitlement hydrate.
                     membership.start()
+                    weather.start()
                     // Set up foreground presentation + quiet provisional auth so
                     // passive users are covered without a prompt.
                     await StressNotifier.shared.start()
@@ -274,6 +279,7 @@ struct PiboApp: App {
                     // midnight crossing clears yesterday's state before the
                     // refetch slams new values into a stale `RawMetrics`.
                     if phase == .active {
+                        weather.refreshIfStale()
                         // Order matters: rollover first (clears stale day-bound
                         // state), decay catchup second (applies any 4h ticks
                         // that elapsed in the background), reconcile last
