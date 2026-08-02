@@ -110,7 +110,8 @@ struct PiboHistoryView: View {
                 steps: day.steps,
                 hourlySteps: day.hourlySteps,
                 isToday: day.isToday,
-                caption: AppLocalization.text(stepsCaption(day.steps)))
+                caption: AppLocalization.text(stepsCaption(day.steps)),
+                dayID: day.date)
             HistorySleepCard(
                 totalSeconds: day.sleepTotal, deepSeconds: day.sleepDeep,
                 remSeconds: day.sleepREM, start: day.sleepStart, end: day.sleepEnd,

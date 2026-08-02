@@ -15,6 +15,9 @@ struct HistoryStepsCard: View {
     let hourlySteps: [Int]
     let isToday: Bool
     let caption: String
+    /// 选中的那一天。拖动杆的选中只在**换天**时清掉 —— 用数据本身当信号是不行的：
+    /// 今天的 `hourlySteps` 每次前台刷新都会变，那样用户刚拖到的位置会被悄悄抹掉。
+    let dayID: Date
 
     /// Window shown by the landscape + ruler.
     static let startHour = 6
@@ -87,9 +90,8 @@ struct HistoryStepsCard: View {
         }
         // 换了一天就把拖动杆的选中丢掉 —— 索引在新的一天依然合法，所以不清的话
         // 中间那格会静悄悄显示新数据里同一小时的值，看着像"选中还在"，其实用户
-        // 从没在这一天点过。刻意不带 `initial: true`：那会在首帧就把调试参数
-        // `-PiboStepsScrubIndex=` 注入的选中态抹掉。
-        .onChange(of: cols) { _, _ in
+        // 从没在这一天点过。
+        .onChange(of: dayID) { _, _ in
             selectedIndex = nil
         }
         .accessibilityElement(children: .combine)
@@ -575,15 +577,15 @@ private enum StepsPreviewData {
     ScrollView {
         VStack(spacing: LP.Spacing.l) {
             HistoryStepsCard(steps: 8234, hourlySteps: StepsPreviewData.day(8234),
-                             isToday: false, caption: "走得不错，花也精神")
+                             isToday: false, caption: "走得不错，花也精神", dayID: .now)
             HistoryStepsCard(steps: 16_500, hourlySteps: StepsPreviewData.day(16_500),
-                             isToday: false, caption: "今天像在森林里穿行")
+                             isToday: false, caption: "今天像在森林里穿行", dayID: .now)
             HistoryStepsCard(steps: 1_820, hourlySteps: StepsPreviewData.day(1_820),
-                             isToday: false, caption: "...今天...有点懒啵")
+                             isToday: false, caption: "...今天...有点懒啵", dayID: .now)
             HistoryStepsCard(steps: 4_300, hourlySteps: StepsPreviewData.day(9_000),
-                             isToday: true, caption: "今天才刚开始（未到的时段会变暗）")
+                             isToday: true, caption: "今天才刚开始（未到的时段会变暗）", dayID: .now)
             HistoryStepsCard(steps: 7_000, hourlySteps: [],
-                             isToday: false, caption: "老数据 · 无小时分布（兜底）")
+                             isToday: false, caption: "老数据 · 无小时分布（兜底）", dayID: .now)
         }
         .padding(LP.Spacing.xl)
     }
