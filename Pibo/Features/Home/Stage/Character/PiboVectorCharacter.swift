@@ -90,6 +90,7 @@ final class PiboVectorCharacter {
         glowLayer.alpha = 0
         glowLayer.zPosition = -1
         contentNode.addChild(glowLayer)
+        bodyLayer.zPosition = 0
         contentNode.addChild(bodyLayer)
         sproutNode.shouldEnableEffects = true
         sproutNode.shouldRasterize = false
@@ -274,6 +275,15 @@ final class PiboVectorCharacter {
         return (blend(from.rootPoint, to.rootPoint), blend(from.tipPoint, to.tipPoint))
     }
 
+    /// Current sprout root in `rootNode` presentation coordinates. The
+    /// conversion includes content breathing, settle pulse and business bounce
+    /// transforms, so an external effect follows the pixels users actually see.
+    func presentedSproutRootPoint() -> CGPoint? {
+        guard let root = sproutAxis?.root else { return nil }
+        let contentPoint = root.applying(bodyTransform)
+        return rootNode.convert(contentPoint, from: contentNode)
+    }
+
     /// The body silhouette in `rootNode`'s coordinates. Feeds hit testing and the
     /// weather system's impact sampling, so the visible shape and the
     /// interactive shape cannot drift apart.
@@ -320,6 +330,33 @@ final class PiboVectorCharacter {
         )
     }
 
+    // MARK: - Sprout layer
+
+    /// 芽的层级。
+    ///
+    /// `bodyLayer` 里每个元素都带 `zPosition = 元素下标`，而整个 `SKEffectNode`
+    /// 只有一个 z —— 所以宿主的 z 必须跟元素下标处在同一把尺子上，不能想当然地写 0
+    /// 或 1。写 0/1 的后果不是"芽整体消失"，而是**只有埋在头里的那截草根被身体盖掉**，
+    /// 于是草看起来像浮在头顶上方而不是长在头里（0801 走查截图里的那一处）。
+    ///
+    /// 具体在前还是在后按**每个状态自己的元素顺序**判：设计包里 11 个状态把 bo/boline
+    /// 排在 body 之后（草在前，草根那条渐尖的尾巴压在白色头顶上），只有 `sleep-2`
+    /// 反过来。宿主是一个整体，所以只能整体跟随，做不到状态内穿插——好在 bo/boline
+    /// 在每个状态里本来就是相邻的两层。
+    private static let sproutFrontZ: CGFloat = 100
+    private static let sproutBackZ: CGFloat = -0.5
+
+    private func syncSproutLayer(stateID: String) {
+        guard let elements = data.states[stateID]?.elements else { return }
+        let boIndex = elements.firstIndex { Self.sproutElementIDs.contains($0.id) }
+        let bodyIndex = elements.firstIndex { $0.id == "body" }
+        guard let boIndex, let bodyIndex else {
+            sproutNode.zPosition = Self.sproutFrontZ
+            return
+        }
+        sproutNode.zPosition = boIndex < bodyIndex ? Self.sproutBackZ : Self.sproutFrontZ
+    }
+
     // MARK: - Build
 
     /// Rebuilds every element for the current blend.
@@ -329,6 +366,7 @@ final class PiboVectorCharacter {
     /// kept until neither state claims them.
     private func rebuild() {
         var live = Set<String>()
+        syncSproutLayer(stateID: targetStateID)
 
         // 不在过渡中时只跑一遍：两个 stage 用同一个 key，跑两遍会让第二遍的
         // 「入场」淡入把已经就位的装饰重新压回 alpha 0。

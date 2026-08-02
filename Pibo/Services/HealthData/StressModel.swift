@@ -136,23 +136,33 @@ enum StressHysteresis {
 /// self-inclusion bias. Only **resting** readings enter — active-time HRV is
 /// naturally low and would poison the baseline.
 enum StressBaselineStore {
-    /// **v3 = the local-median artifact rule** (see `HeartbeatSeriesReader.analyze`).
+    /// **v4 = the adaptive artifact threshold** (see `HRVAnalysis.artifactThreshold`).
     ///
     /// The keys are versioned alongside the RMSSD algorithm and old values are
     /// *not* migrated. A baseline is only meaningful against readings produced the
-    /// same way: the previous rule filtered on the successive difference itself and
-    /// so ran systematically low, and judging a v3 reading against a v2 baseline
-    /// would read as a large, permanent rise in HRV — every user parked at 优秀 for
-    /// weeks. Dropping the history costs `coldStartDays` (7) on population
-    /// thresholds, then a linear blend back to fully personal by day 14. That's the
-    /// honest trade; rescaling the old medians would need a conversion factor we
-    /// have no way to know.
-    private static let todayKey = "pibo.stress.today.v3"
-    private static let dailyKey = "pibo.stress.daily.v3"
+    /// same way, and each revision has moved the level in one direction:
+    ///
+    /// - v2 filtered on the successive difference itself and ran systematically
+    ///   **low**; scoring a v3 reading against it read as a permanent rise in HRV
+    ///   and parked everyone at 优秀.
+    /// - v3's flat 250 ms threshold let a moderate mis-detected beat survive, and
+    ///   one such beat can nearly double a quiet wearer's RMSSD — so v3 ran
+    ///   sporadically **high**. Scoring a v4 reading against it is the same error
+    ///   mirrored: a permanent apparent *drop*, i.e. weeks parked at 注意/超载.
+    ///
+    /// Dropping the history costs `coldStartDays` (7) on population thresholds,
+    /// then a linear blend back to fully personal by day 14. That's the honest
+    /// trade; rescaling the old medians would need a conversion factor we have no
+    /// way to know — the inflation depended on how many artifacts each window
+    /// happened to contain.
+    private static let todayKey = "pibo.stress.today.v4"
+    private static let dailyKey = "pibo.stress.daily.v4"
     private static let legacyKeys = [
         "pibo.stress.rmssd.window.v1",
         "pibo.stress.today.v2",
         "pibo.stress.daily.v2",
+        "pibo.stress.today.v3",
+        "pibo.stress.daily.v3",
     ]
     /// Keep ~two months of daily medians.
     private static let maxDays = 60

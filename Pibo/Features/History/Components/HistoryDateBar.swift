@@ -1,33 +1,31 @@
 import SwiftUI
 
-/// 日期选择 — `‹  6月6日 周六  ›` over the 第 N/总 天 label (Figma `date piker`
-/// 1193:2225 + `date label` 1193:2228). Circular chevron buttons on a white
-/// container; the forward button disables once the selected day reaches today.
+/// 日期选择 — `‹  6月6日 周六  ›` (Figma `date piker` 1193:2225). Circular
+/// chevron buttons on a white container; the forward button disables once the
+/// selected day reaches today.
+///
+/// The 第 N/总 天 label under the date was cut in the 0801 走查 along with the
+/// 品种(bohair) selector it sat above — the pair read as one block and neither
+/// was backed by a real model.
 struct HistoryDateBar: View {
     let dateText: String        // "6月6日"
     let weekdayText: String     // "周六"
-    let dayLabel: String        // "第 1/213 天"
     var canGoForward: Bool
     var onPrev: () -> Void
     var onNext: () -> Void
 
     var body: some View {
-        VStack(spacing: LP.Spacing.xs) {
-            HStack {
-                roundButton("chevron.backward", enabled: true, action: onPrev)
-                Spacer(minLength: 0)
-                HStack(spacing: LP.Spacing.s) {
-                    Text(dateText)
-                    Text(weekdayText)
-                }
-                .lpText(LP.Typography.b1Medium)
-                .foregroundStyle(LP.Content.secondary)
-                Spacer(minLength: 0)
-                roundButton("chevron.forward", enabled: canGoForward, action: onNext)
+        HStack {
+            roundButton("chevron.backward", enabled: true, action: onPrev)
+            Spacer(minLength: 0)
+            HStack(spacing: LP.Spacing.s) {
+                Text(dateText)
+                Text(weekdayText)
             }
-            Text(dayLabel)
-                .lpText(LP.Typography.c1Medium)
-                .foregroundStyle(LP.Content.tertiary)
+            .lpText(LP.Typography.b1Medium)
+            .foregroundStyle(LP.Content.secondary)
+            Spacer(minLength: 0)
+            roundButton("chevron.forward", enabled: canGoForward, action: onNext)
         }
     }
 

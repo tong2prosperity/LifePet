@@ -6,10 +6,12 @@ import SwiftData
 /// `FloorContainer` drawer hosts it and overlays the ⌄ close handle on top).
 ///
 /// Faithful to Figma `🍃 history/data` (59:342 → page 179:8678): a scrollable
-/// stack of 打招呼 header → 日期选择 + 品种(bohair) → 活动 / 今日脚步 / 睡眠 /
-/// 运动记录 / 体征 / 今日记录 cards. Today's numbers come live from
-/// `PetStateStore`; past days read the SwiftData `HealthHistoryStore` (records +
-/// per-workout detail + cut-out food photos).
+/// stack of 打招呼 header → 日期选择 → 活动 / 今日脚步 / 睡眠 / 运动记录 / 体征 /
+/// 压力 cards. Today's numbers come live from `PetStateStore`; past days read
+/// the SwiftData `HealthHistoryStore` (records + per-workout detail).
+///
+/// The 0801 走查 cut four blocks from this page: 品种(bohair) 选择器 + 「第 N/总 天」,
+/// 睡眠周报, 今日记录 (餐照), 足迹涂鸦. Their components are still on disk.
 struct PiboHistoryView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(HealthHistoryStore.self) private var history
@@ -17,9 +19,24 @@ struct PiboHistoryView: View {
     /// Card to scroll to on open (notification deep link). `nil` = top of page.
     var focus: HistoryFocus?
 
-    @State private var selectedDate: Date = Calendar.current.startOfDay(for: .now)
+    @State private var selectedDate: Date = Self.initialDate()
 
     private let cal = Calendar.current
+
+    /// 截图验证用：`-PiboHistoryDayOffset=1` 直接落在昨天（今天读的是实时 store，
+    /// 模拟器上全是 0，看不出卡片对数据的映射）。
+    private static func initialDate() -> Date {
+        let today = Calendar.current.startOfDay(for: .now)
+        #if DEBUG
+        let prefix = "-PiboHistoryDayOffset="
+        if let raw = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }),
+           let offset = Int(raw.dropFirst(prefix.count)),
+           let shifted = Calendar.current.date(byAdding: .day, value: -offset, to: today) {
+            return shifted
+        }
+        #endif
+        return today
+    }
 
     var body: some View {
         // Observe history writes (backfill / reconcile / new food photo) so the
@@ -62,23 +79,20 @@ struct PiboHistoryView: View {
         .padding(.horizontal, LP.Spacing.xl)
     }
 
-    // MARK: Date + 品种
+    // MARK: Date
 
+    /// 品种(bohair) 选择器 + 「第 N/总 天」 were removed in the 0801 走查 — both were
+    /// display-only (no 品种 model behind them). `HistoryBohairList` is kept on
+    /// disk so restoring it is a one-line change once a real 品种 model lands.
     private var dateSection: some View {
-        VStack(spacing: 0) {
-            HistoryDateBar(
-                dateText: Self.dateFormatter.string(from: selectedDate),
-                weekdayText: Self.weekdayFormatter.string(from: selectedDate),
-                dayLabel: dayLabel,
-                canGoForward: selectedDate < cal.startOfDay(for: .now),
-                onPrev: { shift(-1) },
-                onNext: { shift(1) }
-            )
-            .padding(.horizontal, LP.Spacing.xl)
-
-            HistoryBohairList()
-                .padding(.vertical, LP.Spacing.l)
-        }
+        HistoryDateBar(
+            dateText: Self.dateFormatter.string(from: selectedDate),
+            weekdayText: Self.weekdayFormatter.string(from: selectedDate),
+            canGoForward: selectedDate < cal.startOfDay(for: .now),
+            onPrev: { shift(-1) },
+            onNext: { shift(1) }
+        )
+        .padding(.horizontal, LP.Spacing.xl)
     }
 
     // MARK: Cards
@@ -101,11 +115,6 @@ struct PiboHistoryView: View {
                 totalSeconds: day.sleepTotal, deepSeconds: day.sleepDeep,
                 remSeconds: day.sleepREM, start: day.sleepStart, end: day.sleepEnd,
                 segments: day.sleepSegments)
-            // 睡眠周报 — 始终是"近 7 晚"，与选中日无关，故只在今天展示（同压力卡）。
-            if day.isToday {
-                HistorySleepWeeklyCard(
-                    report: SleepWeeklyReport.make(store: store, history: history))
-            }
             // 没有运动就整卡不渲染；体征同理（全部缺数据才隐藏）。
             if !day.workouts.isEmpty {
                 HistoryWorkoutsCard(workouts: day.workouts)
@@ -121,8 +130,10 @@ struct PiboHistoryView: View {
                 HistoryStressCard(stress: stress, rmssd: store.rmssd, baseline: store.stressBaseline)
                     .id(HistoryFocus.stress)
             }
-            HistoryFoodCard(foods: day.foods)
-            HistoryDoodleCard(doodles: day.doodles)
+            // 睡眠周报 / 今日记录 / 足迹涂鸦 三个板块在 0801 走查里被删掉；
+            // 组件文件保留（`HistorySleepWeeklyCard` / `HistoryFoodCard` /
+            // `HistoryDoodleCard`），要恢复只需在这里加回一行。
+            // 注意 `SleepWeeklyReport` 本身不是死代码 —— 首页的晨间睡眠卡还在用。
         }
         .padding(.horizontal, LP.Spacing.xl)
     }
@@ -185,14 +196,10 @@ struct PiboHistoryView: View {
         var rmssd: Double
         var oxygen: Double          // fraction 0–1
         var workouts: [WorkoutRecord]
-        var foods: [FoodPhoto]
-        var doodles: [WalkDoodleRecord]
     }
 
     private func makeDay(_ date: Date) -> HistoryDay {
         let workouts = history.workouts(on: date)
-        let foods = history.foodPhotos(on: date)
-        let doodles = history.walkDoodles(on: date)
         if cal.isDateInToday(date) {
             let sleepH = store.rawSleepHours
             let start = store.rawSleepStart
@@ -220,7 +227,7 @@ struct PiboHistoryView: View {
                 hrv: store.rawHRV,
                 rmssd: store.rmssd ?? 0,
                 oxygen: store.rawOxygen,
-                workouts: workouts, foods: foods, doodles: doodles)
+                workouts: workouts)
         }
         let r = history.record(on: date)
         return HistoryDay(
@@ -244,20 +251,12 @@ struct PiboHistoryView: View {
             hrv: r?.hrv ?? 0,
             rmssd: StressBaselineStore.dailyMedian(for: date) ?? 0,
             oxygen: r?.oxygenSaturation ?? 0,
-            workouts: workouts, foods: foods, doodles: doodles)
+            workouts: workouts)
     }
 
     /// 相识总天数 (header "陪你走过的 N 天").
     private var totalDays: Int { max(1, store.dayCount) }
 
-    /// 第 N/总 天 — N is the selected day's ordinal within the relationship.
-    private var dayLabel: String {
-        let back = cal.dateComponents([.day],
-                                      from: cal.startOfDay(for: selectedDate),
-                                      to: cal.startOfDay(for: .now)).day ?? 0
-        let n = min(totalDays, max(1, totalDays - back))
-        return AppLocalization.format("第 %d/%d 天", n, totalDays)
-    }
 
     private func shift(_ days: Int) {
         guard let next = cal.date(byAdding: .day, value: days, to: selectedDate) else { return }

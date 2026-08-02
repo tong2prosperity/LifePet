@@ -2,11 +2,15 @@ import Foundation
 import os
 
 /// App-facing economy client: uploads health/behaviour deltas and reads the
-/// authoritative bo state. The server is the single source of truth — this
-/// holds only a display mirror that the latest `/sync` or `/state` overwrites.
+/// authoritative bo state. The server is the single source of truth for the
+/// *server-side* ledger — this holds only a display mirror that the latest
+/// `/sync` or `/state` overwrites.
 ///
-/// Animations are server-driven: callers should play exactly `lastSync.animations`
-/// and bump the head-bo count only when `lastSync.minted` is non-empty.
+/// **The on-device `bo` the user actually sees comes from `BoLedgerStore`, not
+/// from here** (决定 031：本地优先，未登录和离线不阻塞第一枚). This client is the
+/// future merge path for a logged-in account; it deliberately does **not** feed
+/// `BoProgressFeedbackStore` — the local ledger is that queue's only producer, so
+/// logging in can't double-fire the 25/50/75/90% 里程碑提示.
 @MainActor
 @Observable
 final class EconomyService {

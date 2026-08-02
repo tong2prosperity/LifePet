@@ -9,10 +9,20 @@ import SwiftUI
 @Observable
 final class PiboStageCommandController {
     @ObservationIgnored private weak var scene: PiboStageScene?
+    @ObservationIgnored private var pendingBoProgress: BoProgressMilestone?
+
+    /// Reserved capability seams. They remain nil in this release, so the bo
+    /// progress effect performs no audio or haptic system calls.
+    @ObservationIgnored var playBoProgressSound: ((BoProgressMilestone) -> Void)?
+    @ObservationIgnored var playBoProgressHaptic: ((BoProgressMilestone) -> Void)?
 
     func attach(scene: PiboStageScene) {
         guard self.scene !== scene else { return }
         self.scene = scene
+        if let pendingBoProgress {
+            self.pendingBoProgress = nil
+            _ = scene.playBoProgressFeedback(pendingBoProgress)
+        }
     }
 
     func detach(scene: PiboStageScene) {
@@ -22,6 +32,18 @@ final class PiboStageCommandController {
 
     func playEnergyGain() {
         scene?.playEnergyGain()
+    }
+
+    /// Returns true once the request is accepted by the stage boundary. If the
+    /// SpriteKit scene is temporarily detached, keep only the latest milestone
+    /// until Home attaches it again.
+    @discardableResult
+    func playBoProgressFeedback(_ milestone: BoProgressMilestone) -> Bool {
+        guard let scene else {
+            pendingBoProgress = max(pendingBoProgress ?? milestone, milestone)
+            return true
+        }
+        return scene.playBoProgressFeedback(milestone)
     }
 
     func playSproutGrowth(from start: Double, to target: Double) {

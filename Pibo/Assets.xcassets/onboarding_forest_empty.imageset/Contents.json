@@ -1,9 +1,9 @@
 {
   "images" : [
     {
-      "filename" : "forest-empty.png",
+      "filename" : "forest-empty@3x.png",
       "idiom" : "universal",
-      "scale" : "1x"
+      "scale" : "3x"
     }
   ],
   "info" : {

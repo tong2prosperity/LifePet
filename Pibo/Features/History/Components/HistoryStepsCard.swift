@@ -23,6 +23,19 @@ struct HistoryStepsCard: View {
     @State private var isVisible = false
     @State private var isRevealed = false
     @State private var revealGeneration = 0
+    /// 拖动杆选中的列（0 = startHour）。`nil` = 未选中，中间标签回落到峰值时段。
+    @State private var selectedIndex: Int? = Self.debugInitialScrubIndex()
+
+    /// 截图验证用：`-PiboStepsScrubIndex=5` 直接渲染选中态（模拟器上无法合成拖动手势）。
+    private static func debugInitialScrubIndex() -> Int? {
+        #if DEBUG
+        let prefix = "-PiboStepsScrubIndex="
+        if let raw = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) {
+            return Int(raw.dropFirst(prefix.count))
+        }
+        #endif
+        return nil
+    }
 
     var body: some View {
         let cols = columns()
@@ -41,14 +54,23 @@ struct HistoryStepsCard: View {
             .padding(.bottom, LP.Spacing.s)
 
             VStack(spacing: 4) {
-                GrassField(columns: cols, isToday: isToday, isRevealed: isRevealed)
+                GrassField(
+                    columns: cols,
+                    isToday: isToday,
+                    isRevealed: isRevealed,
+                    selectedIndex: selectedIndex,
+                    onScrub: { index in
+                        guard index != selectedIndex else { return }
+                        LPHaptics.tap()
+                        selectedIndex = index
+                    })
                     .frame(height: 114)
                     .frame(maxWidth: .infinity)
                 VStack(spacing: 4) {
                     TickRuler()
                         .stroke(LP.Content.quarternary, lineWidth: 1)
                         .frame(height: 8)
-                    axisLabels(peak: peakCallout(cols))
+                    axisLabels(peak: peakCallout(cols), selected: selectedCallout(cols))
                 }
                 .padding(.horizontal, 16)   // Figma 321-in-353 inset
             }
@@ -63,34 +85,78 @@ struct HistoryStepsCard: View {
         .onChange(of: cols, initial: true) { _, _ in
             resetReveal()
         }
+        // 换了一天就把拖动杆的选中丢掉 —— 索引在新的一天依然合法，所以不清的话
+        // 中间那格会静悄悄显示新数据里同一小时的值，看着像"选中还在"，其实用户
+        // 从没在这一天点过。刻意不带 `initial: true`：那会在首帧就把调试参数
+        // `-PiboStepsScrubIndex=` 注入的选中态抹掉。
+        .onChange(of: cols) { _, _ in
+            selectedIndex = nil
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(AppLocalization.text("今日脚步"))
-        .accessibilityValue(AppLocalization.text("\(steps)步，\(caption)"))
+        .accessibilityValue(accessibilityValue(cols))
+        // 拖动杆是纯手势控件，读屏用户碰不到它 —— 上下轻扫改为逐小时切换，
+        // 和睡眠卡切换睡眠片段是同一套动作（`selectAdjacent`）。
+        .accessibilityHint(AppLocalization.text("上下滑动逐小时查看"))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: selectAdjacent(offset: 1, in: cols)
+            case .decrement: selectAdjacent(offset: -1, in: cols)
+            @unknown default: break
+            }
+        }
     }
 
-    // MARK: Axis labels (06:00 · 峰值 · 22:00)
+    /// 读屏播报：没选中就报当天总数 + 文案，选中了就补上那一小时。
+    private func accessibilityValue(_ cols: [Int]) -> String {
+        let base = AppLocalization.text("\(steps)步，\(caption)")
+        guard let callout = selectedCallout(cols) else { return base }
+        return "\(base)，\(callout.range) \(callout.steps)步"
+    }
 
-    private func axisLabels(peak: (range: String, steps: Int)?) -> some View {
-        HStack(spacing: 4) {
+    /// 从当前选中列走一步；还没选过就从峰值那一列起步，落点和视觉一致。
+    private func selectAdjacent(offset: Int, in cols: [Int]) {
+        guard !cols.isEmpty else { return }
+        let start = selectedIndex ?? peakIndex(cols) ?? 0
+        selectedIndex = min(max(0, start + offset), cols.count - 1)
+    }
+
+    // MARK: Axis labels (06:00 · 峰值/选中 · 22:00)
+
+    /// 中间那格默认是峰值时段；一旦拖动杆选了某一列，就改显示那一小时的真实数据
+    /// （与睡眠卡的 `selectionDetail` 同一套行为）。
+    private func axisLabels(peak: (range: String, steps: Int)?,
+                            selected: (range: String, steps: Int)?) -> some View {
+        let callout = selected ?? peak
+        return HStack(spacing: 4) {
             Text(String(format: "%02d:00", Self.startHour))
                 .lpText(LP.Typography.c1Medium)
                 .foregroundStyle(LP.Content.secondary)
             Spacer(minLength: 0)
-            if let peak {
+            if let callout {
                 HStack(spacing: 4) {
-                    Text(peak.range)
-                    Text("\(peak.steps)步")
+                    Text(callout.range)
+                    Text("\(callout.steps)步")
                 }
                 .lpText(LP.Typography.c2Medium)
-                .foregroundStyle(LP.Content.quarternary)
+                .foregroundStyle(selected == nil ? LP.Content.quarternary : LP.Content.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
+                .contentTransition(.opacity)
+                .animation(.easeOut(duration: 0.16), value: selectedIndex)
             }
             Spacer(minLength: 0)
             Text(String(format: "%02d:00", Self.endHour))
                 .lpText(LP.Typography.c1Medium)
                 .foregroundStyle(LP.Content.secondary)
         }
+    }
+
+    /// 选中列的「HH:00-HH:00 N步」。越界返回 nil，回落到峰值。
+    private func selectedCallout(_ cols: [Int]) -> (range: String, steps: Int)? {
+        guard let i = selectedIndex, cols.indices.contains(i) else { return nil }
+        let h = Self.startHour + i
+        return ("\(h):00-\(h + 1):00", cols[i])
     }
 
     // MARK: Data
@@ -113,10 +179,15 @@ struct HistoryStepsCard: View {
     /// The busiest hour in the window → the `8:00-9:00 200步` callout. Only for
     /// real per-hour data (a synthesised legacy curve has no meaningful peak).
     private func peakCallout(_ cols: [Int]) -> (range: String, steps: Int)? {
-        guard !hourlySteps.isEmpty, let maxV = cols.max(), maxV > 0,
-              let idx = cols.firstIndex(of: maxV) else { return nil }
+        guard let idx = peakIndex(cols) else { return nil }
         let h = Self.startHour + idx
-        return ("\(h):00-\(h + 1):00", maxV)
+        return ("\(h):00-\(h + 1):00", cols[idx])
+    }
+
+    /// 峰值那一列。只对真实的逐小时数据有意义 —— 合成的 legacy 曲线没有真峰值。
+    private func peakIndex(_ cols: [Int]) -> Int? {
+        guard !hourlySteps.isEmpty, let maxV = cols.max(), maxV > 0 else { return nil }
+        return cols.firstIndex(of: maxV)
     }
 
     /// Relative volume per hour 06:00–21:00 for legacy rows (morning / lunch /
@@ -174,6 +245,10 @@ private struct GrassField: View {
     let columns: [Int]
     let isToday: Bool
     let isRevealed: Bool
+    /// 拖动杆选中的列，`nil` = 未选中（不画竖线）。
+    var selectedIndex: Int?
+    var onScrub: (Int) -> Void = { _ in }
+
 
     /// Wall-clock of the full left→right sweep; plant pops stagger across ~80% of it.
     private static let sweepDuration: Double = 1.05
@@ -204,8 +279,26 @@ private struct GrassField: View {
                     }
 
                 // 植物：每列随扫掠到达而「冒头」，底部锚点弹簧上弹。
-                plantRow(h: min(91, h))
-                    .padding(.horizontal, 8)
+                plantRow(h: min(91, h), width: w)
+
+                // 拖动杆的竖线 —— 与睡眠卡同一形状（1.5pt，上端淡出），只是这张卡
+                // 是浅底，所以用深色而不是白色，否则看不见。
+                if let selectedIndex, columns.indices.contains(selectedIndex) {
+                    Rectangle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    LP.Content.primary.opacity(0),
+                                    LP.Content.primary.opacity(0.45),
+                                    LP.Content.primary.opacity(0.45),
+                                ],
+                                startPoint: .top, endPoint: .bottom))
+                        .frame(width: 1.5, height: h)
+                        .position(x: geometry.centerX(of: selectedIndex, in: w), y: h / 2)
+                        .opacity(isRevealed ? 1 : 0)
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: selectedIndex)
+                        .allowsHitTesting(false)
+                }
 
                 // 萤火虫：最后淡入。
                 fireflies(w: w, h: h)
@@ -217,20 +310,46 @@ private struct GrassField: View {
                         value: isRevealed)
             }
             .frame(width: w, height: h, alignment: .bottom)
+            .contentShape(Rectangle())
+            // 轻点选中 + 横向拖动连续查看。`minimumDistance: 8` 让竖直方向的
+            // 滚动先被 ScrollView 抢走 —— 零距离的 DragGesture 会把整页滚动吃掉，
+            // 这也正是睡眠卡当初只用 tap 的原因。
+            .simultaneousGesture(
+                SpatialTapGesture()
+                    .onEnded { onScrub(geometry.index(atX: $0.location.x, in: w)) }
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 8)
+                    .onChanged { value in
+                        // 只认横向拖动。竖直方向虽然会被 ScrollView 抢去滚动，但
+                        // `simultaneousGesture` 仍会把 `onChanged` 发过来 —— 不挡的话
+                        // 滑过这张卡就会顺手改掉选中并震一下。
+                        guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                        onScrub(geometry.index(atX: value.location.x, in: w))
+                    }
+            )
         }
     }
 
-    private func plantRow(h: CGFloat) -> some View {
+    /// 植物按**列心绝对定位**，而不是等宽 `HStack`。
+    ///
+    /// `PlantView` 用的是固定尺寸（`frameWidth` 48pt × 高度缩放），`.frame(maxWidth:
+    /// .infinity)` 压不下去 —— 16 棵合起来约 759pt，塞进 363pt 宽的卡片会让整行溢出
+    /// 后被居中，结果是 06–09 点和 20–22 点几列**直接被裁到卡片外看不见**，而刻度尺和
+    /// 峰值标签还按整段时间在标，两者对不上。改成每棵按 `StepsColumnGeometry` 的列心
+    /// 落位后，相邻植物自然重叠（Figma 参考里本来就是重叠的树林），16 列都在卡内，
+    /// 拖动杆的竖线、命中判定、刻度尺这才处在同一个坐标系里。
+    private func plantRow(h: CGFloat, width: CGFloat) -> some View {
         let currentHour = Calendar.current.component(.hour, from: .now)
         let count = max(columns.count - 1, 1)
-        return HStack(alignment: .bottom, spacing: 1) {
+        let g = geometry
+        return ZStack(alignment: .bottom) {
             ForEach(columns.indices, id: \.self) { i in
                 let hour = HistoryStepsCard.startHour + i
                 let stage = PlantStage.forHourSteps(columns[i])
                 // Pop right as the sweep edge reaches this column (delay = x-fraction).
                 let delay = Double(i) / Double(count) * Self.sweepDuration * 0.8
                 PlantView(stage: stage, fieldHeight: h, dimmed: isToday && hour > currentHour)
-                    .frame(maxWidth: .infinity)
                     .scaleEffect(isRevealed ? 1 : 0.15, anchor: .bottom)
                     .opacity(isRevealed ? 1 : 0)
                     .animation(
@@ -238,8 +357,18 @@ private struct GrassField: View {
                             ? nil
                             : .spring(response: 0.5, dampingFraction: 0.6).delay(delay),
                         value: isRevealed)
+                    .offset(x: g.centerX(of: i, in: width) - width / 2)
             }
         }
+        // 显式给出宽度：`.offset` 不参与布局，不锁宽的话 ZStack 会缩到最宽的那棵植物，
+        // 偏移就变成相对那个小框的中心算了。
+        .frame(width: width, height: h, alignment: .bottom)
+    }
+
+    // MARK: Column geometry
+
+    private var geometry: StepsColumnGeometry {
+        StepsColumnGeometry(count: columns.count)
     }
 
     private func fireflies(w: CGFloat, h: CGFloat) -> some View {

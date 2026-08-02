@@ -10,26 +10,52 @@ import SwiftUI
 ///
 /// 故事线 clues (`isStoryClue`) get an accent ring + a ✦ so they read as
 /// "this one matters" without breaking the garble.
+///
+/// A `.system` line (`PiboSpeechSource.system`) is not Pibo talking at all — it
+/// is the app saying why Pibo won't answer. It takes an **info-cyan** border
+/// instead of the speech set's hairline black / accent green, because the whole
+/// point is that a glance tells the two apart: none of Pibo's own moods are
+/// cyan, so the color alone carries "this is not a voice".
 struct PiboSpeechBubbleView: View {
     let line: PiboSpeechLine
 
     var body: some View {
-        Text(displayText)
-            .lpText(LP.Typography.b2Medium)
-            .foregroundStyle(textColor)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, LP.Spacing.l)
-            .padding(.vertical, LP.Spacing.m)
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(bubbleFill)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: borderWidth)
-            )
-            .lpShadow(LP.Shadow.elevation2)
-            .opacity(line.mood == .murmur ? 0.92 : 1)
+        Group {
+            if line.source == .system {
+                systemContent
+            } else {
+                Text(displayText)
+                    .lpText(LP.Typography.b2Medium)
+                    .foregroundStyle(textColor)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.horizontal, LP.Spacing.l)
+        .padding(.vertical, LP.Spacing.m)
+        .background(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(bubbleFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(borderColor, lineWidth: borderWidth)
+        )
+        .lpShadow(LP.Shadow.elevation2)
+        .opacity(line.mood == .murmur ? 0.92 : 1)
+    }
+
+    /// 请勿打扰 reads as a status, not a sentence — the moon icon says "asleep"
+    /// before the text is even read.
+    private var systemContent: some View {
+        HStack(spacing: LP.Spacing.s) {
+            Image(systemName: "moon.zzz.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(LP.Fill.foundationInfo)
+            Text(line.text)
+                .lpText(LP.Typography.b3Regular)
+                .foregroundStyle(LP.Content.secondary)
+                .multilineTextAlignment(.leading)
+        }
     }
 
     private var displayText: String {
@@ -42,6 +68,7 @@ struct PiboSpeechBubbleView: View {
     }
 
     private var bubbleFill: Color {
+        guard line.source == .pibo else { return LP.Fill.bgPop.opacity(0.96) }
         switch line.mood {
         case .normal: return LP.Fill.bgContainer.opacity(0.96)
         case .angry:  return LP.Neutral.grey900
@@ -58,6 +85,7 @@ struct PiboSpeechBubbleView: View {
     }
 
     private var borderColor: Color {
+        guard line.source == .pibo else { return LP.Fill.foundationInfo }
         if line.isStoryClue { return LP.Fill.foundationAccent.opacity(0.55) }
         switch line.mood {
         case .normal: return LP.Separator.primary
@@ -67,7 +95,8 @@ struct PiboSpeechBubbleView: View {
     }
 
     private var borderWidth: CGFloat {
-        line.isStoryClue ? 1.5 : LP.BorderWidth.hair
+        if line.source == .system { return 2 }
+        return line.isStoryClue ? 1.5 : LP.BorderWidth.hair
     }
 }
 
@@ -77,6 +106,7 @@ struct PiboSpeechBubbleView: View {
         PiboSpeechBubbleView(line: PiboSpeechLine(text: "人...很烦...", mood: .angry))
         PiboSpeechBubbleView(line: PiboSpeechLine(text: "...zzz...一个bobo...", mood: .murmur))
         PiboSpeechBubbleView(line: PiboSpeechLine(text: "...黑的洞...是门啵...", isStoryClue: true))
+        PiboSpeechBubbleView(line: .system("Pibo 设置了请勿打扰"))
     }
     .padding()
     .background(Color(hex: 0xF4F8F9))

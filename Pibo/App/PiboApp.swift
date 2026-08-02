@@ -23,6 +23,14 @@ struct PiboApp: App {
     /// Sole consumer of `health.events`. The store is the only thing that
     /// mutates pet state; views observe it via `@Environment`.
     @State private var store: PetStateStore
+    /// Coalesced, durable presentation request for the latest crossed bo
+    /// milestone. The local ledger writes committed balances into this seam.
+    @State private var boProgressFeedback: BoProgressFeedbackStore
+    /// 本地优先的 `bo` 账本 —— 健康数据经 `pibo-core` 计分、成熟、拔取、消费的
+    /// 唯一真源。不依赖登录，也不依赖 `pibo-server`（决定 031）。
+    @State private var boLedger: BoLedgerStore
+    /// 已解锁的森林物件。与账本分开：余额可增可减，解锁是只增不减的既成事实。
+    @State private var ornamentUnlocks = OrnamentUnlockStore()
     /// One app-wide resolver for all contextual Pibo copy. Views submit cues;
     /// the service owns scarcity, deduplication, and authored-line selection.
     @State private var piboSpeech: PiboSpeechService
@@ -80,6 +88,8 @@ struct PiboApp: App {
         _health = State(initialValue: h)
         _morningSleep = State(initialValue: morning)
         _store = State(initialValue: s)
+        let boFeedback = BoProgressFeedbackStore()
+        _boProgressFeedback = State(initialValue: boFeedback)
         _piboSpeech = State(initialValue: PiboSpeechService(
             narrativeProgress: { s.story.revealedCount }
         ))
@@ -87,6 +97,10 @@ struct PiboApp: App {
         modelContainer = Self.makeModelContainer()
         let hist = HealthHistoryStore(context: modelContainer.mainContext)
         _history = State(initialValue: hist)
+
+        // 账本从「它自己被创建的那天」起算，不追溯 —— 老用户升级上来时，之前几十天
+        // 的健康记录不会被扫进来（那只会被冻结规则一次性烧掉，见 `BoLedgerStore.init`）。
+        _boLedger = State(initialValue: BoLedgerStore(progressFeedback: boFeedback))
 
         let a = AuthService()
         let e = EconomyService()
@@ -173,6 +187,9 @@ struct PiboApp: App {
                 .environment(health)
                 .environment(morningSleep)
                 .environment(store)
+                .environment(boProgressFeedback)
+                .environment(boLedger)
+                .environment(ornamentUnlocks)
                 .environment(piboSpeech)
                 .environment(history)
                 .environment(auth)
@@ -226,6 +243,13 @@ struct PiboApp: App {
                         let workouts = await health.fetchWorkoutHistory()
                         history.ingestWorkouts(workouts)
                     }
+                    // 健康历史落定之后重算 `bo`。放在这里而不是 HK 事件流里，是因为
+                    // 账本要的是「已窗口化的每日真相」，而重算本身是幂等的 ——
+                    // 多跑一次只会补差额。DEBUG 播种的模拟器数据也走同一条路。
+                    boLedger.recompute(history: history)
+                    #if DEBUG
+                    applyDebugBoOverrides()
+                    #endif
                     // If already logged in, push today's health to the server.
                     if auth.phase == .loggedIn {
                         await coordinator.syncToday()
@@ -283,6 +307,33 @@ struct PiboApp: App {
                         }
                     }
                 }
+                // 历史被写过之后再算一次。前台的增量刷新（今日小时步数、
+                // reconcile 落库）不会经过启动那一段，靠这个兜住。
+                .onChange(of: history.revision) { _, _ in
+                    boLedger.recompute(history: history)
+                }
         }
     }
+
+    #if DEBUG
+    /// 免真实健康数据地把账本摆到某个状态，用于模拟器截图验证：
+    /// `-PiboBoBalance=8`（余额）/ `-PiboBoRipe`（有一枚熟了）/
+    /// `-PiboBoGrowth=0.6`（当前这枚的成熟进度）/ `-PiboUnlockOrnaments`（全解锁）。
+    private func applyDebugBoOverrides() {
+        let arguments = ProcessInfo.processInfo.arguments
+        func value(_ flag: String) -> String? {
+            arguments.first { $0.hasPrefix(flag + "=") }
+                .map { String($0.dropFirst(flag.count + 1)) }
+        }
+        if arguments.contains("-PiboUnlockOrnaments") {
+            for ornament in PiboOrnament.all { ornamentUnlocks.markUnlocked(ornament.id) }
+        }
+        let balance = value("-PiboBoBalance").flatMap(Int.init)
+        let growth = value("-PiboBoGrowth").flatMap(Double.init)
+        let ripe = arguments.contains("-PiboBoRipe") ? 1 : nil
+        guard balance != nil || growth != nil || ripe != nil else { return }
+        boLedger.debugSet(balance: balance, ripe: ripe, progress: growth)
+        LPLog.bo.notice("debug override applied balance=\(balance ?? -1, privacy: .public) ripe=\(ripe ?? -1, privacy: .public)")
+    }
+    #endif
 }

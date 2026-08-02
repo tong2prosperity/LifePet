@@ -26,6 +26,10 @@ enum Analytics {
         case pat
         case pluck
         case energyCollected = "energy_collected"
+        /// 打开兑换道具面板（首页左上角 bo 存量）。
+        case boPanelOpen = "bo_panel_open"
+        /// 解锁一件森林物件，扣掉 bo。
+        case boUnlock = "bo_unlock"
         case cameraOpen = "camera_open"
         case photoSaved = "photo_saved"
         case mealRecognized = "meal_recognized"

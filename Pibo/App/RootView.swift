@@ -22,6 +22,10 @@ struct RootView: View {
     private var debugBypassesOnboarding: Bool {
         let arguments = ProcessInfo.processInfo.arguments
         return debugOpensHistory
+            // 通用跳过：截图验证首页时不需要连带打开某个别的界面。
+            // 在这个开关出现之前只能借 `-PiboShowMorningSleep` 之类的参数绕过，
+            // 而那些会顺手弹出一个盖住首页的 sheet。
+            || arguments.contains("-PiboSkipOnboarding")
             || arguments.contains("-PiboOpenGames")
             || arguments.contains("-PiboShowMorningSleep")
             || arguments.contains { $0.hasPrefix("-PiboShowAchievement=") }

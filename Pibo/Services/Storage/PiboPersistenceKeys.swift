@@ -22,6 +22,14 @@ nonisolated enum PiboPersistenceKeys {
         static let lastSeenDate = "pibo.dayRollover.lastSeenDate.v1"
         static let lastDecayAt = "pibo.decay.lastDecayAt.v1"
         static let pendingWorkout = "pibo.pendingWorkout.v1"
+
+        /// 本地 `bo` 账本（能量池 / 待拔取 / 余额 / 每日入账书签）。
+        static let boLedger = "pibo.bo.ledger.v1"
+        /// 已解锁的森林物件 id 集合。
+        static let boUnlockedOrnaments = "pibo.bo.ornaments.v1"
+        /// 首枚 `bo` 成熟提醒是否已经发过（只发一次）。
+        static let boFirstRipeNotified = "pibo.bo.firstRipeNotified.v1"
+
         static let debugHistorySeedState = "pibo.debug.historySeedState.v1"
         static let huarongRoadDifficulty = "pibo.games.huarongRoad.difficulty.v1"
         static let huarongRoadBestMovesPrefix = "pibo.games.huarongRoad.bestMoves.v1."

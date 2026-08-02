@@ -16,13 +16,31 @@ enum PiboSpeechMood: Equatable {
     case murmur
 }
 
-/// One spoken line + its presentation.
+/// Whose voice the bubble carries.
+///
+/// `.pibo` is Pibo talking — every mood above is a way of doing that. `.system`
+/// is the **app** talking *about* Pibo, used where Pibo cannot answer at all
+/// (asleep): showing pool copy there would read as a sleeping Pibo speaking. A
+/// system notice therefore gets its own border color so it never passes for
+/// speech, and it costs nothing — it does not consume the 拍一拍 speech caps.
+enum PiboSpeechSource: Equatable {
+    case pibo
+    case system
+}
+
+/// One bubble line + its presentation.
 struct PiboSpeechLine: Equatable {
     let text: String
     var mood: PiboSpeechMood = .normal
     /// True when the line is a 故事线 clue (拍出来的线索) — rendered with the
     /// accent treatment so it reads as "this one matters".
     var isStoryClue: Bool = false
+    var source: PiboSpeechSource = .pibo
+
+    /// A system notice — the app explaining why Pibo is not answering.
+    static func system(_ text: String) -> PiboSpeechLine {
+        PiboSpeechLine(text: text, source: .system)
+    }
 }
 
 /// The store's answer to a pat. `turnsAway` and `line` compose: 不理睬 is a

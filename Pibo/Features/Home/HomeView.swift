@@ -15,6 +15,9 @@ import os
 /// (see `PetStateStore+Mowan`).
 struct HomeView: View {
     @Environment(PetStateStore.self) private var store
+    @Environment(BoProgressFeedbackStore.self) private var boProgressFeedback
+    @Environment(BoLedgerStore.self) private var boLedger
+    @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
     @Environment(HealthHistoryStore.self) private var history
     @Environment(PiboSpeechService.self) private var piboSpeech
     @Environment(MorningSleepCoordinator.self) private var morningSleep
@@ -107,7 +110,9 @@ struct HomeView: View {
             return .suspended
         }
         switch activeSheet {
-        case .settings: return .ducked
+        // 兑换面板和设置一样是「在森林上面办事」—— 环境音压低而不是掐掉，
+        // 免得解锁完关掉面板时森林像刚开机。
+        case .settings, .boExchange: return .ducked
         case .meal, .morningSleep, .achievement: return .suspended
         case nil: return .active
         }
@@ -123,6 +128,7 @@ struct HomeView: View {
                 growth: store.growthStage,
                 sproutGrowthProgress: store.headSproutGrowthProgress,
                 environment: stageEnvironment,
+                unlockedOrnaments: ornamentUnlocks.unlocked,
                 tuning: forestTuning,
                 onPat: handlePat,
                 onHairPulled: handleHairPull,
@@ -245,6 +251,19 @@ struct HomeView: View {
                     }
                 }
             }
+            if let argument = ProcessInfo.processInfo.arguments.first(where: {
+                $0.hasPrefix("-PiboBoProgress=")
+            }), let value = Int(argument.dropFirst("-PiboBoProgress=".count)),
+               let milestone = BoProgressMilestone(rawValue: value) {
+                boProgressFeedback.enqueue(milestone)
+            }
+            if ProcessInfo.processInfo.arguments.contains("-PiboOpenBoPanel") {
+                Task {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    guard activeSheet == nil else { return }
+                    activeSheet = .boExchange
+                }
+            }
             // Rehearse the stress-notification deep link without a real push:
             // raise the same flag the router raises, so the whole
             // present-history → 原版 tab → scroll-to-压力卡 path runs. Seed first —
@@ -259,6 +278,8 @@ struct HomeView: View {
             startSoundscape()
             presentMorningSleepIfPossible()
             presentStressCardIfPossible()
+            presentBoProgressFeedbackIfPossible()
+            if boLedger.hasRipeBo { announceFirstRipeBoIfNeeded() }
         }
         .onDisappear {
             soundscape.setPresentation(.suspended)
@@ -307,6 +328,12 @@ struct HomeView: View {
         }
         .onChange(of: stressNotifier.pendingCardOpen) { _, _ in
             presentStressCardIfPossible()
+        }
+        .onChange(of: boProgressFeedback.pending?.id) { _, _ in
+            presentBoProgressFeedbackIfPossible()
+        }
+        .onChange(of: boLedger.hasRipeBo) { _, isRipe in
+            if isRipe { announceFirstRipeBoIfNeeded() }
         }
         .onChange(of: sproutPhase) { _, phase in
             if phase == .idle { resumePendingHomeFlows() }
@@ -367,6 +394,8 @@ struct HomeView: View {
         case .achievement(let payload):
             PiboAchievementModal(payload: payload) { confirmAchievement(payload) }
                 .interactiveDismissDisabled()
+        case .boExchange:
+            BoExchangeSheet()
         }
     }
 
@@ -424,6 +453,16 @@ struct HomeView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: LP.Spacing.s) {
             VStack(alignment: .leading, spacing: LP.Spacing.s) {
+                BoCounterView(
+                    balance: boLedger.balance,
+                    growthProgress: boLedger.growthProgress,
+                    hasRipeBo: boLedger.hasRipeBo
+                ) {
+                    Analytics.track(.boPanelOpen, screen: "home",
+                                    ["balance": .int(boLedger.balance)])
+                    activeSheet = .boExchange
+                }
+
                 Text(greetingText.isEmpty ? store.mowanGreeting : greetingText)
                     .lpText(LP.Typography.b4Medium)
                     .foregroundStyle(LP.Content.secondary)
@@ -495,7 +534,7 @@ struct HomeView: View {
 
     private var bottomControls: some View {
         Group {
-            if store.pluckAvailable {
+            if boLedger.hasRipeBo {
                 pluckButton
                     .padding(.bottom, LP.Spacing.l)
             }
@@ -509,7 +548,7 @@ struct HomeView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "leaf.fill").font(.system(size: 12))
-                Text(AppLocalization.text("收下今天的毛"))
+                Text(AppLocalization.text("收下长好的毛"))
                     .lpText(LP.Typography.b3Medium)
             }
             .foregroundStyle(LP.Fill.foundationOnAccent)
@@ -542,8 +581,8 @@ struct HomeView: View {
         if let contentID = PiboCoreAnimationAdapter.patContentID(
             stateID: semanticAnimationStateID,
             angryEntered: enteredAngry
-        ), let text = animationPatCopy(contentID) {
-            show(PiboSpeechLine(text: text, mood: enteredAngry ? .angry : .normal))
+        ), let line = animationPatLine(contentID, angry: enteredAngry) {
+            show(line)
             Analytics.track(.pat, screen: "home", ["reaction": .string(contentID)])
             return
         }
@@ -554,11 +593,11 @@ struct HomeView: View {
         Analytics.track(.pat, screen: "home", ["reaction": .string(reaction)])
     }
 
-    /// 拖毛 released past the pull threshold. Inside 22:00–02:00 this IS 拔毛
-    /// collection; outside it Pibo just hates it and turns away.
+    /// 拖毛 released past the pull threshold. 毛熟了的时候这就是拔毛；没熟的时候
+    /// Pibo 只是不喜欢被扯，扭头了事。
     private func handleHairPull() {
         LPHaptics.tap()
-        if store.pluckAvailable {
+        if boLedger.hasRipeBo {
             doPluck()
         } else {
             stageCommands.playTurnAway()
@@ -644,8 +683,12 @@ struct HomeView: View {
     // MARK: 拔毛 / 拍照
 
     private func doPluck() {
+        // 账本先落，动画后播 —— 反过来的话，一次没成功的拔取会先演一遍收获。
+        guard boLedger.pluck() else { return }
         let grade = store.pluck()
-        Analytics.track(.pluck, screen: "home", ["grade": .string(grade.rawValue)])
+        Analytics.track(.pluck, screen: "home",
+                        ["grade": .string(grade.rawValue),
+                         "balance": .int(boLedger.balance)])
         stageCommands.playPluck(color: grade.seedColor)
         show(PiboSpeechLine(text: grade.piboLines.randomElement() ?? "...给...你..."))
     }
@@ -731,7 +774,15 @@ struct HomeView: View {
     private func show(_ line: PiboSpeechLine) {
         speechClear?.cancel()
         withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) { speech = line }
-        let linger: Double = line.mood == .murmur || line.isStoryClue ? 3.4 : 2.6
+        // A system notice is a full sentence rather than a garbled fragment, so
+        // it holds a beat longer than ordinary speech.
+        let linger: Double = if line.source == .system {
+            3.0
+        } else if line.mood == .murmur || line.isStoryClue {
+            3.4
+        } else {
+            2.6
+        }
         speechClear = Task {
             try? await Task.sleep(for: .seconds(linger))
             if !Task.isCancelled {
@@ -915,12 +966,22 @@ struct HomeView: View {
         activeSheet = nil
     }
 
-    private func animationPatCopy(_ contentID: String) -> String? {
+    /// The bubble a pat earns while Core has authored content for the current
+    /// pose. `sleep` is deliberately **not** a line of Pibo's: asleep it cannot
+    /// answer, so the app posts a system notice instead of putting words in a
+    /// sleeping character's mouth.
+    private func animationPatLine(_ contentID: String, angry: Bool) -> PiboSpeechLine? {
         switch contentID {
-        case "animation.sleep.pat": AppLocalization.text("我正在睡。晚一点再说。")
-        case "animation.awake.pat": AppLocalization.text("我刚醒。让我再待一会儿。")
-        case "animation.angry.enter": AppLocalization.text("三次了。我需要安静一会儿。")
-        default: nil
+        case "animation.sleep.pat":
+            .system(AppLocalization.text("Pibo 设置了请勿打扰"))
+        case "animation.awake.pat":
+            PiboSpeechLine(text: AppLocalization.text("我刚醒。让我再待一会儿。"),
+                           mood: angry ? .angry : .normal)
+        case "animation.angry.enter":
+            PiboSpeechLine(text: AppLocalization.text("三次了。我需要安静一会儿。"),
+                           mood: angry ? .angry : .normal)
+        default:
+            nil
         }
     }
 
@@ -945,6 +1006,28 @@ struct HomeView: View {
         guard activeSheet == nil else { return }
         presentMorningSleepIfPossible()
         presentStressCardIfPossible()
+        presentBoProgressFeedbackIfPossible()
+    }
+
+    private func presentBoProgressFeedbackIfPossible() {
+        guard scenePhase == .active, !stagePaused,
+              let pending = boProgressFeedback.pending else { return }
+        guard stageCommands.playBoProgressFeedback(pending.milestone) else { return }
+        boProgressFeedback.consume(id: pending.id)
+    }
+
+    /// 首枚 `bo` 长熟时讲一次规则，之后再不打扰。
+    ///
+    /// 「熟了就能拔，拔不拔随你，但不拔就不会长新的」这条规则用户不可能自己猜到，
+    /// 所以必须讲一次；讲完就闭嘴 —— 每天催一遍就变成了决定 027 明确不要的那种
+    /// 施压。同一个一次性标志位同时把守气泡和通知。
+    private func announceFirstRipeBoIfNeeded() {
+        let key = PiboPersistenceKeys.Defaults.boFirstRipeNotified
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+
+        show(PiboSpeechLine(text: AppLocalization.text("...长好了...要收就收...不收...就不长新的...")))
+        Task { await WorkoutCompletionNotifier.shared.notifyFirstBoRipened() }
     }
 
     /// Open the history surface on the 压力卡 after a stress notification tap.
@@ -978,6 +1061,13 @@ struct HomeView: View {
         Analytics.track(.reset, screen: "settings")
         piboSpeech.resetHistory()
         store.reset()
+        // 重置也要清账本和已解锁物件，否则「重置」之后左上角还挂着上一轮的余额，
+        // 森林里还挂着上一轮换来的灯。起始日重新以今天起算。
+        boLedger.reset()
+        ornamentUnlocks.reset()
+        UserDefaults.standard.removeObject(
+            forKey: PiboPersistenceKeys.Defaults.boFirstRipeNotified
+        )
         onboardingDone = false
     }
 
@@ -1012,6 +1102,7 @@ private enum HomeSheetDestination: Equatable, Identifiable {
     case settings
     case morningSleep(MorningSleepPresentation)
     case achievement(PiboAnimationAchievementPayload)
+    case boExchange
 
     var id: String {
         switch self {
@@ -1019,6 +1110,7 @@ private enum HomeSheetDestination: Equatable, Identifiable {
         case .settings: "settings"
         case .morningSleep(let presentation): "morning-sleep-\(presentation.id)"
         case .achievement(let payload): "animation-achievement-\(payload.id)"
+        case .boExchange: "bo-exchange"
         }
     }
 }

@@ -197,26 +197,24 @@ extension PetStateStore {
         return PiboSpeechLine(text: text, mood: .murmur)
     }
 
-    // MARK: 拔毛 (spec §3.5)
+    // MARK: 拔毛
 
-    /// 22:00–02:00 collection window.
+    /// 22:00–02:00 的夜间窗口。
+    ///
+    /// **这个窗口不再是拔毛的门禁。** 现在的规则是「毛长熟了就能拔，一旦熟了永远不
+    /// 丢失，但不拔就不会长新的」—— 门禁在 `BoLedgerStore.hasRipeBo`。旧规则里
+    /// 「过了 02:00 没收就清空」与决定 027（低积累不惩罚）冲突，且用户没有理由必须
+    /// 在深夜打开 App。
+    ///
+    /// Core 侧的 `PiboCorePluck.windowOpen` 保留不动 —— HarmonyOS 那侧还在用同一份
+    /// 规则，规则源不能因为 iOS 改了表现层就被删掉。
     var pluckWindowOpen: Bool {
         let h = Calendar.current.component(.hour, from: Date())
         return PiboCorePluckAdapter.windowOpen(localHour: Double(h))
     }
 
-    /// True when the window is open and the user hasn't collected tonight.
-    /// "Tonight" anchors on the date the window opened (a 00:30 collection
-    /// belongs to the previous calendar day's evening).
-    var pluckAvailable: Bool {
-        guard pluckWindowOpen else { return false }
-        return lastPluckedDay.map {
-            !Calendar.current.isDate($0, inSameDayAs: pluckNightAnchor(at: Date()))
-        } ?? true
-    }
-
-    /// The calendar day that "owns" the current 22:00–02:00 window — the
-    /// evening's date even when collected after midnight.
+    /// 拥有这一轮 22:00–02:00 窗口的自然日 —— 过了午夜收的仍算前一晚。只用于
+    /// `lastPluckedDay` 的记账，不参与门禁。
     private func pluckNightAnchor(at date: Date) -> Date {
         let cal = Calendar.current
         let hour = cal.component(.hour, from: date)
@@ -225,7 +223,8 @@ extension PetStateStore {
         return cal.startOfDay(for: base)
     }
 
-    /// Grade tonight's 花籽 from sleep + movement (spec §3.5).
+    /// 今晚这枚花籽的成色，由睡眠 + 活动决定（spec §3.5）。决定种子颜色和台词，
+    /// 不决定能不能拔 —— 能不能拔是账本说了算。
     var pluckGrade: PluckGrade {
         PiboCorePluckAdapter.grade(
             sleepHours: rawSleepHours,
@@ -234,14 +233,21 @@ extension PetStateStore {
         )
     }
 
-    /// Collect tonight's 花籽. Records the night, drops Pibo into a 5-min 深眠,
-    /// and returns the grade so the view can animate the seed + line.
+    /// 记录一次拔取：登记时间，并把成色交给视图去播动画和挑台词。
+    ///
+    /// **`bo` 的增减不在这里** —— 那是 `BoLedgerStore.pluck()` 的事，调用方要先拿到
+    /// 它的成功返回再调这个方法。
+    ///
+    /// 不再写 `pluckSleepUntil`（拔完 5 分钟深眠）。Core 的判据是
+    /// `post_pluck_sleep || 不在 06:00–22:00 → 深眠`：夜里本来就是深眠，这个标志位
+    /// 是空转；只有 06:00–22:00 才真正生效。旧规则下拔毛只发生在 22:00–02:00，
+    /// 所以它永远撞不上；去掉时间窗之后，它**只在会出问题的时段起作用** ——
+    /// 大白天突然睡 5 分钟、还不响应拍一拍。Core 的 API 保留不动（HarmonyOS 那侧
+    /// 还在用同一份规则），这里只是不再触发它。
     @discardableResult
     func pluck() -> PluckGrade {
-        let now = Date()
         let grade = pluckGrade
-        lastPluckedDay = pluckNightAnchor(at: now)
-        pluckSleepUntil = now.addingTimeInterval(PiboCorePluckAdapter.postPluckSleepSeconds)
+        lastPluckedDay = pluckNightAnchor(at: Date())
         LPLog.petState.notice("拔毛 collected grade=\(grade.rawValue, privacy: .public)")
         return grade
     }

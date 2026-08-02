@@ -1,12 +1,15 @@
 {
   "images" : [
     {
-      "filename" : "onboarding_identity_bg.png",
+      "filename" : "pibo-fright.svg",
       "idiom" : "universal"
     }
   ],
   "info" : {
     "author" : "xcode",
     "version" : 1
+  },
+  "properties" : {
+    "preserves-vector-representation" : true
   }
 }

@@ -63,7 +63,8 @@ enum HeartbeatSeriesReader {
             meanRR=\(measurement.meanRR, format: .fixed(precision: 0), privacy: .public)ms \
             rr=\(measurement.rrCount, privacy: .public) \
             flagged=\(measurement.flagged, privacy: .public) \
-            diffs=\(measurement.diffs, privacy: .public)
+            diffs=\(measurement.diffs, privacy: .public) \
+            thr=\(measurement.artifactThresholdMs, format: .fixed(precision: 0), privacy: .public)ms
             """)
         guard trusted else { return nil }
         let resting = await isEligibleResting(during: series, store: store)

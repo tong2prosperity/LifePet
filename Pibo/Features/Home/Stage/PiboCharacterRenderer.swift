@@ -1,6 +1,7 @@
 import SpriteKit
 import SwiftUI
 import UIKit
+import os
 
 enum PiboCharacterHitRegion {
     case hair
@@ -33,6 +34,8 @@ final class PiboCharacterRenderer {
     private var vectorPlaybook: PiboCharacterPlaybook?
     private var vectorRigInverted: Bool?
     private var boringElapsed: TimeInterval = 0
+    private let boProgressHost = SKNode()
+    private var pendingBoProgress: BoProgressMilestone?
     private let usesVector = PiboVectorCharacterFlag.isEnabled
 
     private var bodyNode: SKShapeNode?
@@ -62,6 +65,8 @@ final class PiboCharacterRenderer {
         self.camera = camera
         overheadNode.zPosition = 13
         effectsNode.zPosition = 55
+        boProgressHost.zPosition = 8
+        effectsNode.addChild(boProgressHost)
     }
 
     func apply(
@@ -319,6 +324,15 @@ final class PiboCharacterRenderer {
             at: CGPoint(x: rootNode.position.x, y: rootNode.position.y + bodyHeight * 0.7),
             count: 14
         )
+    }
+
+    /// Accepts one coalesced milestone. Transitioning characters wait until the
+    /// destination pose settles; an off-camera anchor is deliberately ignored.
+    @discardableResult
+    func playBoProgressFeedback(_ milestone: BoProgressMilestone) -> Bool {
+        pendingBoProgress = max(pendingBoProgress ?? milestone, milestone)
+        attemptBoProgressFeedback()
+        return true
     }
 
     func setSproutGrowthProgress(_ progress: CGFloat) {
@@ -898,6 +912,7 @@ final class PiboCharacterRenderer {
     ) {
         if vector != nil {
             updateVector(time: time, deltaTime: deltaTime, wind: wind, reduceMotion: reduceMotion)
+            updateBoProgressFeedback()
             return
         }
         headRig.update(
@@ -907,6 +922,126 @@ final class PiboCharacterRenderer {
             reduceMotion: reduceMotion
         )
         followBodyDeformation()
+        updateBoProgressFeedback()
+    }
+
+    private func updateBoProgressFeedback() {
+        if let anchor = sproutAnchorInScene(), !boProgressHost.children.isEmpty {
+            boProgressHost.position = anchor
+        }
+        attemptBoProgressFeedback()
+    }
+
+    private func attemptBoProgressFeedback() {
+        guard let milestone = pendingBoProgress else { return }
+        guard !isCloseupActive, vectorTransition?.isRunning != true else { return }
+        pendingBoProgress = nil
+        guard visible, let anchor = sproutAnchorInScene(), isVisibleInCamera(anchor) else {
+            LPLog.bo.debug("progress feedback ignored — sprout anchor is not visible")
+            return
+        }
+        boProgressHost.removeAllActions()
+        boProgressHost.removeAllChildren()
+        boProgressHost.position = anchor
+        buildBoProgressParticles(color: SKColor(theme.scene.groundAccent))
+        buildBoProgressLabel(milestone.message)
+        if state != .deepSleep { headRig.addImpulse(0.55) }
+        boProgressHost.run(.sequence([
+            .wait(forDuration: 1.45),
+            .run { [weak self] in self?.boProgressHost.removeAllChildren() },
+        ]), withKey: "boProgressLifetime")
+        LPLog.bo.notice("progress feedback played milestone=\(milestone.rawValue, privacy: .public)")
+    }
+
+    private func sproutAnchorInScene() -> CGPoint? {
+        guard let scene else { return nil }
+        if let vector, let point = vector.presentedSproutRootPoint() {
+            return scene.convert(point, from: vector.rootNode)
+        }
+        guard !headNode.isHidden else { return nil }
+        return scene.convert(.zero, from: headNode)
+    }
+
+    private func isVisibleInCamera(_ point: CGPoint) -> Bool {
+        guard let scene, let camera else { return false }
+        let halfWidth = scene.size.width * camera.xScale / 2
+        let halfHeight = scene.size.height * camera.yScale / 2
+        let visibleRect = CGRect(
+            x: camera.position.x - halfWidth,
+            y: camera.position.y - halfHeight,
+            width: halfWidth * 2,
+            height: halfHeight * 2
+        ).insetBy(dx: 18, dy: 28)
+        return visibleRect.contains(point)
+    }
+
+    private func buildBoProgressParticles(color: SKColor) {
+        for index in 0..<10 {
+            let angle = CGFloat(index) / 10 * 2 * .pi + CGFloat.random(in: -0.18...0.18)
+            let radius = CGFloat.random(in: 34...62)
+            let particle = SKShapeNode(circleOfRadius: CGFloat.random(in: 1.8...3.4))
+            particle.fillColor = color
+            particle.strokeColor = .white.withAlphaComponent(0.72)
+            particle.lineWidth = 0.8
+            particle.position = CGPoint(x: cos(angle) * radius, y: sin(angle) * radius)
+            particle.alpha = 0
+            boProgressHost.addChild(particle)
+
+            let delay = TimeInterval.random(in: 0...0.12)
+            let arrive = SKAction.move(to: .zero, duration: 0.58)
+            arrive.timingMode = .easeOut
+            particle.run(.sequence([
+                .wait(forDuration: delay),
+                .group([.fadeIn(withDuration: 0.12), arrive]),
+                .group([.scale(to: 0.2, duration: 0.16), .fadeOut(withDuration: 0.16)]),
+                .removeFromParent(),
+            ]))
+        }
+
+        let ring = SKShapeNode(circleOfRadius: 7)
+        ring.strokeColor = color
+        ring.lineWidth = 2
+        ring.fillColor = .clear
+        ring.alpha = 0
+        boProgressHost.addChild(ring)
+        ring.run(.sequence([
+            .wait(forDuration: 0.56),
+            .group([.fadeIn(withDuration: 0.08), .scale(to: 1.8, duration: 0.22)]),
+            .fadeOut(withDuration: 0.18),
+            .removeFromParent(),
+        ]))
+    }
+
+    private func buildBoProgressLabel(_ text: String) {
+        let container = SKNode()
+        container.position = CGPoint(x: 0, y: 42)
+        container.alpha = 0
+
+        let label = SKLabelNode(fontNamed: "PingFangSC-Medium")
+        label.text = text
+        label.fontSize = 13
+        label.fontColor = .white
+        label.verticalAlignmentMode = .center
+        label.horizontalAlignmentMode = .center
+        let background = SKShapeNode(
+            rectOf: CGSize(width: max(132, label.frame.width + 22), height: 30),
+            cornerRadius: 15
+        )
+        background.fillColor = SKColor(white: 0.12, alpha: 0.78)
+        background.strokeColor = SKColor(white: 1, alpha: 0.22)
+        background.lineWidth = 1
+        container.addChild(background)
+        container.addChild(label)
+        boProgressHost.addChild(container)
+
+        let rise = SKAction.moveBy(x: 0, y: 5, duration: 0.20)
+        rise.timingMode = .easeOut
+        container.run(.sequence([
+            .group([.fadeIn(withDuration: 0.16), rise]),
+            .wait(forDuration: 0.82),
+            .group([.fadeOut(withDuration: 0.20), .moveBy(x: 0, y: 3, duration: 0.20)]),
+            .removeFromParent(),
+        ]))
     }
 
     /// Keep the head 毛 glued to the body while the body squash-stretches (拍一拍)

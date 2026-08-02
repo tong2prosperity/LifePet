@@ -102,6 +102,9 @@ protocol PiboThemeRenderer: AnyObject {
     func layout(sceneSize: CGSize)
     func apply(environment: PiboStageEnvironment)
     func apply(renderPolicy: PiboThemeRenderPolicy)
+    /// 用 `bo` 换来的物件。主题自己决定怎么画、画不画得了 —— 没有落位的物件
+    /// （美术还没到）应当安静跳过，而不是画一个占位方块到用户的森林里。
+    func apply(unlockedOrnaments: Set<PiboOrnament.ID>)
     func update(time: TimeInterval, deltaTime: TimeInterval, reduceMotion: Bool)
     func didEvaluateActions()
 
@@ -121,6 +124,7 @@ protocol PiboThemeRenderer: AnyObject {
 
 extension PiboThemeRenderer {
     func didEvaluateActions() {}
+    func apply(unlockedOrnaments: Set<PiboOrnament.ID>) {}
     func beginInteraction(at point: CGPoint, timestamp: TimeInterval) -> Bool { false }
     func moveInteraction(to point: CGPoint, timestamp: TimeInterval) {}
     func endInteraction(at point: CGPoint, timestamp: TimeInterval, cancelled: Bool) {}

@@ -56,6 +56,7 @@ final class WorkoutCompletionNotifier {
     private static let deliveredIDsKey = "pibo.workout.push.deliveredIDs.v1"
     private static let retainedIDLimit = 64
     private static let achievementRequestID = "pibo.animation.achievement.latest"
+    private static let firstBoRipeRequestID = "pibo.bo.first-ripe"
 
     private init(
         notificationCenter: UNUserNotificationCenter = .current(),
@@ -157,6 +158,38 @@ final class WorkoutCompletionNotifier {
             content: content,
             trigger: nil
         ))
+    }
+
+    /// 首枚 `bo` 长熟时的一次性提醒。
+    ///
+    /// 只发这一次。规则是「熟了就能拔、拔不拔随你，但不拔就不长新的」—— 用户得先
+    /// 知道有这条规则，之后就不该再被催。**是否只发一次由调用方的一次性标志位把守**，
+    /// 这里不做去重，因为这个通知没有可替换的「最新一条」语义。
+    @discardableResult
+    func notifyFirstBoRipened() async -> Bool {
+        guard pushEnabled else { return false }
+        let settings = await notificationCenter.notificationSettings()
+        guard !Task.isCancelled else { return false }
+        authorized = Self.isAuthorized(settings.authorizationStatus)
+        guard authorized else { return false }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Pibo"
+        content.body = AppLocalization.text("头上那株长好了。要收就收，不收它就停在那儿，不会再长新的。")
+        content.sound = .default
+        content.threadIdentifier = "pibo.bo.ripe"
+        do {
+            try await notificationCenter.add(UNNotificationRequest(
+                identifier: Self.firstBoRipeRequestID,
+                content: content,
+                trigger: nil
+            ))
+            LPLog.bo.notice("first-ripe notification delivered")
+            return true
+        } catch {
+            LPLog.bo.error("first-ripe notification failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
     }
 
     /// Queueing, rather than merely cancelling the previous caller, is what

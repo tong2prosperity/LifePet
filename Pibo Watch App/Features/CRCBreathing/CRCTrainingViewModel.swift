@@ -5,8 +5,6 @@ import os
 @MainActor
 final class CRCTrainingViewModel: ObservableObject {
     @Published var step: CRCFlowStep = .intro
-    @Published var baselineProgress: Double = 0
-    @Published var baselineRemaining: Int = Int(CRCConstants.baselineDuration)
     @Published var elapsedSeconds: Int = 0
     @Published var latestHeartRate: CRCHeartReading?
     @Published var latestBreathReading: CRCBreathReading?
@@ -27,6 +25,7 @@ final class CRCTrainingViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isStopping = false
     @Published var transient: CRCTransientState = .none
+    @Published var selectedDurationSeconds: Int = 3 * 60
 
     private let workout = WorkoutSessionManager()
     private let motionDetector = CRCMotionBreathingDetector()
@@ -37,36 +36,28 @@ final class CRCTrainingViewModel: ObservableObject {
     /// Per-tick samples of the live HRV, averaged into the report (fallback when
     /// no authoritative heartbeat series was captured).
     private var liveHRVReadings: [Double] = []
-    private var baselineHeartRates: [Double] = []
+    private var sessionReferenceHeartRate: Double?
     private var snapshots: [CRCSnapshot] = []
     private var sessionStartedAt = Date()
     private var accumulatedPausedTime: TimeInterval = 0
     private var pauseStartedAt: Date?
-    private var baselineTask: Task<Void, Never>?
     private var couplingTask: Task<Void, Never>?
-    private var hasReceivedMotionUpdate = false
-    private var hasReceivedHeartRate = false
     /// Bumped each time a report is produced, so a late background RMSSD refine
     /// from a previous session can't patch the current report.
     private var reportGeneration = 0
     private var unstableTickCount = 0
     private var unstableCooldownUntil: Date?
+#if DEBUG
+    private var visualValidationTask: Task<Void, Never>?
+#endif
 
-    var baselineHeartRate: Double {
-        guard !baselineHeartRates.isEmpty else {
-            return latestHeartRate?.bpm ?? 72
-        }
-
-        let sorted = baselineHeartRates.sorted()
-        let trim = min(sorted.count / 10, max(0, sorted.count - 1))
-        let values = sorted.dropFirst(trim).dropLast(trim)
-        let usable = values.isEmpty ? sorted[...] : values
-        return usable.reduce(0, +) / Double(usable.count)
+    private var referenceHeartRate: Double {
+        sessionReferenceHeartRate ?? latestHeartRate?.bpm ?? 72
     }
 
     /// Seconds remaining in the recommended training duration (floored at 0).
     var remainingSeconds: Int {
-        max(0, Int(CRCConstants.recommendedTrainingDuration) - elapsedSeconds)
+        max(0, selectedDurationSeconds - elapsedSeconds)
     }
 
     func startDetection() async {
@@ -80,7 +71,6 @@ final class CRCTrainingViewModel: ObservableObject {
 
         motionDetector.onUpdate = { [weak self] reading, assessment in
             Task { @MainActor [weak self] in
-                self?.hasReceivedMotionUpdate = true
                 self?.latestBreathReading = reading
                 self?.poseAssessment = assessment
             }
@@ -88,13 +78,6 @@ final class CRCTrainingViewModel: ObservableObject {
 
         guard motionDetector.start() else {
             errorMessage = "当前设备无法启动腕部运动检测，请稍后重试。"
-            step = .error
-            return
-        }
-
-        guard await waitForMotionUpdate(timeout: 2.5) else {
-            motionDetector.stop()
-            errorMessage = "当前设备没有返回运动传感器数据，请在真机 Apple Watch 上训练。"
             step = .error
             return
         }
@@ -107,11 +90,6 @@ final class CRCTrainingViewModel: ObservableObject {
 
         do {
             _ = try await workout.start()
-            step = .baseline
-            sessionStartedAt = Date()
-            await collectBaseline()
-            guard step == .baseline else { return }
-            guard await validateBaselineSignals() else { return }
             beginCoupledTraining()
         } catch {
             LPLog.watchBreathing.error(
@@ -127,11 +105,10 @@ final class CRCTrainingViewModel: ObservableObject {
     func stopTraining() async {
         // Only the active training can be stopped-and-reported (menu-save or the
         // auto-complete tick). Guarding on the exact step avoids ever building a
-        // zero-duration report from baseline/error if an entry point is added.
+        // zero-duration report from an error state if an entry point is added.
         guard step == .coreTraining else { return }
         isStopping = true
         transient = .none
-        baselineTask?.cancel()
         couplingTask?.cancel()
         motionDetector.stop()
         haptic.stop()
@@ -205,7 +182,6 @@ final class CRCTrainingViewModel: ObservableObject {
     /// Discard the session without saving a report and return to the intro.
     func discardTraining() async {
         transient = .none
-        baselineTask?.cancel()
         couplingTask?.cancel()
         motionDetector.stop()
         haptic.stop()
@@ -215,7 +191,6 @@ final class CRCTrainingViewModel: ObservableObject {
     }
 
     func reset() {
-        baselineTask?.cancel()
         couplingTask?.cancel()
         motionDetector.stop()
         haptic.stop()
@@ -224,8 +199,6 @@ final class CRCTrainingViewModel: ObservableObject {
     }
 
     private func resetRuntime() {
-        baselineProgress = 0
-        baselineRemaining = Int(CRCConstants.baselineDuration)
         elapsedSeconds = 0
         latestHeartRate = nil
         latestBreathReading = nil
@@ -240,71 +213,9 @@ final class CRCTrainingViewModel: ObservableObject {
         pauseStartedAt = nil
         unstableTickCount = 0
         unstableCooldownUntil = nil
-        hasReceivedMotionUpdate = false
-        hasReceivedHeartRate = false
-        baselineHeartRates.removeAll(keepingCapacity: true)
+        sessionReferenceHeartRate = nil
         snapshots.removeAll(keepingCapacity: true)
         coupling.reset()
-    }
-
-    private func waitForMotionUpdate(timeout: TimeInterval) async -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-
-        while Date() < deadline {
-            if hasReceivedMotionUpdate {
-                return true
-            }
-            try? await Task.sleep(for: .milliseconds(100))
-        }
-
-        return hasReceivedMotionUpdate
-    }
-
-    private func collectBaseline() async {
-        baselineTask?.cancel()
-        baselineTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-
-            for second in 0..<Int(CRCConstants.baselineDuration) {
-                guard !Task.isCancelled else { return }
-                baselineProgress = Double(second) / CRCConstants.baselineDuration
-                baselineRemaining = Int(CRCConstants.baselineDuration) - second
-                try? await Task.sleep(for: .seconds(1))
-            }
-
-            baselineProgress = 1
-            baselineRemaining = 0
-        }
-
-        await baselineTask?.value
-    }
-
-    private func validateBaselineSignals() async -> Bool {
-        if !hasReceivedHeartRate {
-            await failDetection(
-                message: "未检测到心率数据，请确认手表佩戴贴合并已授权健康数据。"
-            )
-            return false
-        }
-
-        if latestBreathReading == nil {
-            await failDetection(
-                message: "未检测到稳定呼吸运动，请调整手腕位置后重新开始。"
-            )
-            return false
-        }
-
-        return true
-    }
-
-    private func failDetection(message: String) async {
-        baselineTask?.cancel()
-        couplingTask?.cancel()
-        motionDetector.stop()
-        haptic.stop()
-        await workout.cancel()
-        errorMessage = message
-        step = .error
     }
 
     private func beginCoupledTraining() {
@@ -332,7 +243,7 @@ final class CRCTrainingViewModel: ObservableObject {
                 )
                 let currentSnapshot = coupling.snapshot(
                     heartRate: latestHeartRate,
-                    baselineHeartRate: baselineHeartRate,
+                    baselineHeartRate: referenceHeartRate,
                     breathReading: latestBreathReading,
                     pose: poseAssessment,
                     elapsed: TimeInterval(elapsedSeconds)
@@ -355,7 +266,7 @@ final class CRCTrainingViewModel: ObservableObject {
                     return
                 }
 
-                if elapsedSeconds >= Int(CRCConstants.recommendedTrainingDuration) {
+                if elapsedSeconds >= selectedDurationSeconds {
                     await stopTraining()
                     return
                 }
@@ -394,7 +305,9 @@ final class CRCTrainingViewModel: ObservableObject {
                 timestamp: sample.timestamp
             )
             latestHeartRate = reading
-            hasReceivedHeartRate = true
+            if sessionReferenceHeartRate == nil {
+                sessionReferenceHeartRate = sample.value
+            }
 
             // Feed the live RSA/HRV estimator off every HR sample. Smooth with a
             // light EWMA so the readout doesn't jump every sample (the raw value
@@ -402,10 +315,6 @@ final class CRCTrainingViewModel: ObservableObject {
             hrvEstimator.append(bpm: sample.value, at: sample.timestamp)
             if let raw = hrvEstimator.rmssdMs {
                 liveHRV = liveHRV.map { $0 + 0.35 * (raw - $0) } ?? raw
-            }
-
-            if step == .baseline {
-                baselineHeartRates.append(sample.value)
             }
         }
     }
@@ -494,4 +403,47 @@ final class CRCTrainingViewModel: ObservableObject {
             UserDefaults.standard.set(Date(), forKey: Self.firstDayKey)
         }
     }
+
+#if DEBUG
+    func startVisualValidationIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-PiboWatchVisualTraining") else { return }
+        visualValidationTask?.cancel()
+        step = .coreTraining
+        selectedDurationSeconds = 3 * 60
+        elapsedSeconds = 42
+        latestHeartRate = CRCHeartReading(bpm: 68, confidence: 1, timestamp: Date())
+        liveHRV = 42
+        snapshot = visualValidationSnapshot(phase: .inhale, progress: 0)
+        visualValidationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                snapshot = visualValidationSnapshot(phase: .inhale, progress: 0)
+                try? await Task.sleep(for: .seconds(4.5))
+                guard !Task.isCancelled else { return }
+                snapshot = visualValidationSnapshot(phase: .exhale, progress: 0)
+                try? await Task.sleep(for: .seconds(5.5))
+                elapsedSeconds = min(elapsedSeconds + 10, selectedDurationSeconds - 1)
+            }
+        }
+    }
+
+    private func visualValidationSnapshot(phase: CRCBreathingPhase, progress: Double) -> CRCSnapshot {
+        CRCSnapshot(
+            timestamp: Date(),
+            heartRate: 68,
+            measuredBreathingRate: 6.1,
+            guidedBreathingRate: 6,
+            previousGuidedBreathingRate: 6,
+            heartBreathRatio: 11.3,
+            couplingIndex: 76,
+            syncScore: 0.8,
+            phase: phase,
+            phaseProgress: progress,
+            pose: poseAssessment,
+            breathSignalQuality: 0.9,
+            amplitudeScore: 0.8,
+            followQuality: 0.8
+        )
+    }
+#endif
 }

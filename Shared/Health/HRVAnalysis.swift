@@ -37,6 +37,11 @@ enum HRVAnalysis {
         var flagged: Int
         /// Successive differences that actually entered the sum.
         var diffs: Int
+        /// The artifact threshold this window derived for itself, ms. Diagnostic:
+        /// it says whether the rule adapted to a quiet wearer or saturated at the
+        /// ceiling, which is the first thing to look at when a reading disagrees
+        /// with a reference device.
+        var artifactThresholdMs: Double
     }
 
     /// RMSSD over the artifact-free (**NN**) portion of a gap-split RR series.
@@ -46,24 +51,33 @@ enum HRVAnalysis {
     /// been removed. Everything interesting is in how you decide what's an
     /// artifact.
     ///
-    /// **The rule this replaced was self-referential**: it dropped a successive
-    /// difference whenever the difference itself exceeded 20% of the preceding RR.
-    /// That filters on the very quantity being measured, so it can only bias RMSSD
-    /// downward, and it bites harder the higher the true HRV (the threshold is a
+    /// This rule has now failed in **both** directions, which is why the threshold
+    /// is neither a fraction of RR nor a constant.
+    ///
+    /// The original was self-referential: it dropped a successive difference
+    /// whenever the difference itself exceeded 20% of the preceding RR. That
+    /// filters on the very quantity being measured, so it could only bias RMSSD
+    /// downward, and it bit harder the higher the true HRV (the threshold was a
     /// shrinking multiple of the signal). It was also asymmetric — with `a` as the
     /// denominator, an 800→1000 ms swing was rejected while 1000→800 was kept, so
     /// half of every large oscillation was deleted — and it scaled with heart rate,
     /// tightening exactly when RR shortens.
     ///
-    /// The rule here instead asks whether **an RR interval is an outlier against
-    /// its own neighbourhood**: flag it when it deviates from the median of the
-    /// surrounding intervals by more than a fixed absolute threshold (the
-    /// Kubios-style criterion; 250 ms is its recommended default level). A smooth
-    /// respiratory oscillation tracks its local median and survives intact; a
-    /// premature beat or a dropped detection does not. Differences that *touch* a
-    /// flagged interval are then excluded from the sum — deleting the two bad
-    /// differences rather than interpolating, since interpolation would replace
-    /// them with artificially smooth values and pull RMSSD down again.
+    /// Its replacement, a flat 250 ms, fixed the high end and broke the low one:
+    /// sized against a normal HRV, it is far too loose for a quiet wearer, and a
+    /// single mis-detected beat survives to dominate a root-mean-square built out
+    /// of ~17 ms differences. See `artifactThreshold` for the numbers.
+    ///
+    /// The rule here asks whether **an RR interval is an outlier against its own
+    /// neighbourhood**: flag it when it deviates from the median of the
+    /// surrounding intervals by more than `artifactThreshold` — a threshold the
+    /// window derives from its own dispersion (see there). A smooth respiratory
+    /// oscillation tracks its local median and survives intact; a premature beat
+    /// or a dropped detection does not. Differences that *touch* a flagged
+    /// interval are then excluded from the sum — deleting the two bad differences
+    /// rather than interpolating, since interpolation would replace them with
+    /// artificially smooth values and pull RMSSD down again.
+
     ///
     /// Input is **segments**, not one flat array: a run has to be cut wherever the
     /// recording lost beats, because the intervals on either side of a hole are not
@@ -73,16 +87,24 @@ enum HRVAnalysis {
     /// that want to report on a window they're about to reject (the diagnostic log)
     /// need its numbers either way.
     static func measure(_ segments: [[Double]]) -> Measurement {
+        // Deviations first, threshold from all of them pooled, flags last. The
+        // threshold is a property of the *window*, not of a run: a short segment
+        // on its own carries too few intervals to estimate a dispersion from.
+        let deviations = segments.map(localMedianDeviations)
+        let threshold = artifactThreshold(segments: segments, deviations: deviations)
+
         var sumSq = 0.0
         var diffs = 0
         var rrCount = 0
         var flaggedCount = 0
         var sumRR = 0.0
 
-        for rr in segments {
+        for (rr, deviation) in zip(segments, deviations) {
             rrCount += rr.count
             sumRR += rr.reduce(0, +)
-            let flags = artifactFlags(rr)
+            let flags = rr.indices.map {
+                isArtifact(rr: rr[$0], deviation: deviation[$0], threshold: threshold)
+            }
             flaggedCount += flags.lazy.filter { $0 }.count
             guard rr.count >= 2 else { continue }
             for i in 0..<(rr.count - 1) where !flags[i] && !flags[i + 1] {
@@ -96,7 +118,8 @@ enum HRVAnalysis {
                            meanRR: rrCount > 0 ? sumRR / Double(rrCount) : 0,
                            rrCount: rrCount,
                            flagged: flaggedCount,
-                           diffs: diffs)
+                           diffs: diffs,
+                           artifactThresholdMs: threshold)
     }
 
     /// Whether a measurement describes its window well enough to classify.
@@ -134,29 +157,37 @@ enum HRVAnalysis {
 
     // MARK: - Artifact detection
 
-    /// Per-interval artifact verdicts for one contiguous run.
-    ///
-    /// An interval is an artifact when it's physiologically impossible, or when it
-    /// sits further than `artifactThresholdMs` from the median of its immediate
+    /// Whether one interval is an artifact: physiologically impossible, or too far
+    /// from the median of its own neighbourhood. A `nil` deviation means the run
+    /// was too short to have a neighbourhood — no evidence either way, so no flag.
+    private static func isArtifact(rr: Double, deviation: Double?, threshold: Double) -> Bool {
+        guard plausibleRR(rr) else { return true }
+        guard let deviation else { return false }
+        return abs(deviation) > threshold
+    }
+
+    /// Each interval's signed distance from the median of its immediate
     /// neighbours (±2, itself excluded — including itself would let a bad beat
-    /// drag its own reference toward it). Comparing against a *local median*
-    /// rather than the single preceding interval is what lets a genuine
-    /// respiratory oscillation through: the median rides the oscillation, so only
-    /// a beat that breaks the local pattern is flagged.
+    /// drag its own reference toward it). `nil` where the run has no neighbours
+    /// at all.
+    ///
+    /// Comparing against a *local median* rather than the single preceding
+    /// interval is what lets a genuine respiratory oscillation through: the median
+    /// rides the oscillation, so only a beat that breaks the local pattern stands
+    /// out.
     ///
     /// **±2 is an upper bound, not a tuning knob.** The window has to stay
     /// shorter than the respiratory period (~4–7 beats): widen it to ±3 and the
     /// median stops tracking the oscillation and settles near its mean instead, at
     /// which point every peak and trough reads as an outlier. Measured on a clean
     /// 48-interval RSA fixture, ±2 flags nothing and ±3 flags 29.
-    private static func artifactFlags(_ rr: [Double]) -> [Bool] {
+    private static func localMedianDeviations(_ rr: [Double]) -> [Double?] {
         rr.indices.map { i in
-            guard plausibleRR(rr[i]) else { return true }
             let low = max(0, i - 2)
             let high = min(rr.count - 1, i + 2)
             let neighbours = (low...high).filter { $0 != i }.map { rr[$0] }
-            guard let m = median(neighbours) else { return false }
-            return abs(rr[i] - m) > artifactThresholdMs
+            guard let m = median(neighbours) else { return nil }
+            return rr[i] - m
         }
     }
 
@@ -170,10 +201,55 @@ enum HRVAnalysis {
     // MARK: - Thresholds
 
     /// How far an RR interval may sit from its local median before it counts as an
-    /// artifact. **Absolute, not a fraction of RR** — a relative threshold shrinks
-    /// with heart rate and starts deleting real variability exactly when RR gets
-    /// short. 250 ms is the Kubios "medium" level, its recommended default.
-    private static let artifactThresholdMs = 250.0
+    /// artifact — **derived from the window's own dispersion**, then clamped.
+    ///
+    /// A constant threshold fails for the same structural reason the original
+    /// `0.2 · RR` rule did, just at the other end of the range. 250 ms (Kubios'
+    /// "medium" level) is sized against a normal HRV; a resting wearer at
+    /// RMSSD ≈ 17 ms has real beat-to-beat differences of ~17 ms, so a mis-detected
+    /// beat landing 150 ms off its neighbours sails straight through — and because
+    /// RMSSD is a *root-mean-square*, that lone survivor dominates the sum. Two
+    /// differences of 150 ms among sixty of 17 ms report ≈ 31 ms: one bad beat
+    /// nearly doubles the reading. Observed in the field, against a reference
+    /// device reading 17 ms on the same wearer at the same minute.
+    ///
+    /// So scale the threshold to the wearer: `k · σ̂`, where σ̂ = 1.4826 · MAD of
+    /// the local-median deviations. Being **robust** is what makes it safe to
+    /// derive this from the measured quantity — a median absolute deviation is
+    /// unmoved by the very outliers being hunted (five planted artifacts move it by
+    /// single-digit ms), so the threshold tracks the *bulk* of the distribution and
+    /// cuts only its far tail. At `k = 5` that lands near 4 × RMSSD, inside the
+    /// range Kubios' own adaptive criterion uses (its `5.2 · QD(dRR)` ≈ 3.5 σ).
+    ///
+    /// The clamp bounds both failure modes. The **ceiling** keeps the old flat
+    /// 250 ms as an upper limit, so a high-HRV window saturates it and behaves
+    /// exactly as before — this change only ever tightens. The **floor** stops an
+    /// unusually rigid series from deriving a threshold so tight that ordinary
+    /// variation reads as artifact.
+    private static func artifactThreshold(segments: [[Double]],
+                                          deviations: [[Double?]]) -> Double {
+        var magnitudes: [Double] = []
+        for (rr, deviation) in zip(segments, deviations) {
+            // Implausible intervals are artifacts on their own evidence; letting
+            // them into the dispersion estimate would widen the threshold that is
+            // supposed to catch their milder cousins.
+            for i in rr.indices where plausibleRR(rr[i]) {
+                if let d = deviation[i] { magnitudes.append(abs(d)) }
+            }
+        }
+        guard let mad = median(magnitudes) else { return artifactThresholdCeilingMs }
+        let sigma = 1.4826 * mad
+        return min(max(artifactSigmaMultiple * sigma, artifactThresholdFloorMs),
+                   artifactThresholdCeilingMs)
+    }
+
+    /// How many robust standard deviations of slack an interval gets. Wide on
+    /// purpose: the job is to remove beats that are not heartbeats, not to trim
+    /// the tail of a real distribution.
+    private static let artifactSigmaMultiple = 5.0
+    /// Kubios' "medium" level, and the rule's previous fixed value.
+    private static let artifactThresholdCeilingMs = 250.0
+    private static let artifactThresholdFloorMs = 50.0
 
     /// Above this share of flagged intervals the whole window is discarded, with
     /// an absolute floor so one ectopic beat never costs a whole reading.

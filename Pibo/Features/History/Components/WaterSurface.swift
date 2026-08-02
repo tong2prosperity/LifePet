@@ -26,6 +26,10 @@ struct WaterSurface: View {
     private let periodSlow: Double = 4.2          // 雨量低 → 稀疏
     private let periodFast: Double = 1.6          // 雨量高 → 密集
 
+    /// 静止环纹的半径区间 —— 圈的大小就是数据的大小。
+    private static let minRingRadius: CGFloat = 14
+    private static let maxRingRadius: CGFloat = 44
+
     var body: some View {
         GeometryReader { geo in
             let size = geo.size
@@ -63,7 +67,7 @@ struct WaterSurface: View {
     }
 
     /// 底面：折射/高光要「掰弯」的纹理。上方透明 → 下方淡青池，叠横向反光条 + 静态环纹
-    /// （环纹透明度随该列雨量淡入淡出，静止列更安静）。
+    /// （**环纹的圈数与半径映射该列达成度**，达成度为 0 的列不画环）。
     private func waterBase(centers: [CGPoint], amps: [Double]) -> some View {
         Canvas { ctx, sz in
             ctx.fill(
@@ -81,9 +85,19 @@ struct WaterSurface: View {
                 ctx.stroke(line, with: .color(.white.opacity(0.16)), lineWidth: 1.4)
             }
 
+            // 涟漪的**圈数与半径**直接映射该列的达成度（Figma `daily activities`
+            // 的 rain point 三档：小 1 圈 / 中 2 圈 / 大 3 圈）。0801 走查前这里
+            // 是一组写死的半径 `stride(12...44)`，只有透明度随数据变 —— 于是
+            // 785 kcal 和 0 kcal 画出来一样大，等于没映射。达成度为 0 就不画圈，
+            // 空数据的日子不应该凭空长出水纹。
             for (i, c) in centers.enumerated() {
-                let alpha = 0.08 + 0.14 * (i < amps.count ? amps[i] : 0)
-                for r in stride(from: CGFloat(12), through: 44, by: 11) {
+                let amp = i < amps.count ? amps[i] : 0
+                guard amp > 0.02 else { continue }
+                let ringCount = 1 + Int((amp * 2).rounded())        // 1 / 2 / 3 圈
+                let maxR = Self.minRingRadius + (Self.maxRingRadius - Self.minRingRadius) * amp
+                let alpha = 0.10 + 0.16 * amp
+                for k in 0..<ringCount {
+                    let r = maxR * (CGFloat(k + 1) / CGFloat(ringCount))
                     let rect = CGRect(x: c.x - r, y: c.y - r * 0.45, width: r * 2, height: r * 0.9)
                     ctx.stroke(Path(ellipseIn: rect), with: .color(tint.opacity(alpha)), lineWidth: 1.2)
                 }

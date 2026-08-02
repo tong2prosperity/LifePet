@@ -1,11 +1,31 @@
 import os
 import SwiftUI
+import UIKit
 
 /// First-launch story and HealthKit authorization flow.
 ///
-/// The sequence mirrors the approved 2026-07-26 onboarding prototype:
-/// darkness → forest reveal → first contact → system HealthKit authorization
-/// → partnership.
+/// Rebuilt 2026-08-02 against the approved onboarding Figma
+/// (`wQtaSAaU2InhraMiu4Mi6r`, page `onboarding`, node `6424:3262`) after the
+/// 0801 走查. The beat order is the designer's frame order, left to right:
+///
+///     降落 → 未知生命体自语 ×2 → 眼睛出现(会眨眼) → 轻点五下给光
+///          → Pibo 请求能量 ×5 → 系统授权 → 牠们退开了(眼睛消失)
+///          → 能量说明 ×3 → 决定留下
+///
+/// Three structural rules come out of that review and are easy to regress:
+///
+/// 1. **Darkness is a black mask, never the forest's own opacity.** Fading the
+///    artwork itself washes it toward whatever sits behind (grey), which is why
+///    the 走查 screenshot reads milky instead of dark. The forest is always
+///    fully opaque; `Color.black.opacity(maskOpacity)` on top does the dimming,
+///    and it sits *between* Pibo and the watchers so the eyes stay lit in a
+///    pitch-black frame — exactly the Figma layer order.
+/// 2. **The watchers persist until authorization**, then retreat on the
+///    「牠们退开了」 beat. Previously they faded out during the light taps, which
+///    also meant the existing retreat animation was invisible.
+/// 3. **The speaker label is part of the bubble**, stacked 4pt above it and
+///    left-aligned inside a centered group (Figma `Frame 9417`). It reads
+///    「未知生命体」 until Pibo first says its own name, then 「Pibo」.
 struct HealthAuthView: View {
     @Environment(HealthDataService.self) private var health
     @Environment(PetStateStore.self) private var store
@@ -14,65 +34,76 @@ struct HealthAuthView: View {
     @State private var dialogueIndex = 0
     @State private var lightCount = 0
     @State private var authRequested = false
+    @State private var deniedAttempts = 0
+    @State private var watchersRetreated = false
     @State private var piboMotion = false
     @State private var piboTalkPulse = false
     @State private var sparkle = false
 
     let onContinue: () -> Void
 
+    /// The Figma artboard every ratio below is measured in.
+    private enum Design {
+        static let frame = CGSize(width: 393, height: 852)
+
+        /// `Frame 9417` — the 说话者标签 + 气泡 group, horizontally centered.
+        static let bubbleTop: CGFloat = 272 / frame.height
+        /// 「一个未知生命体降落在地球上......」/「轻点屏幕，给Pibo一点光」
+        static let narrationCenterY: CGFloat = 328 / frame.height
+        /// 「点击屏幕任意位置继续」
+        static let hintCenterY: CGFloat = 770 / frame.height
+        /// `Button` — 353×60 @ (20, 761)
+        static let buttonCenterY: CGFloat = 791 / frame.height
+        static let buttonInset: CGFloat = 20 / frame.width
+        static let buttonHeight: CGFloat = 60
+
+        /// 天敌的眼睛 — three 44×12 pairs, all low in the frame.
+        static let watchers: [CGPoint] = [
+            CGPoint(x: 68 / frame.width, y: 653 / frame.height),
+            CGPoint(x: 173 / frame.width, y: 740 / frame.height),
+            CGPoint(x: 289 / frame.width, y: 709 / frame.height)
+        ]
+
+        /// `pibo` — 惊恐 247×305 @ (83,366), 正常 222×303 @ (83,358).
+        static let frightPibo = SpriteBox(width: 247, height: 305, x: 83, y: 366)
+        static let normalPibo = SpriteBox(width: 222, height: 303, x: 83, y: 358)
+
+        struct SpriteBox {
+            let width, height, x, y: CGFloat
+            var widthRatio: CGFloat { width / Design.frame.width }
+            var centerX: CGFloat { (x + width / 2) / Design.frame.width }
+            var centerY: CGFloat { (y + height / 2) / Design.frame.height }
+            var aspect: CGFloat { height / width }
+        }
+    }
+
     var body: some View {
         GeometryReader { proxy in
+            let size = proxy.size
             ZStack {
+                // Figma layer order: 背景 → Pibo → 黑色蒙层 → 眼睛 → 气泡 → 按钮.
                 forestLayer
-                watchersLayer(size: proxy.size)
-                piboLayer(size: proxy.size)
-
-                switch step {
-                case .system:
-                    systemNarration
-                case .void:
-                    dialogueOverlay(size: proxy.size, lines: Self.voidLines, finalAction: "继续") {
-                        transition(to: .eyes)
-                    }
-                case .eyes:
-                    eyesTransitionOverlay
-                case .charge:
-                    chargeOverlay
-                case .fright:
-                    dialogueOverlay(size: proxy.size, lines: Self.frightLines, finalAction: "是的") {
-                        transition(to: .link)
-                    }
-                case .link:
-                    dialogueOverlay(size: proxy.size, lines: Self.linkLines, finalAction: "继续") {
-                        transition(to: .permission)
-                    }
-                case .permission:
-                    systemAuthorizationBackground
-                case .denied:
-                    deniedScreen
-                case .receiving:
-                    Color.clear
-                case .repel:
-                    dialogueOverlay(size: proxy.size, lines: Self.repelLines, finalAction: "继续") {
-                        transition(to: .bonding)
-                    }
-                case .bonding:
-                    dialogueOverlay(size: proxy.size, lines: ["咕噜……契约，亮起来了。"], finalAction: "继续") {
-                        transition(to: .partners)
-                    }
-                case .partners:
-                    dialogueOverlay(size: proxy.size, lines: Self.partnerLines, finalAction: "活下去") {
-                        finishOnboarding()
-                    }
-                }
+                piboLayer(size: size)
+                darknessMask
+                watchersLayer(size: size)
+                overlay(size: size)
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+            .frame(width: size.width, height: size.height)
             .background(Color.black)
             .clipped()
         }
         .ignoresSafeArea()
         .preferredColorScheme(.dark)
         .onAppear {
+            #if DEBUG
+            if let forced = OnboardingStep.debugRequestedStep() {
+                step = forced
+                dialogueIndex = OnboardingStep.debugRequestedLineIndex()
+                if forced == .charge { lightCount = OnboardingStep.debugRequestedLightCount() }
+                if forced.isPowered { watchersRetreated = true }
+                return
+            }
+            #endif
             restoreOnboardingStepIfNeeded()
             runAutomaticStep()
         }
@@ -82,81 +113,65 @@ struct HealthAuthView: View {
 
     // MARK: - Scene
 
+    /// Always fully opaque and always overfilling the screen — the mask above
+    /// is what makes it dark. `scaledToFill` on a frame pinned to the *whole*
+    /// proxy size is what removes the 走查 黑边: any leftover letterboxing came
+    /// from the artwork being allowed to letterbox at its own aspect ratio.
+    ///
+    /// There is deliberately **no separate light-shaft layer**. Figma's
+    /// `light morning` is a child of the `Group 270` scene, so the exported
+    /// background already carries the shafts; the old `onboarding_morning_light`
+    /// overlay was drawing them a second time.
     private var forestLayer: some View {
-        ZStack {
-            Color.black
-
+        GeometryReader { proxy in
             Image("onboarding_forest_empty")
                 .resizable()
                 .scaledToFill()
-                .opacity(forestOpacity)
-                .brightness(-0.34 + (0.34 * revealProgress))
-                .saturation(0.55 + (0.45 * revealProgress))
-                .scaleEffect(1.055 - (0.025 * revealProgress))
-
-            Image("onboarding_morning_light")
-                .resizable()
-                .scaledToFill()
-                .blendMode(.screen)
-                .opacity(step.isForestVisible ? 0.284 * revealProgress : 0)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
         }
         .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+
+    /// 五下点击调的是这一层，不是森林本身的透明度。
+    private var darknessMask: some View {
+        Color.black
+            .opacity(maskOpacity)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
     }
 
     private func watchersLayer(size: CGSize) -> some View {
         ZStack {
-            watcher(scale: 1.16, opacity: 1)
-                .position(x: size.width * 0.27, y: size.height * 0.57)
-            watcher(scale: 0.66, opacity: 0.62)
-                .position(x: size.width * 0.76, y: size.height * 0.44)
-            watcher(scale: 0.86, opacity: 0.8)
-                .position(x: size.width * 0.56, y: size.height * 0.68)
+            ForEach(Array(Design.watchers.enumerated()), id: \.offset) { index, unit in
+                WatcherEyes(phase: Double(index) * 0.9)
+                    .position(x: size.width * unit.x, y: size.height * unit.y)
+            }
         }
         .opacity(watchersOpacity)
-        .scaleEffect(step == .repel || step.isAfterRepel ? 0.04 : 1, anchor: UnitPoint(x: 0.52, y: 0.48))
-        .blur(radius: step == .repel || step.isAfterRepel ? 12 : 0)
-        .animation(.easeInOut(duration: step == .repel ? 2.2 : 0.7), value: step)
+        .scaleEffect(watchersRetreated ? 0.04 : 1, anchor: UnitPoint(x: 0.52, y: 0.8))
+        .blur(radius: watchersRetreated ? 12 : 0)
+        .animation(.easeInOut(duration: 2.2), value: watchersRetreated)
         .allowsHitTesting(false)
     }
 
-    private func watcher(scale: CGFloat, opacity: Double) -> some View {
-        HStack(spacing: 19) {
-            Image("onboarding_eye_left")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 12, height: 12)
-            Image("onboarding_eye_right")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 12, height: 12)
-        }
-        .frame(width: 70, height: 34)
-        .padding(.horizontal, 9)
-        .background(
-            RadialGradient(colors: [Color.black.opacity(0.48), .clear], center: .center, startRadius: 1, endRadius: 44)
-        )
-        .shadow(color: Color(hex: 0xCAFF82).opacity(0.8), radius: 9)
-        .scaleEffect(scale)
-        .opacity(opacity)
-    }
-
     private func piboLayer(size: CGSize) -> some View {
-        ZStack {
-            Image(step.isPowered ? "onboarding_pibo_powered" : "onboarding_pibo_main")
+        let box = step.isPowered ? Design.normalPibo : Design.frightPibo
+        let width = size.width * box.widthRatio
+        return ZStack {
+            Image(step.isPowered ? "onboarding_pibo_normal" : "onboarding_pibo_fright")
                 .resizable()
                 .scaledToFit()
-                .frame(width: step.isPowered ? 224 : 188, height: 290)
-                .brightness(step == .charge ? -0.72 + (0.72 * revealProgress) : 0)
-                .saturation(step == .charge ? 0.4 + (0.6 * revealProgress) : 1)
+                .frame(width: width, height: width * box.aspect)
 
             if sparkle {
                 SparkleView()
-                    .offset(x: 31, y: -103)
+                    .offset(x: width * 0.13, y: -width * 0.42)
                     .transition(.scale.combined(with: .opacity))
             }
         }
-        .position(x: size.width * 0.5, y: size.height * 0.48)
-        .opacity(piboOpacity)
+        .position(x: size.width * box.centerX, y: size.height * box.centerY)
         .scaleEffect((piboMotion ? 1.025 : 1) * (piboTalkPulse ? 0.95 : 1))
         .rotationEffect(.degrees(piboMotion ? 0.8 : -0.8))
         .animation(.easeInOut(duration: 0.18).repeatCount(8, autoreverses: true), value: piboMotion)
@@ -166,184 +181,123 @@ struct HealthAuthView: View {
 
     // MARK: - Overlays
 
-    private var systemNarration: some View {
-        VStack {
-            Spacer()
-                .frame(height: 230)
-            Text("一只未知生命体，坠落在地球。")
-                .font(.system(size: 15, weight: .medium))
-                .tracking(0.6)
-                .foregroundStyle(Color.white.opacity(0.48))
-                .multilineTextAlignment(.center)
-            Spacer()
-        }
-        .padding(.horizontal, 28)
-        .transition(.opacity)
-    }
-
-    private var chargeOverlay: some View {
-        ZStack {
+    @ViewBuilder
+    private func overlay(size: CGSize) -> some View {
+        switch step {
+        case .system:
+            landingNarration(size: size)
+        case .charge:
+            chargeOverlay(size: size)
+        case .permission:
             Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture { addLight() }
-
-            VStack {
-                Text("轻点屏幕，给它一点光。")
-                    .font(.system(size: 15, weight: .medium))
-                    .tracking(0.6)
-                    .foregroundStyle(Color.white.opacity(0.56))
-                    .padding(.top, 205)
-                Spacer()
-            }
-            .allowsHitTesting(false)
+        case .receiving:
+            Color.clear
+        default:
+            dialogueOverlay(size: size)
         }
     }
 
-    private var eyesTransitionOverlay: some View {
+    /// The hint lives on this screen only. Figma puts 「下方文字微微呼吸」 on the
+    /// landing frame and 「用户有点击行为后 下方提示文字消失」 on the two frames after
+    /// it — i.e. the tap advances and the hint is gone because the screen
+    /// changed, not because the first tap is spent dismissing it.
+    private func landingNarration(size: CGSize) -> some View {
         ZStack {
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture { transition(to: .charge) }
+            tapCatcher { transition(to: .void) }
 
-            Text("……")
-                .font(.system(size: 15, weight: .medium))
-                .tracking(4)
-                .foregroundStyle(Color.white.opacity(0.42))
-                .padding(.top, 190)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            narrationText("一个未知生命体降落在地球上......")
+                .position(x: size.width / 2, y: size.height * Design.narrationCenterY)
+
+            BreathingHint(text: "点击屏幕任意位置继续")
+                .position(x: size.width / 2, y: size.height * Design.hintCenterY)
                 .allowsHitTesting(false)
         }
     }
 
-    private func dialogueOverlay(
-        size: CGSize,
-        lines: [String],
-        finalAction: String,
-        completion: @escaping () -> Void
-    ) -> some View {
+    private func chargeOverlay(size: CGSize) -> some View {
         ZStack {
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    LPHaptics.tap()
-                    if dialogueIndex < lines.count - 1 {
-                        withAnimation(.easeOut(duration: 0.36)) { dialogueIndex += 1 }
-                        animatePiboForDialogue()
-                    } else {
-                        completion()
-                    }
-                }
+            tapCatcher { addLight() }
 
-            Text(lines[min(dialogueIndex, lines.count - 1)])
-                .font(.system(size: 16, weight: .bold))
-                .tracking(0.4)
-                .foregroundStyle(Color.white)
-                .multilineTextAlignment(.center)
-                .lineSpacing(4)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 13)
-                .frame(maxWidth: 278)
-                .background(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 23,
-                        bottomLeadingRadius: 7,
-                        bottomTrailingRadius: 23,
-                        topTrailingRadius: 23,
-                        style: .continuous
-                    )
-                    .fill(Color(red: 3 / 255, green: 15 / 255, blue: 11 / 255).opacity(0.66))
-                )
-                .overlay(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 23,
-                        bottomLeadingRadius: 7,
-                        bottomTrailingRadius: 23,
-                        topTrailingRadius: 23,
-                        style: .continuous
-                    )
-                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.3), radius: 25, y: 12)
-                .position(x: size.width / 2, y: size.height * 0.23)
-                .id(dialogueIndex)
+            narrationText("轻点屏幕，给Pibo一点光")
+                .position(x: size.width / 2, y: size.height * Design.narrationCenterY)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func dialogueOverlay(size: CGSize) -> some View {
+        let lines = step.lines
+        let index = min(dialogueIndex, max(0, lines.count - 1))
+        let isLast = index >= lines.count - 1
+        let showsButton = step.buttonTitle != nil && isLast
+
+        return ZStack {
+            // 有按钮的那一屏，点背景不再推进 —— 必须点按钮。
+            if !showsButton {
+                tapCatcher { advanceDialogue() }
+            }
+
+            SpeechBubble(speaker: step.speakerLabel, text: lines[index])
+                .frame(maxWidth: size.width - 80, alignment: .leading)
+                // 播报挂在气泡上，不要在外层用 `.combine` —— 那会把「借出能量」
+                // 按钮一起并进同一个元素，VoiceOver 就点不到它了。
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(step.speakerLabel)：\(lines[index])")
+                .position(x: size.width / 2, y: size.height * Design.bubbleTop + 39)
+                .id(index)
                 .transition(.offset(y: 7).combined(with: .opacity))
 
-            if step != .void {
-                Text("PIBO（未知生命体）")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1.1)
-                    .foregroundStyle(Color.white.opacity(0.68))
-                    .position(x: size.width / 2, y: size.height * 0.71)
+            if showsButton, let title = step.buttonTitle {
+                OnboardingButton(title: title) { completeStep() }
+                    .frame(width: size.width * (1 - Design.buttonInset * 2),
+                           height: Design.buttonHeight)
+                    .position(x: size.width / 2, y: size.height * Design.buttonCenterY)
+                    .transition(.opacity.combined(with: .offset(y: 12)))
             }
         }
         .frame(width: size.width, height: size.height)
-        .accessibilityLabel(
-            "\(lines[min(dialogueIndex, lines.count - 1)])。点击屏幕任意位置继续"
-        )
     }
 
-    /// A quiet backing surface while iOS owns the authorization presentation.
-    /// There is intentionally no app-authored pre-permission screen here.
-    private var systemAuthorizationBackground: some View {
-        Color(hex: 0xF7F8EE)
-            .ignoresSafeArea()
-            .accessibilityHidden(true)
+    private func narrationText(_ text: String) -> some View {
+        Text(text)
+            .lpText(LP.Typography.b3Regular)
+            .foregroundStyle(Color.white.opacity(0.72))
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 28)
     }
 
-    private var deniedScreen: some View {
-        Color(hex: 0xF7F8EE)
-            .ignoresSafeArea()
-            .overlay {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        Spacer(minLength: 48)
-
-                        Image("onboarding_pibo_tired")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 210, height: 250)
-
-                        Text("LINK INTERRUPTED / 契约中断")
-                            .font(.system(size: 10, weight: .bold))
-                            .tracking(1.8)
-                            .foregroundStyle(Color(hex: 0x7D5B3C))
-                            .padding(.top, 22)
-
-                        Text("Pibo 又没电了。")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(Color(hex: 0x122A22))
-                            .minimumScaleFactor(0.85)
-                            .padding(.top, 12)
-
-                        Text("这次没有连接到健康数据，Pibo 无法从你的睡眠、步数和运动中获得能量。\nMVP 版本暂时不能继续体验。")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color(hex: 0x566C62))
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(6)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity)
-                            .padding(.horizontal, 32)
-                            .padding(.top, 12)
-
-                        Spacer(minLength: 36)
-
-                        Button("重新尝试系统授权") {
-                            authRequested = false
-                            transition(to: .permission)
-                        }
-                        .buttonStyle(OnboardingPrimaryButtonStyle())
-                        .padding(.horizontal, 28)
-
-                        Spacer(minLength: 36)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 720)
-                }
+    private func tapCatcher(_ action: @escaping () -> Void) -> some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture {
+                LPHaptics.tap()
+                action()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Actions
+
+    private func advanceDialogue() {
+        let lines = step.lines
+        if dialogueIndex < lines.count - 1 {
+            withAnimation(.easeOut(duration: 0.36)) { dialogueIndex += 1 }
+            animatePiboForDialogue()
+        } else {
+            completeStep()
+        }
+    }
+
+    private func completeStep() {
+        switch step {
+        case .void:      transition(to: .eyes)
+        case .eyes:      transition(to: .charge)
+        case .plea:      transition(to: .permission)
+        case .denied:    retryAuthorization()
+        case .repel:     transition(to: .warmth)
+        case .warmth:    transition(to: .partners)
+        case .partners:  finishOnboarding()
+        default:         break
+        }
+    }
 
     private func transition(to next: OnboardingStep) {
         dialogueIndex = 0
@@ -353,18 +307,6 @@ struct HealthAuthView: View {
 
     private func runAutomaticStep() {
         switch step {
-        case .system:
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(2600))
-                guard step == .system else { return }
-                transition(to: .void)
-            }
-        case .eyes:
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(1800))
-                guard step == .eyes else { return }
-                transition(to: .charge)
-            }
         case .permission:
             requestHealthAuthorization()
         case .receiving:
@@ -375,7 +317,10 @@ struct HealthAuthView: View {
                 try? await Task.sleep(for: .milliseconds(1300))
                 guard step == .receiving else { return }
                 piboMotion = false
+                sparkle = false
                 transition(to: .repel)
+                // 授权拿到后，这一帧眼睛才退场。
+                watchersRetreated = true
             }
         default:
             break
@@ -390,7 +335,7 @@ struct HealthAuthView: View {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(900))
                 guard step == .charge else { return }
-                transition(to: .fright)
+                transition(to: .plea)
             }
         }
     }
@@ -418,6 +363,25 @@ struct HealthAuthView: View {
         }
     }
 
+    /// 「若用户未同意，回到onboarding页面，Pibo继续请求用户授权」.
+    ///
+    /// iOS only ever presents the HealthKit sheet once, so a second in-app
+    /// request silently no-ops. The second tap therefore also nudges the user to
+    /// Settings — but **only** the second one, and the retry still happens every
+    /// time. Bailing out of the retry on every attempt ≥2 (as this first did)
+    /// traps the user: they grant in Settings, come back to a screen still
+    /// showing 借出能量, tap it, and get thrown to Settings again forever.
+    private func retryAuthorization() {
+        deniedAttempts += 1
+        if deniedAttempts == 2 {
+            UserDefaults.standard.set(true, forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth)
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        }
+        transition(to: .permission)
+    }
+
     private func restoreOnboardingStepIfNeeded() {
         guard UserDefaults.standard.bool(forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth) else { return }
         UserDefaults.standard.removeObject(forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth)
@@ -434,107 +398,98 @@ struct HealthAuthView: View {
 
     // MARK: - Derived presentation
 
-    private var revealProgress: Double {
-        if step == .charge {
-            return (Double(lightCount) / 5) * 0.88
-        }
-        return step.isForestRevealed ? 0.88 : 0
-    }
-
-    private var forestOpacity: Double {
-        step.isForestVisible ? max(0.05, revealProgress) : 0
-    }
-
-    private var piboOpacity: Double {
-        if step == .charge {
-            return 0.18 + (0.82 * revealProgress)
-        }
-        return step.showsPibo ? 1 : 0
-    }
-
-    private var watchersOpacity: Double {
+    /// 1 = 全黑, 0 = 全亮. 只有这一个量在控制暗度。
+    private var maskOpacity: Double {
         switch step {
-        case .eyes:
-            return 0.95
+        case .system, .void, .eyes:
+            return 1
         case .charge:
-            return 0.95 * max(0, 1 - (Double(lightCount) / 5))
+            return max(0, 1 - (Double(lightCount) / 5))
         default:
             return 0
         }
     }
 
-    private static let voidLines = [
-        "……^&% 这里是哪里？",
-        "光……被谁吃掉了。",
-        "什么东西在靠近，Pibo好怕"
-    ]
-
-    private static let frightLines = [
-        "Pibo，闻到了危险的味道",
-        "……你是，人吗"
-    ]
-
-    private static let linkLines = [
-        "人，你好香啊。",
-        "靠近你，Pibo好像变强壮了",
-        "可以借Pibo一点能量吗"
-    ]
-
-    private static let repelLines = [
-        "……它们在往后退。",
-        "你的能量，把黑暗里的东西赶走了。"
-    ]
-
-    private static let partnerLines = [
-        "那，现在起我们就是伙伴了",
-        "人，我们一起活下去"
-    ]
+    private var watchersOpacity: Double {
+        step.showsWatchers ? 1 : 0
+    }
 }
 
+// MARK: - Steps
+
 private enum OnboardingStep: Equatable {
+    /// 降落旁白.
     case system
+    /// 未知生命体自语（此时还没自称 Pibo）.
     case void
+    /// 眼睛出现，开始眨眼.
     case eyes
+    /// 轻点五下给光.
     case charge
-    case fright
-    case link
+    /// Pibo 观察你 → 请求借能量（末屏出「借出能量」按钮）.
+    case plea
+    /// 系统授权页.
     case permission
+    /// 用户未同意 —— Pibo 继续请求.
     case denied
+    /// 授权成功，能量注入.
     case receiving
+    /// 牠们退开了 —— 眼睛消失.
     case repel
-    case bonding
+    /// 能量从哪来.
+    case warmth
+    /// 决定留下.
     case partners
 
-    var isForestVisible: Bool {
+    var lines: [String] {
         switch self {
-        case .charge, .fright, .link, .receiving, .repel, .bonding, .partners:
-            return true
-        default:
-            return false
+        case .void:
+            return ["......^&%*这里是哪里？", "光......被谁吃掉了"]
+        case .eyes:
+            return ["什么东西在靠近，Pibo好怕......"]
+        case .plea:
+            return [
+                "什么东西在盯着Pibo",
+                "你是......",
+                "这些东西好像害怕你",
+                "是因为你身上的能量吗",
+                "可以借一些能量给Pibo吗"
+            ]
+        case .denied:
+            return ["我很需要...这些能量...", "没有这些能量，Pibo不能在这里生存"]
+        case .repel:
+            return ["果然可以...牠们退开了！"]
+        case .warmth:
+            return [
+                "你的能量好温暖......",
+                "你走路、你呼吸、你睡着的时候， 这股能量一直都在",
+                "只要Pibo一直和你在一起， 牠们就不会再来了..."
+            ]
+        case .partners:
+            return ["决定了——Pibo 要留在你身边！"]
+        case .system, .charge, .permission, .receiving:
+            return []
         }
     }
 
-    var isForestRevealed: Bool {
+    /// 「Pibo自称Pibo后 未知生命体改为Pibo」— the rename happens on `.eyes`,
+    /// the first line where Pibo says its own name.
+    var speakerLabel: String {
+        self == .void ? "未知生命体" : "Pibo"
+    }
+
+    var buttonTitle: String? {
         switch self {
-        case .fright, .link, .receiving, .repel, .bonding, .partners:
-            return true
-        default:
-            return false
+        case .plea, .denied: return "借出能量"
+        case .partners:      return "进入Pibo空间"
+        default:             return nil
         }
     }
 
+    /// 眼睛一直亮到授权为止（`.repel` 这一帧才退场）。
     var showsWatchers: Bool {
         switch self {
-        case .eyes, .charge:
-            return true
-        default:
-            return false
-        }
-    }
-
-    var showsPibo: Bool {
-        switch self {
-        case .charge, .fright, .link, .receiving, .repel, .bonding, .partners:
+        case .eyes, .charge, .plea, .permission, .denied, .receiving, .repel:
             return true
         default:
             return false
@@ -543,16 +498,7 @@ private enum OnboardingStep: Equatable {
 
     var isPowered: Bool {
         switch self {
-        case .receiving, .repel, .bonding, .partners:
-            return true
-        default:
-            return false
-        }
-    }
-
-    var isAfterRepel: Bool {
-        switch self {
-        case .bonding, .partners:
+        case .receiving, .repel, .warmth, .partners:
             return true
         default:
             return false
@@ -560,16 +506,167 @@ private enum OnboardingStep: Equatable {
     }
 }
 
-private struct OnboardingPrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 16, weight: .bold))
-            .foregroundStyle(Color(hex: 0x122A22))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 17)
-            .background(Capsule().fill(Color(hex: 0xCAFF82)))
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .opacity(configuration.isPressed ? 0.84 : 1)
+#if DEBUG
+extension OnboardingStep {
+    /// 截图验证用：`-PiboOnboardingStep=plea -PiboOnboardingLine=4`
+    /// 直接落在任意一屏，不用一路点过去。
+    static func debugRequestedStep() -> OnboardingStep? {
+        guard let raw = value(for: "-PiboOnboardingStep=") else { return nil }
+        switch raw {
+        case "system":     return .system
+        case "void":       return .void
+        case "eyes":       return .eyes
+        case "charge":     return .charge
+        case "plea":       return .plea
+        case "denied":     return .denied
+        case "repel":      return .repel
+        case "warmth":     return .warmth
+        case "partners":   return .partners
+        default:           return nil
+        }
+    }
+
+    static func debugRequestedLineIndex() -> Int {
+        Int(value(for: "-PiboOnboardingLine=") ?? "") ?? 0
+    }
+
+    static func debugRequestedLightCount() -> Int {
+        Int(value(for: "-PiboOnboardingLight=") ?? "") ?? 0
+    }
+
+    private static func value(for prefix: String) -> String? {
+        ProcessInfo.processInfo.arguments
+            .first { $0.hasPrefix(prefix) }
+            .map { String($0.dropFirst(prefix.count)) }
+    }
+}
+#endif
+
+// MARK: - Components
+
+/// 统一的 Pibo 说话气泡（Figma `Frame 9417`）—— 说话者标签和气泡是一组，
+/// 4pt 间距、整组左对齐、组本身在屏幕上水平居中。
+private struct SpeechBubble: View {
+    let speaker: String
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(speaker)
+                .lpText(LP.Typography.c1Medium)
+                .foregroundStyle(Color.white)
+                .padding(4)
+
+            Text(text)
+                .lpText(LP.Typography.b3Regular)
+                .foregroundStyle(LP.Content.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, LP.Spacing.xxl)
+                .padding(.vertical, LP.Spacing.m)
+                .background(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 16,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 16,
+                        topTrailingRadius: 16,
+                        style: .continuous
+                    )
+                    .fill(Color.white)
+                )
+        }
+    }
+}
+
+/// Figma `Button` — teal-600 capsule with a solid 8pt darker lip along the
+/// bottom (`inset 0 -8px 0 0 #005244`), which is why the label sits 4pt high.
+private struct OnboardingButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .lpText(LP.Typography.b1Medium)
+                .foregroundStyle(Color.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .offset(y: -4)
+        }
+        .buttonStyle(LipButtonStyle())
+    }
+
+    private struct LipButtonStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .background {
+                    Capsule()
+                        .fill(LP.Colorful.teal600)
+                        .overlay(alignment: .bottom) {
+                            Rectangle()
+                                .fill(Color(hex: 0x005244))
+                                .frame(height: 8)
+                        }
+                        .clipShape(Capsule())
+                }
+                .scaleEffect(configuration.isPressed ? 0.98 : 1)
+                .opacity(configuration.isPressed ? 0.9 : 1)
+        }
+    }
+}
+
+/// 「下方文字微微呼吸 透明度有小变化」.
+private struct BreathingHint: View {
+    let text: String
+    @State private var breathing = false
+
+    var body: some View {
+        Text(text)
+            .lpText(LP.Typography.b3Regular)
+            .foregroundStyle(Color.white.opacity(breathing ? 0.72 : 0.38))
+            .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: breathing)
+            .onAppear { breathing = true }
+    }
+}
+
+/// 一对天敌的眼睛 —— 各自独立眨眼（Figma `Group 271`/`Group 272` 的两态，
+/// 辉光色取自导出 SVG 的 feColorMatrix: rgb(0.875, 1.0, 0.465)）。
+private struct WatcherEyes: View {
+    /// Staggers each pair so the three never blink in lockstep.
+    let phase: Double
+
+    @State private var closed = false
+
+    private static let glow = Color(hex: 0xDFFF76)
+    /// Figma `Group 271`: each pair is 44×12 — two 12pt dots whose centers sit
+    /// 32pt apart, so the gap between them is 20.
+    private static let dotSize: CGFloat = 12
+    private static let centerDistance: CGFloat = 32
+
+    var body: some View {
+        HStack(spacing: Self.centerDistance - Self.dotSize) {
+            dot
+            dot
+        }
+        .task {
+            // Each pair keeps its own rhythm; the offsets are derived from
+            // `phase` so this stays deterministic instead of random per frame.
+            try? await Task.sleep(for: .milliseconds(Int(phase * 1000)))
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(1700 + Int(phase * 900)))
+                withAnimation(.easeInOut(duration: 0.09)) { closed = true }
+                try? await Task.sleep(for: .milliseconds(110))
+                withAnimation(.easeInOut(duration: 0.13)) { closed = false }
+            }
+        }
+    }
+
+    private var dot: some View {
+        Circle()
+            .fill(Color(hex: 0xF6FFDC))
+            .frame(width: Self.dotSize, height: Self.dotSize)
+            .scaleEffect(y: closed ? 0.08 : 1, anchor: .center)
+            .opacity(closed ? 0.25 : 1)
+            .shadow(color: Self.glow.opacity(0.9), radius: 4)
+            .shadow(color: Self.glow.opacity(0.55), radius: 10)
     }
 }
 

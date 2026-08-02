@@ -28,6 +28,8 @@ struct PiboStageView: View, Equatable {
     var sproutGrowthProgress: Double = 1
     /// Theme-neutral local time and weather input.
     var environment: PiboStageEnvironment = .daylight
+    /// 用 `bo` 换来、已经解锁的物件。空集 = 只有原始森林。
+    var unlockedOrnaments: Set<PiboOrnament.ID> = []
     /// Fine-grained renderer controls. Release Home keeps the standard values;
     /// DEBUG exposes them in a collapsible overlay.
     var tuning: StageRenderTuning = .standard
@@ -95,6 +97,7 @@ struct PiboStageView: View, Equatable {
                 scene.setSproutGrowthProgress(value)
             }
             .onChange(of: environment) { _, value in scene.setEnvironment(value) }
+            .onChange(of: unlockedOrnaments) { _, value in scene.setUnlockedOrnaments(value) }
             .onChange(of: tuning) { _, value in scene.setTuning(value) }
             .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
                 renderController.refreshLowPowerMode()
@@ -122,6 +125,7 @@ struct PiboStageView: View, Equatable {
         applySceneState()
         scene.setSproutGrowthProgress(sproutGrowthProgress)
         scene.setEnvironment(environment)
+        scene.setUnlockedOrnaments(unlockedOrnaments)
         scene.setTuning(tuning)
     }
 
@@ -141,6 +145,7 @@ struct PiboStageView: View, Equatable {
             && lhs.growth == rhs.growth
             && lhs.sproutGrowthProgress == rhs.sproutGrowthProgress
             && lhs.environment == rhs.environment
+            && lhs.unlockedOrnaments == rhs.unlockedOrnaments
             && lhs.tuning == rhs.tuning
             && lhs.isPaused == rhs.isPaused
             && lhs.commandController === rhs.commandController

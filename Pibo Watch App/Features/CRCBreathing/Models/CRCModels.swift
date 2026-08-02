@@ -7,7 +7,6 @@ nonisolated enum CRCConstants {
     static let maxGuidedBreathingRate: Double = 8.0
     static let minimumMeasuredBreathingRate: Double = 4.0
     static let maximumMeasuredBreathingRate: Double = 24.0
-    static let baselineDuration: TimeInterval = 30
     static let recommendedTrainingDuration: TimeInterval = 5 * 60
     static let motionSampleRate: Double = 30
     static let couplingTickInterval: TimeInterval = 1
@@ -17,7 +16,6 @@ nonisolated enum CRCConstants {
 
 enum CRCFlowStep {
     case intro
-    case baseline
     case coreTraining
     case report
     case error

@@ -61,6 +61,16 @@ struct PiboAnimationIntegrationTests {
         #expect(PiboAnimationStateMap.achievement("muscle").first?.hold == 6)
     }
 
+    @Test func everyShippedStateExposesAPresentedSproutRootAnchor() throws {
+        let data = try PiboCharacterData.load()
+        for stateID in PiboAnimationStateMap.available {
+            let character = try #require(PiboVectorCharacter(stateID: stateID, data: data))
+            let anchor = try #require(character.presentedSproutRootPoint())
+            #expect(anchor.x.isFinite)
+            #expect(anchor.y.isFinite)
+        }
+    }
+
     @Test func interruptedMorphRetargetsFromTheExactVisibleGeometry() throws {
         let data = try PiboCharacterData.load()
         let character = try #require(PiboVectorCharacter(stateID: "default", data: data))

@@ -3,12 +3,15 @@ import XCTest
 
 /// Pins the RMSSD contract in `HRVAnalysis.analyze`.
 ///
-/// The rule these replaced filtered on the successive difference itself
-/// (reject when `|b − a| > 0.2 · a`), which could only ever bias RMSSD
-/// downward and did so harder the higher the true HRV. The tests below fix the
-/// two properties that rule violated — an artifact-free window must survive
-/// **intact**, and artifact rejection must key off an interval being an
-/// outlier, not off the size of the thing being measured.
+/// Artifact rejection here has failed in both directions, and the tests are
+/// organised around that. The first rule filtered on the successive difference
+/// itself (reject when `|b − a| > 0.2 · a`), which could only bias RMSSD
+/// downward and did so harder the higher the true HRV. Its replacement, a flat
+/// 250 ms, was too loose at the other end: one mis-detected beat survived and
+/// nearly doubled a quiet wearer's reading. So the properties fixed below are —
+/// an artifact-free window must survive **intact**, rejection must key off an
+/// interval being an outlier rather than off the size of the thing being
+/// measured, and the outlier threshold must scale with the wearer.
 @MainActor
 final class HRVAnalysisTests: XCTestCase {
 
@@ -19,6 +22,13 @@ final class HRVAnalysisTests: XCTestCase {
     /// difference here is real signal.
     private func rsaSeries(count: Int = 48, mean: Double = 900, amplitude: Double = 200) -> [Double] {
         (0..<count).map { mean + amplitude * sin(Double($0) * .pi / 3) }
+    }
+
+    /// A quiet resting wearer: RR alternating 900/918, i.e. RMSSD exactly 18 ms
+    /// by inspection. This is the regime a fixed 250 ms threshold cannot police —
+    /// real differences are an order of magnitude below it.
+    private func lowHRVSeries(count: Int = 42) -> [Double] {
+        (0..<count).map { $0.isMultiple(of: 2) ? 900.0 : 918.0 }
     }
 
     /// The textbook definition, with no artifact handling at all — the value
@@ -91,6 +101,72 @@ final class HRVAnalysisTests: XCTestCase {
         for i in [6, 16, 26, 36] { rr[i] = 2500 }   // 4/48 ≈ 8.3% > 5%
 
         XCTAssertNil(HRVAnalysis.analyze([rr]))
+    }
+
+    // MARK: - The threshold must scale with the wearer
+
+    /// The field regression. At RMSSD 18 ms a beat landing 150 ms off its
+    /// neighbours is unmistakably an artifact, yet it sits well inside the flat
+    /// 250 ms threshold that used to apply — and RMSSD being a root-mean-square,
+    /// the two differences it creates swamp the forty real ones. This is what
+    /// reported 31 ms on a wearer a reference device read at 17 ms.
+    func testModerateArtifactAtLowHRVIsRejected() throws {
+        let clean = lowHRVSeries()
+        var dirty = clean
+        dirty[20] += 150
+
+        // The test has teeth only if the uncorrected series really is wrecked:
+        // one beat nearly doubles the textbook value.
+        XCTAssertGreaterThan(referenceRMSSD(dirty), 1.8 * referenceRMSSD(clean))
+
+        let analysis = try XCTUnwrap(HRVAnalysis.analyze([dirty]))
+
+        XCTAssertEqual(analysis.flagged, 1)
+        XCTAssertEqual(analysis.diffs, dirty.count - 3, "both differences touching the bad beat leave the sum")
+        XCTAssertEqual(analysis.rmssd, referenceRMSSD(clean), accuracy: 1e-9)
+    }
+
+    /// The mechanism behind the test above, pinned directly: a quiet window
+    /// derives a tight threshold, a strongly oscillating one saturates at the
+    /// 250 ms ceiling. The ceiling is what guarantees this change can only ever
+    /// tighten — high-HRV windows behave exactly as they did before.
+    func testThresholdAdaptsDownForQuietWindowsAndSaturatesForLoudOnes() {
+        let quiet = HRVAnalysis.measure([lowHRVSeries()])
+        let loud = HRVAnalysis.measure([rsaSeries()])
+
+        XCTAssertLessThan(quiet.artifactThresholdMs, 100)
+        XCTAssertGreaterThan(quiet.artifactThresholdMs, 3 * referenceRMSSD(lowHRVSeries()),
+                             "real beat-to-beat variation must stay far inside the threshold")
+        XCTAssertEqual(loud.artifactThresholdMs, 250)
+    }
+
+    /// A robust dispersion estimate is what makes it safe to derive the threshold
+    /// from the measured quantity: the artifacts being hunted must not be able to
+    /// widen the threshold enough to hide behind. Five of them, scattered, still
+    /// all get caught.
+    func testScatteredArtifactsCannotInflateTheirOwnThreshold() throws {
+        let clean = lowHRVSeries(count: 120)
+        var dirty = clean
+        for i in [20, 40, 60, 80, 100] { dirty[i] += 150 }
+
+        let analysis = try XCTUnwrap(HRVAnalysis.analyze([dirty]))
+
+        XCTAssertEqual(analysis.flagged, 5)
+        XCTAssertEqual(analysis.rmssd, referenceRMSSD(clean), accuracy: 1e-9)
+    }
+
+    /// An unusually rigid series must not derive a threshold so tight that its
+    /// own ordinary variation reads as artifact — the floor exists for exactly
+    /// this, and a window with nothing wrong in it must come back untouched.
+    func testRigidSeriesIsNotShreddedByItsOwnTightThreshold() throws {
+        // RR alternating 900/904: RMSSD 4 ms, deviations of 2 ms.
+        let rr = (0..<42).map { $0.isMultiple(of: 2) ? 900.0 : 904.0 }
+
+        let analysis = try XCTUnwrap(HRVAnalysis.analyze([rr]))
+
+        XCTAssertEqual(analysis.flagged, 0)
+        XCTAssertEqual(analysis.diffs, rr.count - 1)
+        XCTAssertEqual(analysis.rmssd, 4, accuracy: 1e-9)
     }
 
     func testTooFewSurvivingDifferencesYieldsNoReading() {

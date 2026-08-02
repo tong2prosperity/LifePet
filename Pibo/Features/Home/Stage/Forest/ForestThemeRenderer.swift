@@ -31,6 +31,13 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     private var materialShaders: [ForestLightingGroup: SKShader] = [:]
     private var fireflyEmitter: SKEmitterNode?
 
+    /// 用 `bo` 换来的物件。它们是长期状态，不随环境或帧变化 —— 所以用一份集合 +
+    /// 定向增删，而不是每次都重扫清单。
+    private var unlockedOrnaments: Set<PiboOrnament.ID> = []
+    private var ornamentNodes: [PiboOrnament.ID: SKSpriteNode] = [:]
+    /// 铃兰灯的夜光。白天完全透明，随环境暗度浮现。
+    private var ornamentGlowNodes: [PiboOrnament.ID: SKSpriteNode] = [:]
+
     #if DEBUG
     private var waterDebugTuning: WaterDebugTuning?
     #endif
@@ -79,12 +86,21 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         environment = ForestEnvironmentAdapter.resolve(input)
         wind = environment.wind
         applyLighting()
+        applyOrnamentGlow()
     }
 
     func apply(renderPolicy: PiboThemeRenderPolicy) {
         self.renderPolicy = renderPolicy
         applyWaterPerformanceUniforms()
         updateFireflies()
+    }
+
+    func apply(unlockedOrnaments ids: Set<PiboOrnament.ID>) {
+        guard ids != unlockedOrnaments else { return }
+        unlockedOrnaments = ids
+        // 定向增删，不走 `rebuild()` —— 那会连水面 shader、反射代理和全部枝叶一起
+        // 重建，为了挂一盏灯把整片森林闪一下。
+        syncOrnaments()
     }
 
     func update(time: TimeInterval, deltaTime: TimeInterval, reduceMotion: Bool) {
@@ -350,12 +366,81 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         rebuildReflectionProxies()
         applyWaterPerformanceUniforms()
         applyLighting()
+        syncOrnaments()
+    }
+
+    // MARK: 兑换来的物件
+
+    /// 把已解锁物件补齐、把不该在的移除。`rebuild()` 之后也要跑一次 ——
+    /// 那一步清空了 background，物件得重新挂上去。
+    private func syncOrnaments() {
+        guard let context, size.width > 1, size.height > 1 else { return }
+        let mapper = ForestLayoutMapper(sceneSize: size)
+
+        // 先收集再删。直接在遍历字典的同时改它，靠的是 Swift 的写时复制语义 ——
+        // 能跑，但读的人得先想明白这一点才敢确认它是对的。
+        for id in ornamentNodes.keys.filter({ !unlockedOrnaments.contains($0) }) {
+            ornamentNodes.removeValue(forKey: id)?.removeFromParent()
+            // 发光层也得摘掉。只把引用置 nil 会把节点孤儿化在场景里：
+            // `applyOrnamentGlow` 再也看不见它，于是它冻在最后一次的 alpha 上，
+            // 夜里就成了一片没有灯的加色光斑。
+            ornamentGlowNodes.removeValue(forKey: id)?.removeFromParent()
+        }
+
+        for ornament in PiboOrnament.ordered {
+            guard unlockedOrnaments.contains(ornament.id),
+                  ornamentNodes[ornament.id] == nil,
+                  // 没有落位 = 美术还没到（或者像椰壳那样本来就是底图的一部分）。
+                  // 安静跳过，不要往用户的森林里放占位方块。
+                  let placement = ornament.placement,
+                  UIImage(named: placement.image) != nil
+            else { continue }
+
+            let definition = ForestSceneManifest.Layer(
+                image: placement.image,
+                frame: placement.frame,
+                zPosition: placement.zPosition,
+                lightingGroup: placement.lightingGroup
+            )
+            let sprite = forestSprite(for: definition, mapper: mapper)
+            sprite.shader = materialShader(for: placement.lightingGroup)
+            context.layers.background.addChild(sprite)
+            ornamentNodes[ornament.id] = sprite
+            // 刻意**不**写进 `layerNodes` —— 那是清单图层的索引（反射代理按名字从里面
+            // 取源节点）。把物件混进去既没人用，删除时又不会被清掉，只会留下一个指向
+            // 已脱离场景的节点的悬挂引用。
+
+            // 会发光的物件多挂一层加色副本，白天透明、入夜浮现。
+            if placement.lightingGroup == .emissive {
+                let glow = SKSpriteNode(texture: sprite.texture)
+                glow.size = sprite.size
+                glow.position = sprite.position
+                glow.zPosition = placement.zPosition + 0.1
+                glow.blendMode = .add
+                glow.alpha = 0
+                context.layers.background.addChild(glow)
+                ornamentGlowNodes[ornament.id] = glow
+            }
+        }
+        applyOrnamentGlow()
+    }
+
+    /// 夜光跟着环境暗度走 —— 白天灯是灭的，天越暗它越亮。用 far 层的暗度做基准，
+    /// 因为它是这套光照里最接近「天色」的那个量。
+    private func applyOrnamentGlow() {
+        guard !ornamentGlowNodes.isEmpty else { return }
+        let nightness = max(0, min(1, environment.lighting.far.darkness))
+        for glow in ornamentGlowNodes.values {
+            glow.alpha = 0.55 * nightness
+        }
     }
 
     private func clearReferences() {
         foliage.removeAll(keepingCapacity: true)
         layerNodes.removeAll(keepingCapacity: true)
         foliageNodes.removeAll(keepingCapacity: true)
+        ornamentNodes.removeAll(keepingCapacity: true)
+        ornamentGlowNodes.removeAll(keepingCapacity: true)
         reflectionLayer.removeAllChildren()
         reflectionLayer.maskNode = nil
         reflectionProxies.removeAll(keepingCapacity: true)

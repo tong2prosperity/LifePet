@@ -24,6 +24,10 @@ final class WorkoutSessionManager: NSObject {
     private static let readTypes: Set<HKSampleType> = [
         HKQuantityType(.heartRate),
         HKQuantityType(.oxygenSaturation),
+        // HealthKit requires HRV authorization whenever heartbeat-series
+        // authorization is requested. Omitting this companion type raises an
+        // Objective-C exception before the async request can throw normally.
+        HKQuantityType(.heartRateVariabilitySDNN),
         // Beat-to-beat series → post-session authoritative RMSSD (CRC trainer).
         HKSeriesType.heartbeat(),
     ]

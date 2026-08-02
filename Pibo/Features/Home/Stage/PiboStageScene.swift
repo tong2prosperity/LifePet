@@ -60,6 +60,9 @@ final class PiboStageScene: SKScene {
     private var lowPowerModeEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled
     private var tuning: StageRenderTuning = .standard
     private var themeRenderer: (any PiboThemeRenderer)?
+    /// 用 `bo` 换来的物件。存在 scene 上而不是只转发给渲染器，是因为主题切换和
+    /// 重建之后要能重新交代一遍。
+    private var unlockedOrnaments: Set<PiboOrnament.ID> = []
     private lazy var weatherController = PiboWeatherEffectController(
         backLayer: rainBack,
         frontLayer: rainFront
@@ -84,6 +87,7 @@ final class PiboStageScene: SKScene {
         layoutAll()
         themeRenderer?.apply(environment: stageEnvironment)
         themeRenderer?.apply(renderPolicy: themeRenderPolicy)
+        themeRenderer?.apply(unlockedOrnaments: unlockedOrnaments)
         if stageEnvironment.rainIntensity > 0 { applyWeather() }
     }
 
@@ -154,6 +158,7 @@ final class PiboStageScene: SKScene {
             layoutAll()
             themeRenderer?.apply(environment: stageEnvironment)
             themeRenderer?.apply(renderPolicy: themeRenderPolicy)
+            themeRenderer?.apply(unlockedOrnaments: unlockedOrnaments)
             if stageEnvironment.rainIntensity > 0 { applyWeather() }
         } else if growthChanged {
             character.apply(
@@ -185,6 +190,13 @@ final class PiboStageScene: SKScene {
         guard built else { return }
         themeRenderer?.apply(environment: newEnvironment)
         if rainChanged || newEnvironment.rainIntensity > 0 { applyWeather() }
+    }
+
+    func setUnlockedOrnaments(_ ids: Set<PiboOrnament.ID>) {
+        guard ids != unlockedOrnaments else { return }
+        unlockedOrnaments = ids
+        guard built else { return }
+        themeRenderer?.apply(unlockedOrnaments: ids)
     }
 
     func transitionAnimation(
@@ -246,6 +258,12 @@ final class PiboStageScene: SKScene {
     func playEnergyGain() {
         guard built else { return }
         character.playEnergyGain()
+    }
+
+    @discardableResult
+    func playBoProgressFeedback(_ milestone: BoProgressMilestone) -> Bool {
+        guard built else { return false }
+        return character.playBoProgressFeedback(milestone)
     }
 
     func setSproutGrowthProgress(_ progress: Double) {
@@ -475,6 +493,7 @@ final class PiboStageScene: SKScene {
         layoutAll()
         themeRenderer?.apply(environment: stageEnvironment)
         themeRenderer?.apply(renderPolicy: themeRenderPolicy)
+        themeRenderer?.apply(unlockedOrnaments: unlockedOrnaments)
         if stageEnvironment.rainIntensity > 0 { applyWeather() }
         applyTuning(visibilityChanged: true)
     }
