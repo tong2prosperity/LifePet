@@ -64,6 +64,7 @@ enum HeartbeatSeriesReader {
             rr=\(measurement.rrCount, privacy: .public) \
             flagged=\(measurement.flagged, privacy: .public) \
             diffs=\(measurement.diffs, privacy: .public) \
+            judged=\(measurement.judged, privacy: .public) \
             thr=\(measurement.artifactThresholdMs, format: .fixed(precision: 0), privacy: .public)ms
             """)
         guard trusted else { return nil }

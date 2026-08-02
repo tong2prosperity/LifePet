@@ -169,6 +169,50 @@ final class HRVAnalysisTests: XCTestCase {
         XCTAssertEqual(analysis.rmssd, 4, accuracy: 1e-9)
     }
 
+    // MARK: - Only a centred neighbourhood yields a verdict
+
+    /// Slow deep breathing — what the watch's CRC trainer coaches — swings RR by
+    /// tens of ms *per beat*. In the interior a centred ±2 median brackets the
+    /// interval, so the deviation measures curvature and stays small through the
+    /// steepest ramp; at a run's edge every neighbour sits on one side and the
+    /// same arithmetic measures the slope instead, which here is ~90 ms. Nothing
+    /// in this series is an artifact, so nothing may be flagged — the old fixed
+    /// 250 ms threshold merely hid the bias rather than avoiding it.
+    func testSteepRampEdgesAreNotMistakenForArtifacts() throws {
+        // 20 beats per breath, ±200 ms: ~60 ms of change per beat at the steepest.
+        let rr: [Double] = (0..<60).map { i in
+            let phase: Double = (Double(i) + 1.5) / 20
+            return 900 + 200 * sin(2 * Double.pi * phase)
+        }
+
+        let analysis = try XCTUnwrap(HRVAnalysis.analyze([rr]))
+
+        XCTAssertEqual(analysis.flagged, 0, "a clean breathing ramp contains no artifacts")
+        XCTAssertEqual(analysis.diffs, rr.count - 1)
+        XCTAssertEqual(analysis.rmssd, referenceRMSSD(rr), accuracy: 1e-9)
+    }
+
+    /// The cost of that rule, and the gate that keeps it honest. Detection needs
+    /// four intervals per run, so a window the watch chopped into short fragments
+    /// is one nobody could inspect — and it would otherwise pass with zero flags
+    /// *because* nothing in it was checkable. Same intervals, same count, same
+    /// differences: only the fragmentation differs.
+    func testWindowNobodyCouldInspectIsRejected() throws {
+        let rr = lowHRVSeries(count: 60)
+        let whole = Array(rr)
+        let fragments = stride(from: 0, to: rr.count, by: 4).map { Array(rr[$0..<$0 + 4]) }
+
+        let intact = try XCTUnwrap(HRVAnalysis.analyze([whole]))
+        XCTAssertEqual(intact.judged, whole.count - 4)
+
+        let shredded = HRVAnalysis.measure(fragments)
+        XCTAssertEqual(shredded.rrCount, whole.count)
+        XCTAssertEqual(shredded.judged, 0, "a 4-beat run is all edge")
+        XCTAssertEqual(shredded.flagged, 0, "…so it cannot flag anything, which is the trap")
+        XCTAssertGreaterThanOrEqual(shredded.diffs, 20, "the other two gates would have let it through")
+        XCTAssertNil(HRVAnalysis.analyze(fragments))
+    }
+
     func testTooFewSurvivingDifferencesYieldsNoReading() {
         XCTAssertNil(HRVAnalysis.analyze([rsaSeries(count: 10)]))
         XCTAssertNil(HRVAnalysis.analyze([]))

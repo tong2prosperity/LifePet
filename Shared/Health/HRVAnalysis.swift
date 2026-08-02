@@ -37,6 +37,11 @@ enum HRVAnalysis {
         var flagged: Int
         /// Successive differences that actually entered the sum.
         var diffs: Int
+        /// RR intervals artifact detection could actually reach a verdict on.
+        /// Below `rrCount` by up to four per contiguous run — see
+        /// `localMedianDeviations`. A window chopped into runs too short to
+        /// inspect is one nobody checked, which `isTrustworthy` refuses.
+        var judged: Int
         /// The artifact threshold this window derived for itself, ms. Diagnostic:
         /// it says whether the rule adapted to a quiet wearer or saturated at the
         /// ceiling, which is the first thing to look at when a reading disagrees
@@ -97,11 +102,15 @@ enum HRVAnalysis {
         var diffs = 0
         var rrCount = 0
         var flaggedCount = 0
+        var judgedCount = 0
         var sumRR = 0.0
 
         for (rr, deviation) in zip(segments, deviations) {
             rrCount += rr.count
             sumRR += rr.reduce(0, +)
+            judgedCount += rr.indices.lazy.filter {
+                deviation[$0] != nil || !plausibleRR(rr[$0])
+            }.count
             let flags = rr.indices.map {
                 isArtifact(rr: rr[$0], deviation: deviation[$0], threshold: threshold)
             }
@@ -119,30 +128,50 @@ enum HRVAnalysis {
                            rrCount: rrCount,
                            flagged: flaggedCount,
                            diffs: diffs,
+                           judged: judgedCount,
                            artifactThresholdMs: threshold)
     }
 
     /// Whether a measurement describes its window well enough to classify.
     ///
-    /// Two gates. **Artifact budget** — too much of the window was artifact and the
-    /// survivors aren't a fair sample of it. Short recordings are conventionally
+    /// Three gates. **Artifact budget** — too much of the window was artifact and
+    /// the survivors aren't a fair sample of it. Short recordings are conventionally
     /// discarded past ~5% corrected, and here the discarded beats are exactly the
     /// extreme ones, so a heavily-filtered window doesn't just read noisy, it reads
-    /// low. The absolute floor inside `artifactBudget` matters: a single premature
-    /// beat costs about four flags, not one — the short interval, the compensatory
-    /// long one, and the two neighbours whose local median they drag far enough to
-    /// trip. On a ~60-beat window a bare 5% sits below that, so one ectopic would
+    /// low. The absolute floor inside `artifactBudget` matters, because a single
+    /// event can cost several flags: a premature beat writes a short interval *and*
+    /// a compensatory long one, and on a strongly oscillating window it drags the
+    /// neighbours' local medians far enough to trip them too — up to four for one
+    /// ectopic. On a ~60-beat window a bare 5% sits below that, so one ectopic would
     /// discard the whole reading; readings arrive every 2–5h and occasional
     /// ectopics are common in healthy wearers, so that would quietly starve the
-    /// feature. Two such events still fail, which is the intent.
+    /// feature. Four *isolated* mild artifacts also fit, and that is fine — they are
+    /// removed from the sum, so the window still reports an honest number.
     ///
     /// **Difference count** — enough genuinely-adjacent pairs must remain to
     /// average over. A ~1-min series yields dozens; a handful would put the whole
     /// reading at the mercy of one or two beats.
+    ///
+    /// **Inspected share** — artifact detection needs a centred neighbourhood, so
+    /// it reaches no verdict on the two intervals at each end of a run. One long
+    /// run barely notices; a window the watch chopped into 4-beat fragments is
+    /// *entirely* ends, and would otherwise sail through with zero flags precisely
+    /// because nothing in it could be checked. Requiring most of the window to have
+    /// been inspected turns that silence back into a rejection.
+    ///
+    /// **Known limit.** All of this rests on an artifact being an outlier against
+    /// its neighbours. Past roughly a third of the beats corrupted, the
+    /// neighbourhoods are corrupted too, deviations stop looking exceptional, and a
+    /// wrecked window can report a plausible-looking number with nothing flagged.
+    /// That is the breakdown point of any local-outlier rule (it predates the
+    /// adaptive threshold — a fixed one fails there identically); separating signal
+    /// from noise at that contamination needs full beat classification, not a
+    /// tighter threshold.
     static func isTrustworthy(_ measurement: Measurement) -> Bool {
         measurement.rrCount > 0
             && measurement.flagged <= artifactBudget(measurement.rrCount)
             && measurement.diffs >= minValidDiffs
+            && Double(measurement.judged) >= minInspectedFraction * Double(measurement.rrCount)
     }
 
     /// `measure` plus the trust gates — `nil` when the window can't be classified.
@@ -168,8 +197,7 @@ enum HRVAnalysis {
 
     /// Each interval's signed distance from the median of its immediate
     /// neighbours (±2, itself excluded — including itself would let a bad beat
-    /// drag its own reference toward it). `nil` where the run has no neighbours
-    /// at all.
+    /// drag its own reference toward it). `nil` where no such verdict is possible.
     ///
     /// Comparing against a *local median* rather than the single preceding
     /// interval is what lets a genuine respiratory oscillation through: the median
@@ -181,11 +209,24 @@ enum HRVAnalysis {
     /// median stops tracking the oscillation and settles near its mean instead, at
     /// which point every peak and trough reads as an outlier. Measured on a clean
     /// 48-interval RSA fixture, ±2 flags nothing and ±3 flags 29.
+    ///
+    /// **The neighbourhood must be centred**, so the first and last two intervals
+    /// of a run get no verdict at all. A one-sided reference is a *biased*
+    /// predictor: in the interior the median of `i±2` brackets `i`, so the
+    /// deviation measures the curve's local curvature and stays small through a
+    /// steep ramp; at the edge every neighbour lies on one side, and the same
+    /// arithmetic measures its **slope** instead — `1.5 ×` the per-beat change.
+    /// During slow deep breathing (the CRC trainer's whole purpose) RR can move
+    /// ~60 ms per beat, so the two end intervals of every run would deviate ~90 ms
+    /// with nothing wrong with them. The old fixed 250 ms threshold hid that; an
+    /// adaptive one does not, and a sweep over breathing periods 6–24 beats found
+    /// clean windows losing intervals to it. Four unjudged intervals per run is
+    /// the cheaper error — and `judged` reports the cost so `isTrustworthy` can
+    /// refuse a window that is nothing *but* edges.
     private static func localMedianDeviations(_ rr: [Double]) -> [Double?] {
         rr.indices.map { i in
-            let low = max(0, i - 2)
-            let high = min(rr.count - 1, i + 2)
-            let neighbours = (low...high).filter { $0 != i }.map { rr[$0] }
+            guard i >= 2, i <= rr.count - 3 else { return nil }
+            let neighbours = (i - 2...i + 2).filter { $0 != i }.map { rr[$0] }
             guard let m = median(neighbours) else { return nil }
             return rr[i] - m
         }
@@ -262,6 +303,12 @@ enum HRVAnalysis {
     /// Minimum artifact-free successive differences for a trustworthy RMSSD.
     /// A 60 s window at 40 bpm still clears this.
     private static let minValidDiffs = 20
+
+    /// Minimum share of the window artifact detection must have reached a verdict
+    /// on. Four intervals per run go uninspected, so this is really a floor on
+    /// average run length: at 0.6 a window has to average ~10-beat runs, which is
+    /// the shortest stretch worth calling a heart rhythm anyway.
+    private static let minInspectedFraction = 0.6
 
     /// Physiologically plausible RR interval in ms: ~30–200 bpm. Anything outside
     /// is a dropped/spurious beat, not a real heartbeat interval.
