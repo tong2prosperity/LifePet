@@ -49,3 +49,6 @@ tmp/
 output/
 outputs/
 artifacts/
+.tmp/
+temp/
+image-output/
