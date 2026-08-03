@@ -152,9 +152,19 @@ final class PiboCharacterRenderer {
         vector?.setLighting(lighting)
     }
 
-    func playAchievement(_ stateID: String) {
-        vectorPlaybook?.play(PiboAnimationStateMap.achievement(stateID))
+    #if DEBUG
+    /// 让成果态改演完整连招而不是保持呼吸，用来并排比对这两者。
+    var debugPlaysAchievementCombo = false
+
+    /// 从头再放一次当前状态的登场与连招。
+    ///
+    /// 没有登场的状态走 `startAuthoredIntro` 的空分支，直接触发
+    /// `onIntroFinished` → 连招时间轴归零，所以一个入口同时是「重播登场」和
+    /// 「从 0 秒看连招」。
+    func replayIntro() {
+        vectorTransition?.startAuthoredIntro()
     }
+    #endif
 
     func transition(
         to stateID: String,
@@ -548,9 +558,12 @@ final class PiboCharacterRenderer {
         // 亮相是定格 pose：登场期间常规连招暂停。
         if !transition.suppressesIdle {
             // 成果姿势留在首页时只呼吸，不继续演连招 —— 连招属于成果 Modal。
-            let holdIdle = vectorPlaybook?.isPlaying == true
+            var holdIdle = vectorPlaybook?.isPlaying == true
                 ? nil
                 : PiboAnimationStateMap.holdIdle(for: transition.toStateID)
+            #if DEBUG
+            if debugPlaysAchievementCombo { holdIdle = nil }
+            #endif
             vectorIdle?.apply(
                 idle: holdIdle ?? PiboCharacterData.shared?.states[transition.toStateID]?.idle,
                 stateID: transition.toStateID,

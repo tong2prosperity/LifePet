@@ -58,22 +58,24 @@ final class PiboStageCommandController {
         scene?.playTurnAway()
     }
 
-    /// 运动完成 → 秀肌肉 → 娇羞 → 回常驻态。是否该演由 Core 判（深眠里被叫醒
-    /// 秀肌肉会读成 bug），这里只负责播。
-    func playAchievement(_ stateID: String) {
-        scene?.playAchievement(stateID)
-    }
-
-    func playWorkoutCelebration() {
-        playAchievement("pigu")
-    }
-
     func transitionAnimation(
         to stateID: String,
         intent: PiboCoreAnimationAdapter.TransitionIntent
     ) {
         scene?.transitionAnimation(to: stateID, intent: intent)
     }
+
+    #if DEBUG
+    /// 走查用：重播当前状态的登场与连招。
+    func replayAnimationIntro() {
+        scene?.replayAnimationIntro()
+    }
+
+    /// 走查用：成果态改演完整连招，用来对比首页的保持呼吸。
+    func setPlaysAchievementCombo(_ enabled: Bool) {
+        scene?.setPlaysAchievementCombo(enabled)
+    }
+    #endif
 
     func playSproutCloseup(
         growthFrom start: Double,

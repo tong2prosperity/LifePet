@@ -68,6 +68,20 @@ struct HomeView: View {
     #if DEBUG
     @State private var forestTuning: StageRenderTuning = .standard
     @State private var tuningPanelExpanded = !ProcessInfo.processInfo.arguments.contains("-PiboHideTuning")
+    /// 面板强制的动画态。nil = 跟随 Core。`-PiboAnimationState=` 只是把它种上，
+    /// 所以启动参数与面板走的是同一条覆盖路径。
+    @State private var debugForcedAnimationStateID: String? = {
+        guard let argument = ProcessInfo.processInfo.arguments.first(where: {
+            $0.hasPrefix("-PiboAnimationState=")
+        }) else { return nil }
+        let value = String(argument.dropFirst("-PiboAnimationState=".count))
+        return PiboAnimationStateMap.available.contains(value) ? value : nil
+    }()
+    /// Core 自己的判定，被面板覆盖时仍然显示出来 —— 走查时要能看出「Core 说
+    /// default，我在强制 dive」。
+    @State private var coreAnimationStateID = PiboAnimationStateMap.fallback
+    @State private var debugBounceCutIntent = false
+    @State private var debugPlaysAchievementCombo = false
     #else
     private let forestTuning: StageRenderTuning = .standard
     #endif
@@ -276,6 +290,21 @@ struct HomeView: View {
                 }
             }
             if let argument = ProcessInfo.processInfo.arguments.first(where: {
+                $0.hasPrefix("-PiboSelectStateAfter=")
+            }) {
+                let target = String(argument.dropFirst("-PiboSelectStateAfter=".count))
+                if PiboAnimationStateMap.available.contains(target) {
+                    Task {
+                        // 走查面板本身的抓帧钩子：模拟器合成不了点击，所以让这个
+                        // 参数走面板那条完整选择路径（而不是直接写状态变量），
+                        // 前后各截一帧就能证明「面板选中 → 舞台换态」是通的。
+                        try? await Task.sleep(for: .seconds(3))
+                        guard !Task.isCancelled else { return }
+                        applyDebugAnimationState(target)
+                    }
+                }
+            }
+            if let argument = ProcessInfo.processInfo.arguments.first(where: {
                 $0.hasPrefix("-PiboBoProgress=")
             }), let value = Int(argument.dropFirst("-PiboBoProgress=".count)),
                let milestone = BoProgressMilestone(rawValue: value) {
@@ -478,7 +507,20 @@ struct HomeView: View {
                         forcedHour: Binding(
                             get: { store.debugForestHour },
                             set: { store.debugForestHour = $0 }
-                        )
+                        ),
+                        forcedAnimationStateID: $debugForcedAnimationStateID,
+                        coreAnimationStateID: coreAnimationStateID,
+                        presentedAnimationStateID: semanticAnimationStateID,
+                        usesBounceCut: $debugBounceCutIntent,
+                        playsAchievementCombo: Binding(
+                            get: { debugPlaysAchievementCombo },
+                            set: {
+                                debugPlaysAchievementCombo = $0
+                                stageCommands.setPlaysAchievementCombo($0)
+                            }
+                        ),
+                        onSelectAnimationState: applyDebugAnimationState,
+                        onReplayAnimation: { stageCommands.replayAnimationIntro() }
                     )
                     Spacer(minLength: 0)
                 }
@@ -758,12 +800,8 @@ struct HomeView: View {
         LPHaptics.tap()
         Analytics.track(.energyCollected, screen: "home",
                         ["sprouted": .bool(store.growthStage == .sprouted)])
-        // 发芽那一段讲的是「收集到能量」；剧本讲的是「你今天动过了」。两件事接着
-        // 演，而不是抢同一个时刻。是否该演由 Core 判 —— 深眠里被叫醒秀肌肉，
-        // 或者正处在长期能量不足的颓势上突然亮相，都会读成 bug。
-        if PiboCoreAnimationAdapter.workoutCelebrationAllowed(for: store.activityState) {
-            stageCommands.playWorkoutCelebration()
-        }
+        // 发芽只讲「收集到能量」。运动完成的成果表演归成果卡片，`pigu` 不在主场景
+        // 出现 —— 这里曾经接着演一遍首页剧本，等于同一件事演两次。
         store.consumePendingWorkout()
         setSproutPhase(.idle)
     }
@@ -972,6 +1010,22 @@ struct HomeView: View {
         }
     }
 
+    #if DEBUG
+    /// 面板选中一个状态（nil = 交还给 Core）。
+    ///
+    /// 走的是业务同一条路径：先写状态变量让下一次 `apply(...)` 生效；要看 Q 弹
+    /// 时紧接着发命令 —— 命令会先把渲染器的 `animationStateID` 写掉，随后那次
+    /// `apply` 自然成为 no-op，不会双切。顺序与 `handlePat()` 一致。
+    private func applyDebugAnimationState(_ stateID: String?) {
+        let previous = semanticAnimationStateID
+        debugForcedAnimationStateID = stateID
+        refreshAnimationState()
+        let target = semanticAnimationStateID
+        guard debugBounceCutIntent, target != previous else { return }
+        stageCommands.transitionAnimation(to: target, intent: .bounceCut)
+    }
+    #endif
+
     private func refreshAnimationState(now: Date = .now) {
         let experience = store.animationExperience
         experience.refreshExpiries(now: now)
@@ -1018,11 +1072,12 @@ struct HomeView: View {
             held: experience.heldAchievement
         )
         #if DEBUG
-        if let argument = ProcessInfo.processInfo.arguments.first(where: {
-            $0.hasPrefix("-PiboAnimationState=")
-        }) {
-            let forced = String(argument.dropFirst("-PiboAnimationState=".count))
-            if PiboAnimationStateMap.available.contains(forced) { decided = forced }
+        coreAnimationStateID = decided
+        // 覆盖必须落在这里：前台对账 / HealthKit 更新 / 整点定时都会重跑本函数，
+        // 写在别处会被下一次刷新冲掉。
+        if let forced = debugForcedAnimationStateID,
+           PiboAnimationStateMap.available.contains(forced) {
+            decided = forced
         }
         #endif
         semanticAnimationStateID = decided
@@ -1267,6 +1322,13 @@ private struct ForestTuningPanel: View {
     @Binding var tuning: StageRenderTuning
     @Binding var isExpanded: Bool
     @Binding var forcedHour: Double?
+    @Binding var forcedAnimationStateID: String?
+    let coreAnimationStateID: String
+    let presentedAnimationStateID: String
+    @Binding var usesBounceCut: Bool
+    @Binding var playsAchievementCombo: Bool
+    let onSelectAnimationState: (String?) -> Void
+    let onReplayAnimation: () -> Void
     @State private var playbackTask: Task<Void, Never>?
     @State private var isPlayingDay = false
 
@@ -1301,6 +1363,9 @@ private struct ForestTuningPanel: View {
                     stopPlayback()
                     tuning = .standard
                     forcedHour = nil
+                    usesBounceCut = false
+                    playsAchievementCombo = false
+                    onSelectAnimationState(nil)
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
                         .frame(width: 28, height: 28)
@@ -1320,26 +1385,34 @@ private struct ForestTuningPanel: View {
             }
             .foregroundStyle(LP.Content.secondary)
 
-            Toggle("隐藏 Pibo", isOn: Binding(
-                get: { !tuning.piboVisible },
-                set: { tuning.piboVisible = !$0 }
-            ))
-            .lpText(LP.Typography.c1Regular)
-            .tint(LP.Fill.foundationAccent)
+            ScrollView {
+                VStack(alignment: .leading, spacing: LP.Spacing.s) {
+                    Toggle("隐藏 Pibo", isOn: Binding(
+                        get: { !tuning.piboVisible },
+                        set: { tuning.piboVisible = !$0 }
+                    ))
+                    .lpText(LP.Typography.c1Regular)
+                    .tint(LP.Fill.foundationAccent)
 
-            timeLightingControl
+                    animationStateControl
 
-            tuningSlider(
-                title: "树叶晃动",
-                value: $tuning.ambientMotionScale,
-                range: 0...2
-            )
+                    timeLightingControl
 
-            tuningSlider(
-                title: "Pibo 草叶柔韧度",
-                value: $tuning.headSproutFlexibility,
-                range: 0...1
-            )
+                    tuningSlider(
+                        title: "树叶晃动",
+                        value: $tuning.ambientMotionScale,
+                        range: 0...2
+                    )
+
+                    tuningSlider(
+                        title: "Pibo 草叶柔韧度",
+                        value: $tuning.headSproutFlexibility,
+                        range: 0...1
+                    )
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxHeight: 470)
         }
         .padding(LP.Spacing.m)
         .frame(width: 264)
@@ -1352,6 +1425,139 @@ private struct ForestTuningPanel: View {
                 .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair)
         )
         .lpShadow(LP.Shadow.elevation2)
+    }
+
+    /// 动画态走查：切状态、看 Core 判定、看这一态的连招由什么组成、重播登场。
+    private var animationStateControl: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: LP.Spacing.s) {
+                Text("Pibo 动画态")
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(LP.Content.secondary)
+                Spacer(minLength: 0)
+                Text(forcedAnimationStateID == nil ? "跟随 Core" : "已强制")
+                    .lpText(LP.Typography.c2Medium)
+                    .foregroundStyle(LP.Content.tertiary)
+            }
+
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4),
+                spacing: 4
+            ) {
+                animationStateChip("Core", stateID: nil)
+                // 白名单是唯一来源，多一态少一态面板自动跟。
+                ForEach(PiboAnimationStateMap.available.sorted(), id: \.self) { stateID in
+                    animationStateChip(shortStateLabel(stateID), stateID: stateID)
+                }
+            }
+
+            Text("Core：\(coreAnimationStateID) · 在演：\(presentedAnimationStateID)")
+                .lpText(LP.Typography.c2Regular)
+                .foregroundStyle(LP.Content.tertiary)
+                .monospacedDigit()
+
+            Text(idleComposition(of: presentedAnimationStateID))
+                .lpText(LP.Typography.c2Regular)
+                .foregroundStyle(LP.Content.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 4) {
+                intentButton("硬切", bounce: false)
+                intentButton("Q 弹", bounce: true)
+            }
+
+            Button {
+                LPHaptics.tap()
+                onReplayAnimation()
+            } label: {
+                Label("重播登场 / 连招", systemImage: "arrow.clockwise")
+                    .lpText(LP.Typography.c2Medium)
+                    .foregroundStyle(LP.Content.secondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
+                    .background(Capsule().fill(LP.Fill.bgSurfaceSecondary))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("从头重播当前状态的登场与连招")
+
+            Toggle("成果态演完整连招", isOn: $playsAchievementCombo)
+                .lpText(LP.Typography.c1Regular)
+                .tint(LP.Fill.foundationAccent)
+                .disabled(!isAchievementState(presentedAnimationStateID))
+                .accessibilityHint("关闭时首页只跑设计的保持呼吸")
+        }
+    }
+
+    private func animationStateChip(_ title: String, stateID: String?) -> some View {
+        let isSelected = forcedAnimationStateID == stateID
+        return Button {
+            guard !isSelected else { return }
+            LPHaptics.tap()
+            onSelectAnimationState(stateID)
+        } label: {
+            Text(title)
+                .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .foregroundStyle(isSelected ? LP.Fill.foundationOnAccent : LP.Content.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 27)
+                .background(
+                    Capsule().fill(isSelected ? LP.Fill.foundationAccent : LP.Fill.bgSurfaceSecondary)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(stateID ?? "跟随 Core 判定")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func intentButton(_ title: String, bounce: Bool) -> some View {
+        let isSelected = usesBounceCut == bounce
+        return Button {
+            guard !isSelected else { return }
+            LPHaptics.tap()
+            usesBounceCut = bounce
+        } label: {
+            Text(title)
+                .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                .foregroundStyle(isSelected ? LP.Fill.foundationOnAccent : LP.Content.secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 27)
+                .background(
+                    Capsule().fill(isSelected ? LP.Fill.foundationAccent : LP.Fill.bgSurfaceSecondary)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(bounce ? "下一次切换走 Q 弹" : "下一次切换走硬切")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    /// 睡眠三态的 ID 太长，四列放不下。
+    private func shortStateLabel(_ stateID: String) -> String {
+        stateID.replacingOccurrences(of: "sleep-", with: "睡")
+    }
+
+    private func isAchievementState(_ stateID: String) -> Bool {
+        PiboAnimationStateMap.holdIdle(for: stateID) != nil
+    }
+
+    /// 这一态的连招由哪些原语、多长的门控周期组成 —— 直接读运行时数据，
+    /// 面板不复述一份。
+    private func idleComposition(of stateID: String) -> String {
+        guard let idle = PiboCharacterData.shared?.states[stateID]?.idle else {
+            return "无待机数据"
+        }
+        let parts = idle.resolvedParts
+        let cycle = parts.compactMap(\.gateCycle).max()
+        var summary = "\(parts.count) 段"
+        if let cycle { summary += " · 时间轴 \(String(format: "%.1f", cycle))s" }
+        if let intro = idle.intro {
+            summary += " · 登场 \(String(format: "%.2f", intro.duration))s"
+        }
+        let kinds = parts.map(\.kind).reduce(into: [String]()) { unique, kind in
+            if !unique.contains(kind) { unique.append(kind) }
+        }
+        return summary + "\n" + kinds.joined(separator: " · ")
     }
 
     private var timeLightingControl: some View {

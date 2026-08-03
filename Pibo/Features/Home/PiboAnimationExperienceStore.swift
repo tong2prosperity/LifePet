@@ -4,6 +4,13 @@ import Observation
 enum PiboAnimationAchievementKind: String, Codable, Sendable {
     case pigu
     case muscle
+
+    /// 成果姿势会不会留在主场景。
+    ///
+    /// 运动完成的 `pigu` 只在成果卡片里演一次，确认后首页直接切回健康状态 ——
+    /// 那个姿势不是一种「今天的状态」，把它挂一整天会盖掉真正在变化的东西。
+    /// 万步的 `muscle` 仍然保持到 22:00。
+    var holdsOnHome: Bool { self == .muscle }
 }
 
 struct PiboAnimationAchievementPayload: Codable, Equatable, Identifiable, Sendable {
@@ -111,6 +118,10 @@ final class PiboAnimationExperienceStore {
         pendingAchievement = nil
         notificationPresentationRequestID = nil
         defaults.removeObject(forKey: Self.pendingKey)
+        guard payload.kind.holdsOnHome else {
+            clearHold()
+            return payload
+        }
         heldAchievement = payload.kind
         let start = calendar.startOfDay(for: now)
         let holdUntil = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: start) ?? now
@@ -182,7 +193,8 @@ final class PiboAnimationExperienceStore {
         let heldUntil = Date(timeIntervalSince1970: defaults.double(forKey: Self.heldUntilKey))
         if heldUntil > now,
            let raw = defaults.string(forKey: Self.heldKey),
-           let kind = PiboAnimationAchievementKind(rawValue: raw) {
+           let kind = PiboAnimationAchievementKind(rawValue: raw),
+           kind.holdsOnHome {
             heldAchievement = kind
         }
         let angryDate = Date(timeIntervalSince1970: defaults.double(forKey: Self.angryUntilKey))

@@ -41,34 +41,24 @@ enum PiboAnimationStateMap {
         return available.contains(decided) ? decided : fallback
     }
 
-    static func achievement(_ stateID: String) -> [PiboCharacterPlaybook.Beat] {
-        guard stateID == "pigu" || stateID == "muscle" else { return [] }
-        return [.init(stateID, hold: 6.0)]
-    }
-
     /// The idle the home runs while it holds an achievement pose.
     ///
     /// The source integration swaps the whole combo for a single breath the
     /// moment the celebration closes (`setIdleOverride` in
     /// `pibo_design/integration/harmony-home-preview/index.html`): the flourish
     /// belongs to the Modal, and what stays on the home is the pose plus a
-    /// breath taken from the character's own contact point — which is why the
-    /// two states carry different origins rather than sharing one.
+    /// breath taken from the character's own contact point.
+    ///
+    /// Only `muscle` holds. 运动完成的 `pigu` 只在成果卡片里演一次，主场景不保留
+    /// 那个姿势，所以它在设计包里的那条 override（4.2s / 0.018 / `165px 292px`）
+    /// 没有落点 —— 不是漏了。
     ///
     /// Authored as the source's own config shape because these are design
     /// numbers; decoding them keeps a single interpretation of `origin`,
     /// `amplitude` and `duration` shared with every other idle.
     static func holdIdle(for stateID: String) -> PiboCharacterData.Idle? {
-        switch stateID {
-        case "pigu": piguHoldIdle
-        case "muscle": muscleHoldIdle
-        default: nil
-        }
+        stateID == "muscle" ? muscleHoldIdle : nil
     }
-
-    private static let piguHoldIdle = decodeIdle(
-        #"{"kind":"breathe-y","duration":4.2,"amplitude":0.018,"origin":"165px 292px"}"#
-    )
 
     private static let muscleHoldIdle = decodeIdle(
         #"{"kind":"breathe-y","duration":4.2,"amplitude":0.018,"origin":"150px 270px"}"#

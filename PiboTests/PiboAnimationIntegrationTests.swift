@@ -57,8 +57,6 @@ struct PiboAnimationIntegrationTests {
 
         #expect(data.states["pigu"]?.idle?.intro?.duration == 0.85)
         #expect(data.states["muscle"]?.idle?.intro?.duration == 0.9)
-        #expect(PiboAnimationStateMap.achievement("pigu").first?.hold == 6)
-        #expect(PiboAnimationStateMap.achievement("muscle").first?.hold == 6)
     }
 
     @Test func everyShippedStateExposesAPresentedSproutRootAnchor() throws {
@@ -578,11 +576,40 @@ struct PiboAnimationIntegrationTests {
         experience.refreshExpiries(now: tomorrow)
         #expect(experience.pendingAchievement == nil)
 
-        experience.queueWorkout(workout(id: UUID(), endedAt: now))
+        experience.queueStepsAchievement(at: now)
         _ = experience.confirmPending(now: now)
-        #expect(experience.heldAchievement == .pigu)
+        #expect(experience.heldAchievement == .muscle)
         experience.refreshExpiries(now: tomorrow)
         #expect(experience.heldAchievement == nil)
+    }
+
+    /// 运动完成只在成果卡片里演一次：确认之后首页不保留 `pigu`，直接回到 Core
+    /// 判定的健康状态。万步的 `muscle` 不受影响。
+    @Test func workoutAchievementNeverHoldsOnTheHome() {
+        let calendar = Calendar.current
+        let now = calendar.date(bySettingHour: 15, minute: 0, second: 0, of: Date())!
+        let experience = PiboAnimationExperienceStore(defaults: testDefaults(), calendar: calendar)
+
+        experience.queueWorkout(workout(id: UUID(), endedAt: now))
+        #expect(experience.pendingAchievement?.kind == .pigu)
+        _ = experience.confirmPending(now: now)
+        #expect(experience.heldAchievement == nil)
+
+        experience.queueStepsAchievement(at: now)
+        _ = experience.confirmPending(now: now)
+        #expect(experience.heldAchievement == .muscle)
+
+        #expect(PiboAnimationAchievementKind.pigu.holdsOnHome == false)
+        #expect(PiboAnimationAchievementKind.muscle.holdsOnHome)
+        // 旧版本可能把 pigu 写进过持久化的保持槽；映射层仍要挡住。
+        #expect(PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
+            to: "tired", held: .pigu
+        ) == "tired")
+        #expect(PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
+            to: "tired", held: .muscle
+        ) == "muscle")
+        // 主场景没有 pigu 的保持呼吸，因为它根本不会停在主场景。
+        #expect(PiboAnimationStateMap.holdIdle(for: "pigu") == nil)
     }
 
     @Test func everyNotificationTapProducesAConsumablePresentationRequest() {
@@ -629,13 +656,13 @@ struct PiboAnimationIntegrationTests {
         #expect(!PiboCoreAnimationAdapter.achievementPresentationAllowed(in: "sleep-1"))
         #expect(PiboCoreAnimationAdapter.achievementPresentationAllowed(in: "default"))
         #expect(PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
-            to: "weak", held: .pigu
-        ) == "pigu")
+            to: "weak", held: .muscle
+        ) == "muscle")
         #expect(PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
             to: "angry", held: .muscle
         ) == "angry")
         #expect(PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
-            to: "sleep-2", held: .pigu
+            to: "sleep-2", held: .muscle
         ) == "sleep-2")
     }
 
@@ -869,24 +896,19 @@ struct PiboAnimationIntegrationTests {
         #expect(deviation(at: 0.6) < 0.0001)
     }
 
-    /// The home keeps the achievement pose but not the combo: the source swaps
-    /// in a single breath the moment the celebration closes, with a per-state
-    /// origin.
+    /// 主场景保持成果姿势时只呼吸，不演连招；参数取自设计侧的 `setIdleOverride`。
+    /// 只有 `muscle` 会停在主场景，所以只有它有这条呼吸。
     @Test func achievementHoldUsesTheSourceIdleOverride() throws {
-        let pigu = try #require(PiboAnimationStateMap.holdIdle(for: "pigu")?.resolvedParts.first)
-        #expect(pigu.kind == "breathe-y")
-        #expect(pigu.duration == 4.2)
-        #expect(pigu.amplitude == 0.018)
-        #expect(pigu.origin == "165px 292px")
-
         let muscle = try #require(PiboAnimationStateMap.holdIdle(for: "muscle")?.resolvedParts.first)
+        #expect(muscle.kind == "breathe-y")
         #expect(muscle.origin == "150px 270px")
         #expect(muscle.duration == 4.2)
         #expect(muscle.amplitude == 0.018)
 
+        #expect(PiboAnimationStateMap.holdIdle(for: "pigu") == nil)
         #expect(PiboAnimationStateMap.holdIdle(for: "default") == nil)
         #expect(PiboAnimationStateMap.holdIdle(for: "weak") == nil)
-        // The Modal still plays the authored flourish, so the states keep it.
+        // 成果卡片里仍然演完整的登场与连招，所以状态数据本身不变。
         let data = try PiboCharacterData.load()
         #expect(data.states["pigu"]?.idle?.resolvedParts.count == 11)
         #expect(data.states["pigu"]?.idle?.intro != nil)

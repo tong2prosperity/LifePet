@@ -58,7 +58,7 @@ iOS App 负责平台能力：
 | `tired` | 睡眠少于个人基线（含容差） | `ground` |
 | `boring` | 14:00 后，睡眠正常且活动较少 | `treeTraverse` / `treeRest` |
 | `weak` | 14:00 后，睡眠不足且活动较少；表示主动降速同行 | `treeRest`，靠中心树干且尾部不悬空 |
-| `pigu` | 用户完成一项 HealthKit workout 后的成果反馈 | Modal 内播放；确认后 `ground` 保持成果姿势 |
+| `pigu` | 用户完成一项 HealthKit workout 后的成果反馈 | 只在 Modal 内播放；主场景不出现 |
 | `muscle` | 当天步数首次从 `<10,000` 跨到 `≥10,000` | Modal 内播放；确认后 `ground` 保持成果姿势 |
 | `angry` | 10 分钟内发生第 3 次真实拍击 | `ground`，临时覆盖状态 |
 | `dive` | 静息真实 RMSSD 明显低于个人压力基线，Pibo 主动降低刺激 | `water`，水面左侧大石后 |
@@ -111,7 +111,7 @@ steps < 3000 && 当天没有 workout
 → Modal 内完整播放一次 pigu
 → 显示 Pibo 文案入口、运动摘要和“确定”按钮
 → 点击确定关闭
-→ 首页保持 pigu 姿势，只跑设计侧的 breathe-y 微呼吸
+→ 首页直接切回 Core 判定的健康状态，**不保留 `pigu`**
 ```
 
 规则：
@@ -121,15 +121,15 @@ steps < 3000 && 当天没有 workout
 - pending 通知合并/替换，只保留最后一条；
 - 当天尚未展示时可在直接打开 App 后补播，跨日不补播；
 - 深眠期间不立即播放；
-- 首页成果姿势保持至 22:00；
+- **`pigu` 只在成果卡片里演，主场景任何时候都不出现**（2026-08-04 决定）。它不是一种「今天的状态」，挂一整天会盖掉真正在变化的东西。旧的「发芽收尾再演一遍首页剧本」那条路径同时移除 —— 那等于同一件事演两次；
 - 当前旧的 `muscle → pigu` 连播必须拆开，运动完成只播放 `pigu`。
 
 ### 5.2 `muscle`：首次达到一万步
 
 - 当天步数首次从 `<10,000` 跨到 `≥10,000` 时触发；
 - 每天最多一次，历史回填不补播；
-- 使用与 `pigu` 相同的通知、Modal、确定按钮和首页姿势保持规则；
-- 首页保持至 22:00；
+- 使用与 `pigu` 相同的通知、Modal 和确定按钮规则；
+- 与 `pigu` 不同的是，`muscle` 确认后会留在首页并保持至 22:00；
 - 通常由最近发生的成果决定最终首页姿势；
 - 同一批 HealthKit 更新同时发现 workout 和万步时，只展示 `pigu`，同时将万步标记为已处理；
 - “同一批”在实现中精确定义为一次确定性的 HealthKit 成果采集/对账：先评估 steps，再评估 workout；两个事实都在该轮被发现时，后评估的 workout 替换共享 pending 与共享通知，因此最终只呈现 `pigu`；
@@ -138,7 +138,7 @@ steps < 3000 && 当天没有 workout
 ### 5.3 成果 Modal 的播放与关闭
 
 - Modal 打开后自动播放一次目标状态的完整动画：约 0.9 秒登场加一轮约 6 秒连招；连招随后按自己的 `gateCycle` 继续循环，与 `preview/` 的播放器一致；
-- 关闭 Modal 后首页不再演连招，改用设计侧 `setIdleOverride` 的那条 `breathe-y`（见 §5.6）；
+- 关闭 Modal 后首页不再演连招：`pigu` 直接切回健康状态，`muscle` 改用设计侧 `setIdleOverride` 的那条 `breathe-y`（见 §5.6）；
 - “确定”按钮从 Modal 出现时就可用；提前点击代表跳过剩余动画并关闭，不强迫用户等待约 7 秒；
 - 禁止下滑关闭和点击背景关闭，避免成果被误操作跳过；
 - 无论完整播放还是提前点击确定，都记录为当天已经展示，不再次补播；
@@ -169,24 +169,23 @@ Core 只返回稳定 content key 和结构化参数，App 负责本地化文本�
 
 ### 5.6 首页成果保持态的微动
 
-连招属于 Modal，首页只保留姿势加一次呼吸。参数取自设计侧的集成原型
-（`pibo_design/integration/harmony-home-preview/index.html` 的 `resultIdleConfigs`
-+ `setIdleOverride`），不是 App 自拟：
+只有 `muscle` 会停在主场景。`pigu` 见 §5.1：运动完成只在成果卡片里演一次，确认后
+首页直接切回健康状态。
 
-| 状态 | 配置 |
-| --- | --- |
-| `pigu` | `breathe-y` · 4.2s · amplitude 0.018 · origin `165px 292px` |
-| `muscle` | `breathe-y` · 4.2s · amplitude 0.018 · origin `150px 270px` |
+`muscle` 的保持参数取自设计侧的集成原型（`pibo_design/integration/harmony-home-preview/index.html`
+的 `resultIdleConfigs` / `setIdleOverride`）：`breathe-y` · 4.2s · amplitude 0.018 ·
+仅纵向 · origin `150px 270px`（它自己的着地点）。override 会**整体替换**该状态的
+idle，所以保持期间没有挥手、腹肌弹动或芽抖。保持至 22:00。
 
-两个状态的 origin 不同，因为呼吸的支点是各自的着地点。override 会**整体替换**该
-状态的 idle，所以保持期间不再有跺脚、wink、✨ 或芽抖 —— 与原型一致。
+设计包里 `pigu` 也有一条同规格的 override（origin `165px 292px`），本轮没有落点 ——
+不是漏了，是它不再有主场景保持态。
 
 ## 6. 拍击与 `angry`
 
 - 统计真实拍击次数，不统计“成功说出文案”的次数；
 - 10 分钟窗口内第 3 次真实拍击触发 `angry`；
 - `sleep-1`、`sleep-2` 和 `awake` 期间拍击只显示文案，不触发 `angry`、不切状态；
-- `angry` 可以临时覆盖已经保持的 `pigu/muscle` 成果姿势；
+- `angry` 可以临时覆盖已经保持的 `muscle` 成果姿势；
 - `angry` 保持 10 分钟，期间继续拍击不延长时间，避免永久锁定；
 - 10 分钟结束后清空本轮拍击计数，并重新计算状态：优先恢复当日成果姿势，否则恢复健康状态；
 - 成果 Modal 可覆盖 `angry`；Modal 关闭时若 `angry` 尚未结束，则继续 `angry`；
@@ -540,3 +539,27 @@ iPhone 17 / iOS 26.5 Simulator 上以 `-PiboSkipOnboarding -PiboAnimationState=p
 注：`StageArchitectureTests.testAllForegroundFoliageUsesIndependentFigmaAssets` 当前失败
 （`forest_main_leaf_2` 的 Figma 节点 id 与尺寸对不上），与本轮无关——在剥离本轮改动的基线上
 同样失败，属于工作区里另一份未提交的森林素材改动。
+
+### `pigu` 退出主场景（2026-08-04）
+
+产品决定：**运动完成的 `pigu` 只在成果卡片里演一次，主场景任何时候都不出现，
+确认后直接切到其他状态。** 万步的 `muscle` 不变，仍然保持到 22:00。
+
+两端同步落地：
+
+- 规则写在类型上而不是散在判断里 —— iOS `PiboAnimationAchievementKind.holdsOnHome`
+  （`pigu` = false），鸿蒙 `PetStateStore.holdsOnHome(...)`。确认成果时只为会保持的
+  那种记保持槽；映射层（iOS `stateIDByApplyingAchievementHold`、鸿蒙
+  `HomePage.animationState`）再守一道，因为旧版本可能已经把 `pigu` 写进过持久化的
+  保持槽，升级上来的设备要能自愈；
+- iOS 另外拆掉了发芽收尾处的 `playWorkoutCelebration()` —— 那条路径在成果卡片之外
+  又在首页演一遍 `pigu` 剧本，是集成规格 §10.7 早就要求解绑、但当时没拆干净的部分。
+  随之失去调用者的 `PiboCoreAnimationAdapter.workoutCelebrationAllowed`、命令控制器/
+  场景/渲染器的 `playAchievement` 与 `PiboAnimationStateMap.achievement` 一并删除。
+  Character Lab 自己构造 beats，不受影响，仍可在隔离环境里看这段表演；
+- 鸿蒙本来就没有这条发芽剧本，只改了保持槽与首页映射。
+
+验证：iOS 动画专项 34 项全过、全量 145 项仅剩一处与本轮无关的既有失败
+（`StageArchitectureTests` 的森林叶片素材，基线同样失败）；鸿蒙 `run_all_checks`
+全绿（`check_character_animation_port.mjs` 新增固定「只有 muscle 保持」与
+「首页不得出现 pigu 保持分支」），Debug HAP 构建通过。

@@ -106,6 +106,9 @@ enum PiboCoreAnimationAdapter {
 
     /// App-owned persisted achievement poses sit above continuous health
     /// states, but never cover sleep or an active angry interval.
+    ///
+    /// `pigu` never reaches here — 运动完成只在成果卡片里演。这里仍然守一道，
+    /// 因为旧版本可能把 `pigu` 写进过持久化的保持槽。
     static func stateIDByApplyingAchievementHold(
         to decidedStateID: String,
         held: PiboAnimationAchievementKind?
@@ -113,7 +116,8 @@ enum PiboCoreAnimationAdapter {
         guard decidedStateID != "sleep-1",
               decidedStateID != "sleep-2",
               decidedStateID != "angry",
-              let held
+              let held,
+              held.holdsOnHome
         else { return decidedStateID }
         return held.rawValue
     }
@@ -176,17 +180,6 @@ enum PiboCoreAnimationAdapter {
             sleptWell: sleptWell,
             lowEnergyDays: lowEnergyDays
         ).contentID
-    }
-
-    /// Whether a finished workout earns the 秀肌肉 → 娇羞 performance.
-    static func workoutCelebrationAllowed(
-        for state: PiboActivityState,
-        lowEnergyDays: UInt32 = 0
-    ) -> Bool {
-        PiboCoreAnimation.workoutCelebrationAllowed(
-            activity: coreState(for: state),
-            lowEnergyDays: lowEnergyDays
-        )
     }
 
     private static func coreState(for state: PiboActivityState) -> PiboCoreActivityState {
