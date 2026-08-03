@@ -48,6 +48,12 @@ struct ForestLightingProfile: Equatable, Sendable {
     var morningBeam: CGFloat
     var duskBeam: CGFloat
     var fireflyBirthRate: CGFloat
+    /// 0 = 正午，1 = 最深的夜。
+    ///
+    /// 给「灯该多亮」这类判断用。**不要拿某个材质的 `darkness` 当天色读** ——
+    /// 每一层都带着自己的权重和上限（`far` 是 ×0.70，所以它最黑也只到 0.34），
+    /// 直接用会得到一个悄悄缩水的强度。
+    var nightness: CGFloat
 }
 
 struct ForestEnvironmentSnapshot: Equatable, Sendable {
@@ -121,6 +127,10 @@ enum ForestEnvironmentAdapter {
                  waterHighlight: 0.38, reflectionStrength: 0.40),
     ]
 
+    /// 关键帧里最深的那个夜。从数组里取而不是写死 0.48 —— 调关键帧的人不该
+    /// 还得记得回来同步一个常量。
+    private static let peakDarkness: CGFloat = keyframes.map(\.darkness).max() ?? 1
+
     static func resolve(_ environment: PiboStageEnvironment) -> ForestEnvironmentSnapshot {
         let value = sampledKeyframe(at: environment.localHour)
 
@@ -148,7 +158,8 @@ enum ForestEnvironmentAdapter {
             ),
             morningBeam: value.morningBeam,
             duskBeam: value.duskBeam,
-            fireflyBirthRate: value.fireflies
+            fireflyBirthRate: value.fireflies,
+            nightness: peakDarkness > 0 ? min(value.darkness / peakDarkness, 1) : 0
         )
 
         return ForestEnvironmentSnapshot(

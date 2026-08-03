@@ -49,6 +49,18 @@ final class HealthDataService {
         case denied
     }
 
+    /// HealthKit deliberately hides per-type read authorization. Onboarding
+    /// therefore verifies that the three inputs needed by Pibo are actually
+    /// readable instead of treating a non-throwing authorization request as
+    /// proof that every switch was enabled.
+    struct OnboardingReadiness: Sendable, Equatable {
+        let hasSleep: Bool
+        let hasSteps: Bool
+        let hasExercise: Bool
+
+        var isReady: Bool { hasSleep && hasSteps && hasExercise }
+    }
+
     // MARK: - Public state
 
     private(set) var authState: AuthState
@@ -168,6 +180,72 @@ final class HealthDataService {
         } catch {
             authState = .denied
             LPLog.healthKit.error("Auth threw: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Checks for recent readable samples rather than inferred permission.
+    /// An empty result covers both cases the onboarding gate cares about:
+    /// the user denied that read scope, or the connected data source has not
+    /// supplied enough baseline data yet.
+    func onboardingReadiness(now: Date = .now) async -> OnboardingReadiness {
+        guard authState == .granted, HKHealthStore.isHealthDataAvailable(),
+              let start = Calendar.current.date(byAdding: .day, value: -30, to: now)
+        else {
+            return OnboardingReadiness(hasSleep: false, hasSteps: false, hasExercise: false)
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: now)
+        let hasSleep = await hasRecentCategorySample(.sleepAnalysis, predicate: predicate)
+        let hasSteps = await hasRecentQuantitySample(.stepCount, predicate: predicate)
+        let hasExercise = await hasRecentQuantitySample(.appleExerciseTime, predicate: predicate)
+        let readiness = OnboardingReadiness(
+            hasSleep: hasSleep,
+            hasSteps: hasSteps,
+            hasExercise: hasExercise
+        )
+        LPLog.onboarding.notice(
+            "Health baseline ready=\(readiness.isReady, privacy: .public) sleep=\(hasSleep, privacy: .public) steps=\(hasSteps, privacy: .public) exercise=\(hasExercise, privacy: .public)"
+        )
+        return readiness
+    }
+
+    private func hasRecentQuantitySample(
+        _ id: HKQuantityTypeIdentifier,
+        predicate: NSPredicate
+    ) async -> Bool {
+        let type = HKQuantityType(id)
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: type, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)],
+            limit: 1
+        )
+        do {
+            return try await !descriptor.result(for: store).isEmpty
+        } catch {
+            LPLog.healthKit.error(
+                "Onboarding baseline query \(id.rawValue, privacy: .public) failed: \(error.localizedDescription, privacy: .public)"
+            )
+            return false
+        }
+    }
+
+    private func hasRecentCategorySample(
+        _ id: HKCategoryTypeIdentifier,
+        predicate: NSPredicate
+    ) async -> Bool {
+        let type = HKCategoryType(id)
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.categorySample(type: type, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)],
+            limit: 1
+        )
+        do {
+            return try await !descriptor.result(for: store).isEmpty
+        } catch {
+            LPLog.healthKit.error(
+                "Onboarding baseline query \(id.rawValue, privacy: .public) failed: \(error.localizedDescription, privacy: .public)"
+            )
+            return false
         }
     }
 

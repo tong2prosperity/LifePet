@@ -46,6 +46,39 @@ enum PiboAnimationStateMap {
         return [.init(stateID, hold: 6.0)]
     }
 
+    /// The idle the home runs while it holds an achievement pose.
+    ///
+    /// The source integration swaps the whole combo for a single breath the
+    /// moment the celebration closes (`setIdleOverride` in
+    /// `pibo_design/integration/harmony-home-preview/index.html`): the flourish
+    /// belongs to the Modal, and what stays on the home is the pose plus a
+    /// breath taken from the character's own contact point — which is why the
+    /// two states carry different origins rather than sharing one.
+    ///
+    /// Authored as the source's own config shape because these are design
+    /// numbers; decoding them keeps a single interpretation of `origin`,
+    /// `amplitude` and `duration` shared with every other idle.
+    static func holdIdle(for stateID: String) -> PiboCharacterData.Idle? {
+        switch stateID {
+        case "pigu": piguHoldIdle
+        case "muscle": muscleHoldIdle
+        default: nil
+        }
+    }
+
+    private static let piguHoldIdle = decodeIdle(
+        #"{"kind":"breathe-y","duration":4.2,"amplitude":0.018,"origin":"165px 292px"}"#
+    )
+
+    private static let muscleHoldIdle = decodeIdle(
+        #"{"kind":"breathe-y","duration":4.2,"amplitude":0.018,"origin":"150px 270px"}"#
+    )
+
+    private static func decodeIdle(_ json: String) -> PiboCharacterData.Idle? {
+        guard let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(PiboCharacterData.Idle.self, from: data)
+    }
+
     /// Whether a state belongs to the coconut, which decides hard cut vs morph.
     static func isNestState(_ stateID: String, data: PiboCharacterData?) -> Bool {
         data?.transition.zones["nest"]?.contains(stateID) ?? false

@@ -37,7 +37,8 @@ struct PendingBoProgressFeedback: Codable, Equatable, Identifiable, Sendable {
 /// Durable presentation queue for one bo progress acknowledgement.
 ///
 /// It accepts committed ledger balances only. Health scoring, daily caps and
-/// minting remain in Core/the ledger; SpriteKit never sees those inputs.
+/// minting remain in Core/the ledger; the badge only receives the resulting
+/// milestone ID.
 @MainActor
 @Observable
 final class BoProgressFeedbackStore {

@@ -547,38 +547,20 @@ final class PiboCharacterRenderer {
         vector.resetIdleTransforms()
         // 亮相是定格 pose：登场期间常规连招暂停。
         if !transition.suppressesIdle {
-            if Self.isAchievement(transition.toStateID), vectorPlaybook?.isPlaying != true {
-                applyAchievementHold(
-                    character: vector,
-                    time: time,
-                    amplitude: transition.idleAmplitude
-                )
-            } else {
-                vectorIdle?.apply(
-                    idle: PiboCharacterData.shared?.states[transition.toStateID]?.idle,
-                    stateID: transition.toStateID,
-                    character: vector,
-                    time: time,
-                    amplitude: transition.idleAmplitude
-                )
-            }
+            // 成果姿势留在首页时只呼吸，不继续演连招 —— 连招属于成果 Modal。
+            let holdIdle = vectorPlaybook?.isPlaying == true
+                ? nil
+                : PiboAnimationStateMap.holdIdle(for: transition.toStateID)
+            vectorIdle?.apply(
+                idle: holdIdle ?? PiboCharacterData.shared?.states[transition.toStateID]?.idle,
+                stateID: transition.toStateID,
+                character: vector,
+                time: time,
+                amplitude: transition.idleAmplitude
+            )
         }
         updateVectorRig(time: time, deltaTime: deltaTime, wind: wind, reduceMotion: reduceMotion)
         if let view = scene?.view { vector.refreshReflectionSnapshotIfNeeded(in: view) }
-    }
-
-    private static func isAchievement(_ stateID: String) -> Bool {
-        stateID == "pigu" || stateID == "muscle"
-    }
-
-    private func applyAchievementHold(
-        character: PiboVectorCharacter,
-        time: TimeInterval,
-        amplitude: CGFloat
-    ) {
-        let phase = CGFloat(sin(time * 2 * .pi / 4.8)) * amplitude
-        character.setBreath(x: 1 + phase * 0.004, y: 1 + phase * 0.008)
-        character.setBodyOffset(x: 0, y: phase * 1.2)
     }
 
     /// 同一套六段骨骼阻尼弹簧，宿主换成矢量角色的芽。根梢方向随状态变化，

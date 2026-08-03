@@ -44,7 +44,9 @@
 - [`23-Onboarding与事件01-03跨平台MVP规格-v0.1.md`](23-Onboarding%E4%B8%8E%E4%BA%8B%E4%BB%B601-03%E8%B7%A8%E5%B9%B3%E5%8F%B0MVP%E8%A7%84%E6%A0%BC-v0.1.md)：六屏 Onboarding、事件 01–03、第一枚真实 `bo`、双平台职责、迁移清单和验收用例。
 - [`24-bo数值审计与Core-v0.1方向提案.md`](24-bo%E6%95%B0%E5%80%BC%E5%AE%A1%E8%AE%A1%E4%B8%8ECore-v0.1%E6%96%B9%E5%90%91%E6%8F%90%E6%A1%88.md)：现有后端公式与双端真实输入差异、第一枚时间模拟及 Core v0.1 数值结构提案。
 - [`25-pibo-server现有bo算法复核.md`](25-pibo-server%E7%8E%B0%E6%9C%89bo%E7%AE%97%E6%B3%95%E5%A4%8D%E6%A0%B8.md)：完整复核服务端复杂算法、事务与幂等链路、客户端接线缺口、匿名身份及 Core 迁移修正；当前结论优先于 24 号提案。
+- [`26-移植pibo-server计算模型到pibo-core-Coding-Agent-Prompt.md`](26-%E7%A7%BB%E6%A4%8Dpibo-server%E8%AE%A1%E7%AE%97%E6%A8%A1%E5%9E%8B%E5%88%B0pibo-core-Coding-Agent-Prompt.md)：可直接交给 Coding Agent 的等价迁移 Prompt，包含仓库路径、模块/API 设计、golden parity、no_std/ABI、验证与发布边界。
 - [`process/2026-07-30-MVP冻结与并行推进里程碑.md`](process/2026-07-30-MVP%E5%86%BB%E7%BB%93%E4%B8%8E%E5%B9%B6%E8%A1%8C%E6%8E%A8%E8%BF%9B%E9%87%8C%E7%A8%8B%E7%A2%91.md)：OF1–OF3、MP1–MP3 的确认背景、阶段切换与可追溯入口。
+- [`process/2026-07-31-Core-v0.5完成与事件04启动.md`](process/2026-07-31-Core-v0.5%E5%AE%8C%E6%88%90%E4%B8%8E%E4%BA%8B%E4%BB%B604%E5%90%AF%E5%8A%A8.md)：Core 等价迁移完成、App 尚未接线的边界，以及事件 04 叙事工作线的启动问题。
 - [`drafts/Pibo故事基础圣经-v0.1.md`](drafts/Pibo%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E5%9C%A3%E7%BB%8F-v0.1.md)：三套竞争故事骨架、压力测试与当前建议，尚未拍板。
 - [`drafts/Pibo故事基础圣经-v0.2.md`](drafts/Pibo%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E5%9C%A3%E7%BB%8F-v0.2.md)：九项决定的合并草案、伦理边界与进入章节前的开放项审计。
 - [`process/2026-07-24-故事基础批次归纳.md`](process/2026-07-24-%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E6%89%B9%E6%AC%A1%E5%BD%92%E7%BA%B3.md)：本批回答的状态、冲突与 S11–S22 提案。
@@ -53,6 +55,8 @@
 - [`drafts/Pibo基础逻辑宪章-v0.2.md`](drafts/Pibo%E5%9F%BA%E7%A1%80%E9%80%BB%E8%BE%91%E5%AE%AA%E7%AB%A0-v0.2.md)：冲突收敛后的基础逻辑草案。
 - [`methods/`](methods/)：情节与呈现方法。“生活观察与入戏”属于这一层，不作为故事基础元素的推导前提。
 - [`research/`](research/)：资料查证、反例与基于证据的模拟用户；不把模拟结果冒充真实用户反馈。
+- [`ideas/`](ideas/)：尚未确认、未进入 MVP、暂不要求对齐世界观的功能灵感备忘。
+- [`ideas/2026-08-03-Shadow-Pibo与能量监视器.md`](ideas/2026-08-03-Shadow-Pibo%E4%B8%8E%E8%83%BD%E9%87%8F%E7%9B%91%E8%A7%86%E5%99%A8.md)：单好友 Shadow Pibo 与可佩戴恢复值监视器的原始意图和待定边界。
 - [`process/`](process/)：过程记录。允许矛盾、推翻、试错，不代表最终设定。
 - [`process/2026-07-26-bo单资源暂定模型.md`](process/2026-07-26-bo%E5%8D%95%E8%B5%84%E6%BA%90%E6%9A%82%E5%AE%9A%E6%A8%A1%E5%9E%8B.md)：实体 `bo` 的产出、消费、返航与故事累计关系。
 - [`process/2026-07-27-无用之物的App表达示例.md`](process/2026-07-27-%E6%97%A0%E7%94%A8%E4%B9%8B%E7%89%A9%E7%9A%84App%E8%A1%A8%E8%BE%BE%E7%A4%BA%E4%BE%8B.md)：用预制小风铃说明关系意象如何通过固定状态表达。

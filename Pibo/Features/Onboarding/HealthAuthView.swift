@@ -29,12 +29,12 @@ import UIKit
 struct HealthAuthView: View {
     @Environment(HealthDataService.self) private var health
     @Environment(PetStateStore.self) private var store
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var step: OnboardingStep = .system
     @State private var dialogueIndex = 0
     @State private var lightCount = 0
     @State private var authRequested = false
-    @State private var deniedAttempts = 0
     @State private var watchersRetreated = false
     @State private var piboMotion = false
     @State private var piboTalkPulse = false
@@ -109,6 +109,17 @@ struct HealthAuthView: View {
         }
         .animation(.easeInOut(duration: 0.55), value: step)
         .animation(.easeInOut(duration: 0.65), value: lightCount)
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active,
+                  UserDefaults.standard.bool(
+                    forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth
+                  )
+            else { return }
+            UserDefaults.standard.removeObject(
+                forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth
+            )
+            transition(to: .permission)
+        }
     }
 
     // MARK: - Scene
@@ -354,10 +365,11 @@ struct HealthAuthView: View {
         LPLog.onboarding.notice("User chose: connect HealthKit")
         Task {
             await health.requestAuthorization()
-            let granted = health.authState == .granted
+            let readiness = await health.onboardingReadiness()
+            let granted = readiness.isReady
             store.demoMode = false
             Analytics.track(.healthAuth, screen: "onboarding", ["granted": .bool(granted)])
-            LPLog.onboarding.notice("Onboarding auth finished (granted=\(granted, privacy: .public))")
+            LPLog.onboarding.notice("Onboarding auth finished (baselineReady=\(granted, privacy: .public))")
             authRequested = false
             transition(to: granted ? .receiving : .denied)
         }
@@ -365,21 +377,18 @@ struct HealthAuthView: View {
 
     /// 「若用户未同意，回到onboarding页面，Pibo继续请求用户授权」.
     ///
-    /// iOS only ever presents the HealthKit sheet once, so a second in-app
-    /// request silently no-ops. The second tap therefore also nudges the user to
-    /// Settings — but **only** the second one, and the retry still happens every
-    /// time. Bailing out of the retry on every attempt ≥2 (as this first did)
-    /// traps the user: they grant in Settings, come back to a screen still
-    /// showing 借出能量, tap it, and get thrown to Settings again forever.
+    /// iOS only presents decided HealthKit read scopes once. After the first
+    /// system sheet, the Figma retry button therefore opens Settings. Returning
+    /// to the app re-runs the request (for any still-undecided scopes) and the
+    /// real sleep/steps/exercise baseline check above.
     private func retryAuthorization() {
-        deniedAttempts += 1
-        if deniedAttempts == 2 {
-            UserDefaults.standard.set(true, forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth)
-            if let url = URL(string: UIApplication.openSettingsURLString) {
-                UIApplication.shared.open(url)
-            }
+        UserDefaults.standard.set(
+            true,
+            forKey: PiboPersistenceKeys.Defaults.onboardingResumeAuth
+        )
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
         }
-        transition(to: .permission)
     }
 
     private func restoreOnboardingStepIfNeeded() {

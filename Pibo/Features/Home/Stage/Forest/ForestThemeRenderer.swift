@@ -35,8 +35,29 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     /// 定向增删，而不是每次都重扫清单。
     private var unlockedOrnaments: Set<PiboOrnament.ID> = []
     private var ornamentNodes: [PiboOrnament.ID: SKSpriteNode] = [:]
-    /// 铃兰灯的夜光。白天完全透明，随环境暗度浮现。
-    private var ornamentGlowNodes: [PiboOrnament.ID: SKSpriteNode] = [:]
+    /// 物件身上那些可以被点亮的灯。**没有自动夜光** —— 一盏灯不亮到用户亲手点它
+    /// 为止（决定 013/014：这盏灯的意义就在于是用户点的）。
+    private var ornamentLights: [PiboOrnament.ID: [OrnamentLight]] = [:]
+    private var litOrnamentLights: [PiboOrnament.ID: Set<Int>] = [:]
+
+    /// 一盏灯的两层加色节点 + 它在场景里的落点。
+    ///
+    /// 两层是必要的：`core` 让铃铛本体成为光源，`halo` 让光**溢出剪影之外**。
+    /// 灯之所以读起来像灯靠的是后者 —— 只把贴图本身加亮，无论调到多少都只是
+    /// 「这张贴纸变白了」。
+    private struct OrnamentLight {
+        let index: Int
+        /// 场景坐标。
+        let position: CGPoint
+        /// 命中半径（场景 pt），比发光体本身大得多。
+        let hitRadius: CGFloat
+        let halo: SKSpriteNode
+        let core: SKSpriteNode
+    }
+
+    private static let lightActionKey = "ornament.light"
+    private static let haloPeak: CGFloat = 0.62
+    private static let corePeak: CGFloat = 0.92
 
     #if DEBUG
     private var waterDebugTuning: WaterDebugTuning?
@@ -86,7 +107,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         environment = ForestEnvironmentAdapter.resolve(input)
         wind = environment.wind
         applyLighting()
-        applyOrnamentGlow()
+        refreshOrnamentLights(igniting: [])
     }
 
     func apply(renderPolicy: PiboThemeRenderPolicy) {
@@ -101,6 +122,24 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         // 定向增删，不走 `rebuild()` —— 那会连水面 shader、反射代理和全部枝叶一起
         // 重建，为了挂一盏灯把整片森林闪一下。
         syncOrnaments()
+    }
+
+    func apply(litOrnamentLights lights: [PiboOrnament.ID: Set<Int>]) {
+        guard lights != litOrnamentLights else { return }
+        // 只有**这一次新增**的那些灯才播点亮动画。整份重发（重建之后、前台恢复
+        // 之后）不该让昨晚点的四盏灯一起再"啪"地亮一遍。
+        var igniting: Set<LightKey> = []
+        for (id, indices) in lights {
+            let previous = litOrnamentLights[id] ?? []
+            for index in indices.subtracting(previous) { igniting.insert(LightKey(id: id, index: index)) }
+        }
+        litOrnamentLights = lights
+        refreshOrnamentLights(igniting: igniting)
+    }
+
+    private struct LightKey: Hashable {
+        let id: PiboOrnament.ID
+        let index: Int
     }
 
     func update(time: TimeInterval, deltaTime: TimeInterval, reduceMotion: Bool) {
@@ -382,9 +421,12 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         for id in ornamentNodes.keys.filter({ !unlockedOrnaments.contains($0) }) {
             ornamentNodes.removeValue(forKey: id)?.removeFromParent()
             // 发光层也得摘掉。只把引用置 nil 会把节点孤儿化在场景里：
-            // `applyOrnamentGlow` 再也看不见它，于是它冻在最后一次的 alpha 上，
+            // `refreshOrnamentLights` 再也看不见它，于是它冻在最后一次的 alpha 上，
             // 夜里就成了一片没有灯的加色光斑。
-            ornamentGlowNodes.removeValue(forKey: id)?.removeFromParent()
+            for light in ornamentLights.removeValue(forKey: id) ?? [] {
+                light.halo.removeFromParent()
+                light.core.removeFromParent()
+            }
         }
 
         for ornament in PiboOrnament.ordered {
@@ -410,29 +452,146 @@ final class ForestThemeRenderer: PiboThemeRenderer {
             // 取源节点）。把物件混进去既没人用，删除时又不会被清掉，只会留下一个指向
             // 已脱离场景的节点的悬挂引用。
 
-            // 会发光的物件多挂一层加色副本，白天透明、入夜浮现。
-            if placement.lightingGroup == .emissive {
-                let glow = SKSpriteNode(texture: sprite.texture)
-                glow.size = sprite.size
-                glow.position = sprite.position
-                glow.zPosition = placement.zPosition + 0.1
-                glow.blendMode = .add
-                glow.alpha = 0
-                context.layers.background.addChild(glow)
-                ornamentGlowNodes[ornament.id] = glow
+            if !placement.lights.isEmpty {
+                ornamentLights[ornament.id] = placement.lights.enumerated().map { index, light in
+                    makeOrnamentLight(
+                        index: index,
+                        light: light,
+                        placement: placement,
+                        mapper: mapper,
+                        parent: context.layers.background
+                    )
+                }
             }
         }
-        applyOrnamentGlow()
+        refreshOrnamentLights(igniting: [])
     }
 
-    /// 夜光跟着环境暗度走 —— 白天灯是灭的，天越暗它越亮。用 far 层的暗度做基准，
-    /// 因为它是这套光照里最接近「天色」的那个量。
-    private func applyOrnamentGlow() {
-        guard !ornamentGlowNodes.isEmpty else { return }
-        let nightness = max(0, min(1, environment.lighting.far.darkness))
-        for glow in ornamentGlowNodes.values {
-            glow.alpha = 0.55 * nightness
+    private func makeOrnamentLight(
+        index: Int,
+        light: PiboOrnament.Placement.Light,
+        placement: PiboOrnament.Placement,
+        mapper: ForestLayoutMapper,
+        parent: SKNode
+    ) -> OrnamentLight {
+        // `light.center` 是素材局部 pt、原点在素材左上角；`frame.origin` 也是设计
+        // 画板的左上角坐标。两者同向，直接相加就是设计画板绝对坐标。
+        let designPoint = CGPoint(
+            x: placement.frame.minX + light.center.x,
+            y: placement.frame.minY + light.center.y
+        )
+        let position = mapper.point(designPoint)
+
+        func glow(texture: SKTexture, diameter: CGFloat, z: CGFloat) -> SKSpriteNode {
+            let node = SKSpriteNode(texture: texture)
+            node.size = mapper.size(CGSize(width: diameter, height: diameter))
+            node.position = position
+            node.zPosition = z
+            node.blendMode = .add
+            node.alpha = 0
+            parent.addChild(node)
+            return node
         }
+
+        return OrnamentLight(
+            index: index,
+            position: position,
+            // 铃铛本身只有 15–29pt 宽，直接拿它当判定圆会小到点不中。放到 44pt
+            // 触控目标级别是安全的：四个铃铛最近的中心距是 48.7pt，而命中取的是
+            // **最近者**而非先到者，判定圆重叠也不会有歧义。
+            hitRadius: max(light.radius * 1.7, 22) * mapper.scale,
+            halo: glow(texture: Self.haloTexture, diameter: light.radius * 6.4, z: placement.zPosition + 0.05),
+            core: glow(texture: Self.coreTexture, diameter: light.radius * 3.0, z: placement.zPosition + 0.1)
+        )
+    }
+
+    /// 把每盏灯推到它该有的亮度。`igniting` 里的那些额外播一次点亮动画。
+    private func refreshOrnamentLights(igniting: Set<LightKey>) {
+        guard !ornamentLights.isEmpty else { return }
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled
+        // 白天点灯也要看得见 —— 用户可以在任何时候点亮。但正午的一盏小灯本来
+        // 就该只是一点微光，压到 45% 是诚实的，不是把交互做废。
+        let strength = 0.45 + 0.55 * environment.lighting.nightness
+
+        for (id, lights) in ornamentLights {
+            let lit = litOrnamentLights[id] ?? []
+            for light in lights {
+                let isLit = lit.contains(light.index)
+                let flare = igniting.contains(LightKey(id: id, index: light.index))
+                apply(
+                    peak: Self.haloPeak * strength,
+                    to: light.halo, lit: isLit, igniting: flare,
+                    phase: Double(light.index) * 0.29, reduceMotion: reduceMotion
+                )
+                apply(
+                    peak: Self.corePeak * strength,
+                    to: light.core, lit: isLit, igniting: flare,
+                    phase: Double(light.index) * 0.29, reduceMotion: reduceMotion
+                )
+            }
+        }
+    }
+
+    private func apply(
+        peak: CGFloat,
+        to node: SKSpriteNode,
+        lit: Bool,
+        igniting: Bool,
+        phase: Double,
+        reduceMotion: Bool
+    ) {
+        node.removeAction(forKey: Self.lightActionKey)
+        guard lit else {
+            node.run(.fadeAlpha(to: 0, duration: 0.55), withKey: Self.lightActionKey)
+            return
+        }
+
+        var steps: [SKAction] = []
+        if igniting, !reduceMotion {
+            // 起得快、过冲一点、再落回来。线性淡入会读成「有人调了透明度」，
+            // 而不是「灯点着了」。
+            let rise = SKAction.fadeAlpha(to: min(peak * 1.22, 1), duration: 0.14)
+            rise.timingMode = .easeOut
+            let settle = SKAction.fadeAlpha(to: peak, duration: 0.32)
+            settle.timingMode = .easeInEaseOut
+            steps += [rise, settle]
+        } else {
+            let fade = SKAction.fadeAlpha(to: peak, duration: igniting ? 0.26 : 0.45)
+            fade.timingMode = .easeInEaseOut
+            steps.append(fade)
+        }
+
+        if !reduceMotion {
+            // 极慢的呼吸。这是「活的光」和「贴纸」的分界；逐灯错相，四盏才不会
+            // 整齐地一起喘气。
+            steps.append(.wait(forDuration: phase))
+            steps.append(.repeatForever(.sequence([
+                .fadeAlpha(to: peak * 0.90, duration: 1.15),
+                .fadeAlpha(to: peak, duration: 1.25),
+            ])))
+        }
+        node.run(.sequence(steps), withKey: Self.lightActionKey)
+    }
+
+    func handleTap(at point: CGPoint) -> PiboThemeTapResult? {
+        var best: (id: PiboOrnament.ID, index: Int, distance: CGFloat)?
+        for (id, lights) in ornamentLights {
+            for light in lights {
+                let distance = hypot(point.x - light.position.x, point.y - light.position.y)
+                guard distance <= light.hitRadius else { continue }
+                guard let current = best else {
+                    best = (id, light.index, distance)
+                    continue
+                }
+                // **最近者胜**，不是先到者胜。判定圆因此可以放心开到触控目标级别，
+                // 即便相邻两盏的圆重叠也不会互相偷点击。
+                if distance < current.distance { best = (id, light.index, distance) }
+            }
+        }
+        guard let best else { return nil }
+        // 已经亮着的灯照样上报。渲染器这份 `litOrnamentLights` 是存储的镜像、
+        // 可能慢一帧，在这里私自吞掉点击会比让存储做一次空操作更难查。
+        return .ornamentLight(best.id, index: best.index)
     }
 
     private func clearReferences() {
@@ -440,7 +599,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         layerNodes.removeAll(keepingCapacity: true)
         foliageNodes.removeAll(keepingCapacity: true)
         ornamentNodes.removeAll(keepingCapacity: true)
-        ornamentGlowNodes.removeAll(keepingCapacity: true)
+        ornamentLights.removeAll(keepingCapacity: true)
         reflectionLayer.removeAllChildren()
         reflectionLayer.maskNode = nil
         reflectionProxies.removeAll(keepingCapacity: true)
@@ -823,6 +982,51 @@ final class ForestThemeRenderer: PiboThemeRenderer {
             }
         }
         return result
+    }
+
+    /// 灯光的两张程序化径向渐变。和萤火虫一样是画出来的，不占美术工时。
+    ///
+    /// 两张的差别在**衰减形状**，不是大小：`core` 中心实、边缘收得快，把铃铛本体
+    /// 坐实成光源；`halo` 从一开始就淡、拖一条很长的尾巴，负责光溢出剪影之外。
+    /// 用同一张贴图缩放两次做不到这件事 —— 缩放只改尺寸，不改衰减。
+    private static let coreTexture: SKTexture = radialGlowTexture(
+        stops: [
+            (0.00, SKColor(red: 1, green: 0.99, blue: 0.94, alpha: 1)),
+            (0.42, SKColor(red: 1, green: 0.94, blue: 0.72, alpha: 0.82)),
+            (1.00, .clear),
+        ]
+    )
+
+    private static let haloTexture: SKTexture = radialGlowTexture(
+        stops: [
+            (0.00, SKColor(red: 1, green: 0.95, blue: 0.76, alpha: 0.52)),
+            (0.30, SKColor(red: 1, green: 0.90, blue: 0.62, alpha: 0.24)),
+            (1.00, .clear),
+        ]
+    )
+
+    private static func radialGlowTexture(stops: [(CGFloat, SKColor)]) -> SKTexture {
+        let size = CGSize(width: 128, height: 128)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            guard let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: stops.map(\.1.cgColor) as CFArray,
+                locations: stops.map(\.0)
+            ) else { return }
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            context.cgContext.drawRadialGradient(
+                gradient,
+                startCenter: center, startRadius: 0,
+                endCenter: center, endRadius: size.width / 2,
+                options: []
+            )
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
     }
 
     private static let fireflyTexture: SKTexture = {

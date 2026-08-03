@@ -711,6 +711,191 @@ struct PiboAnimationIntegrationTests {
         ].max() ?? .infinity
     }
 
+    // MARK: - Idle fidelity against the design engine
+
+    /// Whole-body idle scales about the authored `transform-origin` — almost
+    /// always the character's contact point. Pivoting on the artboard centre
+    /// instead slides the feet up and down with every breath.
+    @Test func wholeBodyIdlePivotsOnTheAuthoredOrigin() throws {
+        let data = try PiboCharacterData.load()
+        let part = try #require(data.states["tired"]?.idle?.resolvedParts.first)
+        #expect(part.kind == "breathe-y")
+        #expect(part.origin == "150px 259px")
+        #expect(part.duration == 4.2)
+
+        let character = try #require(PiboVectorCharacter(stateID: "tired", data: data))
+        let animator = PiboIdleAnimator(data: data)
+        let pivot = presented(CGPoint(x: 150, y: 259), of: character)
+        let crown = presented(CGPoint(x: 150, y: 60), of: character)
+
+        func advance(to time: TimeInterval) {
+            character.resetIdleTransforms()
+            animator.apply(
+                idle: data.states["tired"]?.idle,
+                stateID: "tired",
+                character: character,
+                time: time,
+                amplitude: 1
+            )
+        }
+
+        advance(to: 0)
+        // A quarter period in is the peak of the breath.
+        advance(to: 4.2 / 4)
+        let movedPivot = presented(CGPoint(x: 150, y: 259), of: character)
+        let movedCrown = presented(CGPoint(x: 150, y: 60), of: character)
+
+        #expect(hypot(movedPivot.x - pivot.x, movedPivot.y - pivot.y) < 0.0001)
+        #expect(hypot(movedCrown.x - crown.x, movedCrown.y - crown.y) > 0.5)
+    }
+
+    /// `breathe` is a half wave — it only ever swells outward from the rest
+    /// shape. A symmetric wave doubles the peak-to-peak travel and dips the
+    /// silhouette below its authored size.
+    @Test func breatheOnlySwellsOutwardWhileBreatheYIsSymmetric() throws {
+        let data = try PiboCharacterData.load()
+        let muscle = try #require(data.states["muscle"]?.idle?.resolvedParts.first)
+        #expect(muscle.kind == "breathe")
+        let amplitude = try #require(muscle.amplitude)
+
+        let character = try #require(PiboVectorCharacter(stateID: "muscle", data: data))
+        let animator = PiboIdleAnimator(data: data)
+        character.resetIdleTransforms()
+        let restPivot = presented(CGPoint(x: 163, y: 285), of: character)
+        let restCrown = presented(CGPoint(x: 163, y: 85), of: character)
+        let rest = hypot(restCrown.x - restPivot.x, restCrown.y - restPivot.y)
+
+        var scales: [CGFloat] = []
+        for step in 0...48 {
+            let time = Double(step) / 48 * (muscle.duration ?? 1.8)
+            character.resetIdleTransforms()
+            animator.apply(
+                idle: data.states["muscle"]?.idle,
+                stateID: "muscle",
+                character: character,
+                time: time,
+                amplitude: 1
+            )
+            let pivot = presented(CGPoint(x: 163, y: 285), of: character)
+            let crown = presented(CGPoint(x: 163, y: 85), of: character)
+            scales.append(hypot(crown.x - pivot.x, crown.y - pivot.y))
+        }
+        let minimum = try #require(scales.min())
+        let maximum = try #require(scales.max())
+        // Never dips below the authored silhouette, and tops out exactly one
+        // amplitude above it.
+        #expect(minimum >= rest - 0.001)
+        #expect(abs(maximum / rest - (1 + CGFloat(amplitude))) < 0.001)
+    }
+
+    /// `unipolar` swings one way only, and the design frame's Y-down degrees
+    /// change sign on the way into SpriteKit. Both halves matter here: the wrong
+    /// sign sends pigu's inner hand round the outside of the shoulder.
+    @Test func unipolarAndHoldRotationsStayOnOneSide() throws {
+        let data = try PiboCharacterData.load()
+        let character = try #require(PiboVectorCharacter(stateID: "pigu", data: data))
+        let animator = PiboIdleAnimator(data: data)
+        let hand = try #require(character.node(forSelector: "#orphan-righthand-pigu", stateID: "pigu"))
+
+        var extremes: [CGFloat] = []
+        for step in 0...60 {
+            // The shared timeline starts at the animator's first frame, so the
+            // sweep has to begin at zero for the gate windows to line up.
+            let time = Double(step) / 60 * 6
+            character.resetIdleTransforms()
+            animator.apply(
+                idle: data.states["pigu"]?.idle,
+                stateID: "pigu",
+                character: character,
+                time: time,
+                amplitude: 1
+            )
+            extremes.append(hand.zRotation)
+        }
+        #expect(extremes.allSatisfy { $0 >= -0.0001 })
+        #expect((extremes.max() ?? 0) > 0.01)
+
+        // `hold` is a pose, not a wag: it parks at full deflection and lets the
+        // gate fade do the lifting and lowering.
+        let muscleCharacter = try #require(PiboVectorCharacter(stateID: "muscle", data: data))
+        let leg = try #require(muscleCharacter.node(forSelector: "#orphan-rightleg-muscle", stateID: "muscle"))
+        let muscleAnimator = PiboIdleAnimator(data: data)
+        var plateau: [CGFloat] = []
+        for time in [0.0, 2.2, 2.6, 2.9] {
+            muscleCharacter.resetIdleTransforms()
+            muscleAnimator.apply(
+                idle: data.states["muscle"]?.idle,
+                stateID: "muscle",
+                character: muscleCharacter,
+                time: time,
+                amplitude: 1
+            )
+            plateau.append(leg.zRotation)
+        }
+        let expected = CGFloat(9 * Double.pi / 180)
+        #expect(abs(plateau[0]) < 0.0001)
+        #expect(plateau.dropFirst().allSatisfy { abs($0 - expected) < 0.0001 })
+    }
+
+    /// `path-bulge` runs one damped oscillation across its gate window. Driving
+    /// it from a free-running period instead turns pigu's 屁股 duang·duang into a
+    /// continuous jiggle at the wrong rate, and leaves it deformed outside the
+    /// window.
+    @Test func pathBulgeTraversesItsGateWindowAndRestsOutsideIt() throws {
+        let data = try PiboCharacterData.load()
+        let character = try #require(PiboVectorCharacter(stateID: "pigu", data: data))
+        let animator = PiboIdleAnimator(data: data)
+        let body = try #require(character.node(forSelector: "#path-body", stateID: "pigu"))
+        let base = try #require(character.basePath(forSelector: "#path-body", stateID: "pigu"))
+
+        func deviation(at time: TimeInterval) -> CGFloat {
+            character.resetIdleTransforms()
+            animator.apply(
+                idle: data.states["pigu"]?.idle,
+                stateID: "pigu",
+                character: character,
+                time: time,
+                amplitude: 1
+            )
+            guard let path = body.path else { return .infinity }
+            return maximumPointDistance(path, base)
+        }
+
+        // Window is 0.21…0.56 of the 6 s timeline.
+        _ = deviation(at: 0)
+        let inside = (0...20).map { deviation(at: 1.3 + Double($0) / 20 * 2.0) }
+        #expect((inside.max() ?? 0) > 0.5)
+        #expect(deviation(at: 4.2) < 0.0001)
+        #expect(deviation(at: 0.6) < 0.0001)
+    }
+
+    /// The home keeps the achievement pose but not the combo: the source swaps
+    /// in a single breath the moment the celebration closes, with a per-state
+    /// origin.
+    @Test func achievementHoldUsesTheSourceIdleOverride() throws {
+        let pigu = try #require(PiboAnimationStateMap.holdIdle(for: "pigu")?.resolvedParts.first)
+        #expect(pigu.kind == "breathe-y")
+        #expect(pigu.duration == 4.2)
+        #expect(pigu.amplitude == 0.018)
+        #expect(pigu.origin == "165px 292px")
+
+        let muscle = try #require(PiboAnimationStateMap.holdIdle(for: "muscle")?.resolvedParts.first)
+        #expect(muscle.origin == "150px 270px")
+        #expect(muscle.duration == 4.2)
+        #expect(muscle.amplitude == 0.018)
+
+        #expect(PiboAnimationStateMap.holdIdle(for: "default") == nil)
+        #expect(PiboAnimationStateMap.holdIdle(for: "weak") == nil)
+        // The Modal still plays the authored flourish, so the states keep it.
+        let data = try PiboCharacterData.load()
+        #expect(data.states["pigu"]?.idle?.resolvedParts.count == 11)
+        #expect(data.states["pigu"]?.idle?.intro != nil)
+    }
+
+    private func presented(_ designPoint: CGPoint, of character: PiboVectorCharacter) -> CGPoint {
+        character.rootPoint(forBodyPathPoint: designPoint.applying(character.designToNodeTransform))
+    }
+
     private func points(in path: CGPath) -> [CGPoint] {
         var result: [CGPoint] = []
         path.applyWithBlock { pointer in

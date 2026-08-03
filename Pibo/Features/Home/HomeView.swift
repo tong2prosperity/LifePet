@@ -18,6 +18,7 @@ struct HomeView: View {
     @Environment(BoProgressFeedbackStore.self) private var boProgressFeedback
     @Environment(BoLedgerStore.self) private var boLedger
     @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
+    @Environment(OrnamentLightStore.self) private var ornamentLights
     @Environment(HealthHistoryStore.self) private var history
     @Environment(PiboSpeechService.self) private var piboSpeech
     @Environment(MorningSleepCoordinator.self) private var morningSleep
@@ -41,9 +42,14 @@ struct HomeView: View {
 
     @State private var showWalkDoodle = false
     @State private var activeSheet: HomeSheetDestination?
+    /// `activeSheet` becomes nil at the start of dismissal, while its pixels are
+    /// still covering Home. Badge feedback waits for the sheet's `onDismiss` so
+    /// the first particle frame is never spent behind the confirmation UI.
+    @State private var homeSheetDismissalInProgress = false
     #if DEBUG
     @State private var debugOpenedGames = false
     @State private var debugOpenedHistory = false
+    @State private var debugWorkoutID: UUID?
     #endif
     /// A meal passed by the detail sheet's “重拍” action. Normal home entry leaves
     /// this nil and lets the camera own purpose + meal selection.
@@ -78,6 +84,20 @@ struct HomeView: View {
 
     private var fullScreenFeaturePresented: Bool {
         showCamera || showGames || showHistory || showWalkDoodle || showBoUnlockPage || showSettings
+    }
+
+    private var boCounterFeedbackRequest: BoCounterFeedbackRequest? {
+        BoCounterFeedbackRequest(
+            feedID: store.feedToken,
+            milestoneID: boProgressFeedback.pending?.id
+        )
+    }
+
+    private var boCounterFeedbackEnabled: Bool {
+        scenePhase == .active
+            && !stagePaused
+            && !homeSheetDismissalInProgress
+            && sproutPhase == .idle
     }
 
     // 首发范围外的三张全屏功能页，呈现绑定统一过一遍 `PiboReleaseScope`。收在绑定
@@ -130,9 +150,11 @@ struct HomeView: View {
                 sproutGrowthProgress: store.headSproutGrowthProgress,
                 environment: stageEnvironment,
                 unlockedOrnaments: ornamentUnlocks.unlocked,
+                litOrnamentLights: ornamentLights.lit,
                 tuning: forestTuning,
                 onPat: handlePat,
                 onHairPulled: handleHairPull,
+                onOrnamentLightTapped: handleOrnamentLightTap,
                 isPaused: stagePaused
             )
             .equatable()
@@ -279,7 +301,6 @@ struct HomeView: View {
             startSoundscape()
             presentMorningSleepIfPossible()
             presentStressCardIfPossible()
-            presentBoProgressFeedbackIfPossible()
             if boLedger.hasRipeBo { announceFirstRipeBoIfNeeded() }
         }
         .onDisappear {
@@ -323,15 +344,15 @@ struct HomeView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 refreshAnimationState()
+                // 后台待了一夜的常见情形：回前台先对一次点灯日，不然昨晚的灯会
+                // 因为「没人在场看着它熄」而继续亮着。
+                ornamentLights.refresh()
                 presentAchievementIfPossible()
                 presentMorningSleepIfPossible()
             }
         }
         .onChange(of: stressNotifier.pendingCardOpen) { _, _ in
             presentStressCardIfPossible()
-        }
-        .onChange(of: boProgressFeedback.pending?.id) { _, _ in
-            presentBoProgressFeedbackIfPossible()
         }
         .onChange(of: boLedger.hasRipeBo) { _, isRipe in
             if isRipe { announceFirstRipeBoIfNeeded() }
@@ -376,7 +397,11 @@ struct HomeView: View {
     @ViewBuilder
     private var settingsDestination: some View {
         #if DEBUG
-        SettingsView(onReset: performReset, onSimulateMeal: debugSimulateMeal)
+        SettingsView(
+            onReset: performReset,
+            onSimulateMeal: debugSimulateMeal,
+            onSimulateWorkout: debugSimulateWorkout
+        )
         #else
         SettingsView()
         #endif
@@ -479,6 +504,16 @@ struct HomeView: View {
                     highlightsExchange: ornamentUnlocks.shouldHighlightUnlockGuide(
                         balance: boLedger.balance
                     ),
+                    feedbackRequest: boCounterFeedbackRequest,
+                    feedbackEnabled: boCounterFeedbackEnabled,
+                    feedbackCompleted: { request in
+                        if store.feedToken == request.feedID {
+                            store.feedToken = nil
+                        }
+                        if let milestoneID = request.milestoneID {
+                            boProgressFeedback.consume(id: milestoneID)
+                        }
+                    },
                     collectAction: {
                         dismissSpeech()
                         return doPluck()
@@ -648,8 +683,21 @@ struct HomeView: View {
         }
     }
 
-    // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)
+    /// 点亮铃兰灯的一盏铃铛。
+    ///
+    /// **不给任何回报** —— 不加 bo、不加能量、不解锁、不推进故事。决定 013 写死了
+    /// 这条边界，而「点一下灯」正是最容易被顺手挂上奖励的那种交互。这里只有一次
+    /// 触觉反馈和一条打点。
+    ///
+    /// 也没有「点灭」的分支：灯只能点亮，天亮自己熄。
+    private func handleOrnamentLightTap(_ id: PiboOrnament.ID, index: Int) {
+        guard ornamentLights.light(id, index: index) else { return }
+        LPHaptics.tap()
+        Analytics.track(.ornamentLight, screen: "home",
+                        ["ornament": .string(id.rawValue), "index": .int(index)])
+    }
 
+    // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)
     private func maybeStartEnergyFlow() {
         // The close-up runs on the SpriteKit stage, which `stagePaused` freezes
         // while any sheet or cover is up — starting it behind one would play the
@@ -917,6 +965,9 @@ struct HomeView: View {
             if !Task.isCancelled {
                 atmosphereNow = Date()
                 refreshAnimationState()
+                // 每分钟一次正好是「有没有跨过天亮」需要的精度。灯是否该熄
+                // 由存储自己判断，这里重复调用是廉价的。
+                ornamentLights.refresh(now: atmosphereNow)
             }
         }
     }
@@ -1039,7 +1090,14 @@ struct HomeView: View {
         if payload.kind == .pigu, store.pendingWorkout?.id == payload.id {
             store.consumePendingWorkout()
         }
+        #if DEBUG
+        if debugWorkoutID == payload.id {
+            boLedger.debugApplyWorkout(durationMinutes: payload.workoutDurationMinutes ?? 24)
+            debugWorkoutID = nil
+        }
+        #endif
         refreshAnimationState()
+        homeSheetDismissalInProgress = true
         activeSheet = nil
     }
 
@@ -1079,18 +1137,11 @@ struct HomeView: View {
     /// owns the wake-up moment, so it goes first; the 发芽 close-up follows once
     /// the screen is genuinely free.
     private func resumePendingHomeFlows() {
+        homeSheetDismissalInProgress = false
         presentAchievementIfPossible()
         guard activeSheet == nil else { return }
         presentMorningSleepIfPossible()
         presentStressCardIfPossible()
-        presentBoProgressFeedbackIfPossible()
-    }
-
-    private func presentBoProgressFeedbackIfPossible() {
-        guard scenePhase == .active, !stagePaused,
-              let pending = boProgressFeedback.pending else { return }
-        guard stageCommands.playBoProgressFeedback(pending.milestone) else { return }
-        boProgressFeedback.consume(id: pending.id)
     }
 
     /// 首枚 `bo` 长熟时讲一次规则，之后再不打扰。
@@ -1142,6 +1193,7 @@ struct HomeView: View {
         // 森林里还挂着上一轮换来的灯。起始日重新以今天起算。
         boLedger.reset()
         ornamentUnlocks.reset()
+        ornamentLights.reset()
         UserDefaults.standard.removeObject(
             forKey: PiboPersistenceKeys.Defaults.boFirstRipeNotified
         )
@@ -1149,6 +1201,18 @@ struct HomeView: View {
     }
 
 #if DEBUG
+    /// Close Settings first so Home is visible when the real workout event is
+    /// injected. Waiting for the navigation pop avoids queuing the modal behind
+    /// an off-screen destination and makes the one-tap rehearsal deterministic.
+    private func debugSimulateWorkout() {
+        showSettings = false
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            debugWorkoutID = store.debugInjectWorkout()
+        }
+    }
+
     /// DEV: exercise the full 拍餐识别 path without a camera — render a food emoji
     /// as the "captured" frame and run it through `handlePhotoSaved`.
     private func debugSimulateMeal(_ meal: MealType) {

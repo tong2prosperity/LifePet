@@ -30,7 +30,9 @@ struct PiboApp: App {
     /// 唯一真源。不依赖登录，也不依赖 `pibo-server`（决定 031）。
     @State private var boLedger: BoLedgerStore
     /// 已解锁的森林物件。与账本分开：余额可增可减，解锁是只增不减的既成事实。
-    @State private var ornamentUnlocks = OrnamentUnlockStore()
+    @State private var ornamentUnlocks: OrnamentUnlockStore
+    /// 物件身上被亲手点亮的灯。与解锁再分开一层：解锁是永久的，点灯天亮就作废。
+    @State private var ornamentLights = OrnamentLightStore()
     /// One app-wide resolver for all contextual Pibo copy. Views submit cues;
     /// the service owns scarcity, deduplication, and authored-line selection.
     @State private var piboSpeech: PiboSpeechService
@@ -102,7 +104,11 @@ struct PiboApp: App {
 
         // 账本从「它自己被创建的那天」起算，不追溯 —— 老用户升级上来时，之前几十天
         // 的健康记录不会被扫进来（那只会被冻结规则一次性烧掉，见 `BoLedgerStore.init`）。
-        _boLedger = State(initialValue: BoLedgerStore(progressFeedback: boFeedback))
+        let ledger = BoLedgerStore(progressFeedback: boFeedback)
+        _boLedger = State(initialValue: ledger)
+        let inventory = OrnamentUnlockStore()
+        inventory.recoverPendingPurchase(using: ledger)
+        _ornamentUnlocks = State(initialValue: inventory)
 
         let a = AuthService()
         let e = EconomyService()
@@ -193,6 +199,7 @@ struct PiboApp: App {
                 .environment(boProgressFeedback)
                 .environment(boLedger)
                 .environment(ornamentUnlocks)
+                .environment(ornamentLights)
                 .environment(piboSpeech)
                 .environment(history)
                 .environment(auth)
@@ -324,16 +331,16 @@ struct PiboApp: App {
     #if DEBUG
     /// 免真实健康数据地把账本摆到某个状态，用于模拟器截图验证：
     /// `-PiboBoBalance=8`（余额）/ `-PiboBoRipe`（有一枚熟了）/
-    /// `-PiboBoGrowth=0.6`（当前这枚的成熟进度）/ `-PiboUnlockOrnaments`（全解锁）。
+    /// `-PiboBoGrowth=0.6`（当前这枚的成熟进度）。Debug 构建始终在运行时全解锁物件，
+    /// 且不会把这项覆盖写入本地库存。
     private func applyDebugBoOverrides() {
         let arguments = ProcessInfo.processInfo.arguments
         func value(_ flag: String) -> String? {
             arguments.first { $0.hasPrefix(flag + "=") }
                 .map { String($0.dropFirst(flag.count + 1)) }
         }
-        if arguments.contains("-PiboUnlockOrnaments") {
-            for ornament in PiboOrnament.all { ornamentUnlocks.markUnlocked(ornament.id) }
-        }
+        // 模拟器里合成不了点击，所以点亮态只能从启动参数进来：`-PiboLanternLit=0,2`。
+        ornamentLights.applyDebugLaunchArguments(arguments)
         let balance = value("-PiboBoBalance").flatMap(Int.init)
         let growth = value("-PiboBoGrowth").flatMap(Double.init)
         let ripe = arguments.contains("-PiboBoRipe") ? 1 : nil

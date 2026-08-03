@@ -640,23 +640,54 @@ final class PiboVectorCharacter {
     // it this way keeps path data untouched, so idle motion and morphing can
     // never contend for the same property.
 
-    /// Whole-body breathing. Written to the content node, which the settle pulse
-    /// sits above — the two compose instead of overwriting each other.
-    func setBreath(x: CGFloat, y: CGFloat) {
-        contentNode.xScale = x
-        contentNode.yScale = y
+    /// The whole-body idle pose, written to the content node — the settle pulse
+    /// sits above it, so the two compose instead of overwriting each other.
+    ///
+    /// It is one struct rather than four setters because the design engine
+    /// writes a single CSS `transform` on the SVG root: breathing, the hop, the
+    /// sway and the sigh all share it, and each is authored about a
+    /// `transform-origin` that is the character's contact point (the engine's
+    /// `BOTTOM_CENTER` default, or an explicit per-state `origin` — 11 of the 12
+    /// states carry one). Scaling about the artboard centre instead slides the
+    /// feet up and down with every breath.
+    struct BodyTransform: Equatable {
+        var scaleX: CGFloat = 1
+        var scaleY: CGFloat = 1
+        /// Radians in SpriteKit's sense — the caller has already converted from
+        /// the design frame's Y-down degrees.
+        var rotation: CGFloat = 0
+        /// Translation in **design units, Y-down**, so it can be written exactly
+        /// as the source `translate(...)` is.
+        var offset: CGPoint = .zero
+        /// Pivot in design coordinates. `nil` = the engine's `BOTTOM_CENTER`.
+        var origin: CGPoint?
     }
 
-    func setHopOffset(_ dy: CGFloat) {
-        contentNode.position = CGPoint(x: contentRest.x, y: contentRest.y + dy)
+    func setBodyTransform(_ transform: BodyTransform) {
+        let pivot = (transform.origin ?? Self.bottomCentre(of: designFrame))
+            .applying(bodyTransform)
+        contentNode.xScale = transform.scaleX
+        contentNode.yScale = transform.scaleY
+        contentNode.zRotation = transform.rotation
+        // SKNode maps a child point p to `position + R·S·p`. Holding p = pivot
+        // fixed is what makes the authored transform-origin mean the same thing
+        // here as it does in the source.
+        let scaled = CGPoint(x: pivot.x * transform.scaleX, y: pivot.y * transform.scaleY)
+        let cosAngle = cos(transform.rotation)
+        let sinAngle = sin(transform.rotation)
+        let rotated = CGPoint(
+            x: cosAngle * scaled.x - sinAngle * scaled.y,
+            y: sinAngle * scaled.x + cosAngle * scaled.y
+        )
+        contentNode.position = CGPoint(
+            x: contentRest.x + pivot.x - rotated.x + transform.offset.x * scale,
+            y: contentRest.y + pivot.y - rotated.y - transform.offset.y * scale
+        )
     }
 
-    func setBodyOffset(x: CGFloat, y: CGFloat) {
-        contentNode.position = CGPoint(x: contentRest.x + x, y: contentRest.y + y)
-    }
-
-    func setBodyRotation(_ angle: CGFloat) {
-        contentNode.zRotation = angle
+    /// The design engine's default whole-body pivot (`BOTTOM_CENTER`, "50% 100%").
+    static func bottomCentre(of frame: CGSize) -> CGPoint {
+        CGPoint(x: frame.width / 2, y: frame.height)
     }
 
     func setRotation(_ angle: CGFloat, about anchor: CGPoint, for node: SKShapeNode) {
@@ -705,7 +736,7 @@ final class PiboVectorCharacter {
 
     func setSparkleTransform(
         offset: CGPoint,
-        rotationDegrees: CGFloat,
+        rotation: CGFloat,
         scale: CGFloat,
         selector: String,
         for node: SKShapeNode
@@ -713,11 +744,10 @@ final class PiboVectorCharacter {
         let matrix = transform(forSelector: selector)
         let box = node.path?.boundingBoxOfPath ?? .zero
         let anchor = CGPoint(x: box.midX, y: box.midY)
-        let angle = rotationDegrees * .pi / 180
-        node.zRotation = angle
+        node.zRotation = rotation
         node.setScale(scale)
-        let cosA = cos(angle) * scale
-        let sinA = sin(angle) * scale
+        let cosA = cos(rotation) * scale
+        let sinA = sin(rotation) * scale
         // Design Y points down; the transform's negative `d` carries the flip.
         let travel = CGPoint(x: offset.x * matrix.a, y: offset.y * matrix.d)
         node.position = CGPoint(

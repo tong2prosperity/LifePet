@@ -91,6 +91,14 @@ protocol WaterDebugTunable: AnyObject {
 }
 #endif
 
+/// 主题在舞台上被点到的东西。和 `beginInteraction` 那条拖拽通道分开：拖拽要在
+/// `touchesBegan` 就抢下触摸，而点击必须等到确认不是拖拽、且 Pibo 自己没被点中
+/// 之后才轮到 —— 两者的时序要求相反，塞进同一个方法只会互相将就。
+enum PiboThemeTapResult: Equatable {
+    /// 点亮了某件物件身上的第 `index` 盏灯。
+    case ornamentLight(PiboOrnament.ID, index: Int)
+}
+
 /// Plug-in boundary for a production home theme. SpriteKit/UIKit work remains
 /// MainActor-isolated by the app target's default isolation.
 protocol PiboThemeRenderer: AnyObject {
@@ -105,6 +113,9 @@ protocol PiboThemeRenderer: AnyObject {
     /// 用 `bo` 换来的物件。主题自己决定怎么画、画不画得了 —— 没有落位的物件
     /// （美术还没到）应当安静跳过，而不是画一个占位方块到用户的森林里。
     func apply(unlockedOrnaments: Set<PiboOrnament.ID>)
+    /// 物件身上已经被点亮的灯。主题负责画，不负责记 —— 什么时候熄灭是
+    /// `OrnamentLightStore` 的事。
+    func apply(litOrnamentLights: [PiboOrnament.ID: Set<Int>])
     func update(time: TimeInterval, deltaTime: TimeInterval, reduceMotion: Bool)
     func didEvaluateActions()
 
@@ -119,15 +130,20 @@ protocol PiboThemeRenderer: AnyObject {
     func beginInteraction(at point: CGPoint, timestamp: TimeInterval) -> Bool
     func moveInteraction(to point: CGPoint, timestamp: TimeInterval)
     func endInteraction(at point: CGPoint, timestamp: TimeInterval, cancelled: Bool)
+    /// 一次已经确认过的点击（没有位移、也没被 Pibo 接走）。返回 `nil` 表示这一下
+    /// 落在主题的空白处。
+    func handleTap(at point: CGPoint) -> PiboThemeTapResult?
     func precipitationImpact(in scene: SKScene) -> ThemePrecipitationImpact?
 }
 
 extension PiboThemeRenderer {
     func didEvaluateActions() {}
     func apply(unlockedOrnaments: Set<PiboOrnament.ID>) {}
+    func apply(litOrnamentLights: [PiboOrnament.ID: Set<Int>]) {}
     func beginInteraction(at point: CGPoint, timestamp: TimeInterval) -> Bool { false }
     func moveInteraction(to point: CGPoint, timestamp: TimeInterval) {}
     func endInteraction(at point: CGPoint, timestamp: TimeInterval, cancelled: Bool) {}
+    func handleTap(at point: CGPoint) -> PiboThemeTapResult? { nil }
 }
 
 struct PiboThemeRegistration {

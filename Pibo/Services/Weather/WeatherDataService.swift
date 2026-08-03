@@ -60,6 +60,15 @@ final class WeatherDataService: NSObject {
         refreshIfStale()
     }
 
+    /// Home appeared — this is iOS's **only** path to the location prompt, so it
+    /// still asks here.
+    ///
+    /// The Harmony `WeatherStore.activateForHome` deliberately does *not* prompt:
+    /// its settings sheet carries a 「开启当地天气」 row, so a user who declines (or
+    /// is never asked) can still turn weather on later. iOS has no such row — the
+    /// settings sheet only has the DEBUG override — so deferring here would leave
+    /// 当地天气 permanently un-grantable and silently dead. Add a production
+    /// weather row to `SettingsSheet` first if this should stop prompting.
     func activateForHome() {
         refreshIfStale(requestPermission: true)
     }

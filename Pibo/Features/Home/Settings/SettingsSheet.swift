@@ -363,14 +363,6 @@ struct DebugSettingsView: View {
                 .disabled(schedulingSleepMock)
                 Divider().overlay(LP.Separator.primary)
                 Button {
-                    store.debugInjectWorkout()
-                    dismiss()
-                } label: {
-                    debugRow("模拟运动完成（发芽流程）")
-                }
-                .buttonStyle(.plain)
-                Divider().overlay(LP.Separator.primary)
-                Button {
                     store.debugResetSproutGrowth()
                 } label: {
                     debugRow("回到未发芽（「?」卷芽）")

@@ -30,6 +30,9 @@ enum Analytics {
         case boPanelOpen = "bo_panel_open"
         /// 解锁一件森林物件，扣掉 bo。
         case boUnlock = "bo_unlock"
+        /// 亲手点亮物件上的一盏灯（铃兰灯的一个铃铛）。**不产生任何收益** ——
+        /// 决定 013 明令不给这件事挂数值奖励，这条打点只是想知道有没有人点。
+        case ornamentLight = "ornament_light"
         case cameraOpen = "camera_open"
         case photoSaved = "photo_saved"
         case mealRecognized = "meal_recognized"

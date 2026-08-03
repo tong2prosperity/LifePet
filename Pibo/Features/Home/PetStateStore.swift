@@ -271,20 +271,22 @@ final class PetStateStore {
     let story = PiboStorylineStore()
 
     #if DEBUG
-    /// Dev/demo helper (settings sheet): inject a fake "刚跑完步" so the 发芽
-    /// energy-collection flow can be rehearsed without a real HKWorkout.
-    func debugInjectWorkout() {
-        let workout = PendingWorkout(
-            id: UUID(), kind: .run, label: AppLocalization.text("跑步"),
-            durationMin: 24, kcal: 186, endedAt: Date(), gainVitality: 18)
-        let notificationState = activityState
-        pendingWorkout = workout
-        Task {
-            await WorkoutCompletionNotifier.shared.maybeNotify(
-                workout: workout,
-                piboState: notificationState
-            )
-        }
+    /// Dev/demo helper: send a fresh synthetic run through the same ingest path
+    /// as a real HealthKit workout. Keeping the DEBUG control on the production
+    /// path rehearses the achievement animation, confirmation UI, gain, history
+    /// card, Live Activity cleanup, and optional notification together.
+    @discardableResult
+    func debugInjectWorkout() -> UUID {
+        let id = UUID()
+        ingest(.workoutFinished(
+            id: id,
+            kind: .run,
+            duration: 24 * 60,
+            kcal: 186,
+            end: .now,
+            isHistorical: false
+        ))
+        return id
     }
 
     /// Dev/demo (settings): inject a low RMSSD so the 压力卡 flips to 超载 and the

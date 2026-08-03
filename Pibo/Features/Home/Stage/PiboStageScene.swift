@@ -47,6 +47,9 @@ final class PiboStageScene: SKScene {
     /// Direct manipulation asks the SwiftUI bridge for the display's maximum
     /// cadence until the touch ends or is cancelled.
     var onDirectManipulationChanged: ((Bool) -> Void)?
+    /// Fired when a tap lights one of an ornament's lamps (铃兰灯的一盏铃铛).
+    /// The scene only reports it — 亮多久、什么时候熄 由 `OrnamentLightStore` 决定。
+    var onOrnamentLightTapped: ((PiboOrnament.ID, Int) -> Void)?
 
     // — Nodes —
     private let backdrop = SKNode()
@@ -63,6 +66,8 @@ final class PiboStageScene: SKScene {
     /// 用 `bo` 换来的物件。存在 scene 上而不是只转发给渲染器，是因为主题切换和
     /// 重建之后要能重新交代一遍。
     private var unlockedOrnaments: Set<PiboOrnament.ID> = []
+    /// 同上：物件身上已点亮的灯，重建之后也要重新交代。
+    private var litOrnamentLights: [PiboOrnament.ID: Set<Int>] = [:]
     private lazy var weatherController = PiboWeatherEffectController(
         backLayer: rainBack,
         frontLayer: rainFront
@@ -88,6 +93,7 @@ final class PiboStageScene: SKScene {
         themeRenderer?.apply(environment: stageEnvironment)
         themeRenderer?.apply(renderPolicy: themeRenderPolicy)
         themeRenderer?.apply(unlockedOrnaments: unlockedOrnaments)
+        themeRenderer?.apply(litOrnamentLights: litOrnamentLights)
         if stageEnvironment.rainIntensity > 0 { applyWeather() }
     }
 
@@ -159,6 +165,7 @@ final class PiboStageScene: SKScene {
             themeRenderer?.apply(environment: stageEnvironment)
             themeRenderer?.apply(renderPolicy: themeRenderPolicy)
             themeRenderer?.apply(unlockedOrnaments: unlockedOrnaments)
+            themeRenderer?.apply(litOrnamentLights: litOrnamentLights)
             if stageEnvironment.rainIntensity > 0 { applyWeather() }
         } else if growthChanged {
             character.apply(
@@ -197,6 +204,13 @@ final class PiboStageScene: SKScene {
         unlockedOrnaments = ids
         guard built else { return }
         themeRenderer?.apply(unlockedOrnaments: ids)
+    }
+
+    func setLitOrnamentLights(_ lights: [PiboOrnament.ID: Set<Int>]) {
+        guard lights != litOrnamentLights else { return }
+        litOrnamentLights = lights
+        guard built else { return }
+        themeRenderer?.apply(litOrnamentLights: lights)
     }
 
     func transitionAnimation(
@@ -456,6 +470,19 @@ final class PiboStageScene: SKScene {
         if character.hitRegion(at: p, in: self) == .body {
             character.playBodyTap()
             onPat?()
+            return
+        }
+        // Pibo 先判、主题后判，顺序是有意的。铃兰灯的左侧铃铛落在 Pibo 身体范围
+        // 里，而灯 z=18、Pibo z=20 —— 灯在后面。反过来判就会出现「点了看起来是
+        // Pibo 肚子的地方、背后那盏看不见的灯亮了」。
+        //
+        // 也刻意**不**走 `beginInteraction`：那条路是给可拖拽的叶子用的，会在
+        // `touchesBegan` 抢在 Pibo 之前，还会顺手把刷新率拉满 —— 对一次点击是白给的。
+        switch themeRenderer?.handleTap(at: p) {
+        case .ornamentLight(let id, let index):
+            onOrnamentLightTapped?(id, index)
+        case nil:
+            break
         }
     }
 
@@ -494,6 +521,7 @@ final class PiboStageScene: SKScene {
         themeRenderer?.apply(environment: stageEnvironment)
         themeRenderer?.apply(renderPolicy: themeRenderPolicy)
         themeRenderer?.apply(unlockedOrnaments: unlockedOrnaments)
+        themeRenderer?.apply(litOrnamentLights: litOrnamentLights)
         if stageEnvironment.rainIntensity > 0 { applyWeather() }
         applyTuning(visibilityChanged: true)
     }

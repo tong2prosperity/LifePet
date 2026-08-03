@@ -291,4 +291,36 @@ struct BoLedgerTests {
             #expect(feedback.pending == nil)
         }
     }
+
+    #if DEBUG
+    @Test func debugWorkoutAdvancesTheLedgerWithCoreScoring() throws {
+        let start = Calendar.current.startOfDay(for: Date())
+        let (ledger, defaults, suite) = try makeLedger(startedOn: start)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let metrics = PiboCoreBoAdapter.metrics(
+            sleepTotal: 0,
+            sleepDeep: 0,
+            sleepREM: 0,
+            awakeSeconds: 0,
+            awakeSegmentCount: nil,
+            steps: 0,
+            exerciseMinutes: 24,
+            hrv: 0,
+            restingHR: 0
+        )
+        let scoredEnergy = PiboCoreBoEconomy.scoreDay(metrics).energy
+        let grantable = min(scoredEnergy, PiboCoreBoEconomy.energyPerBo)
+        let expected = PiboCoreBoEconomy.applyEnergy(
+            energyPool: 0,
+            grantedEnergy: grantable
+        )
+
+        ledger.debugApplyWorkout(durationMinutes: 24)
+
+        #expect(scoredEnergy > 0)
+        #expect(abs(ledger.state.energyPool - expected.newEnergyPool) < 0.001)
+        #expect(ledger.state.ripeCount == expected.mintedCount)
+    }
+    #endif
 }

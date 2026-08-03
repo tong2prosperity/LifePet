@@ -6,6 +6,19 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct BoProgressFeedbackTests {
+    @Test func badgeRequestCoalescesFeedAndMilestoneIntoOnePass() throws {
+        let feedID = UUID()
+        let milestoneID = UUID()
+        let request = try #require(BoCounterFeedbackRequest(
+            feedID: feedID,
+            milestoneID: milestoneID
+        ))
+
+        #expect(request.id == milestoneID)
+        #expect(request.sourceIDs == Set([feedID, milestoneID]))
+        #expect(BoCounterFeedbackRequest(feedID: nil, milestoneID: nil) == nil)
+    }
+
     @Test func ledgerUpdatesUseCoreAndCoalesceToTheHighestMilestone() throws {
         let suite = "BoProgressFeedbackTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

@@ -30,12 +30,16 @@ struct PiboStageView: View, Equatable {
     var environment: PiboStageEnvironment = .daylight
     /// 用 `bo` 换来、已经解锁的物件。空集 = 只有原始森林。
     var unlockedOrnaments: Set<PiboOrnament.ID> = []
+    /// 物件身上被亲手点亮的灯。没有自动夜光 —— 空 = 一盏不亮。
+    var litOrnamentLights: [PiboOrnament.ID: Set<Int>] = [:]
     /// Fine-grained renderer controls. Release Home keeps the standard values;
     /// DEBUG exposes them in a collapsible overlay.
     var tuning: StageRenderTuning = .standard
     var onPat: () -> Void = {}
     /// Fired when the head 毛 is dragged past the pull threshold (the 拔毛 gesture).
     var onHairPulled: () -> Void = {}
+    /// Fired when a tap lights one of an ornament's lamps (铃兰灯的一盏铃铛).
+    var onOrnamentLightTapped: (PiboOrnament.ID, Int) -> Void = { _, _ in }
     /// Suspend the stage when an opaque feature covers Home. The `SpriteView`
     /// itself is detached below; `isPaused` alone does not reliably stop
     /// `SKView`'s display-link/render callbacks while a full-screen cover keeps
@@ -98,6 +102,7 @@ struct PiboStageView: View, Equatable {
             }
             .onChange(of: environment) { _, value in scene.setEnvironment(value) }
             .onChange(of: unlockedOrnaments) { _, value in scene.setUnlockedOrnaments(value) }
+            .onChange(of: litOrnamentLights) { _, value in scene.setLitOrnamentLights(value) }
             .onChange(of: tuning) { _, value in scene.setTuning(value) }
             .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
                 renderController.refreshLowPowerMode()
@@ -116,6 +121,7 @@ struct PiboStageView: View, Equatable {
         scene.setLowPowerMode(renderController.lowPowerModeEnabled)
         scene.onPat = onPat
         scene.onHairPulled = onHairPulled
+        scene.onOrnamentLightTapped = onOrnamentLightTapped
         scene.onDirectManipulationChanged = { [weak renderController] active in
             renderController?.setDirectManipulation(
                 active: active,
@@ -126,6 +132,7 @@ struct PiboStageView: View, Equatable {
         scene.setSproutGrowthProgress(sproutGrowthProgress)
         scene.setEnvironment(environment)
         scene.setUnlockedOrnaments(unlockedOrnaments)
+        scene.setLitOrnamentLights(litOrnamentLights)
         scene.setTuning(tuning)
     }
 
@@ -146,6 +153,7 @@ struct PiboStageView: View, Equatable {
             && lhs.sproutGrowthProgress == rhs.sproutGrowthProgress
             && lhs.environment == rhs.environment
             && lhs.unlockedOrnaments == rhs.unlockedOrnaments
+            && lhs.litOrnamentLights == rhs.litOrnamentLights
             && lhs.tuning == rhs.tuning
             && lhs.isPaused == rhs.isPaused
             && lhs.commandController === rhs.commandController

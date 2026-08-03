@@ -202,13 +202,6 @@ enum ForestSceneManifest {
         Layer(image: "forest_stone_5", frame: CGRect(x: -81, y: 686, width: 217, height: 116), zPosition: 14, lightingGroup: .foreground),
         Layer(image: "forest_stone_2", frame: CGRect(x: 314, y: 664, width: 166, height: 147), zPosition: 15, lightingGroup: .foreground),
         Layer(image: "forest_stone_1", frame: CGRect(x: 227, y: 780, width: 202.5465, height: 77.7470), zPosition: 16, lightingGroup: .foreground),
-        // 椰壳（巢）。刻意只有一层、且垫在角色底下：睡眠三态的角色形状已经按洞口
-        // 手工裁切过（蒙版烘焙进美术里），整体压上去就是对的。把椰壳打进角色动画
-        // 会得到「空壳」与「带角色的壳」两份对不齐的资产，而且呼吸会把壳带歪
-        // （DESIGN-NOTES §3）。落位取自 pibo_context 已验收的首页整合预览。
-        // Same visible 252×475 coconut cut and 0.7 placement used by the live
-        // `pibo_context` integration (`.nest-shell`).
-        Layer(image: "forest_yeke", frame: CGRect(x: 41.8, y: 18, width: 176.4, height: 332.5), zPosition: 17, lightingGroup: .midground),
     ]
 
     static let river = Layer(

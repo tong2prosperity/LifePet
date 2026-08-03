@@ -235,6 +235,53 @@ final class BoLedgerStore {
         }
         persist()
     }
+
+    /// Applies a workout-only Core fixture without writing synthetic HealthKit
+    /// history. This is deliberately DEBUG-only: it gives the Settings rehearsal
+    /// a visible ledger delta while keeping all scoring weights and thresholds in
+    /// `pibo-core`.
+    @discardableResult
+    func debugApplyWorkout(durationMinutes: Int) -> Double {
+        guard durationMinutes > 0, state.ripeCount == 0 else { return growthProgress }
+
+        let metrics = PiboCoreBoAdapter.metrics(
+            sleepTotal: 0,
+            sleepDeep: 0,
+            sleepREM: 0,
+            awakeSeconds: 0,
+            awakeSegmentCount: nil,
+            steps: 0,
+            exerciseMinutes: durationMinutes,
+            hrv: 0,
+            restingHR: 0
+        )
+        let scoredEnergy = PiboCoreBoEconomy.scoreDay(metrics).energy
+        let energyPerBo = PiboCoreBoEconomy.energyPerBo
+        guard scoredEnergy.isFinite, scoredEnergy > 0, energyPerBo > 0 else {
+            return growthProgress
+        }
+
+        let previousEnergyPool = state.energyPool
+        let grantable = min(scoredEnergy, energyPerBo - previousEnergyPool)
+        guard grantable > 0 else { return growthProgress }
+
+        let result = PiboCoreBoEconomy.applyEnergy(
+            energyPool: previousEnergyPool,
+            grantedEnergy: grantable
+        )
+        state.energyPool = result.newEnergyPool
+        state.ripeCount += result.mintedCount
+        persist()
+        progressFeedback?.recordLedgerUpdate(
+            previousEnergyPool: previousEnergyPool,
+            newEnergyPool: state.energyPool,
+            mintedCount: result.mintedCount
+        )
+        LPLog.bo.notice(
+            "debug workout energy=\(scoredEnergy, privacy: .public) progress=\(self.growthProgress, privacy: .public)"
+        )
+        return growthProgress
+    }
     #endif
 
     // MARK: 内部

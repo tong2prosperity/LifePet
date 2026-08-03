@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// Figma 6444:41862 的独立物品解锁页。
@@ -14,27 +15,47 @@ struct BoUnlockPage: View {
 
     private var ornaments: [PiboOrnament] { PiboOrnament.ordered }
 
+    /// Component geometry from the linked Figma states. The 24pt card radius is
+    /// also the house radius on the history surface; keeping it local avoids
+    /// changing the global `xxl` token, which is 36pt in the newer UI-kit ramp.
+    private enum Layout {
+        static let cardRadius: CGFloat = 24
+        static let timelineLeading: CGFloat = 27
+        static let timelineWidth: CGFloat = 24
+        static let timelineGap: CGFloat = 10
+        static let railWidth: CGFloat = 3
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             pageHeader
             balanceBar
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: LP.Spacing.m) {
+                LazyVStack(alignment: .leading, spacing: LP.Spacing.l) {
                     ForEach(ornaments) { ornament in
                         ornamentStep(ornament)
                     }
 
-                    HStack(spacing: LP.Spacing.m) {
+                    HStack(spacing: Layout.timelineGap) {
                         timelineDot(reached: false)
                         Text(AppLocalization.text("更多道具上线中......"))
-                            .lpText(LP.Typography.uiH3)
+                            .lpText(LP.Typography.b1Medium)
                             .foregroundStyle(LP.Content.quarternary)
                     }
+                    .padding(.top, LP.Spacing.xxl4)
                     .padding(.bottom, LP.Spacing.xxl)
                 }
-                .padding(.horizontal, LP.Spacing.l)
-                .padding(.top, LP.Spacing.xl)
+                .background(alignment: .topLeading) {
+                    Capsule()
+                        .fill(LP.Neutral.grey250.opacity(0.72))
+                        .frame(width: Layout.railWidth)
+                        .padding(.leading, (Layout.timelineWidth - Layout.railWidth) / 2)
+                        .padding(.top, 49)
+                }
+                .padding(.leading, Layout.timelineLeading)
+                .padding(.trailing, LP.Spacing.xl)
+                .padding(.top, LP.Spacing.xxl)
             }
         }
         .background(LP.Fill.bgSurfaceSecondary.ignoresSafeArea())
@@ -51,7 +72,7 @@ struct BoUnlockPage: View {
     private var pageHeader: some View {
         ZStack {
             Text(AppLocalization.text("兑换道具"))
-                .lpText(LP.Typography.uiH3)
+                .lpText(LP.Typography.b1Medium)
                 .foregroundStyle(LP.Content.secondary)
 
             HStack {
@@ -69,31 +90,31 @@ struct BoUnlockPage: View {
             }
         }
         .frame(height: 44)
-        .padding(.horizontal, LP.Spacing.s)
+        .padding(.horizontal, LP.Spacing.m)
         .padding(.top, LP.Spacing.s)
     }
 
     private var balanceBar: some View {
         HStack {
             Text(AppLocalization.text("当前bo数"))
-                .lpText(LP.Typography.uiH3)
+                .lpText(LP.Typography.b1Medium)
                 .foregroundStyle(LP.Content.secondary)
             Spacer()
-            HStack(spacing: LP.Spacing.s) {
+            HStack(spacing: LP.Spacing.xs) {
                 PiboBoGlyph()
                     .frame(width: 26, height: 36)
                 Text(AppLocalization.format("%d bo", ledger.balance))
-                    .lpText(LP.Typography.uiH3)
-                    .foregroundStyle(LP.Content.secondary)
+                    .lpText(LP.Typography.b1Medium)
+                    .foregroundStyle(LP.Colorful.teal600)
                     .contentTransition(.numericText())
             }
+            .padding(.horizontal, LP.Spacing.m)
+            .frame(height: 36)
+            .background(Capsule().fill(LP.Fill.bgContainer))
         }
-        .padding(.horizontal, 30)
-        .frame(height: 93)
-        .background(LP.Fill.bgContainer)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(LP.Border.secondary).frame(height: LP.BorderWidth.hair)
-        }
+        .padding(.leading, 30)
+        .padding(.trailing, LP.Spacing.xl)
+        .padding(.top, LP.Spacing.xl)
     }
 
     private func ornamentStep(_ ornament: PiboOrnament) -> some View {
@@ -101,82 +122,121 @@ struct BoUnlockPage: View {
         let canUnlock = unlocks.canUnlock(ornament.id, balance: ledger.balance)
         let isExpanded = expanded == ornament.id
 
-        return HStack(alignment: .top, spacing: LP.Spacing.m) {
-            timelineDot(reached: unlocked || canUnlock)
-                .padding(.top, isExpanded ? LP.Spacing.l : 41)
+        return HStack(alignment: .top, spacing: Layout.timelineGap) {
+            timelineDot(reached: unlocked || ledger.balance >= ornament.cost)
+                .padding(.top, 41)
 
-            VStack(alignment: .leading, spacing: LP.Spacing.m) {
+            Group {
                 if isExpanded {
-                    expandedArtwork(ornament, locked: !unlocked)
-
-                    Text(ornament.localizedName)
-                        .lpText(LP.Typography.uiH3)
-                        .foregroundStyle(LP.Colorful.teal600)
-
-                    Text(ornament.localizedEntry)
-                        .lpText(LP.Typography.b3Regular)
-                        .foregroundStyle(LP.Content.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    expandedCard(
+                        ornament,
+                        unlocked: unlocked,
+                        canUnlock: canUnlock
+                    )
                 } else {
-                    HStack(spacing: LP.Spacing.m) {
-                        OrnamentThumbnail(ornament: ornament, isLocked: !unlocked)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(ornament.localizedName)
-                                .lpText(LP.Typography.uiH3)
-                                .foregroundStyle(LP.Colorful.teal600)
-                            Text(AppLocalization.format("%d bo", ornament.cost))
-                                .lpText(LP.Typography.uiH3)
-                                .foregroundStyle(LP.Content.secondary)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                }
-
-                HStack {
-                    Button {
-                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
-                            expanded = isExpanded ? nil : ornament.id
-                        }
-                    } label: {
-                        Label(
-                            AppLocalization.text(isExpanded ? "收起" : "查看"),
-                            systemImage: isExpanded ? "chevron.up" : "chevron.down"
-                        )
-                        .labelStyle(.titleAndIcon)
-                        .lpText(LP.Typography.b4Medium)
-                        .foregroundStyle(LP.Colorful.teal500)
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer(minLength: 0)
-                    statusControl(ornament, unlocked: unlocked, canUnlock: canUnlock)
+                    collapsedCard(
+                        ornament,
+                        unlocked: unlocked,
+                        canUnlock: canUnlock
+                    )
                 }
             }
-            .padding(LP.Spacing.m)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: LP.Radius.xxl, style: .continuous)
+                RoundedRectangle(cornerRadius: Layout.cardRadius, style: .continuous)
                     .fill(LP.Fill.bgContainer)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: LP.Radius.xxl, style: .continuous)
+                RoundedRectangle(cornerRadius: Layout.cardRadius, style: .continuous)
                     .strokeBorder(LP.Border.secondary, lineWidth: LP.BorderWidth.hair)
             )
         }
     }
 
+    private func expandedCard(
+        _ ornament: PiboOrnament,
+        unlocked: Bool,
+        canUnlock: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: LP.Spacing.l) {
+            ZStack(alignment: .topTrailing) {
+                expandedArtwork(ornament, locked: !unlocked)
+                statusControl(ornament, unlocked: unlocked, canUnlock: canUnlock)
+                    .padding(.top, LP.Spacing.s)
+                    .padding(.trailing, LP.Spacing.s)
+            }
+
+            Text(ornament.localizedName)
+                .lpText(LP.Typography.b1Medium)
+                .foregroundStyle(LP.Colorful.teal600)
+
+            Text(compactEntry(ornament.localizedEntry))
+                .lpText(LP.Typography.b3Regular)
+                .foregroundStyle(LP.Content.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+                    expanded = nil
+                }
+            } label: {
+                Label(AppLocalization.text("收起"), systemImage: "chevron.up")
+                    .labelStyle(.titleAndIcon)
+                    .lpText(LP.Typography.b4Medium)
+                    .foregroundStyle(LP.Colorful.teal500)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(LP.Spacing.l)
+    }
+
+    private func collapsedCard(
+        _ ornament: PiboOrnament,
+        unlocked: Bool,
+        canUnlock: Bool
+    ) -> some View {
+        HStack(spacing: LP.Spacing.s) {
+            Button {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+                    expanded = ornament.id
+                }
+            } label: {
+                HStack(spacing: LP.Spacing.l) {
+                    OrnamentThumbnail(ornament: ornament, isLocked: !unlocked)
+                    VStack(alignment: .leading, spacing: LP.Spacing.xs) {
+                        Text(ornament.localizedName)
+                            .lpText(LP.Typography.b1Medium)
+                            .foregroundStyle(LP.Colorful.teal600)
+                        Text(AppLocalization.format("%d bo", ornament.cost))
+                            .lpText(LP.Typography.b1Medium)
+                            .foregroundStyle(LP.Content.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(AppLocalization.text("查看"))
+
+            statusControl(ornament, unlocked: unlocked, canUnlock: canUnlock)
+        }
+        .padding(.horizontal, LP.Spacing.xl)
+        .padding(.vertical, LP.Spacing.l)
+        .frame(minHeight: 98)
+    }
+
+    private func compactEntry(_ text: String) -> String {
+        text.replacingOccurrences(of: "\n\n", with: "\n")
+    }
+
     private func expandedArtwork(_ ornament: PiboOrnament, locked: Bool) -> some View {
-        OrnamentThumbnail(ornament: ornament, isLocked: locked)
-            .frame(width: 224, height: 168)
+        OrnamentThumbnail(
+            ornament: ornament,
+            isLocked: locked,
+            size: CGSize(width: 224, height: 168)
+        )
             .frame(maxWidth: .infinity)
-            .background(
-                LinearGradient(
-                    colors: [LP.Colorful.green500.opacity(0.2), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ),
-                in: RoundedRectangle(cornerRadius: LP.Radius.xl, style: .continuous)
-            )
     }
 
     @ViewBuilder
@@ -190,8 +250,7 @@ struct BoUnlockPage: View {
                        background: LP.Colorful.green500.opacity(0.1))
         } else if canUnlock {
             Button {
-                guard ledger.spend(ornament.cost) else { return }
-                unlocks.markUnlocked(ornament.id)
+                guard unlocks.purchase(ornament.id, using: ledger) == .purchased else { return }
                 LPHaptics.success()
                 Analytics.track(.boUnlock, screen: "bo_unlock",
                                 ["ornament": .string(ornament.id.rawValue),
@@ -227,13 +286,24 @@ struct BoUnlockPage: View {
         Circle()
             .fill(reached ? LP.Fill.foundationAccent : LP.Content.quarternary)
             .frame(width: 16, height: 16)
-            .frame(width: 24)
+            .frame(width: Layout.timelineWidth)
     }
 }
 
 private struct OrnamentThumbnail: View {
     let ornament: PiboOrnament
     let isLocked: Bool
+    let size: CGSize
+
+    init(
+        ornament: PiboOrnament,
+        isLocked: Bool,
+        size: CGSize = CGSize(width: 64, height: 64)
+    ) {
+        self.ornament = ornament
+        self.isLocked = isLocked
+        self.size = size
+    }
 
     var body: some View {
         Group {
@@ -245,11 +315,12 @@ private struct OrnamentThumbnail: View {
                     .opacity(isLocked ? 0.3 : 1)
             } else {
                 Image(systemName: "leaf")
-                    .font(.system(size: 24))
+                    .font(.system(size: min(size.width, size.height) > 64 ? 40 : 24))
                     .foregroundStyle(LP.Content.tertiary)
             }
         }
-        .frame(width: 64, height: 64)
+        .frame(width: size.width, height: size.height)
+        .accessibilityHidden(true)
     }
 }
 

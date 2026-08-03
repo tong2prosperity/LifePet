@@ -3,6 +3,7 @@ import os
 
 nonisolated enum PiboPersistenceKeys {
     enum Defaults {
+        static let loginFlowDone = "pibo.loginFlowDone.v1"
         static let onboardingDone = "pibo.onboardingDone.v1"
         static let onboardingResumeAuth = "pibo.onboarding.resumeAuth.v1"
         static let hatched = "pibo.hatched.v1"
@@ -25,8 +26,11 @@ nonisolated enum PiboPersistenceKeys {
 
         /// 本地 `bo` 账本（能量池 / 待拔取 / 余额 / 每日入账书签）。
         static let boLedger = "pibo.bo.ledger.v1"
-        /// 已解锁的森林物件 id 集合。
-        static let boUnlockedOrnaments = "pibo.bo.ornaments.v1"
+        static let boOwnedOrnaments = "pibo.bo.inventory.owned.v2"
+        static let boEligibleOrnaments = "pibo.bo.inventory.eligible.v2"
+        static let boPendingOrnamentPurchase = "pibo.bo.inventory.pendingPurchase.v2"
+        /// 物件身上被亲手点亮的灯 + 它们所属的「点灯日」。天亮作废，和解锁分开存。
+        static let boOrnamentLights = "pibo.bo.ornamentLights.v1"
         static let boUnlockGuideSeen = "pibo.bo.unlockGuideSeen.v1"
         /// 首枚 `bo` 成熟提醒是否已经发过（只发一次）。
         static let boFirstRipeNotified = "pibo.bo.firstRipeNotified.v1"
