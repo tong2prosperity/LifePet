@@ -64,17 +64,16 @@ Event tracking rides the **DataSneaker Swift SDK** — an **exact-version remote
 
 ## Core Product Logic (implementation lineage + narrative rebuild)
 
-**Narrative/worldview is split from home mechanics.** `docs/narrative/` describes the currently shipped lineage, but all new narrative, character, and copy work follows approved decisions under **`docs/narrative-rebuild/`**. In particular, [`docs/narrative-rebuild/decisions/005-Pibo人物基础.md`](docs/narrative-rebuild/decisions/005-Pibo%E4%BA%BA%E7%89%A9%E5%9F%BA%E7%A1%80.md) supersedes every older tsundere or pet-like personality instruction.
+**Narrative/worldview is split from home mechanics.** All narrative, character, and copy work follows approved decisions under **`docs/narrative-rebuild/`**. Start with [`docs/narrative-rebuild/HANDOFF.md`](docs/narrative-rebuild/HANDOFF.md). In particular, [`docs/narrative-rebuild/decisions/005-Pibo人物基础.md`](docs/narrative-rebuild/decisions/005-Pibo%E4%BA%BA%E7%89%A9%E5%9F%BA%E7%A1%80.md) supersedes every older tsundere or pet-like personality instruction.
 
 - **`docs/narrative-rebuild/decisions/`** — approved story, character, ethical, progression, and product-narrative rules. These win over conflicting older narrative text.
-- **`docs/narrative/`** — shipped lineage to preserve until an explicit migration; do not use its tsundere, coercive pact, or low-health-harms-Pibo framing for new work.
+- **`docs/narrative-rebuild/HANDOFF.md`** — mandatory entry point and authority order for current narrative work.
 
 The home-mechanics + copy spec is set by **`product-web-prototype/pibo-home-features-spec.md`** (still current for IA/features/greeting):
 
-- **`0603Pibo世界观重构.md`** — the flower↔energy loop + glitch/sickness/death thresholds are still valid lineage; **its worldview/personality framing is superseded by `docs/narrative/`**.
 - **`pibo-home-features-spec.md`** — the concrete home-page feature + copy spec (greeting / activity zone / pull-up Dashboard / camera). **This is the most current home spec; when it disagrees with anything below or in the PRD, it wins.** Note its banner: only the §2 greeting copy is locked; other copy pools are still under review.
 
-The original PRD (`../lifepulse_md/运动健康的拓麻歌子.md`) and the `legacy_docs/` builds (`pibo-mvp-user-journey.md`, `pibo-worldbuilding-bible.md`) are **historical** — keep them for thresholds/lineage, but the worldview, copy, and home IA are superseded by the two docs above.
+Older worldview documents have been removed. Do not reconstruct their personality, coercive progression, or low-health-harms-Pibo framing from code or chat history.
 
 There is also a sibling `AGENTS.md` (concise repo guidelines) and `README.md` (中文 overview) — keep all three roughly in sync when the architecture shifts.
 
@@ -147,7 +146,7 @@ Driven by **time rhythm + raw HealthKit data**. Priority: **深眠 > 初醒(·�
 
 Two reactions: **不理睬** (back/side to user, no text) or **说一句话** (current-state copy). Hard speech caps: **≤3 lines / 10 min** and **≤9 lines / 24h**. Logic: at the day cap → always ignore; at the 10-min cap → always ignore; else **30% speak / 70% ignore**. Idle 15–30s → 20% chance of a self-mutter (发呆 pool). Pibo is stingy with words, never fully silent.
 
-**Implemented (Figma 76:6758):** `pat()` returns a `PatResponse` (`Pat/PatReaction.swift`) — 不理睬 plays the **扭过头 turn-away pose** (`PiboStageScene.playTurnAway`: themes with a `bodyBackImage` swap the body to the 背面 art, bottom-aligned; themes without one — including the current `.forest` — swivel the root node instead). A spoken `PiboSpeechLine` carries a **mood** that picks the bubble style (`Pat/PiboSpeechBubbleView`, the 对话框 set): 正常 = white round outlined bubble, 生气 = black bubble + Pibo also turns away (烦躁/被打扰 states), 呓语 = soft murmur (深眠 + idle mutters). The 仿漫画 render set (生气 jagged / 弹幕飘过) is a later pass. **故事线 (app 叙事):** a spoken pat has a 25% chance of revealing story content instead of pool copy (`Story/PiboStoryline.swift`, accent-ringed ✦ bubble). **Current code is the old linear model** (authored 第一章·坠落, sequential reveal in `PiboStorylineStore`) and is **to be migrated** to the new **碎片叙事** design in `docs/narrative/` — i.e. the 25% pat should drop a **记忆碎片** or **显影一条约定 (pact clause)** *乱序*, gated by 记忆恢复度 (cumulative energy depth) rather than linear chapters, and the journal surface (`StoryJournalView` stub) becomes a **记忆馆/碎片图鉴**. See [docs/narrative/pibo-storyline-fragments.md](docs/narrative/pibo-storyline-fragments.md) §4 (carrier→mechanic map) + §8 (落地优先级).
+**Implemented (Figma 76:6758):** `pat()` returns a `PatResponse` (`Pat/PatReaction.swift`) — 不理睬 plays the **扭过头 turn-away pose** (`PiboStageScene.playTurnAway`: themes with a `bodyBackImage` swap the body to the 背面 art, bottom-aligned; themes without one — including the current `.forest` — swivel the root node instead). A spoken `PiboSpeechLine` carries a **mood** that picks the bubble style (`Pat/PiboSpeechBubbleView`, the 对话框 set): 正常 = white round outlined bubble, 生气 = black bubble + Pibo also turns away (烦躁/被打扰 states), 呓语 = soft murmur (深眠 + idle mutters). The 仿漫画 render set (生气 jagged / 弹幕飘过) is a later pass. **故事线 (app 叙事):** a spoken pat has a 25% chance of revealing story content instead of pool copy (`Story/PiboStoryline.swift`, accent-ringed ✦ bubble). **Current code is the old linear model** (authored 第一章·坠落, sequential reveal in `PiboStorylineStore`) and must be migrated according to the approved narrative decisions and MVP specifications under `docs/narrative-rebuild/`; do not preserve the old pact/fragments model merely because it remains in code.
 
 ### 能量收集 / energy collection (home spec §3.4)
 

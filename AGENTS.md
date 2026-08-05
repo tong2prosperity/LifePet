@@ -15,7 +15,7 @@
 - `Shared/Connectivity/` and old `Shared/Models/Vital*`: WatchConnectivity wire-format leftovers; avoid extending them.
 - `Pibo/Assets.xcassets/` and `Pibo/Resources/`: sprites, app assets, audio, and theme artwork.
 - `/Users/trevorlink/Project/PiboWorld/pibo-media`: source of truth for production-approved images, SVG, audio, video, character media, and platform exports. Its generated `manifest.json` carries hashes and stable collection IDs; `platform/ios/` and `platform/harmony/` contain runtime derivatives. App builds vendor selected files and never depend on this absolute path.
-- `docs/narrative/`: current narrative source of truth. `product-web-prototype/pibo-home-features-spec.md` remains the current home mechanics/copy spec. `product-web-prototype/0603Pibo世界观重构.md` is lineage for the flower/energy loop only; its worldview/personality framing is superseded. `legacy_docs/` and `mocks/` are historical.
+- `docs/narrative-rebuild/`: current narrative source of truth. `product-web-prototype/pibo-home-features-spec.md` remains the current home mechanics/copy spec. `legacy_docs/` and `mocks/` are historical.
 - `docs/narrative-rebuild/HANDOFF.md`: mandatory first read for any new narrative, story, onboarding, MVP-scope, commercialization, social, or battle discussion. It records the current checkpoint, authority order, pending questions, and next step; do not try to reconstruct this work from chat memory.
 - Root config/support files include `Pibo-Info.plist` for plist keys without build-setting forms and `PiboStore.storekit` for local StoreKit testing.
 

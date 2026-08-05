@@ -30,7 +30,7 @@ MVP 是 **魔丸态** Pibo（相识第 1–14 天）：听不懂人话、说乱�
 
 寿命不固定，UI 只显示「与Pibo相识的第 N 天」，没有分母。养不好 → 发疯（glitch 故障艺术）→ 生病 → 离去，完成一个健康任务即可恢复。
 
-源头文档：`product-web-prototype/0603Pibo世界观重构.md`（世界观）+ `product-web-prototype/pibo-home-features-spec.md`（主页功能 & 文案池）。原始 PRD `../lifepulse_md/运动健康的拓麻歌子.md` 与 `legacy_docs/` 为历史参考。
+当前叙事真源：`docs/narrative-rebuild/HANDOFF.md` 及其指向的已批准决定。主页机制参考 `product-web-prototype/pibo-home-features-spec.md`。
 
 ---
 

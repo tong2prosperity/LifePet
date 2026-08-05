@@ -6,7 +6,6 @@
 
 - `prototype-v0603-home.html` — 首页原型（2025-06-03 版本）
 - `prototype-v0603-onboarding.html` — 引导页/新用户 onboarding 原型（2025-06-03 版本）
-- `0603Pibo世界观重构.md` — Pibo 世界观重构文档（2025-06-03）
 
 ## 使用方式
 

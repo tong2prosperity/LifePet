@@ -1,6 +1,6 @@
 # Pibo 文档库（docs/）
 
-面向工程与设计的技术文档目录。首页交互/机制文档在 `product-web-prototype/`；**叙事/世界观的当前真源在本目录 `narrative/`**（取代 `legacy_docs/` 与 0603 文档里的旧世界观框架）。
+面向工程与设计的技术文档目录。首页交互/机制文档在 `product-web-prototype/`；**叙事/世界观的当前真源在 `narrative-rebuild/`**，开始任何叙事工作前先读 `narrative-rebuild/HANDOFF.md`。
 
 ## 目录
 
@@ -9,14 +9,9 @@
   Figma S 形水面素材职责、SpriteKit 三层合成、树木/叶片/Pibo 实时透视倒影、Shader 水流与流光、
   低电量降级、禁止重新接入 `forest_river` 的回归约束，以及像素级和 Simulator 验收基线。
 
-### narrative/ — 叙事 / 世界观（当前真源）
-- [Pibo 叙事圣经 · 失忆 × 约定 × 碎片叙事](narrative/pibo-narrative-bible.md)
-  Pibo 是谁、故事怎么讲、语气怎么拿。三根支柱（性格恒定 / 失忆装置 / 魂系碎片），
-  「AI 科幻外壳 → 无年代『失去身体』神话」的取舍，花的隐喻，表达系统，记忆恢复度进度轴，
-  衰退叙事，与代码的迁移接口。**取代**旧的「异世界种花小精灵 + 魔丸→傲娇→伙伴三阶段」框架。
-- [Pibo 故事线 · 约定条文 + 碎片池 + 显影规则](narrative/pibo-storyline-fragments.md)
-  可直接落地的作者素材：约定全 12 条（含第七条终显情感锚）、揭示层 L0–L5、四类碎片文案池、
-  载体→机制映射、记忆恢复度模型、衰退行为、续写风格指南。
+### narrative-rebuild/ — 叙事 / 世界观（当前真源）
+- [叙事重建交接入口](narrative-rebuild/HANDOFF.md)
+  当前检查点、权威顺序、待解决问题与下一步；已批准规则位于 `narrative-rebuild/decisions/`。
 
 ### games/ — 小游戏选型（游戏场）
 - [Pibo 健康小游戏调研（Features/Games 落地指南）](games/health-minigames-research.md)
