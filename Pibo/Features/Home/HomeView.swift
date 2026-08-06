@@ -35,6 +35,7 @@ struct HomeView: View {
     @State private var showGames = false
     @State private var showHistory = false
     @State private var showBoUnlockPage = false
+    @State private var showWellnessInstrument = false
     @State private var showSettings = false
     /// Card the history cover should land on. Set only by the stress-notification
     /// deep link; the 足迹 icon opens with `nil` (top of the 足迹 tab).
@@ -92,12 +93,12 @@ struct HomeView: View {
     /// covers plus the two sheets (设置 / 餐食详情), which on iOS occlude the stage
     /// too (`MealDetailView` in particular can sit open a while during 卡路里 识别).
     private var stagePaused: Bool {
-        showCamera || showGames || showHistory || showWalkDoodle || showBoUnlockPage || showSettings
+        showCamera || showGames || showHistory || showWalkDoodle || showBoUnlockPage || showSettings || showWellnessInstrument
             || activeSheet != nil
     }
 
     private var fullScreenFeaturePresented: Bool {
-        showCamera || showGames || showHistory || showWalkDoodle || showBoUnlockPage || showSettings
+        showCamera || showGames || showHistory || showWalkDoodle || showBoUnlockPage || showSettings || showWellnessInstrument
     }
 
     private var boCounterFeedbackRequest: BoCounterFeedbackRequest? {
@@ -169,6 +170,7 @@ struct HomeView: View {
                 onPat: handlePat,
                 onHairPulled: handleHairPull,
                 onOrnamentLightTapped: handleOrnamentLightTap,
+                onOrnamentTapped: handleOrnamentTap,
                 isPaused: stagePaused
             )
             .equatable()
@@ -193,8 +195,16 @@ struct HomeView: View {
             if sproutPhase == .pop {
                 EnergyCollectedPop(onDismiss: dismissEnergyPop)
             }
+
+            if showWellnessInstrument {
+                WellnessInstrumentView(data: wellnessInstrumentData) {
+                    dismissWellnessInstrument()
+                }
+                .transition(wellnessInstrumentTransition)
+                .zIndex(200)
+            }
         }
-        .accessibilityHidden(stagePaused)
+        .accessibilityHidden(stagePaused && !showWellnessInstrument)
         .task { await idleMutterLoop() }
         .task { await atmosphereClockLoop() }
         .task(id: store.animationExperience.angryUntil) {
@@ -251,6 +261,12 @@ struct HomeView: View {
                 Task {
                     try? await Task.sleep(for: .milliseconds(350))
                     showHistory = true
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-PiboOpenWellnessInstrument") {
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    presentWellnessInstrument()
                 }
             }
             if ProcessInfo.processInfo.arguments.contains("-PiboShowMorningSleep") {
@@ -737,6 +753,58 @@ struct HomeView: View {
         LPHaptics.tap()
         Analytics.track(.ornamentLight, screen: "home",
                         ["ornament": .string(id.rawValue), "index": .int(index)])
+    }
+
+    private func handleOrnamentTap(_ id: PiboOrnament.ID) {
+        guard id == .statusObserver,
+              ornamentUnlocks.grants(.recoveryStatus),
+              activeSheet == nil,
+              !fullScreenFeaturePresented,
+              sproutPhase == .idle
+        else { return }
+        LPHaptics.tap()
+        dismissSpeech()
+        presentWellnessInstrument()
+    }
+
+    private var wellnessInstrumentData: WellnessInstrumentData {
+        _ = history.revision
+        return WellnessInstrumentData(record: history.record(on: .now))
+    }
+
+    private var wellnessInstrumentTransition: AnyTransition {
+        if UIAccessibility.isReduceMotionEnabled {
+            return .opacity
+        }
+        return .asymmetric(
+            insertion: .scale(scale: 0.86, anchor: .bottomLeading).combined(with: .opacity),
+            removal: .scale(scale: 0.94, anchor: .bottomLeading).combined(with: .opacity)
+        )
+    }
+
+    private func presentWellnessInstrument() {
+        guard !showWellnessInstrument else { return }
+        let animation: Animation = UIAccessibility.isReduceMotionEnabled
+            ? .linear(duration: 0.12)
+            : .easeOut(duration: 0.28)
+        withAnimation(animation) {
+            showWellnessInstrument = true
+        }
+    }
+
+    private func dismissWellnessInstrument() {
+        let duration = UIAccessibility.isReduceMotionEnabled ? 0.1 : 0.2
+        let animation: Animation = UIAccessibility.isReduceMotionEnabled
+            ? .linear(duration: duration)
+            : .easeOut(duration: duration)
+        withAnimation(animation) {
+            showWellnessInstrument = false
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(duration))
+            guard !showWellnessInstrument else { return }
+            resumePendingHomeFlows()
+        }
     }
 
     // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)

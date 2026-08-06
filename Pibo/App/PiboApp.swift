@@ -230,6 +230,7 @@ struct PiboApp: App {
                     if scenePhase == .active,
                        health.authState == .granted,
                        morningSleep.pendingPresentation == nil {
+                        await health.requestWellnessAuthorizationIfNeeded()
                         await health.requestMorningSleepEnrichmentAuthorizationIfNeeded()
                     }
                     // Backfill the SwiftData history once per launch. On a real
@@ -254,6 +255,7 @@ struct PiboApp: App {
                         history.ingest(values)
                         let workouts = await health.fetchWorkoutHistory()
                         history.ingestWorkouts(workouts)
+                        history.recomputeWellness()
                     }
                     // 健康历史落定之后重算 `bo`。放在这里而不是 HK 事件流里，是因为
                     // 账本要的是「已窗口化的每日真相」，而重算本身是幂等的 ——

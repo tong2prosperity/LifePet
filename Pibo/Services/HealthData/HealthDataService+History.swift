@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 import os
+import PiboCore
 
 /// Daily-bucketed historical backfill for the 上滑数据二楼. Separate from the
 /// live "today snapshot" pipeline: this runs once (and on reconcile) to fill the
@@ -39,6 +40,7 @@ extension HealthDataService {
         await collectAvg(.restingHeartRate, unit: bpm, start: start, anchor: today) { d, v in mutate(d) { $0.restingHR = v } }
         await collectAvg(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: start, anchor: today) { d, v in mutate(d) { $0.hrv = v } }
         await collectAvg(.oxygenSaturation, unit: .percent(), start: start, anchor: today) { d, v in mutate(d) { $0.oxygenSaturation = v } }
+        await collectAvg(.vo2Max, unit: HKUnit(from: "ml/kg*min"), start: start, anchor: today) { d, v in mutate(d) { $0.vo2Max = v } }
         await collectHeartRate(start: start, anchor: today) { d, avg, lo, hi in
             mutate(d) { $0.heartRateAvg = avg; $0.heartRateMin = lo; $0.heartRateMax = hi }
         }
@@ -48,7 +50,85 @@ extension HealthDataService {
                 $0.sleepTotal = night.total; $0.sleepDeep = night.deep; $0.sleepREM = night.rem
                 $0.sleepCore = night.core; $0.sleepAwake = night.awake
                 $0.sleepStart = night.start; $0.sleepEnd = night.end
+                $0.sleepInBed = night.inBed
+                $0.sleepAwakeningCount = night.awakeningCount
+                $0.sleepLatency = night.latency
                 $0.sleepSegments = night.segments
+            }
+        }
+
+        // Read each optional quantity once for the whole backfill, then join it
+        // to the selected nightly sleep windows. Unsupported hardware, denied
+        // scopes and genuinely absent measurements all remain nil.
+        async let hrvValues = historyQuantityValues(
+            .heartRateVariabilitySDNN,
+            unit: .secondUnit(with: .milli),
+            start: start,
+            end: now
+        )
+        async let heartRateValues = historyQuantityValues(
+            .heartRate,
+            unit: bpm,
+            start: start,
+            end: now
+        )
+        async let temperatureValues = historyQuantityValues(
+            .appleSleepingWristTemperature,
+            unit: .degreeCelsius(),
+            start: start,
+            end: now
+        )
+        async let respiratoryValues = historyQuantityValues(
+            .respiratoryRate,
+            unit: .count().unitDivided(by: .minute()),
+            start: start,
+            end: now
+        )
+        async let sleepingOxygenValues = historyQuantityValues(
+            .oxygenSaturation,
+            unit: .percent(),
+            start: start,
+            end: now
+        )
+        async let breathingDisturbanceValues = historyQuantityValues(
+            .appleSleepingBreathingDisturbances,
+            unit: .count(),
+            start: start,
+            end: now
+        )
+        let enrichment = await (
+            hrvValues,
+            heartRateValues,
+            temperatureValues,
+            respiratoryValues,
+            sleepingOxygenValues,
+            breathingDisturbanceValues
+        )
+        for (day, value) in byDay {
+            guard let sleepStart = value.sleepStart, let sleepEnd = value.sleepEnd,
+                  sleepEnd > sleepStart else { continue }
+            func inside(_ values: [HistoryQuantityValue]) -> [HistoryQuantityValue] {
+                values.filter { $0.date >= sleepStart && $0.date <= sleepEnd }
+            }
+            let nightlyHRV = inside(enrichment.0)
+            let nightlyHeartRate = inside(enrichment.1)
+            let nightlyTemperature = inside(enrichment.2)
+            let nightlyRespiratory = inside(enrichment.3)
+            let nightlyOxygen = inside(enrichment.4)
+            let nightlyDisturbances = inside(enrichment.5)
+            mutate(day) {
+                $0.overnightHRV = Self.median(nightlyHRV.map(\.value))
+                $0.sleepingHeartRateAverage = Self.mean(nightlyHeartRate.map(\.value))
+                $0.sleepingHeartRateMinimum = nightlyHeartRate.map(\.value).min()
+                $0.sleepingWristTemperature = Self.median(nightlyTemperature.map(\.value))
+                $0.sleepingRespiratoryRate = Self.median(nightlyRespiratory.map(\.value))
+                $0.sleepingOxygenSaturation = Self.median(nightlyOxygen.map(\.value))
+                $0.sleepingBreathingDisturbances = Self.median(nightlyDisturbances.map(\.value))
+                $0.recoveryIndexScore = PiboCoreWellnessAdapter.recoveryIndex(
+                    heartRates: nightlyHeartRate.map { ($0.date, $0.value) },
+                    sleepStart: sleepStart,
+                    sleepDuration: sleepEnd.timeIntervalSince(sleepStart)
+                )?.score
             }
         }
 
@@ -78,15 +158,25 @@ extension HealthDataService {
             let workouts = try await descriptor.result(for: store)
             let energyType = HKQuantityType(.activeEnergyBurned)
             let distanceType = HKQuantityType(.distanceWalkingRunning)
+            let heartRateType = HKQuantityType(.heartRate)
+            let effortByWorkout = await workoutEffortValues(start: start)
+            let bpm = HKUnit.count().unitDivided(by: .minute())
             let out: [WorkoutValues] = workouts.map { w in
                 let kcal = w.statistics(for: energyType)?
                     .sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
                 let dist = w.statistics(for: distanceType)?
                     .sumQuantity()?.doubleValue(for: .meter()) ?? 0
+                let heartRate = w.statistics(for: heartRateType)
+                let effort = effortByWorkout[w.uuid]
                 return WorkoutValues(
                     id: w.uuid, kind: Self.bucket(w.workoutActivityType),
                     start: w.startDate, end: w.endDate, duration: w.duration,
-                    energyKcal: kcal, distanceMeters: dist)
+                    energyKcal: kcal, distanceMeters: dist,
+                    averageHeartRate: heartRate?.averageQuantity()?.doubleValue(for: bpm),
+                    minimumHeartRate: heartRate?.minimumQuantity()?.doubleValue(for: bpm),
+                    maximumHeartRate: heartRate?.maximumQuantity()?.doubleValue(for: bpm),
+                    effortScore: effort?.score,
+                    effortIsEstimated: effort?.isEstimated ?? false)
             }
             LPLog.workout.notice("Workout history: \(out.count, privacy: .public) over \(days, privacy: .public)d")
             return out
@@ -233,11 +323,85 @@ extension HealthDataService {
         }
     }
 
+    private struct HistoryQuantityValue: Sendable {
+        let date: Date
+        let value: Double
+    }
+
+    private func historyQuantityValues(
+        _ identifier: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        start: Date,
+        end: Date
+    ) async -> [HistoryQuantityValue] {
+        let type = HKQuantityType(identifier)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end)
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: type, predicate: predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate)]
+        )
+        do {
+            return try await descriptor.result(for: store).map {
+                HistoryQuantityValue(
+                    date: $0.startDate,
+                    value: $0.quantity.doubleValue(for: unit)
+                )
+            }
+        } catch {
+            LPLog.healthKit.debug(
+                "History quantity \(identifier.rawValue, privacy: .public) unavailable: \(error.localizedDescription, privacy: .public)"
+            )
+            return []
+        }
+    }
+
+    private struct WorkoutEffortValue: Sendable {
+        let score: Double
+        let isEstimated: Bool
+    }
+
+    /// Apple relates effort quantities to workouts through a dedicated query,
+    /// not `HKWorkout.statistics(for:)`. Fetch all relationships once and keep
+    /// the user-entered/actual quantity ahead of Apple's estimate.
+    private func workoutEffortValues(start: Date) async -> [UUID: WorkoutEffortValue] {
+        let descriptor = HKWorkoutEffortRelationshipQueryDescriptor(
+            predicate: HKQuery.predicateForSamples(withStart: start, end: nil),
+            anchor: nil,
+            option: .default
+        )
+        do {
+            let result = try await descriptor.result(for: store)
+            let actualType = HKQuantityType(.workoutEffortScore)
+            let estimatedType = HKQuantityType(.estimatedWorkoutEffortScore)
+            let unit = HKUnit.appleEffortScore()
+            var values: [UUID: WorkoutEffortValue] = [:]
+            for relationship in result.relationships {
+                let samples = relationship.samples?.compactMap { $0 as? HKQuantitySample } ?? []
+                let actual = samples.first { $0.quantityType == actualType }
+                let estimated = samples.first { $0.quantityType == estimatedType }
+                guard let sample = actual ?? estimated else { continue }
+                values[relationship.workout.uuid] = WorkoutEffortValue(
+                    score: sample.quantity.doubleValue(for: unit),
+                    isEstimated: actual == nil
+                )
+            }
+            return values
+        } catch {
+            LPLog.workout.debug(
+                "Workout effort unavailable: \(error.localizedDescription, privacy: .public)"
+            )
+            return [:]
+        }
+    }
+
     /// One night's aggregated sleep, as handed to `collectSleep`'s emit.
     struct NightSleep {
         var total: TimeInterval = 0, deep: TimeInterval = 0, rem: TimeInterval = 0
         var core: TimeInterval = 0, awake: TimeInterval = 0
         var start: Date?, end: Date?
+        var inBed: TimeInterval?
+        var awakeningCount: Int?
+        var latency: TimeInterval?
         /// Stage segments in time order, adjacent same-stage samples merged.
         var segments: [SleepSegmentValue] = []
     }
@@ -267,6 +431,7 @@ extension HealthDataService {
                 var night = NightSleep()
                 for s in daySamples {
                     let v = HKCategoryValueSleepAnalysis(rawValue: s.value)
+                    guard v != .inBed else { continue }
                     let dur = s.endDate.timeIntervalSince(s.startDate)
                     var asleep = true
                     var stage: SleepStage?
@@ -292,11 +457,41 @@ extension HealthDataService {
                     }
                     if let stage { appendSegment(&night.segments, s.startDate, s.endDate, stage) }
                 }
+                let inBedCandidates = daySamples.filter {
+                    HKCategoryValueSleepAnalysis(rawValue: $0.value) == .inBed
+                }
+                if let chosen = inBedCandidates.max(by: {
+                    $0.endDate.timeIntervalSince($0.startDate)
+                        < $1.endDate.timeIntervalSince($1.startDate)
+                }) {
+                    night.inBed = chosen.endDate.timeIntervalSince(chosen.startDate)
+                    if let sleepStart = night.start {
+                        let latency = sleepStart.timeIntervalSince(chosen.startDate)
+                        if latency > 0, latency < 90 * 60 { night.latency = latency }
+                    }
+                }
+                if !night.segments.isEmpty {
+                    night.awakeningCount = night.segments.filter { $0.stage == .awake }.count
+                }
                 if night.total > 0 { emit(day, night) }
             }
         } catch {
             LPLog.healthKit.error("collectSleep: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private static func mean(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    private static func median(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let values = values.sorted()
+        let middle = values.count / 2
+        return values.count.isMultiple(of: 2)
+            ? (values[middle - 1] + values[middle]) / 2
+            : values[middle]
     }
 
     /// Append one sample to the night's segment list, merging into the previous

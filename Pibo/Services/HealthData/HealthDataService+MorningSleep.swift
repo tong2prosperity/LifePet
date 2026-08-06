@@ -15,7 +15,43 @@ enum MorningSleepHealthTypes {
     }
 }
 
+enum WellnessHealthTypes {
+    /// iOS 18+ Apple-authored facts used by history/workout enrichment. They
+    /// are optional inputs and never substituted when hardware or permission
+    /// support is absent.
+    static var additionalReadTypes: Set<HKObjectType> {
+        [
+            HKQuantityType(.appleSleepingBreathingDisturbances),
+            HKQuantityType(.vo2Max),
+            HKQuantityType(.workoutEffortScore),
+            HKQuantityType(.estimatedWorkoutEffortScore),
+        ]
+    }
+}
+
 extension HealthDataService {
+    /// Permission migration for installs that granted HealthKit access before
+    /// the optional wellness facts were introduced.
+    func requestWellnessAuthorizationIfNeeded() async {
+        guard authState == .granted else { return }
+        do {
+            let status = try await store.statusForAuthorizationRequest(
+                toShare: [],
+                read: WellnessHealthTypes.additionalReadTypes
+            )
+            guard status == .shouldRequest else { return }
+            try await store.requestAuthorization(
+                toShare: [],
+                read: WellnessHealthTypes.additionalReadTypes
+            )
+            LPLog.healthKit.notice("Requested optional wellness read scopes")
+        } catch {
+            LPLog.healthKit.error(
+                "Wellness auth failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
     /// Foreground-only permission expansion for existing installs. New installs
     /// receive these types in the initial HealthKit request; existing users are
     /// asked only after a real recent sleep sample exists, so a device with no

@@ -80,16 +80,46 @@ final class HealthDayRecord {
     var sleepAwake: TimeInterval
     var sleepStart: Date?
     var sleepEnd: Date?
+    /// Best available in-bed envelope and continuity evidence. Optional keeps
+    /// "not measured" distinct from a real zero.
+    var sleepInBed: TimeInterval?
+    var sleepAwakeningCount: Int?
+    var sleepLatency: TimeInterval?
     /// The night's stage segments in time order (adjacent same-stage merged).
     /// Empty for rows written before this field existed; the 睡眠 card falls
     /// back to total-derived clouds then.
     var sleepSegments: [SleepSegmentValue] = []
+
+    // — Sleep-window / platform-specific facts —
+    /// HealthKit SDNN samples that fall inside this night's selected session.
+    var overnightHRV: Double?
+    var sleepingHeartRateAverage: Double?
+    var sleepingHeartRateMinimum: Double?
+    var sleepingWristTemperature: Double?
+    var sleepingRespiratoryRate: Double?
+    var sleepingOxygenSaturation: Double?
+    /// Apple Sleeping Breathing Disturbances (`count`), available only on
+    /// supported Apple Watch models/regions and never synthesized by Pibo.
+    var sleepingBreathingDisturbances: Double?
+    /// Apple cardio-fitness fact (`ml/kg/min`). It is not folded into Pibo's
+    /// cross-platform recovery score.
+    var vo2Max: Double?
+    /// Conditional Core result from time-of-night HR samples.
+    var recoveryIndexScore: Double?
 
     // — Mind / workouts —
     var mindfulMinutes: Int
     var workoutCount: Int
     var workoutMinutes: Int
     var workoutEnergy: Double         // kcal
+    /// Sum of Core-derived per-workout loads. Optional means the workout
+    /// observation window is not established, while 0 is a measured rest day.
+    var trainingLoad: Double?
+
+    /// Versioned, Codable output of `PiboCoreWellness`. Stored as data so new
+    /// contributors can be added without turning every output into a schema
+    /// column. Raw platform facts above remain independently queryable.
+    var wellnessPayload: Data?
 
     /// Wall-clock of the most recent write.
     var updatedAt: Date
@@ -130,10 +160,24 @@ final class HealthDayRecord {
         self.sleepAwake = sleepAwake
         self.sleepStart = sleepStart
         self.sleepEnd = sleepEnd
+        self.sleepInBed = nil
+        self.sleepAwakeningCount = nil
+        self.sleepLatency = nil
+        self.overnightHRV = nil
+        self.sleepingHeartRateAverage = nil
+        self.sleepingHeartRateMinimum = nil
+        self.sleepingWristTemperature = nil
+        self.sleepingRespiratoryRate = nil
+        self.sleepingOxygenSaturation = nil
+        self.sleepingBreathingDisturbances = nil
+        self.vo2Max = nil
+        self.recoveryIndexScore = nil
         self.mindfulMinutes = mindfulMinutes
         self.workoutCount = workoutCount
         self.workoutMinutes = workoutMinutes
         self.workoutEnergy = workoutEnergy
+        self.trainingLoad = nil
+        self.wellnessPayload = nil
         self.updatedAt = updatedAt
     }
 }
@@ -141,6 +185,11 @@ final class HealthDayRecord {
 // MARK: - Displayed subset (what the 二楼 actually renders)
 
 extension HealthDayRecord {
+    var wellnessSnapshot: DailyWellnessSnapshot? {
+        guard let wellnessPayload else { return nil }
+        return try? JSONDecoder().decode(DailyWellnessSnapshot.self, from: wellnessPayload)
+    }
+
     /// Has any signal worth showing (filters all-zero placeholder days).
     var hasData: Bool {
         steps > 0 || sleepTotal > 0 || activeEnergy > 0 || exerciseMinutes > 0

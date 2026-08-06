@@ -22,6 +22,14 @@ final class WorkoutRecord {
     var duration: TimeInterval        // seconds
     var energyKcal: Double
     var distanceMeters: Double         // walking + running, 0 when unavailable
+    var averageHeartRate: Double?
+    var minimumHeartRate: Double?
+    var maximumHeartRate: Double?
+    /// Apple Workout Effort, 1...10. `effortIsEstimated` keeps the provider's
+    /// measured/estimated distinction while Core uses the same numeric input.
+    var effortScore: Double?
+    var effortIsEstimated = false
+    var trainingLoad: Double?
     var updatedAt: Date
 
     init(id: UUID, day: Date, kindRaw: String, start: Date, end: Date,
@@ -35,6 +43,12 @@ final class WorkoutRecord {
         self.duration = duration
         self.energyKcal = energyKcal
         self.distanceMeters = distanceMeters
+        self.averageHeartRate = nil
+        self.minimumHeartRate = nil
+        self.maximumHeartRate = nil
+        self.effortScore = nil
+        self.effortIsEstimated = false
+        self.trainingLoad = nil
         self.updatedAt = updatedAt
     }
 }
@@ -81,4 +95,10 @@ struct WorkoutValues: Sendable {
     var duration: TimeInterval
     var energyKcal: Double
     var distanceMeters: Double
+    var averageHeartRate: Double? = nil
+    var minimumHeartRate: Double? = nil
+    var maximumHeartRate: Double? = nil
+    var effortScore: Double? = nil
+    var effortIsEstimated = false
+    var trainingLoad: Double? = nil
 }

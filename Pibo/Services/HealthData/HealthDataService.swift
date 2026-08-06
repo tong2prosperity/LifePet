@@ -171,7 +171,8 @@ final class HealthDataService {
                 toShare: [],
                 read: metrics.hkReadTypes
                     .union([HKObjectType.activitySummaryType()])
-                    .union(MorningSleepHealthTypes.enrichmentReadTypes))
+                    .union(MorningSleepHealthTypes.enrichmentReadTypes)
+                    .union(WellnessHealthTypes.additionalReadTypes))
             authState = .granted
             Self.persistAuthorizedFlag(true)
             LPLog.healthKit.notice("Auth granted (HK doesn't disclose per-type grants — verify via query results)")

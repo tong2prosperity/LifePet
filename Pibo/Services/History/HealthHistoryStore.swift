@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import Observation
 import CoreLocation
+import PiboCore
 #if DEBUG
 import UIKit
 #endif
@@ -33,11 +34,43 @@ struct HealthDayValues: Sendable {
     var sleepAwake: TimeInterval = 0
     var sleepStart: Date?
     var sleepEnd: Date?
+    var sleepInBed: TimeInterval?
+    var sleepAwakeningCount: Int?
+    var sleepLatency: TimeInterval?
     var sleepSegments: [SleepSegmentValue] = []
+    var overnightHRV: Double?
+    var sleepingHeartRateAverage: Double?
+    var sleepingHeartRateMinimum: Double?
+    var sleepingWristTemperature: Double?
+    var sleepingRespiratoryRate: Double?
+    var sleepingOxygenSaturation: Double?
+    var sleepingBreathingDisturbances: Double?
+    var vo2Max: Double?
+    var recoveryIndexScore: Double?
     var mindfulMinutes = 0
     var workoutCount = 0
     var workoutMinutes = 0
     var workoutEnergy = 0.0
+
+    var hasPersistableData: Bool {
+        steps > 0 || activeEnergy > 0 || exerciseMinutes > 0 || standMinutes > 0
+            || distanceMeters > 0 || flightsClimbed > 0 || moveGoal > 0
+            || exerciseGoal > 0 || standGoal > 0 || restingHR > 0
+            || heartRateAvg > 0 || heartRateMin > 0 || heartRateMax > 0
+            || hrv > 0 || oxygenSaturation > 0 || sleepTotal > 0
+            || sleepInBed != nil || overnightHRV != nil
+            || sleepingHeartRateAverage != nil || sleepingWristTemperature != nil
+            || sleepingRespiratoryRate != nil || sleepingOxygenSaturation != nil
+            || sleepingBreathingDisturbances != nil || vo2Max != nil
+            || mindfulMinutes > 0 || workoutCount > 0 || workoutMinutes > 0
+            || workoutEnergy > 0
+    }
+}
+
+enum HealthHistoryWriteOrigin {
+    case preserveExistingProvenance
+    case verified
+    case synthetic
 }
 
 /// In-app health history, backed by SwiftData. Owns the model context, upserts
@@ -49,10 +82,31 @@ struct HealthDayValues: Sendable {
 @Observable
 final class HealthHistoryStore {
     @ObservationIgnored private let context: ModelContext
+    @ObservationIgnored private let provenanceDefaults: UserDefaults
+    @ObservationIgnored private let syntheticDaysKey: String
+    @ObservationIgnored private let syntheticWorkoutIDsKey: String
+    @ObservationIgnored private var syntheticHealthDayKeys: Set<String>
+    @ObservationIgnored private var syntheticWorkoutIDs: Set<UUID>
     private(set) var revision = 0
 
-    init(context: ModelContext) {
+    init(
+        context: ModelContext,
+        provenanceDefaults: UserDefaults = .standard,
+        syntheticDaysKey: String = PiboPersistenceKeys.Defaults.debugSyntheticHealthDays,
+        syntheticWorkoutIDsKey: String = PiboPersistenceKeys.Defaults.debugSyntheticWorkoutIDs
+    ) {
         self.context = context
+        self.provenanceDefaults = provenanceDefaults
+        self.syntheticDaysKey = syntheticDaysKey
+        self.syntheticWorkoutIDsKey = syntheticWorkoutIDsKey
+        syntheticHealthDayKeys = Set(
+            provenanceDefaults.stringArray(forKey: syntheticDaysKey) ?? []
+        )
+        syntheticWorkoutIDs = Set(
+            (provenanceDefaults.stringArray(forKey: syntheticWorkoutIDsKey) ?? [])
+                .compactMap(UUID.init(uuidString:))
+        )
+        adoptLegacyDebugSeedProvenanceIfNeeded()
     }
 
     // MARK: Reads
@@ -76,6 +130,14 @@ final class HealthHistoryStore {
         return (try? context.fetch(d)) ?? []
     }
 
+    /// Only platform-health rows may advance story facts or mint `bo`.
+    /// DEBUG history remains useful for screenshots but is never evidence.
+    func verifiedHealthRecords(from start: Date, to end: Date) -> [HealthDayRecord] {
+        records(from: start, to: end).filter {
+            !syntheticHealthDayKeys.contains(Self.provenanceDayKey($0.date))
+        }
+    }
+
     /// All records in the calendar month containing `day`.
     func recordsForMonth(containing day: Date) -> [HealthDayRecord] {
         let cal = Calendar.current
@@ -87,7 +149,11 @@ final class HealthHistoryStore {
 
     /// Find-or-create the row for `day` and mutate it. Bumps `revision`.
     @discardableResult
-    func upsert(day: Date, configure: (HealthDayRecord) -> Void) -> HealthDayRecord {
+    func upsert(
+        day: Date,
+        origin: HealthHistoryWriteOrigin = .preserveExistingProvenance,
+        configure: (HealthDayRecord) -> Void
+    ) -> HealthDayRecord {
         let key = Calendar.current.startOfDay(for: day)
         let record: HealthDayRecord
         if let existing = self.record(on: key) {
@@ -98,6 +164,9 @@ final class HealthHistoryStore {
         }
         configure(record)
         record.updatedAt = .now
+        if case .synthetic = origin {
+            markSyntheticHealthDays([Self.provenanceDayKey(key)])
+        }
         try? context.save()
         revision += 1
         return record
@@ -106,9 +175,12 @@ final class HealthHistoryStore {
     /// Bulk-ingest backfilled HK values. Skips empty days so the calendar
     /// doesn't fill with all-zero placeholder rows.
     func ingest(_ values: [HealthDayValues]) {
-        for v in values where v.steps > 0 || v.sleepTotal > 0 || v.activeEnergy > 0 || v.exerciseMinutes > 0 {
+        var verifiedKeys: Set<String> = []
+        for v in values where v.hasPersistableData {
             upsertSilently(v)
+            verifiedKeys.insert(Self.provenanceDayKey(Calendar.current.startOfDay(for: v.date)))
         }
+        clearSyntheticMarkers(verifiedKeys)
         try? context.save()
         revision += 1
     }
@@ -146,12 +218,73 @@ final class HealthHistoryStore {
         record.sleepAwake = v.sleepAwake
         record.sleepStart = v.sleepStart
         record.sleepEnd = v.sleepEnd
+        record.sleepInBed = v.sleepInBed
+        record.sleepAwakeningCount = v.sleepAwakeningCount
+        record.sleepLatency = v.sleepLatency
         record.sleepSegments = v.sleepSegments
+        record.overnightHRV = v.overnightHRV
+        record.sleepingHeartRateAverage = v.sleepingHeartRateAverage
+        record.sleepingHeartRateMinimum = v.sleepingHeartRateMinimum
+        record.sleepingWristTemperature = v.sleepingWristTemperature
+        record.sleepingRespiratoryRate = v.sleepingRespiratoryRate
+        record.sleepingOxygenSaturation = v.sleepingOxygenSaturation
+        record.sleepingBreathingDisturbances = v.sleepingBreathingDisturbances
+        record.vo2Max = v.vo2Max
+        record.recoveryIndexScore = v.recoveryIndexScore
         record.mindfulMinutes = v.mindfulMinutes
         record.workoutCount = v.workoutCount
         record.workoutMinutes = v.workoutMinutes
         record.workoutEnergy = v.workoutEnergy
         record.updatedAt = .now
+    }
+
+    private static func provenanceDayKey(_ date: Date) -> String {
+        String(date.timeIntervalSinceReferenceDate.bitPattern)
+    }
+
+    private func markSyntheticHealthDays(_ keys: Set<String>) {
+        guard !keys.isEmpty else { return }
+        syntheticHealthDayKeys.formUnion(keys)
+        persistSyntheticHealthDays()
+    }
+
+    private func clearSyntheticMarkers(_ keys: Set<String>) {
+        guard !keys.isEmpty else { return }
+        let previousCount = syntheticHealthDayKeys.count
+        syntheticHealthDayKeys.subtract(keys)
+        if syntheticHealthDayKeys.count != previousCount {
+            persistSyntheticHealthDays()
+        }
+    }
+
+    private func persistSyntheticHealthDays() {
+        provenanceDefaults.set(syntheticHealthDayKeys.sorted(), forKey: syntheticDaysKey)
+    }
+
+    private func persistSyntheticWorkoutIDs() {
+        provenanceDefaults.set(
+            syntheticWorkoutIDs.map(\.uuidString).sorted(),
+            forKey: syntheticWorkoutIDsKey
+        )
+    }
+
+    /// Builds before provenance tracking wrote deterministic sample rows into
+    /// the same SwiftData table as HealthKit. Mark the existing rows once; a
+    /// subsequent real HealthKit ingest clears markers day by day.
+    private func adoptLegacyDebugSeedProvenanceIfNeeded() {
+        let versionKey = PiboPersistenceKeys.Defaults.debugHealthProvenanceVersion
+        guard provenanceDefaults.integer(forKey: versionKey) < 2 else { return }
+        defer { provenanceDefaults.set(2, forKey: versionKey) }
+        guard provenanceDefaults.string(
+            forKey: PiboPersistenceKeys.Defaults.debugHistorySeedState
+        ) != nil else { return }
+        let descriptor = FetchDescriptor<HealthDayRecord>()
+        let existing = (try? context.fetch(descriptor)) ?? []
+        markSyntheticHealthDays(Set(existing.map { Self.provenanceDayKey($0.date) }))
+        let workoutDescriptor = FetchDescriptor<WorkoutRecord>()
+        let workouts = (try? context.fetch(workoutDescriptor)) ?? []
+        syntheticWorkoutIDs.formUnion(workouts.map(\.id))
+        persistSyntheticWorkoutIDs()
     }
 
     // MARK: - Workouts (per-workout detail for the 运动记录 card)
@@ -172,8 +305,22 @@ final class HealthHistoryStore {
     }
 
     /// Upsert backfilled HK workouts (keyed by HK uuid). Bumps `revision`.
-    func ingestWorkouts(_ values: [WorkoutValues]) {
+    func ingestWorkouts(
+        _ values: [WorkoutValues],
+        origin: HealthHistoryWriteOrigin = .verified
+    ) {
         let cal = Calendar.current
+        var changedDays: Set<Date> = []
+        if case .verified = origin {
+            let descriptor = FetchDescriptor<WorkoutRecord>()
+            let existing = (try? context.fetch(descriptor)) ?? []
+            for workout in existing where syntheticWorkoutIDs.contains(workout.id) {
+                changedDays.insert(workout.day)
+                syntheticWorkoutIDs.remove(workout.id)
+                context.delete(workout)
+            }
+            persistSyntheticWorkoutIDs()
+        }
         for v in values {
             let record: WorkoutRecord
             if let existing = workoutRecord(id: v.id) {
@@ -189,8 +336,167 @@ final class HealthHistoryStore {
             record.kindRaw = v.kind.rawValue
             record.start = v.start; record.end = v.end; record.duration = v.duration
             record.energyKcal = v.energyKcal; record.distanceMeters = v.distanceMeters
+            record.averageHeartRate = v.averageHeartRate
+            record.minimumHeartRate = v.minimumHeartRate
+            record.maximumHeartRate = v.maximumHeartRate
+            record.effortScore = v.effortScore
+            record.effortIsEstimated = v.effortIsEstimated
+            let dayKey = Self.provenanceDayKey(record.day)
+            let restingHeartRate = syntheticHealthDayKeys.contains(dayKey)
+                ? nil
+                : self.record(on: record.day)?.restingHR
+            record.trainingLoad = PiboCoreWellnessAdapter.trainingLoad(
+                workout: v,
+                restingHeartRate: restingHeartRate
+            )?.load
             record.updatedAt = .now
+            if case .synthetic = origin {
+                syntheticWorkoutIDs.insert(record.id)
+            } else if case .verified = origin {
+                syntheticWorkoutIDs.remove(record.id)
+            }
+            changedDays.insert(record.day)
         }
+        if case .synthetic = origin {
+            persistSyntheticWorkoutIDs()
+            markSyntheticHealthDays(Set(changedDays.map(Self.provenanceDayKey)))
+        }
+        for day in changedDays {
+            let workouts = workouts(on: day)
+            let daily: HealthDayRecord
+            if let existing = record(on: day) {
+                daily = existing
+            } else {
+                daily = HealthDayRecord(date: day)
+                context.insert(daily)
+            }
+            let provenanceKey = Self.provenanceDayKey(day)
+            if case .verified = origin,
+               syntheticHealthDayKeys.remove(provenanceKey) != nil {
+                // A real workout must not make the other DEBUG-seeded metrics
+                // on the same row look verified.
+                clearHealthMetrics(on: daily)
+                persistSyntheticHealthDays()
+            }
+            daily.workoutCount = workouts.count
+            daily.workoutMinutes = Int(workouts.reduce(0) { $0 + $1.duration } / 60)
+            daily.workoutEnergy = workouts.reduce(0) { $0 + $1.energyKcal }
+            let loads = workouts.compactMap(\.trainingLoad)
+            daily.trainingLoad = loads.isEmpty ? nil : loads.reduce(0, +)
+            daily.updatedAt = .now
+        }
+        try? context.save()
+        revision += 1
+    }
+
+    private func clearHealthMetrics(on record: HealthDayRecord) {
+        record.steps = 0
+        record.hourlySteps = []
+        record.activeEnergy = 0
+        record.exerciseMinutes = 0
+        record.standMinutes = 0
+        record.distanceMeters = 0
+        record.flightsClimbed = 0
+        record.moveGoal = 0
+        record.exerciseGoal = 0
+        record.standGoal = 0
+        record.restingHR = 0
+        record.heartRateAvg = 0
+        record.heartRateMin = 0
+        record.heartRateMax = 0
+        record.hrv = 0
+        record.oxygenSaturation = 0
+        record.sleepTotal = 0
+        record.sleepDeep = 0
+        record.sleepREM = 0
+        record.sleepCore = 0
+        record.sleepAwake = 0
+        record.sleepStart = nil
+        record.sleepEnd = nil
+        record.sleepInBed = nil
+        record.sleepAwakeningCount = nil
+        record.sleepLatency = nil
+        record.sleepSegments = []
+        record.overnightHRV = nil
+        record.sleepingHeartRateAverage = nil
+        record.sleepingHeartRateMinimum = nil
+        record.sleepingWristTemperature = nil
+        record.sleepingRespiratoryRate = nil
+        record.sleepingOxygenSaturation = nil
+        record.sleepingBreathingDisturbances = nil
+        record.vo2Max = nil
+        record.recoveryIndexScore = nil
+        record.trainingLoad = nil
+        record.wellnessPayload = nil
+        record.mindfulMinutes = 0
+    }
+
+    // MARK: - Cross-platform wellness reports
+
+    /// Regenerates versioned Core outputs from verified platform data only.
+    /// DEBUG rows remain available to the UI but can never become score,
+    /// resilience, story, or economy evidence.
+    func recomputeWellness(now: Date = .now, days: Int = 35) {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        guard let start = cal.date(byAdding: .day, value: -days, to: today) else { return }
+
+        let allRecords = records(from: start, to: today)
+        let verified = allRecords.filter {
+            !syntheticHealthDayKeys.contains(Self.provenanceDayKey($0.date))
+        }
+        let verifiedDays = Set(verified.map { cal.startOfDay(for: $0.date) })
+        for record in allRecords where !verifiedDays.contains(cal.startOfDay(for: record.date)) {
+            record.wellnessPayload = nil
+        }
+
+        let realStressByDay = Dictionary(grouping: StressLogStore.entries.filter {
+            !$0.synthetic && $0.interpretationEligible && $0.stressScore != nil
+        }) { cal.startOfDay(for: $0.date) }
+        .mapValues { readings -> Double in
+            let scores = readings.compactMap(\.stressScore).sorted()
+            let middle = scores.count / 2
+            return scores.count.isMultiple(of: 2)
+                ? (scores[middle - 1] + scores[middle]) / 2
+                : scores[middle]
+        }
+
+        var snapshots: [Date: DailyWellnessSnapshot] = [:]
+        let encoder = JSONEncoder()
+        for (index, record) in verified.enumerated() {
+            let report = PiboCoreWellnessAdapter.report(
+                current: record,
+                history: Array(verified[..<index]),
+                calendar: cal
+            )
+            var snapshot = DailyWellnessSnapshot(report: report, generatedAt: now)
+            snapshot.apply(PiboCoreWellnessAdapter.restorativeTime(
+                mindfulMinutes: record.mindfulMinutes
+            ))
+            snapshots[cal.startOfDay(for: record.date)] = snapshot
+        }
+
+        for record in verified {
+            let day = cal.startOfDay(for: record.date)
+            guard var snapshot = snapshots[day] else { continue }
+            let resilienceDays = verified.compactMap { candidate
+                -> PiboCoreWellnessAdapter.ResilienceDay? in
+                let candidateDay = cal.startOfDay(for: candidate.date)
+                guard let offset = cal.dateComponents(
+                    [.day], from: candidateDay, to: day
+                ).day, (0..<14).contains(offset) else { return nil }
+                let candidateSnapshot = snapshots[candidateDay]
+                return .init(
+                    daysBeforeCurrent: offset,
+                    recoveryScore: candidateSnapshot?.recoveryScore?.value,
+                    stressScore: realStressByDay[candidateDay],
+                    restorativeMinutes: candidateSnapshot?.restorativeMinutes
+                )
+            }
+            snapshot.apply(PiboCoreWellnessAdapter.resilience(days: resilienceDays))
+            record.wellnessPayload = try? encoder.encode(snapshot)
+        }
+
         try? context.save()
         revision += 1
     }
@@ -278,6 +584,7 @@ final class HealthHistoryStore {
         // example by a stress reconcile). That is not meaningful history and
         // must not prevent the simulator from getting demonstrable data.
         guard forceFill || !existing.contains(where: \.hasData) else { return }
+        var seededKeys: Set<String> = []
         for offset in 0...days {
             guard let day = cal.date(byAdding: .day, value: -offset, to: today) else { continue }
             // Deterministic pseudo-values (no RNG): vary by day-of-year.
@@ -311,7 +618,9 @@ final class HealthHistoryStore {
                 workoutCount: (doy * 5) % 65 > 20 ? 1 : 0,
                 workoutMinutes: (doy * 5) % 65
             ))
+            seededKeys.insert(Self.provenanceDayKey(day))
         }
+        markSyntheticHealthDays(seededKeys)
         try? context.save()
         revision += 1
     }
@@ -380,7 +689,7 @@ final class HealthHistoryStore {
         let today = cal.startOfDay(for: .now)
         let rows = records(from: cal.date(byAdding: .day, value: -days, to: today) ?? today, to: today)
         var changed = false
-        for r in rows {
+        for r in rows where syntheticHealthDayKeys.contains(Self.provenanceDayKey(r.date)) {
             let doy = cal.ordinality(of: .day, in: .year, for: r.date) ?? 0
             if r.hourlySteps.isEmpty, r.steps > 0 {
                 r.hourlySteps = Self.seedHourlySteps(total: r.steps, seed: doy)
@@ -428,7 +737,7 @@ final class HealthHistoryStore {
                     duration: 1800, energyKcal: 120, distanceMeters: 2400))
             }
         }
-        ingestWorkouts(seeded)
+        ingestWorkouts(seeded, origin: .synthetic)
     }
 
     /// Seed photo specs — symbol, tint, hour, 识图 label. Shared by the fresh

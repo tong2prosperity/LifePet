@@ -36,6 +36,9 @@ nonisolated enum PiboPersistenceKeys {
         static let boFirstRipeNotified = "pibo.bo.firstRipeNotified.v1"
 
         static let debugHistorySeedState = "pibo.debug.historySeedState.v1"
+        static let debugSyntheticHealthDays = "pibo.debug.syntheticHealthDays.v1"
+        static let debugSyntheticWorkoutIDs = "pibo.debug.syntheticWorkoutIDs.v1"
+        static let debugHealthProvenanceVersion = "pibo.debug.healthProvenanceVersion.v1"
         static let huarongRoadDifficulty = "pibo.games.huarongRoad.difficulty.v1"
         static let huarongRoadBestMovesPrefix = "pibo.games.huarongRoad.bestMoves.v1."
         static let memoryMatrixDifficulty = "pibo.games.memoryMatrix.difficulty.v1"
