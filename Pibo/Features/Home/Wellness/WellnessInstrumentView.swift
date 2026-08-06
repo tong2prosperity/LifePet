@@ -26,15 +26,21 @@ struct WellnessInstrumentData: Equatable {
 
     init(record: HealthDayRecord?) {
         let snapshot = record?.wellnessSnapshot
+        let hasObservedTraining = (snapshot?.acuteTrainingObservedDays ?? 0) > 0
+            || (snapshot?.chronicTrainingObservedDays ?? 0) > 0
         generatedAt = snapshot?.generatedAt
         algorithmVersion = snapshot?.algorithmVersion
         sleep = snapshot?.sleepScore.map(Self.score)
         recovery = snapshot?.recoveryScore.map(Self.score)
         activity = snapshot?.activityScore.map(Self.score)
         sleepDebtMinutes = snapshot?.sleepDebtMinutes
-        acuteTrainingLoad = snapshot.map(\.acuteTrainingLoad)
-        chronicTrainingLoad = snapshot.map(\.chronicWeeklyTrainingLoad)
-        trainingBalanceStatus = snapshot?.trainingBalanceStatus
+        acuteTrainingLoad = snapshot.flatMap {
+            ($0.acuteTrainingObservedDays ?? 0) > 0 ? $0.acuteTrainingLoad : nil
+        }
+        chronicTrainingLoad = snapshot.flatMap {
+            ($0.chronicTrainingObservedDays ?? 0) > 0 ? $0.chronicWeeklyTrainingLoad : nil
+        }
+        trainingBalanceStatus = hasObservedTraining ? snapshot?.trainingBalanceStatus : nil
         recoveryIndexScore = record?.recoveryIndexScore
         resilience = snapshot?.resilienceScore.map(Self.score)
         resilienceObservedDays = snapshot?.resilienceObservedDays ?? 0
@@ -101,15 +107,17 @@ struct WellnessInstrumentView: View {
     let onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @GestureState private var dragOffset: CGFloat = 0
+    @State private var dragOffset: CGFloat = 0
+    @State private var isDismissing = false
     @State private var showsCalculationBasis = false
+    @AccessibilityFocusState private var headingFocused: Bool
 
     var body: some View {
         GeometryReader { proxy in
             ZStack {
                 LP.Fill.maskModal
                     .contentShape(Rectangle())
-                    .onTapGesture(perform: onDismiss)
+                    .onTapGesture(perform: dismiss)
                     .accessibilityHidden(true)
 
                 instrumentPanel
@@ -122,7 +130,12 @@ struct WellnessInstrumentView: View {
             .ignoresSafeArea()
         }
         .accessibilityAddTraits(.isModal)
+        .accessibilityAction(.escape, dismiss)
         .lpDynamicTypeScaling()
+        .task {
+            await Task.yield()
+            headingFocused = true
+        }
     }
 
     private var instrumentPanel: some View {
@@ -163,12 +176,14 @@ struct WellnessInstrumentView: View {
                     Text("状态观测仪")
                         .lpText(LP.Typography.uiH5)
                         .foregroundStyle(LP.Content.primary)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityFocused($headingFocused)
                     Text(generatedLabel)
                         .lpText(LP.Typography.c1Regular)
                         .foregroundStyle(LP.Content.tertiary)
                 }
                 Spacer(minLength: LP.Spacing.s)
-                Button(action: onDismiss) {
+                Button(action: dismiss) {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(LP.Content.secondary)
@@ -439,14 +454,31 @@ struct WellnessInstrumentView: View {
 
     private var dismissGesture: some Gesture {
         DragGesture(minimumDistance: 10)
-            .updating($dragOffset) { value, state, _ in
-                state = max(0, value.translation.height)
+            .onChanged { value in
+                guard !isDismissing else { return }
+                dragOffset = max(0, value.translation.height)
             }
             .onEnded { value in
                 if value.translation.height > 88 || value.predictedEndTranslation.height > 150 {
-                    onDismiss()
+                    dismiss()
+                } else {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
+                        dragOffset = 0
+                    }
                 }
             }
+    }
+
+    private func dismiss() {
+        guard !isDismissing else { return }
+        isDismissing = true
+        if !reduceMotion {
+            // Keep the panel below its resting position until the parent
+            // removal transition completes; resetting here causes a visible
+            // one-frame rebound after a successful pull-down.
+            dragOffset = max(dragOffset, 22)
+        }
+        onDismiss()
     }
 
     private var generatedLabel: String {

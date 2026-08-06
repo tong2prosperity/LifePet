@@ -46,6 +46,11 @@ struct DailyWellnessSnapshot: Codable, Equatable, Sendable {
     let chronicWeeklyTrainingLoad: Double
     let trainingBalanceRatio: Double?
     let trainingBalanceStatus: Int32
+    /// Optional for backward-compatible decoding of snapshots written before
+    /// Core's observation counts were persisted. A load is displayable only
+    /// when its matching count is greater than zero.
+    let acuteTrainingObservedDays: Int?
+    let chronicTrainingObservedDays: Int?
 
     let recoveryScore: DailyWellnessScoreSnapshot?
     let recoverySleepContributor: Double?
@@ -84,6 +89,8 @@ struct DailyWellnessSnapshot: Codable, Equatable, Sendable {
         chronicWeeklyTrainingLoad = report.training.chronicWeeklyLoad
         trainingBalanceRatio = report.training.ratio
         trainingBalanceStatus = report.training.status.rawValue
+        acuteTrainingObservedDays = report.training.acuteObservedDays
+        chronicTrainingObservedDays = report.training.chronicObservedDays
         recoveryScore = report.recovery.score.map(DailyWellnessScoreSnapshot.init)
         recoverySleepContributor = report.recovery.sleepScore
         recoveryHRVContributor = report.recovery.hrvScore

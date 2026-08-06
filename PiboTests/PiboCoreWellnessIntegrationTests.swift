@@ -24,6 +24,33 @@ struct PiboCoreWellnessIntegrationTests {
         #expect(report.recovery.trainingScore == nil)
     }
 
+    @Test func instrumentDoesNotPresentUnobservedTrainingLoadsAsZero() throws {
+        let day = Calendar.current.startOfDay(for: .now)
+        let record = HealthDayRecord(date: day)
+        let report = PiboCoreWellnessAdapter.report(current: record, history: [])
+        let snapshot = DailyWellnessSnapshot(report: report, generatedAt: .now)
+
+        #expect(snapshot.acuteTrainingObservedDays == 0)
+        #expect(snapshot.chronicTrainingObservedDays == 0)
+
+        record.wellnessPayload = try JSONEncoder().encode(snapshot)
+        let presentation = WellnessInstrumentData(record: record)
+        #expect(presentation.acuteTrainingLoad == nil)
+        #expect(presentation.chronicTrainingLoad == nil)
+        #expect(presentation.trainingBalanceStatus == nil)
+
+        let persistedPayload = try #require(record.wellnessPayload)
+        var legacyObject = try #require(
+            JSONSerialization.jsonObject(with: persistedPayload) as? [String: Any]
+        )
+        legacyObject.removeValue(forKey: "acuteTrainingObservedDays")
+        legacyObject.removeValue(forKey: "chronicTrainingObservedDays")
+        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
+        let legacySnapshot = try JSONDecoder().decode(DailyWellnessSnapshot.self, from: legacyData)
+        #expect(legacySnapshot.acuteTrainingObservedDays == nil)
+        #expect(legacySnapshot.chronicTrainingObservedDays == nil)
+    }
+
     @Test func workoutLoadPrefersAppleEffortAndPersistsRawEvidence() throws {
         let day = Calendar.current.startOfDay(for: .now)
         let start = day.addingTimeInterval(7 * 3_600)
