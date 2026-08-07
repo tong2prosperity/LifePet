@@ -7,6 +7,42 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct PiboCoreWellnessIntegrationTests {
+    @Test func bulkHealthIngestUpdatesEachDayInOneStoreRevision() throws {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let firstDay = try #require(calendar.date(byAdding: .day, value: -2, to: today))
+        let secondDay = try #require(calendar.date(byAdding: .day, value: -1, to: today))
+        let container = try ModelContainer(
+            for: HealthDayRecord.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let suite = "PiboCoreWellnessBulkIngest.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let history = HealthHistoryStore(
+            context: container.mainContext,
+            provenanceDefaults: defaults,
+            syntheticDaysKey: "test.synthetic-days",
+            syntheticWorkoutIDsKey: "test.synthetic-workouts"
+        )
+        history.upsert(day: firstDay, origin: .synthetic) { $0.steps = 99 }
+        let revisionBeforeBatch = history.revision
+
+        history.ingest([
+            HealthDayValues(date: firstDay, steps: 1_000),
+            HealthDayValues(date: secondDay, steps: 2_000),
+            HealthDayValues(date: today, steps: 3_000),
+            HealthDayValues(date: secondDay, steps: 2_500)
+        ])
+
+        #expect(history.revision == revisionBeforeBatch + 1)
+        #expect(history.records(from: firstDay, to: today).count == 3)
+        #expect(history.record(on: firstDay)?.steps == 1_000)
+        #expect(history.record(on: secondDay)?.steps == 2_500)
+        #expect(history.record(on: today)?.steps == 3_000)
+        #expect(history.verifiedHealthRecords(from: firstDay, to: today).count == 3)
+    }
+
     @Test func missingPlatformInputsRemainMissing() {
         let day = Calendar.current.startOfDay(for: .now)
         let record = HealthDayRecord(date: day)

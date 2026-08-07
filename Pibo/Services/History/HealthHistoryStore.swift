@@ -175,10 +175,33 @@ final class HealthHistoryStore {
     /// Bulk-ingest backfilled HK values. Skips empty days so the calendar
     /// doesn't fill with all-zero placeholder rows.
     func ingest(_ values: [HealthDayValues]) {
+        let persistableValues = values.filter(\.hasPersistableData)
+        guard let firstDay = persistableValues.first.map({
+            Calendar.current.startOfDay(for: $0.date)
+        }) else { return }
+
+        let calendar = Calendar.current
+        let dayKeys = persistableValues.map { calendar.startOfDay(for: $0.date) }
+        let earliestDay = dayKeys.reduce(firstDay, min)
+        let latestDay = dayKeys.reduce(firstDay, max)
+        var recordsByDay: [Date: HealthDayRecord] = [:]
+        for record in records(from: earliestDay, to: latestDay) {
+            recordsByDay[calendar.startOfDay(for: record.date)] = record
+        }
+
         var verifiedKeys: Set<String> = []
-        for v in values where v.hasPersistableData {
-            upsertSilently(v)
-            verifiedKeys.insert(Self.provenanceDayKey(Calendar.current.startOfDay(for: v.date)))
+        for value in persistableValues {
+            let key = calendar.startOfDay(for: value.date)
+            let record: HealthDayRecord
+            if let existing = recordsByDay[key] {
+                record = existing
+            } else {
+                record = HealthDayRecord(date: key)
+                context.insert(record)
+                recordsByDay[key] = record
+            }
+            apply(value, to: record)
+            verifiedKeys.insert(Self.provenanceDayKey(key))
         }
         clearSyntheticMarkers(verifiedKeys)
         try? context.save()
@@ -195,6 +218,10 @@ final class HealthHistoryStore {
             record = HealthDayRecord(date: key)
             context.insert(record)
         }
+        apply(v, to: record)
+    }
+
+    private func apply(_ v: HealthDayValues, to record: HealthDayRecord) {
         record.steps = v.steps
         record.hourlySteps = v.hourlySteps
         record.activeEnergy = v.activeEnergy
@@ -476,10 +503,11 @@ final class HealthHistoryStore {
             snapshots[cal.startOfDay(for: record.date)] = snapshot
         }
 
-        for record in verified {
+        for (index, record) in verified.enumerated() {
             let day = cal.startOfDay(for: record.date)
             guard var snapshot = snapshots[day] else { continue }
-            let resilienceDays = verified.compactMap { candidate
+            let lowerBound = max(0, index - 13)
+            let resilienceDays = verified[lowerBound...index].compactMap { candidate
                 -> PiboCoreWellnessAdapter.ResilienceDay? in
                 let candidateDay = cal.startOfDay(for: candidate.date)
                 guard let offset = cal.dateComponents(
