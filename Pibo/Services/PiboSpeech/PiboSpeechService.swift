@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PiboCore
 
 @MainActor
 protocol PiboSpeechProviding {
@@ -18,21 +19,26 @@ final class PiboSpeechService: PiboSpeechProviding {
     @ObservationIgnored private let policy: PiboSpeechPolicy
     @ObservationIgnored private let narrativeProgress: () -> Int
     @ObservationIgnored private let now: () -> Date
+    @ObservationIgnored private let patSpeechRoll: () -> Double
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private var history: PiboSpeechHistory
+    @ObservationIgnored private var homeHistory: PiboHomeSpeechHistory
 
     init(
         defaults: UserDefaults = .standard,
         narrativeProgress: @escaping () -> Int = { 0 },
         now: @escaping () -> Date = Date.init,
+        patSpeechRoll: @escaping () -> Double = { Double.random(in: 0..<1) },
         calendar: Calendar = .current
     ) {
         self.catalog = .bundled()
         self.policy = PiboSpeechPolicy()
         self.narrativeProgress = narrativeProgress
         self.now = now
+        self.patSpeechRoll = patSpeechRoll
         self.calendar = calendar
         self.history = PiboSpeechHistory(defaults: defaults)
+        self.homeHistory = PiboHomeSpeechHistory(defaults: defaults)
     }
 
     init(
@@ -40,14 +46,17 @@ final class PiboSpeechService: PiboSpeechProviding {
         defaults: UserDefaults = .standard,
         narrativeProgress: @escaping () -> Int = { 0 },
         now: @escaping () -> Date = Date.init,
+        patSpeechRoll: @escaping () -> Double = { Double.random(in: 0..<1) },
         calendar: Calendar = .current
     ) {
         self.catalog = catalog
         self.policy = PiboSpeechPolicy()
         self.narrativeProgress = narrativeProgress
         self.now = now
+        self.patSpeechRoll = patSpeechRoll
         self.calendar = calendar
         self.history = PiboSpeechHistory(defaults: defaults)
+        self.homeHistory = PiboHomeSpeechHistory(defaults: defaults)
     }
 
     func resolve(
@@ -82,9 +91,12 @@ final class PiboSpeechService: PiboSpeechProviding {
             let candidates = allEntries.filter { entry in
                 history.allows(entry, topic: cue.topic, at: date)
             }
+            let opportunityHash = coreOpportunityHash(for: cue, context: context, date: date)
             guard let selected = select(
                 from: candidates,
-                seed: "\(opportunity)|\(cue.key)"
+                opportunityHash: opportunityHash,
+                context: context,
+                storyProgress: narrativeProgress()
             ) else { continue }
 
             history.record(
@@ -101,6 +113,99 @@ final class PiboSpeechService: PiboSpeechProviding {
 
     func resetHistory() {
         history.reset()
+        homeHistory.reset()
+    }
+
+    func resolvePat(
+        storyStage: PiboCoreStorySpeechStage,
+        restingState: Bool,
+        sleepingState: Bool,
+        facts: PiboHomeSpeechFacts,
+        neutralLegacyMode: Bool = false
+    ) -> PiboHomePatResolution {
+        let date = now()
+        let counts = homeHistory.speechCounts(at: date)
+        let decision = PiboCorePatAdapter.decideV2(
+            spokenIn24Hours: counts.daily,
+            spokenIn10Minutes: counts.recent,
+            speechRoll: patSpeechRoll(),
+            restingState: restingState
+        )
+        if sleepingState {
+            return PiboHomePatResolution(
+                speech: nil,
+                shouldSpeak: true,
+                countsTowardAngry: decision.countsTowardAngry
+            )
+        }
+        if restingState {
+            if decision.speaks {
+                homeHistory.record(key: .waking04, at: date, consumesPatBudget: true)
+            }
+            return PiboHomePatResolution(
+                speech: nil,
+                shouldSpeak: decision.speaks,
+                countsTowardAngry: decision.countsTowardAngry
+            )
+        }
+        guard decision.speaks else {
+            return PiboHomePatResolution(
+                speech: nil,
+                shouldSpeak: false,
+                countsTowardAngry: decision.countsTowardAngry
+            )
+        }
+        let key = selectHomeKey(
+            context: neutralLegacyMode ? .patGarbled : .pat,
+            storyStage: storyStage,
+            facts: facts,
+            values: [:],
+            at: date
+        )
+        guard let key, let speech = homeSpeech(key: key, values: [:]) else {
+            return PiboHomePatResolution(
+                speech: nil,
+                shouldSpeak: false,
+                countsTowardAngry: decision.countsTowardAngry
+            )
+        }
+        homeHistory.record(key: key, at: date, consumesPatBudget: true)
+        return PiboHomePatResolution(
+            speech: speech,
+            shouldSpeak: true,
+            countsTowardAngry: decision.countsTowardAngry
+        )
+    }
+
+    func resolveIdle(
+        context: PiboCoreHomeSpeechContext,
+        storyStage: PiboCoreStorySpeechStage,
+        facts: PiboHomeSpeechFacts,
+        values: [String: String]
+    ) -> PiboSpeech? {
+        guard PiboCorePatAdapter.shouldIdleMutter(roll: Double.random(in: 0..<1)) else {
+            return nil
+        }
+        let date = now()
+        guard let key = selectHomeKey(
+            context: context,
+            storyStage: storyStage,
+            facts: facts,
+            values: values,
+            at: date
+        ), let speech = homeSpeech(key: key, values: values, presentation: .murmur) else {
+            return nil
+        }
+        homeHistory.record(key: key, at: date, consumesPatBudget: false)
+        return speech
+    }
+
+    func fixedHomeSpeech(
+        key: PiboCoreHomeContentKey,
+        values: [String: String] = [:],
+        presentation: PiboSpeechPresentation = .normal
+    ) -> PiboSpeech? {
+        homeSpeech(key: key, values: values, presentation: presentation)
     }
 
     private func speech(from entry: PiboSpeechEntry, cue: PiboSpeechCue) -> PiboSpeech {
@@ -118,16 +223,27 @@ final class PiboSpeechService: PiboSpeechProviding {
 
     private func select(
         from entries: [PiboSpeechEntry],
-        seed: String
+        opportunityHash: UInt64,
+        context: PiboSpeechContext,
+        storyProgress: Int
     ) -> PiboSpeechEntry? {
         guard !entries.isEmpty else { return nil }
-        let totalWeight = entries.reduce(0) { $0 + max(1, $1.weight) }
-        var target = Int(stableHash(seed) % UInt64(totalWeight))
-        for entry in entries {
-            target -= max(1, entry.weight)
-            if target < 0 { return entry }
+        let candidates = entries.map { entry in
+            PiboCoreSpeechCandidate(
+                surfaceMask: coreSurface(context.surface).mask,
+                length: coreLength(entry.length.value),
+                minimumStoryProgress: entry.minimumStoryProgress,
+                weight: entry.weight
+            )
         }
-        return entries.last
+        guard let index = PiboCoreSpeechPolicy.selectedCandidateIndex(
+            opportunityHash: opportunityHash,
+            candidates: candidates,
+            surface: coreSurface(context.surface),
+            maximumLength: coreLength(context.length),
+            storyProgress: storyProgress
+        ), entries.indices.contains(index) else { return nil }
+        return entries[index]
     }
 
     private func opportunityKey(
@@ -144,11 +260,94 @@ final class PiboSpeechService: PiboSpeechProviding {
         return "\(day)|\(context.surface.rawValue)|\(context.trigger.rawValue)|\(cue.key)|\(values)"
     }
 
-    /// FNV-1a keeps selection stable across view recomputes and app launches;
-    /// Swift's `hashValue` intentionally does not.
-    private func stableHash(_ value: String) -> UInt64 {
-        value.utf8.reduce(14_695_981_039_346_656_037) { partial, byte in
-            (partial ^ UInt64(byte)) &* 1_099_511_628_211
+    private func coreOpportunityHash(
+        for cue: PiboSpeechCue,
+        context: PiboSpeechContext,
+        date: Date
+    ) -> UInt64 {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return PiboCoreSpeechPolicy.opportunityHash(
+            year: components.year ?? 0,
+            month: components.month ?? 0,
+            day: components.day ?? 0,
+            surface: coreSurface(context.surface),
+            trigger: coreTrigger(context.trigger),
+            cue: cue.key,
+            values: cue.values
+        )
+    }
+
+    private func selectHomeKey(
+        context: PiboCoreHomeSpeechContext,
+        storyStage: PiboCoreStorySpeechStage,
+        facts: PiboHomeSpeechFacts,
+        values: [String: String],
+        at date: Date
+    ) -> PiboCoreHomeContentKey? {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        let seed = PiboCoreSpeechPolicy.opportunityHash(
+            year: components.year ?? 0,
+            month: components.month ?? 0,
+            day: components.day ?? 0,
+            surface: .home,
+            trigger: (context == .pat || context == .patGarbled) ? .userAction : .idle,
+            cue: "home.\(context.rawValue).\(Int(date.timeIntervalSince1970 * 1_000))",
+            values: values
+        )
+        return PiboCoreHomeSpeech.selectContentKey(
+            context: context,
+            storyStage: storyStage,
+            seed: seed,
+            excludedKeys: homeHistory.excludedContentKeys(at: date),
+            facts: facts.core
+        )
+    }
+
+    private func homeSpeech(
+        key: PiboCoreHomeContentKey,
+        values: [String: String],
+        presentation: PiboSpeechPresentation = .normal
+    ) -> PiboSpeech? {
+        guard key != .none, !key.localizationKey.isEmpty else { return nil }
+        var text = AppLocalization.narrative(key.localizationKey)
+        for (name, value) in values {
+            text = text.replacingOccurrences(of: "{\(name)}", with: value)
+        }
+        guard !text.contains("{") else { return nil }
+        return PiboSpeech(
+            id: key.localizationKey,
+            text: text,
+            presentation: presentation,
+            cueKey: key.localizationKey
+        )
+    }
+
+    private func coreSurface(_ surface: PiboSpeechSurface) -> PiboCoreSpeechSurface {
+        switch surface {
+        case .home: .home
+        case .dashboard: .dashboard
+        case .sleepCard: .sleepCard
+        case .walkCard: .walkCard
+        case .game: .game
+        }
+    }
+
+    private func coreTrigger(_ trigger: PiboSpeechTrigger) -> PiboCoreSpeechTrigger {
+        switch trigger {
+        case .entered: .entered
+        case .expanded: .expanded
+        case .completed: .completed
+        case .idle: .idle
+        case .environmentChanged: .environmentChanged
+        case .userAction: .userAction
+        }
+    }
+
+    private func coreLength(_ length: PiboSpeechLength) -> PiboCoreSpeechLength {
+        switch length {
+        case .tiny: .tiny
+        case .short: .short
+        case .medium: .medium
         }
     }
 }

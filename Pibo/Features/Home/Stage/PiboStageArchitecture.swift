@@ -95,6 +95,8 @@ protocol WaterDebugTunable: AnyObject {
 /// `touchesBegan` 就抢下触摸，而点击必须等到确认不是拖拽、且 Pibo 自己没被点中
 /// 之后才轮到 —— 两者的时序要求相反，塞进同一个方法只会互相将就。
 enum PiboThemeTapResult: Equatable {
+    /// 点中了森林里可直接使用的共同物件。
+    case ornament(PiboOrnament.ID)
     /// 点亮了某件物件身上的第 `index` 盏灯。
     case ornamentLight(PiboOrnament.ID, index: Int)
 }

@@ -178,7 +178,8 @@ struct FootprintsStressCompactCard: View {
         if days >= StressScore.fullPersonalDays {
             return AppLocalization.format("个人基线 · 已学习 %d 天", days)
         }
-        return AppLocalization.format("正在了解你 · %d/%d 天", days, StressScore.fullPersonalDays)
+        return AppLocalization.format("建立个人参考中 · %d/%d 天",
+                                      min(days, StressScore.coldStartDays), StressScore.coldStartDays)
     }
 }
 

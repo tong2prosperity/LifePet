@@ -23,13 +23,25 @@ enum Analytics {
         case appForeground = "app_foreground"
         case appBackground = "app_background"
         case healthAuth = "health_auth"
+        case onboardingCheckpoint = "onboarding_checkpoint"
+        case onboardingCompleted = "onboarding_completed"
+        case onboardingSkipped = "onboarding_skipped"
+        case storyConnectionResponded = "story_connection_responded"
+        case storyConnectionAccepted = "story_connection_accepted"
+        case storyRecoveryOpened = "story_recovery_opened"
+        case storyEventAdvanced = "story_event_advanced"
         case pat
         case pluck
         case energyCollected = "energy_collected"
-        /// 打开兑换道具面板（首页左上角 bo 存量）。
+        /// 打开共同物件面板（首页左上角 bo 存量）。
         case boPanelOpen = "bo_panel_open"
         /// 解锁一件森林物件，扣掉 bo。
         case boUnlock = "bo_unlock"
+        case boUnlockItemSelect = "bo_unlock_item_select"
+        case boUnlockPlacementPreview = "bo_unlock_placement_preview"
+        case boUnlockAttempt = "bo_unlock_attempt"
+        case boUnlockFailed = "bo_unlock_failed"
+        case boUnlockReturn = "bo_unlock_return"
         /// 亲手点亮物件上的一盏灯（铃兰灯的一个铃铛）。**不产生任何收益** ——
         /// 决定 013 明令不给这件事挂数值奖励，这条打点只是想知道有没有人点。
         case ornamentLight = "ornament_light"

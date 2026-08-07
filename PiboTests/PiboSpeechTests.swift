@@ -1,4 +1,5 @@
 import XCTest
+import PiboCore
 @testable import Pibo
 
 @MainActor
@@ -55,6 +56,124 @@ final class PiboSpeechTests: XCTestCase {
             cues: [.weather(.clear)],
             context: .home(trigger: .entered)
         ))
+    }
+
+    func testSleepingPatsDoNotConsumeOrdinarySpeechBudget() throws {
+        let suiteName = "PiboSpeechSleepBudget.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let service = PiboSpeechService(
+            catalog: PiboSpeechCatalog(entries: []),
+            defaults: defaults,
+            now: { self.date },
+            patSpeechRoll: { 0 }
+        )
+        let facts = PiboHomeSpeechFacts(connectionAccepted: true)
+
+        for _ in 0..<3 {
+            let sleeping = service.resolvePat(
+                storyStage: .event01Completed,
+                restingState: true,
+                sleepingState: true,
+                facts: facts
+            )
+            XCTAssertNil(sleeping.speech)
+        }
+
+        let active = service.resolvePat(
+            storyStage: .event01Completed,
+            restingState: false,
+            sleepingState: false,
+            facts: facts
+        )
+        XCTAssertTrue(active.shouldSpeak)
+        XCTAssertNotNil(active.speech)
+    }
+
+    func testUnavailablePatContentDoesNotClaimThatPiboSpoke() throws {
+        let suiteName = "PiboSpeechUnavailablePat.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let service = PiboSpeechService(
+            catalog: PiboSpeechCatalog(entries: []),
+            defaults: defaults,
+            now: { self.date },
+            patSpeechRoll: { 0 }
+        )
+
+        let result = service.resolvePat(
+            storyStage: .unresponded,
+            restingState: false,
+            sleepingState: false,
+            facts: PiboHomeSpeechFacts()
+        )
+
+        XCTAssertNil(result.speech)
+        XCTAssertFalse(result.shouldSpeak)
+    }
+
+    func testLegacyModeUsesNeutralTapPoolWithoutPretendingEvent01Completed() throws {
+        let suiteName = "PiboSpeechLegacyNeutral.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let service = PiboSpeechService(
+            catalog: PiboSpeechCatalog(entries: []),
+            defaults: defaults,
+            now: { self.date },
+            patSpeechRoll: { 0 }
+        )
+
+        let result = service.resolvePat(
+            storyStage: .unresponded,
+            restingState: false,
+            sleepingState: false,
+            facts: PiboHomeSpeechFacts(),
+            neutralLegacyMode: true
+        )
+
+        XCTAssertTrue(result.shouldSpeak)
+        XCTAssertTrue(result.speech?.id.hasPrefix("home.garbled.") == true)
+    }
+
+    func testFutureHomeSpeechFactsDoNotLockBudgetOrContent() throws {
+        let suiteName = "PiboSpeechFutureHome.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var history = PiboHomeSpeechHistory(defaults: defaults)
+        history.record(
+            key: .tap01,
+            at: date.addingTimeInterval(PiboCorePatAdapter.dailyWindowSeconds * 10),
+            consumesPatBudget: true
+        )
+
+        let counts = history.speechCounts(at: date)
+        XCTAssertEqual(counts.daily, 0)
+        XCTAssertEqual(counts.recent, 0)
+        XCTAssertTrue(history.excludedContentKeys(at: date).isEmpty)
+    }
+
+    func testFutureAuthoredSpeechTimestampDoesNotLockCooldown() {
+        let suiteName = "PiboSpeechFutureCooldown.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let line = PiboSpeechEntry(
+            id: "future",
+            cue: "ambient.idle",
+            surfaces: [.home],
+            text: "future",
+            cooldownHours: 24,
+            topicCooldownHours: 24
+        )
+        var history = PiboSpeechHistory(defaults: defaults)
+        history.record(
+            line,
+            topic: "ambient",
+            opportunity: "future",
+            scope: "home.idle",
+            at: date.addingTimeInterval(86_400)
+        )
+
+        XCTAssertTrue(history.allows(line, topic: "ambient", at: date))
     }
 
     func testBundledCatalogLoadsAuthoredContent() {

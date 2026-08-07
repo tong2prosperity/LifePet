@@ -183,7 +183,7 @@ struct DebugSettingsView: View {
                         Text(AppLocalization.text("运动完成提醒"))
                             .lpText(LP.Typography.b2Medium)
                             .foregroundStyle(LP.Content.primary)
-                        Text(AppLocalization.text("手表运动同步后，Pibo 会按当前状态说一声"))
+                        Text(AppLocalization.text("运动同步后，Pibo 会确认记录已收到"))
                             .lpText(LP.Typography.c2Regular)
                             .foregroundStyle(LP.Content.tertiary)
                     }
@@ -208,7 +208,7 @@ struct DebugSettingsView: View {
                         Text(AppLocalization.text("压力提醒"))
                             .lpText(LP.Typography.b2Medium)
                             .foregroundStyle(LP.Content.primary)
-                        Text(AppLocalization.text("压力偏高、缓过来或状态很好时 Pibo 都会说一声"))
+                        Text(AppLocalization.text("settings.stress.summary"))
                             .lpText(LP.Typography.c2Regular)
                             .foregroundStyle(LP.Content.tertiary)
                     }
@@ -230,10 +230,10 @@ struct DebugSettingsView: View {
 
                 HStack(spacing: LP.Spacing.m) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(AppLocalization.text("每次测量都提醒"))
+                        Text(AppLocalization.text("HRV 测量提醒"))
                             .lpText(LP.Typography.b2Medium)
                             .foregroundStyle(notifier.pushEnabled ? LP.Content.primary : LP.Content.quarternary)
-                        Text(AppLocalization.text("诊断用：每次 HRV 计算都推一条（含 RMSSD），会很频繁"))
+                        Text(AppLocalization.text("每次测到 HRV 都推一条，会比较频繁（与设置页同一个开关）"))
                             .lpText(LP.Typography.c2Regular)
                             .foregroundStyle(LP.Content.tertiary)
                     }
@@ -573,7 +573,7 @@ struct DebugSettingsView: View {
             : "测试通知：投递失败 ❌（未授权——先开『高压力提醒』总开关触发授权，或去系统设置手动开启）"
         let logLine = "测量记录：\(logged.count) 条 · 其中已通知 \(notifiedCount) 条"
         let hint = notifiedCount == 0
-            ? "提示：0 条通知很正常——智能模式只在档位变化（注意/超载/回复/优秀）时才推，一直『正常』不推。想每次都推就开『每次测量都提醒』，或用『模拟高压力』验证一次。"
+            ? "提示：0 条通知很正常——智能模式只在档位变化（注意/超载/回复/优秀）时才推，一直『正常』不推。想每次都推就开『HRV 测量提醒』，或用『模拟高压力』验证一次。"
             : ""
         stressProbeText = [diag, testLine, logLine, hint]
             .filter { !$0.isEmpty }
@@ -586,12 +586,14 @@ struct DebugSettingsView: View {
         df.dateFormat = "M-d HH:mm"
         func d(_ x: Date?) -> String { x.map { df.string(from: $0) } ?? "无" }
         let rmssd = p.rmssd.map { String(format: "%.0f ms", $0) } ?? "无"
+        let rawRMSSD = p.rawRMSSD.map { String(format: "%.0f ms", $0) } ?? "无"
         let stats = [
             "HealthKit 可用: \(p.healthAvailable ? "是" : "否")",
             "HRV(SDNN) 近30天: \(p.hrvCount) 条 · 最新 \(d(p.hrvLatest))",
             "心跳系列 近30天: \(p.seriesCount) 条 · 最新 \(d(p.seriesLatest))",
-            "最新系列: \(p.rrCount) 拍 · RMSSD \(rmssd)",
-            "  质量: 伪迹 \(p.flagged) 拍 · 可用差值 \(p.diffs) 个",
+            "最新系列: RR \(p.rrCount) · NN \(p.nnCount) · 校正 RMSSD \(rmssd)",
+            "  原始 RMSSD \(rawRMSSD) · 校正 \(p.correctionCount)（\(Int((p.correctionRate * 100).rounded()))%）",
+            "  时长 \(Int(p.durationSeconds.rounded())) 秒 · \(p.canUpdateTrends ? "可更新趋势" : "仅记录")",
         ].joined(separator: "\n")
 
         let verdict: String
@@ -604,7 +606,7 @@ struct DebugSettingsView: View {
         } else if p.seriesCount == 0 {
             verdict = "→ 这 30 天手表没测到 HRV / 心跳系列。Apple 后台 HRV 很稀疏；在手表『正念』做一次 1–2 分钟呼吸可立刻生成一条，再来诊断。"
         } else {
-            verdict = "→ 系列存在但这一条不合格：拍数太少，或伪迹过多被整窗丢弃（早搏 / 手表没戴稳都会）。等下一次测量，或看 Console 里的 `hrv rejected` 日志行确认是哪一种。"
+            verdict = "→ 系列存在，但没有形成至少一对连续 RR 间期，RMSSD 在数学上无法计算。"
         }
         return stats + "\n\n" + verdict
     }

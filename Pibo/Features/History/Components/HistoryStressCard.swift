@@ -74,12 +74,12 @@ struct HistoryStressCard: View {
     /// far the personalization has come — makes the "有没有在算" transparent.
     private var baselineLine: String {
         let days = baseline?.dayCount ?? 0
-        let personalized = days >= StressScore.fullPersonalDays && (baseline?.sdLn ?? 0) > 0
+        let personalized = days >= StressScore.coldStartDays && (baseline?.sdLn ?? 0) > 0
         if personalized, let mean = baseline?.geoMean {
             return AppLocalization.format("个人基线 %.0f ms · 已学 %d 天", mean, days)
         }
-        return AppLocalization.format("个人化中 · 已学 %d/%d 天 · 暂用通用阈值",
-                                      days, StressScore.fullPersonalDays)
+        return AppLocalization.format("建立个人参考中 · %d/%d 天",
+                                      min(days, StressScore.coldStartDays), StressScore.coldStartDays)
     }
 }
 

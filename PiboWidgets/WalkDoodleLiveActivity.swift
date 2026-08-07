@@ -4,7 +4,7 @@ import SwiftUI
 import WidgetKit
 
 /// Live Activity for an in-progress 地图涂鸦 walk — Lock Screen banner + Dynamic
-/// Island, showing 正在行走 with live 距离 / 圈地, a self-counting 用时 timer, and a
+/// Island, showing 正在行走 with live 距离 / 路线面积, a self-counting 用时 timer, and a
 /// 结束 button (`StopWalkDoodleIntent`). Driven by `WalkDoodleSession`.
 struct WalkDoodleLiveActivity: Widget {
     var body: some WidgetConfiguration {
@@ -41,7 +41,7 @@ struct WalkDoodleLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack(spacing: 12) {
                         metric("距离", WalkDoodleFormat.distance(context.state.distanceMeters))
-                        metric("圈地", WalkDoodleFormat.area(context.state.areaSquareMeters))
+                        metric("路线面积", WalkDoodleFormat.area(context.state.areaSquareMeters))
                         Spacer(minLength: 0)
                         stopButton
                     }
@@ -110,7 +110,7 @@ private struct WalkDoodleLockScreenView: View {
                 }
                 HStack(spacing: 14) {
                     stat("距离", WalkDoodleFormat.distance(context.state.distanceMeters))
-                    stat("圈地", WalkDoodleFormat.area(context.state.areaSquareMeters))
+                    stat("路线面积", WalkDoodleFormat.area(context.state.areaSquareMeters))
                     stat("用时", nil, timer: context.state.startedAt)
                 }
             }

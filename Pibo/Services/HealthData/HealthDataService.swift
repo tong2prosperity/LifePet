@@ -58,7 +58,9 @@ final class HealthDataService {
         let hasSteps: Bool
         let hasExercise: Bool
 
-        var isReady: Bool { hasSleep && hasSteps && hasExercise }
+        /// Event 02 needs at least one real `bo`-eligible source, not every
+        /// possible source. Phone-only steps and sleep-only users both progress.
+        var isReady: Bool { hasSleep || hasSteps || hasExercise }
     }
 
     // MARK: - Public state
@@ -99,6 +101,11 @@ final class HealthDataService {
     /// twice. Mirrors `StressNotifier.isNotifying`.
     private var isFetchingSleep = false
     private var sleepFetchPending = false
+    /// HealthKit can coalesce several heartbeat-series writes into one observer
+    /// wake. Drain them as one ordered batch and fold a concurrent wake into one
+    /// follow-up pass instead of running two overlapping per-beat enumerations.
+    private var isFetchingStress = false
+    private var stressFetchPending = false
     /// Last resting-HR reading, **App-Group-persisted** so `postStress()` can
     /// factor it into the stress tier even on a background heartbeat-series wake
     /// in a *fresh process* (where no `.restingHR` fetch has run this launch — an
@@ -412,95 +419,159 @@ final class HealthDataService {
 
     // MARK: - Stress (RMSSD from heartbeat series)
 
-    /// Compute RMSSD from the newest heartbeat series (Pibo's own HRV, not
-    /// Apple's SDNN), fold it into the personal baseline, classify stress, drive
-    /// the high-stress notification, and post the RMSSD upstream for the 压力卡.
+    /// Compute corrected NN-RMSSD from the newest heartbeat series, always record
+    /// the value, and only update trends/classify/notify when both the Apple
+    /// evidence and resting context are eligible. Stress remains unavailable
+    /// until Core sees seven finalized personal-baseline days.
     ///
     /// Runs on background HK wakes too — the notifier only reads system auth, so
     /// a stress spike can push even while the app is backgrounded. No-ops on the
     /// simulator / any device without a readable heartbeat series (RMSSD `nil`).
     private func postStress() async {
-        // Cheap pre-check: the observer (fires on registration) and every
-        // foreground `reconcile()` re-fetch the same newest series. Peek its id
-        // first — a single `limit:1` query — and skip the expensive per-beat RR
-        // enumeration + workout-overlap read when we've already processed it. The
-        // synchronous check+set below still guards the rare concurrent race.
-        guard let newestID = await HeartbeatSeriesReader.latestSeriesID(store: store) else {
-            LPLog.healthKit.debug("postStress: no heartbeat series in store")
+        if isFetchingStress {
+            stressFetchPending = true
             return
         }
-        guard newestID != StressLogStore.lastProcessedSeriesID else {
-            LPLog.healthKit.debug("postStress: newest series already processed, skipping enumeration")
+        isFetchingStress = true
+        repeat {
+            stressFetchPending = false
+            await drainStressSeries()
+        } while stressFetchPending
+        isFetchingStress = false
+    }
+
+    private func drainStressSeries() async {
+        let now = Date()
+        let since = Calendar.current.date(byAdding: .day, value: -21, to: now)
+            ?? now.addingTimeInterval(-21 * 24 * 60 * 60)
+        let series = await HeartbeatSeriesReader.recentSeries(store: store, since: since)
+        let pending = series.filter { !StressLogStore.hasProcessedSeries($0.uuid) }
+        guard !pending.isEmpty else {
+            LPLog.healthKit.debug("postStress: no unprocessed heartbeat series")
             return
         }
-        guard let sample = await HeartbeatSeriesReader.latestSample(store: store) else {
-            // A window we *rejected* still counts as processed. A heartbeat series
-            // is immutable once written, so it will never become usable — but the
-            // dedup marker used to be set only on success, which meant every
-            // foreground `reconcile()` re-ran the full RR enumeration and emitted
-            // the same rejection log line again. That was harmless while almost
-            // nothing was rejected; with the artifact/quality gates it is not.
-            StressLogStore.lastProcessedSeriesID = newestID
-            // Record it as a measurement that happened but yielded nothing. Both
-            // surfaces that answer "有没有在算" — the 压力测量记录 list and the
-            // every-reading diagnostic push — would otherwise go silent exactly
-            // when the data is bad, which reads as "没在算".
-            StressLogStore.recordSkipped()
-            await StressNotifier.shared.notifySkippedReading()
-            LPLog.healthKit.debug("postStress: newest series unusable — marked processed")
-            return
+
+        var samples: [HeartbeatSeriesReader.StressSample] = []
+        for item in pending {
+            switch await HeartbeatSeriesReader.readSample(for: item, store: store) {
+            case .computed(let sample):
+                samples.append(sample)
+            case .uncomputable:
+                // Immutable and mathematically uncomputable: this is the only
+                // case that can be checkpointed without a persisted reading.
+                StressLogStore.markProcessedSeries(item.uuid)
+            case .unavailable:
+                LPLog.healthKit.debug("postStress: heartbeat series read failed; leaving it pending for retry")
+            }
         }
-        // Dedup: the observer (fires on registration) and every foreground
-        // `reconcile()` both re-fetch this same newest series. Re-recording it
-        // would over-weight it in the day's baseline median and append a
-        // duplicate stress-log row each time, so process each series once. The
-        // marker is App-Group-persisted so the dedup also holds across a
-        // background-wake process being killed before the next foreground.
-        // Check + set are synchronous with no `await` between them, so the
-        // observer/reconcile pair can't both pass on the MainActor.
-        guard sample.seriesID != StressLogStore.lastProcessedSeriesID else {
-            LPLog.healthKit.debug("postStress: series already processed, skipping")
-            return
+
+        let today = Calendar.current.startOfDay(for: now)
+        let historical = samples.compactMap { sample
+            -> (seriesID: UUID, rmssd: Double, date: Date)? in
+            guard sample.canInterpretStress,
+                  StressSampleTiming.age(measuredAt: sample.date, now: now) != nil,
+                  sample.date < today else { return nil }
+            return (sample.seriesID, sample.rmssd, sample.date)
         }
-        StressLogStore.lastProcessedSeriesID = sample.seriesID
-        // Only resting readings fold into the personal baseline; active-time HRV
-        // is naturally low and would poison it. Non-resting readings still get
-        // classified + logged (against the existing baseline) for display.
+        StressBaselineStore.backfill(historical, now: now)
+
+        for sample in samples {
+            await processStressSample(sample, now: now, today: today)
+            // Checkpoint only after the durable baseline/log work, notification
+            // attempt and event emission. A termination can now cause a safe,
+            // idempotent retry instead of permanently losing the row/event.
+            StressLogStore.markProcessedSeries(sample.seriesID)
+        }
+    }
+
+    private func processStressSample(
+        _ sample: HeartbeatSeriesReader.StressSample,
+        now: Date,
+        today: Date
+    ) async {
+        let sampleAge = StressSampleTiming.age(measuredAt: sample.date, now: now)
+        let interpretationEligible = sample.canInterpretStress && sampleAge != nil
+        let isMeasuredToday = sample.date >= today && sample.date <= now
+        let classificationEligible = interpretationEligible && isMeasuredToday
+        // Visibility and interpretation are separate: every calculable value is
+        // logged, while only adequate awake/resting evidence enters the baseline.
         let baseline = StressBaselineStore.record(
-            rmssd: sample.rmssd, isResting: sample.isResting, date: sample.date)
-        let rawLevel = StressModel.level(rmssd: sample.rmssd, baseline: baseline, restingHR: lastRestingHR)
-        // N=2 hysteresis: a lone noisy spike/dip must not move the *alert* tier.
-        // Always fold the reading in (tracks the stream even in diagnostic mode);
-        // the confirmed tier drives the smart push, the raw tier drives the log
-        // and the every-reading diagnostic (which reports the actual measurement).
-        let confirmedLevel = StressHysteresis.confirm(rawLevel)
-        LPLog.healthKit.debug("postStress rmssd=\(sample.rmssd, privacy: .public)ms resting=\(sample.isResting, privacy: .public) raw=\(rawLevel.displayName, privacy: .public) confirmed=\(confirmedLevel.displayName, privacy: .public)")
+            rmssd: sample.rmssd,
+            isEligible: classificationEligible,
+            date: sample.date,
+            now: now,
+            seriesID: sample.seriesID
+        )
+        let rawLevel = classificationEligible
+            ? StressModel.level(rmssd: sample.rmssd, baseline: baseline, restingHR: lastRestingHR)
+            : nil
+        var notified = false
         // Only *fresh* readings warrant a smart push. `latestSeries` returns the
         // newest series across all time, so on a cold launch / after the app was
         // off for a while it can surface a series measured hours ago (even
         // overnight). A "你压力偏高，歇会儿" push about a stale reading reads as
-        // wrong, so a series older than the anchor-freshness bound still records
-        // to the baseline + log but skips the transition notification. (The
+        // wrong, so a series older than the anchor-freshness bound remains
+        // visible in the log but skips the transition notification. Same-day
+        // eligible values may still join that day's baseline bucket. (The
         // common background-delivery path always has a fresh series, so this only
         // suppresses the stale-catch-up case.) The diagnostic "每次测量都提醒"
         // mode is exempt: it reports the raw RMSSD of *every* computation (a
         // measurement readout, not a "stressed now" alert), so a stale catch-up
         // is exactly the kind of compute it exists to surface.
         let everyMode = StressNotifier.shared.notifyEveryReading
-        let notifyLevel = everyMode ? rawLevel : confirmedLevel
-        let fresh = Date().timeIntervalSince(sample.date) <= DerivedStressModel.maxAnchorAge
-        let notified = (fresh || everyMode)
-            ? await StressNotifier.shared.maybeNotify(level: notifyLevel, rmssd: sample.rmssd)
-            : false
-        if !fresh {
-            LPLog.healthKit.debug("postStress: series is stale (\(Int(Date().timeIntervalSince(sample.date) / 60), privacy: .public)min old) — recorded, smart-notify skipped")
+        if let rawLevel {
+            // N=2 hysteresis only tracks classified measurements. Record-only
+            // values and cold-start values cannot perturb future notification state.
+            let confirmedLevel = StressHysteresis.confirm(rawLevel)
+            notified = StressSampleTiming.shouldAttemptNotification(
+                measuredAt: sample.date,
+                now: now,
+                everyReading: everyMode
+            )
+                ? (everyMode
+                   ? await StressNotifier.shared.notifyMeasurement(level: rawLevel, rmssd: sample.rmssd)
+                   : await StressNotifier.shared.maybeNotify(level: confirmedLevel, rmssd: sample.rmssd))
+                : false
+            LPLog.healthKit.debug("postStress rmssd=\(sample.rmssd, privacy: .public)ms raw=\(rawLevel.displayName, privacy: .public) confirmed=\(confirmedLevel.displayName, privacy: .public)")
+        } else {
+            // The user-facing mode says every measurement. A calculable value
+            // therefore still reports as 「仅记录」 while the seven-day reference
+            // is building or Apple evidence/context is record-only.
+            if isMeasuredToday, everyMode,
+               StressSampleTiming.shouldAttemptNotification(
+                   measuredAt: sample.date,
+                   now: now,
+                   everyReading: true
+               ) {
+                notified = await StressNotifier.shared.notifyMeasurement(
+                    level: nil,
+                    rmssd: sample.rmssd
+                )
+            }
+            LPLog.healthKit.debug("postStress rmssd=\(sample.rmssd, privacy: .public)ms record-only baselineDays=\(baseline?.dayCount ?? 0, privacy: .public)")
+        }
+        if sampleAge == nil {
+            LPLog.healthKit.debug("postStress: series timestamp is in the future — recorded without interpretation")
+        } else if !StressSampleTiming.shouldAttemptNotification(
+            measuredAt: sample.date,
+            now: now,
+            everyReading: false
+        ) {
+            LPLog.healthKit.debug("postStress: series is stale (\(Int((sampleAge ?? 0) / 60), privacy: .public)min old) — recorded, smart-notify skipped")
         }
         // Log every computation (even quiet ones) so the user can confirm the
         // background measure ran — the "有没有在算" question the log view answers.
         // The log records the *raw* measured tier (what was actually measured).
         StressLogStore.record(rmssd: sample.rmssd, baseline: baseline, level: rawLevel,
-                              notified: notified, isResting: sample.isResting)
-        continuation.yield(.hrvRMSSD(value: sample.rmssd, measuredAt: sample.date))
+                              notified: notified, isResting: sample.isResting,
+                              date: sample.date, measurement: sample.measurement,
+                              measurementEligible: sample.measurement.canUpdateTrends && sampleAge != nil,
+                              seriesID: sample.seriesID)
+        continuation.yield(.hrvRMSSD(
+            value: sample.rmssd,
+            measuredAt: sample.date,
+            interpretationEligible: interpretationEligible
+        ))
     }
 
     // MARK: - Sleep

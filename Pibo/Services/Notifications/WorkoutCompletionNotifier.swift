@@ -160,11 +160,7 @@ final class WorkoutCompletionNotifier {
         ))
     }
 
-    /// 首枚 `bo` 长熟时的一次性提醒。
-    ///
-    /// 只发这一次。规则是「熟了就能拔、拔不拔随你，但不拔就不长新的」—— 用户得先
-    /// 知道有这条规则，之后就不该再被催。**是否只发一次由调用方的一次性标志位把守**，
-    /// 这里不做去重，因为这个通知没有可替换的「最新一条」语义。
+    /// 首枚 `bo` 长熟时的一次性提醒。成熟事实不会过期或冻结后续积累。
     @discardableResult
     func notifyFirstBoRipened() async -> Bool {
         guard pushEnabled else { return false }
@@ -175,7 +171,7 @@ final class WorkoutCompletionNotifier {
 
         let content = UNMutableNotificationContent()
         content.title = "Pibo"
-        content.body = AppLocalization.text("头上那株长好了。要收就收，不收它就停在那儿，不会再长新的。")
+        content.body = AppLocalization.narrative("home.bo.firstRipe")
         content.sound = .default
         content.threadIdentifier = "pibo.bo.ripe"
         do {
@@ -212,24 +208,6 @@ final class WorkoutCompletionNotifier {
             }
         }
         return await publication.value
-    }
-
-    private func notificationBody(for workout: PendingWorkout, state: PiboActivityState) -> String {
-        let activity = AppLocalization.format("%d 分钟%@", workout.durationMin, workout.label)
-        switch state {
-        case .deepSleep:
-            return AppLocalization.format("你完成了%@。Pibo 还缩在梦里，头上的花却悄悄亮了一点。", activity)
-        case .waking:
-            return AppLocalization.format("%@？Pibo 刚醒就收到了……花好像精神了。", activity)
-        case .active:
-            return AppLocalization.format("%@？花都支棱起来了……还、还不错。", activity)
-        case .irritated:
-            return AppLocalization.format("%@已记住。Pibo 本来有点烦，花现在精神了一些。", activity)
-        case .idle:
-            return AppLocalization.format("Pibo 发呆时收到了你的%@……花醒过来一点。", activity)
-        case .disturbed:
-            return AppLocalization.format("先别戳了……不过这次%@，花记住了。", activity)
-        }
     }
 
     private var deliveredIDs: Set<UUID> {

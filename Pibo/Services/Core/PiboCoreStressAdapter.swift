@@ -44,12 +44,12 @@ enum PiboCoreStressAdapter {
         rmssd: Double,
         baseline: StressBaseline?,
         restingHR: Double
-    ) -> StressLevel {
-        appLevel(PiboCoreStress.level(
+    ) -> StressLevel? {
+        PiboCoreStress.classifiedLevel(
             rmssd: rmssd,
             baseline: baseline?.coreBaseline,
             restingHR: restingHR
-        ))
+        ).map(appLevel)
     }
 
     static func confirmedLevel(

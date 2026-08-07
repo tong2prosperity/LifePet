@@ -2,11 +2,11 @@ import SwiftUI
 import MapKit
 import CoreLocation
 
-/// 地图涂鸦 (walk doodle) — Pibo's "用脚画一幅画 / 圈一块花田" task. Presented
-/// full-screen from the home (like the 露珠相机). The user walks; their GPS trail
+/// 地图涂鸦 (walk doodle) — a walking route and creation tool. Presented
+/// full-screen from the home (like the 餐食相机). The user walks; their GPS trail
 /// draws a thick Pibo-green stroke over the map in real time. On 完成 the camera
 /// fits the doodle, Pibo says a line, and 保存 persists it as a `WalkDoodleRecord`
-/// (运动能量) that lands on the 历史数据页's 足迹涂鸦 card.
+/// that lands on the 历史数据页's 足迹涂鸦 card. Saving never mints `bo`.
 ///
 /// MVP is freeform. The `WalkDoodleChallenge` scaffold + the stored 面积/完成度
 /// fields are where 布置涂鸦 / 比拼面积 plug in later.
@@ -138,7 +138,7 @@ struct WalkDoodleView: View {
             Text(AppLocalization.text("Pibo 的任务"))
                 .lpText(LP.Typography.c2Medium)
                 .foregroundStyle(LP.Content.tertiary)
-            Text(AppLocalization.text("圈一块花田"))
+            Text(AppLocalization.text("地图涂鸦"))
                 .lpText(LP.Typography.b3Medium)
                 .foregroundStyle(LP.Content.primary)
         }
@@ -199,11 +199,9 @@ struct WalkDoodleView: View {
 
     private var idlePanel: some View {
         VStack(spacing: LP.Spacing.m) {
-            if session.isDenied {
+            if session.isDenied || session.needsPreciseLocation {
                 deniedNotice
             } else {
-                // Garbled 魔丸 speech stays raw (not localized) — same as the
-                // app-wide `speechPool` / `PiboCameraView.genericComments`.
                 Text(challenge.promptKey)
                     .lpText(LP.Typography.handMid)
                     .foregroundStyle(LP.Content.secondary)
@@ -221,7 +219,11 @@ struct WalkDoodleView: View {
 
     private var deniedNotice: some View {
         VStack(spacing: LP.Spacing.s) {
-            Text(AppLocalization.text("需要定位权限才能画地图涂鸦"))
+            Text(AppLocalization.text(
+                session.needsPreciseLocation
+                    ? "当前只有大概位置权限，记录轨迹需要精确位置"
+                    : "需要定位权限才能画地图涂鸦"
+            ))
                 .lpText(LP.Typography.b3Medium)
                 .foregroundStyle(LP.Content.secondary)
                 .multilineTextAlignment(.center)
@@ -305,7 +307,7 @@ struct WalkDoodleView: View {
             VStack(spacing: LP.Spacing.s) {
                 doodleStat(label: AppLocalization.text("距离"), value: distance)
                 Divider()
-                doodleStat(label: AppLocalization.text("圈地"), value: area)
+                doodleStat(label: AppLocalization.text("路线面积"), value: area)
                 Divider()
                 doodleStat(label: AppLocalization.text("用时"), value: duration)
             }
@@ -313,7 +315,7 @@ struct WalkDoodleView: View {
             HStack(spacing: 0) {
                 doodleStat(label: AppLocalization.text("距离"), value: distance)
                 divider
-                doodleStat(label: AppLocalization.text("圈地"), value: area)
+                doodleStat(label: AppLocalization.text("路线面积"), value: area)
                 divider
                 doodleStat(label: AppLocalization.text("用时"), value: duration)
             }

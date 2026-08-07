@@ -32,6 +32,9 @@ private struct RawMetrics {
     /// When `rmssd` was last measured — drives the "测于 N 分钟前" freshness
     /// label on the derived stress card.
     var rmssdAt: Date? = nil
+    /// Whether the Apple measurement had enough corrected NN evidence and an
+    /// eligible awake/resting context to affect stress interpretation.
+    var rmssdInterpretationEligible = false
     var restingHR: Double = 0
     var sleepTotal: TimeInterval = 0
     var sleepDeep: TimeInterval = 0
@@ -137,38 +140,18 @@ final class PetStateStore {
     // MARK: - 魔丸态 (new model — raw-data-driven, no three-stat layer)
     //
     // The new home reads these straight off raw HealthKit + time of day. The
-    // derived API (greeting pools, 6-state machine, 拍一拍 caps, 拔毛) lives in
-    // `PetStateStore+Mowan.swift`; these are the stored/accessor hooks it needs.
+    // derived API (greeting pools and 6-state machine) lives in
+    // `PetStateStore+Mowan.swift`. Pat policy and history are owned by
+    // `PiboSpeechService`; actual-pat/angry state is owned by
+    // `PiboAnimationExperienceStore`.
 
-    /// Timestamps of 拍一拍 lines Pibo actually spoke — drives the speech caps
-    /// in `pat()` (≤3 / 10 min, ≤9 / 24h). In-memory only.
-    var patSpeechTimes: [Date] = []
-    /// Set when Pibo enters the post-拔毛 5-minute 深眠. `nil` otherwise.
-    var pluckSleepUntil: Date? = nil
     /// Flipped true on the first foreground open in the 06:00–10:00 window so
     /// the 初醒 state only greets once per morning. Reset at day rollover.
     var sawMorningOpen: Bool = false
 
-    private static let lastPluckedKey = "pibo.mowan.lastPluckedDay"
-    /// Day (startOfDay) the user last collected 花籽. Persisted so the
-    /// 22:00–02:00 拔毛 window fires once per night.
-    var lastPluckedDay: Date? {
-        get {
-            let ts = UserDefaults.standard.double(forKey: Self.lastPluckedKey)
-            return ts > 0 ? Date(timeIntervalSince1970: ts) : nil
-        }
-        set {
-            if let newValue {
-                UserDefaults.standard.set(newValue.timeIntervalSince1970, forKey: Self.lastPluckedKey)
-            } else {
-                UserDefaults.standard.removeObject(forKey: Self.lastPluckedKey)
-            }
-        }
-    }
-
     private static let growthStageKey = "pibo.growth.v1"
     private static let sproutGrowthProgressKey = "pibo.sproutGrowthProgress.v1"
-    /// 魔丸 head growth — the 「?」卷芽 until the first collected 运动能量,
+    /// 魔丸 head growth — the 「?」卷芽 until the first visible health accumulation,
     /// then 发芽带叶 (Figma《识别到用户的活动》74:6102: 播完缩回主页面,
     /// pibo头顶发生变化). Loaded in `init`; per-pet, so `reset()` wipes it.
     var growthStage: PiboGrowthStage = .mystery {
@@ -237,7 +220,7 @@ final class PetStateStore {
     }
     #endif
 
-    /// First 运动能量 collected — the 毛 sprouts its leaf. Idempotent.
+    /// First acknowledged workout changes the head sprout. Idempotent.
     func markSprouted() {
         guard growthStage == .mystery else { return }
         growthStage = .sprouted
@@ -266,10 +249,6 @@ final class PetStateStore {
     }
     #endif
 
-    /// Pibo 故事线 progress — 拍一拍 can surface the next clue of the current
-    /// chapter (app 叙事). Owned here so `pat()` and `reset()` reach it.
-    let story = PiboStorylineStore()
-
     #if DEBUG
     /// Dev/demo helper: send a fresh synthetic run through the same ingest path
     /// as a real HealthKit workout. Keeping the DEBUG control on the production
@@ -296,12 +275,17 @@ final class PetStateStore {
         let low = 14.0   // below any plausible baseline → 超载
         raw.rmssd = low
         raw.rmssdAt = Date()
+        raw.rmssdInterpretationEligible = true
         let level = StressModel.level(rmssd: low,
                                       baseline: StressBaselineStore.baseline,
                                       restingHR: raw.restingHR)
         Task {
             await StressNotifier.shared.requestAuthorization()
-            let notified = await StressNotifier.shared.maybeNotify(level: level, rmssd: low)
+            let notified = if let level {
+                await StressNotifier.shared.maybeNotify(level: level, rmssd: low)
+            } else {
+                false
+            }
             StressLogStore.record(rmssd: low, baseline: StressBaselineStore.baseline,
                                   level: level, notified: notified, synthetic: true)
         }
@@ -315,6 +299,7 @@ final class PetStateStore {
         if raw.rmssd == nil {
             raw.rmssd = 44
             raw.rmssdAt = Date().addingTimeInterval(-32 * 60)   // "32 分钟前测"
+            raw.rmssdInterpretationEligible = true
         }
         // Seed HR/RHR too so the derived (HR-modulated) card demos on the
         // simulator, which has no live heart-rate stream.
@@ -339,6 +324,9 @@ final class PetStateStore {
     /// until a real reading lands. Distinct from `rawHRV` (Apple SDNN).
     var rmssd: Double? { raw.rmssd }
     var rmssdMeasuredAt: Date? { raw.rmssdAt }
+    /// Whether the latest RMSSD has enough valid acquisition context to drive
+    /// classification, mood projection or Pibo's stress animation.
+    var rmssdInterpretationEligible: Bool { raw.rmssdInterpretationEligible }
     /// Four-tier stress derived from `rmssd` vs the personal baseline + resting
     /// HR. `nil` when no RMSSD reading yet.
     ///
@@ -346,7 +334,8 @@ final class PetStateStore {
     /// includes the resting-HR bump, while `computeMood` reads the pure
     /// HRV-vs-baseline anchor. Two questions, one metric.
     var stressLevel: StressLevel? {
-        guard let rmssd = raw.rmssd, rmssd > 0 else { return nil }
+        guard raw.rmssdInterpretationEligible,
+              let rmssd = raw.rmssd, rmssd > 0 else { return nil }
         return StressModel.level(rmssd: rmssd,
                                  baseline: StressBaselineStore.baseline,
                                  restingHR: raw.restingHR)
@@ -362,7 +351,7 @@ final class PetStateStore {
         let moving = activityState == .active || pendingWorkout != nil
         return DerivedStressModel.compute(
             rmssd: raw.rmssd,
-            baseline: StressBaselineStore.baseline,
+            baseline: raw.rmssdInterpretationEligible ? StressBaselineStore.baseline : nil,
             restingHR: raw.restingHR,
             currentHR: raw.heartRate,
             currentHRAt: raw.heartRateAt,
@@ -416,7 +405,7 @@ final class PetStateStore {
             }
         }
     }
-    /// Bumped each time the user taps 「喂养」. `HomeView` watches this with
+    /// Bumped each time the user confirms a newly synced workout. `HomeView` watches this with
     /// `.onChange` to spawn particles + run the pet vibrate effect. Separate
     /// from `lastDelta` so the celebration scales (vibrate + particles) only
     /// fire on user-confirmed feeds, not on every silent stat update.
@@ -711,7 +700,7 @@ final class PetStateStore {
         pendingWorkout = nil
         feedToken = nil
         // New pet starts with a full-size head 毛 (forest grass has no un-sprouted
-        // variant — the 魔丸 mystery-fold no longer applies), default theme, fresh story.
+        // variant — the 魔丸 mystery-fold no longer applies) and default theme.
         growthStage = .sprouted
         UserDefaults.standard.removeObject(forKey: Self.growthStageKey)
         headSproutGrowthProgress = 1
@@ -725,7 +714,6 @@ final class PetStateStore {
         UserDefaults.standard.removeObject(forKey: Self.debugForestHourKey)
         UserDefaults.standard.removeObject(forKey: Self.legacyDebugForestDayPhaseKey)
         #endif
-        story.reset()
         // Stress is per-pet too — drop the RMSSD baseline window + the measure
         // log so the new pet starts clean (raw.rmssd was already cleared above).
         StressBaselineStore.reset()
@@ -825,7 +813,7 @@ final class PetStateStore {
         lastDelta = nil
         toast = nil
         // 跨天时把挂着的 sheet 状态清掉。如果用户夜里把 sheet 留着不管，
-        // 过了凌晨 pendingWorkout.endedAt 还是昨天的；保留它会让今天点喂养
+        // 过了凌晨 pendingWorkout.endedAt 还是昨天的；保留它会让今天确认
         // 时插出 `time: "刚刚"` 的卡（实际是昨天的运动）。aggregate 路径已
         // 经把昨天的 vitality 写进 closingDate 的 snapshot 里了，clear 不会
         // 丢数据。
@@ -910,14 +898,16 @@ final class PetStateStore {
         let snapshot = PiboWidgetSnapshot(
             petName: petName,
             dayCount: dayCount,
-            stateTag: state.tag,
+            stateTag: activityState.rawValue,
             stateLabel: activityState.displayName,
-            vitality: statValue(.vitality),
-            energy: statValue(.energy),
-            mood: statValue(.mood),
+            // Kept in the v1 payload only so installed widgets can decode the
+            // snapshot during migration; current product surfaces ignore them.
+            vitality: 0,
+            energy: 0,
+            mood: 0,
             updatedAt: Date(),
             pendingWorkoutTitle: pendingWorkout?.titleLabel,
-            pendingWorkoutGain: pendingWorkout?.gainVitality
+            pendingWorkoutGain: nil
         )
 
         if !PiboWidgetSnapshotStore.save(snapshot) {
@@ -994,9 +984,9 @@ final class PetStateStore {
     private func pendingActivityState(for workout: PendingWorkout) -> PiboFeedActivityAttributes.ContentState {
         PiboFeedActivityAttributes.ContentState(
             title: workout.titleLabel,
-            message: "可喂给 \(petName)，活力星光正在落下",
+            message: "收到一条新的运动记录",
             vitalityGain: workout.gainVitality,
-            stateTag: state.tag,
+            stateTag: activityState.rawValue,
             endedAt: workout.endedAt,
             isComplete: false
         )
@@ -1007,10 +997,10 @@ final class PetStateStore {
         completed: Bool
     ) -> PiboFeedActivityAttributes.ContentState {
         PiboFeedActivityAttributes.ContentState(
-            title: completed ? "已喂给 \(petName)" : "\(workout.titleLabel)已记录",
-            message: completed ? "今日运动已变成活力星光" : "运动已记录到今日星光",
+            title: "\(workout.titleLabel)已记录",
+            message: completed ? "运动记录已同步，会用于之后的可见积累" : "运动已记录到今天的足迹",
             vitalityGain: workout.gainVitality,
-            stateTag: state.tag,
+            stateTag: activityState.rawValue,
             endedAt: workout.endedAt,
             isComplete: true
         )
@@ -1174,9 +1164,10 @@ final class PetStateStore {
         case .hrv(let ms):
             raw.hrv = ms
             LPLog.petState.debug("ingest hrv=\(ms, privacy: .public)ms")
-        case .hrvRMSSD(let ms, let measuredAt):
+        case .hrvRMSSD(let ms, let measuredAt, let interpretationEligible):
             raw.rmssd = ms
             raw.rmssdAt = measuredAt
+            raw.rmssdInterpretationEligible = interpretationEligible
             LPLog.petState.debug("ingest rmssd=\(ms, privacy: .public)ms measuredAt=\(LPLog.dateFormatter.string(from: measuredAt), privacy: .public)")
         case .restingHR(let rhr):
             raw.restingHR = rhr
@@ -1219,7 +1210,7 @@ final class PetStateStore {
     ///
     /// - **Fresh** (≤ 5 min ago) — set `pendingWorkout` and **wait for user
     ///   confirmation** before applying gain or inserting a done card. The
-    ///   `WorkoutAlertSheet` pops up; tapping 「喂养」 calls
+    ///   `WorkoutAlertSheet` pops up; confirming the record calls
     ///   `consumePendingWorkout()`, dismissing it via backdrop calls
     ///   `dismissPendingWorkout()`. Either way, gain ultimately lands —
     ///   the sheet only controls celebration intensity (particles +
@@ -1299,7 +1290,7 @@ final class PetStateStore {
             pendingWorkout = pw
             animationExperience.queueWorkout(pw)
             scheduleWorkoutAchievementNotification(pw, piboState: notificationState)
-            LPLog.petState.notice("workout fresh → pendingWorkout: \(label, privacy: .public) \(durMin, privacy: .public)min +\(gain, privacy: .public) (awaiting user 喂养)")
+            LPLog.petState.notice("workout fresh → pendingWorkout: \(label, privacy: .public) \(durMin, privacy: .public)min +\(gain, privacy: .public) (awaiting review)")
             return
         }
 
@@ -1342,36 +1333,34 @@ final class PetStateStore {
 
     // MARK: - Pending workout consumption
 
-    /// User tapped 「喂养」 in `WorkoutAlertSheet`. Apply the deferred gain,
+    /// User acknowledged a fresh workout. Update the visual sprout,
     /// insert a fresh done card, fire the celebration animation token, and
     /// clear the pending slot. No-op if there's nothing pending.
     ///
     /// 顺序：**先**置 `pendingWorkout = nil` —— didSet 同步抹掉 UserDefaults 的
     /// 持久化 key。如果在剩下的 side-effect 期间 app 崩了，最坏的结果是这一
-    /// 笔的 gain / 卡丢失（aggregate 路径会迟到补 vitality）；不会因为持久化
-    /// 还在导致下次启动恢复同一笔再喂养一次而被算两份。
+    /// 笔的呈现 / 卡片丢失（aggregate 路径仍会保留健康记录）；不会因为持久化
+    /// 还在导致下次启动重复恢复同一笔记录。
     func consumePendingWorkout() {
         guard let pw = pendingWorkout else { return }
-        LPLog.petState.notice("consume pending: \(pw.label, privacy: .public) \(pw.durationMin, privacy: .public)min +\(pw.gainVitality, privacy: .public) (user-confirmed)")
+        LPLog.petState.notice("consume pending workout: \(pw.label, privacy: .public) \(pw.durationMin, privacy: .public)min (user-confirmed)")
         pendingWorkout = nil
         applySproutGrowth(for: pw)
         insertDoneCard(for: pw, time: AppLocalization.text("刚刚"))
-        applyGain(to: .vitality, by: pw.gainVitality, reason: pw.label)
-        showToast(AppLocalization.format("%@ 醒过来一点！+%d 活力星光", petName, pw.gainVitality))
+        showToast(AppLocalization.text("运动记录已同步"))
         feedToken = UUID()
         finishPendingWorkoutActivity(for: pw, completed: true)
     }
 
-    /// User dismissed the sheet without tapping 「喂养」 (backdrop tap, swipe
-    /// down). Silently apply the gain + insert the card so we don't lose
+    /// User dismissed the sheet without confirming (backdrop tap, swipe
+    /// down). Silently insert the card so we don't lose
     /// the data — but skip the celebration token so no particles / vibrate.
     func dismissPendingWorkout() {
         guard let pw = pendingWorkout else { return }
-        LPLog.petState.notice("dismiss pending: \(pw.label, privacy: .public) \(pw.durationMin, privacy: .public)min +\(pw.gainVitality, privacy: .public) (silent)")
+        LPLog.petState.notice("dismiss pending workout: \(pw.label, privacy: .public) \(pw.durationMin, privacy: .public)min (silent)")
         pendingWorkout = nil
         applySproutGrowth(for: pw)
         insertDoneCard(for: pw, time: "刚刚")
-        applyGain(to: .vitality, by: pw.gainVitality, reason: pw.label)
         finishPendingWorkoutActivity(for: pw, completed: false)
     }
 
@@ -1533,7 +1522,8 @@ final class PetStateStore {
         // reason it owns the bound rather than this call site inventing one.
         guard let rmssd = raw.rmssd, rmssd > 0,
               let measuredAt = raw.rmssdAt,
-              Date().timeIntervalSince(measuredAt) <= DerivedStressModel.maxAnchorAge,
+              StressSampleTiming.isFresh(measuredAt: measuredAt),
+              raw.rmssdInterpretationEligible,
               let anchor = StressScore.anchor(rmssd: rmssd, baseline: stressBaseline)
         else { return 50 }
         // `anchor` is 0 (calm) … 1 (tense); 心情 is its mirror.

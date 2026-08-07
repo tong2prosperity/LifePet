@@ -2,7 +2,7 @@ import Foundation
 
 /// 早 / 中 / 晚 — the three meal slots offered after choosing “记录卡路里” in the
 /// camera. A meal capture is sent to the backend for 卡路里/营养 recognition;
-/// “普通拍照记录” has no meal and skips recognition.
+/// Every release camera record selects one of these meals before capture.
 enum MealType: String, CaseIterable, Codable, Identifiable, Sendable {
     case breakfast
     case lunch

@@ -3,7 +3,7 @@
     "id": "sleep.shorter.001",
     "cue": "sleep.shorter",
     "surfaces": ["dashboard", "sleepCard"],
-    "text": "夜少了一截。明明看起来是完整的。",
+    "text": "昨晚的记录比平时短一些。先不下结论。",
     "cooldownHours": 96,
     "maximumUses": 20
   },
@@ -11,7 +11,7 @@
     "id": "sleep.shorter.002",
     "cue": "sleep.shorter",
     "surfaces": ["dashboard", "sleepCard"],
-    "text": "少了 {minutes} 分钟。找到了……你今天困的那部分。",
+    "text": "比近期记录少了 {minutes} 分钟。我会继续观察。",
     "cooldownHours": 120,
     "maximumUses": 16
   },
@@ -19,7 +19,7 @@
     "id": "sleep.shorter.003",
     "cue": "sleep.shorter",
     "surfaces": ["dashboard", "sleepCard"],
-    "text": "你醒得早了。天亮并没有因此提前。",
+    "text": "昨晚结束得早一些。这只是一晚的数据。",
     "cooldownHours": 144,
     "maximumUses": 14
   },
@@ -27,7 +27,7 @@
     "id": "sleep.longer.001",
     "cue": "sleep.longer",
     "surfaces": ["dashboard", "sleepCard"],
-    "text": "夜晚多留了你 {minutes} 分钟。回来时，身体安静了一点。",
+    "text": "昨晚比近期记录多了 {minutes} 分钟。已经保存。",
     "cooldownHours": 120,
     "maximumUses": 16
   },
@@ -35,7 +35,7 @@
     "id": "sleep.longer.002",
     "cue": "sleep.longer",
     "surfaces": ["dashboard", "sleepCard"],
-    "text": "你昨晚消失得很完整。花没有意见。",
+    "text": "昨晚的睡眠记录比较完整。",
     "cooldownHours": 120,
     "maximumUses": 16
   },
@@ -43,7 +43,7 @@
     "id": "sleep.longer.003",
     "cue": "sleep.longer",
     "surfaces": ["dashboard", "sleepCard"],
-    "text": "原来人类偶尔也会正确使用夜晚。",
+    "text": "这段睡眠比近期记录长一些。",
     "cooldownHours": 168,
     "maximumUses": 12
   },
@@ -51,7 +51,7 @@
     "id": "steps.more.001",
     "cue": "steps.more",
     "surfaces": ["dashboard"],
-    "text": "你今天走了很远。奇怪的是，最后还是回到了这里。",
+    "text": "今天的步行记录比近期多一些。",
     "cooldownHours": 120,
     "maximumUses": 16
   },
@@ -59,7 +59,7 @@
     "id": "steps.more.002",
     "cue": "steps.more",
     "surfaces": ["dashboard"],
-    "text": "多走了 {steps} 步。路对此保持沉默。",
+    "text": "比近期记录多了 {steps} 步。已经保存。",
     "cooldownHours": 96,
     "maximumUses": 18
   },
@@ -67,7 +67,7 @@
     "id": "steps.fewer.001",
     "cue": "steps.fewer",
     "surfaces": ["dashboard"],
-    "text": "今天的足迹到这里就没有了。路明天也不会跑。",
+    "text": "今天暂时记录到这些足迹。",
     "cooldownHours": 120,
     "maximumUses": 16
   },
@@ -75,7 +75,7 @@
     "id": "steps.fewer.002",
     "cue": "steps.fewer",
     "surfaces": ["dashboard"],
-    "text": "今天没走多远。世界没有追上来。",
+    "text": "今天的步行记录比近期少一些。先不判断。",
     "cooldownHours": 144,
     "maximumUses": 14
   },
@@ -83,7 +83,7 @@
     "id": "workout.completed.001",
     "cue": "workout.completed",
     "surfaces": ["dashboard"],
-    "text": "身体留下了 {minutes} 分钟的证词。至于值不值得，它拒绝评价。",
+    "text": "这次运动留下了 {minutes} 分钟的记录。",
     "cooldownHours": 120,
     "maximumUses": 16
   },
@@ -91,7 +91,7 @@
     "id": "workout.completed.002",
     "cue": "workout.completed",
     "surfaces": ["dashboard"],
-    "text": "这段路已经发生了。花记得。",
+    "text": "这段运动已经保存。我记得。",
     "cooldownHours": 96,
     "maximumUses": 18
   },

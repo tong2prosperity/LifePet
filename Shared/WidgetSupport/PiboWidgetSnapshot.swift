@@ -21,11 +21,11 @@ nonisolated struct PiboWidgetSnapshot: Codable, Hashable, Sendable {
     static let fallback = PiboWidgetSnapshot(
         petName: "Pibo",
         dayCount: 1,
-        stateTag: "NORMAL",
-        stateLabel: "平稳",
-        vitality: 88,
-        energy: 74,
-        mood: 82,
+        stateTag: "idle",
+        stateLabel: "发呆",
+        vitality: 0,
+        energy: 0,
+        mood: 0,
         updatedAt: Date(),
         pendingWorkoutTitle: nil,
         pendingWorkoutGain: nil

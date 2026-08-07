@@ -1,4 +1,5 @@
 import AVFAudio
+import PiboCore
 import SwiftUI
 import UIKit
 import os
@@ -8,8 +9,7 @@ import os
 ///
 /// The top-right icon grid enters 足迹历史页 and 设置. The old in-world studio/gym
 /// entries and 上滑数据二楼 (`FloorModel` / `FloorContainer`) are retired.
-/// 露珠相机 and 小游戏 remain implemented but are outside the 首发 range — their
-/// entries are gated by `PiboReleaseScope` (see that file to restore them).
+/// 餐食相机与 Walk Doodle 属于首发；其他小游戏仍由 `PiboReleaseScope` 收起。
 ///
 /// Pibo's state and the head-flower come straight off raw HealthKit + time of day
 /// (see `PetStateStore+Mowan`).
@@ -21,6 +21,7 @@ struct HomeView: View {
     @Environment(OrnamentLightStore.self) private var ornamentLights
     @Environment(HealthHistoryStore.self) private var history
     @Environment(PiboSpeechService.self) private var piboSpeech
+    @Environment(OnboardingStateStore.self) private var onboarding
     @Environment(MorningSleepCoordinator.self) private var morningSleep
     /// Carries the "user tapped a stress push" request from the notification
     /// router into this view (see `presentStressCardIfPossible`).
@@ -35,8 +36,9 @@ struct HomeView: View {
     @State private var showGames = false
     @State private var showHistory = false
     @State private var showBoUnlockPage = false
-    @State private var showWellnessInstrument = false
     @State private var showSettings = false
+    @State private var showStoryRecovery = false
+    @State private var storyRecoveryDismissed = false
     /// Card the history cover should land on. Set only by the stress-notification
     /// deep link; the 足迹 icon opens with `nil` (top of the 足迹 tab).
     @State private var historyFocus: HistoryFocus?
@@ -58,7 +60,7 @@ struct HomeView: View {
     @State private var recognizer = FoodRecognitionService()
     @State private var stageCommands = PiboStageCommandController()
     /// 发芽 close-up trigger + phase (Figma 74:6102: workout detected → 特写
-    /// pibo头顶动画 → 能量已收集 pop). See `EnergySproutFlow.swift`.
+    /// pibo头顶动画 → 运动记录同步 pop). See `EnergySproutFlow.swift`.
     @State private var sproutPhase: SproutFlowPhase = .idle
     /// Greeting / day-label cached once (they're "drawn once per day").
     @State private var greetingText: String = ""
@@ -86,19 +88,20 @@ struct HomeView: View {
     #else
     private let forestTuning: StageRenderTuning = .standard
     #endif
-    @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
     @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled) private var ambientSoundEnabled = true
 
     /// Pause the 60fps stage loop while a feature covers it — the full-screen
     /// covers plus the two sheets (设置 / 餐食详情), which on iOS occlude the stage
     /// too (`MealDetailView` in particular can sit open a while during 卡路里 识别).
     private var stagePaused: Bool {
-        showCamera || showGames || showHistory || showWalkDoodle || showBoUnlockPage || showSettings || showWellnessInstrument
+        showCamera || showGames || showHistory || showWalkDoodle || showSettings
+            || showStoryRecovery
             || activeSheet != nil
     }
 
     private var fullScreenFeaturePresented: Bool {
-        showCamera || showGames || showHistory || showWalkDoodle || showBoUnlockPage || showSettings || showWellnessInstrument
+        showCamera || showGames || showHistory || showWalkDoodle || showSettings
+            || showStoryRecovery
     }
 
     private var boCounterFeedbackRequest: BoCounterFeedbackRequest? {
@@ -115,11 +118,68 @@ struct HomeView: View {
             && sproutPhase == .idle
     }
 
-    // 首发范围外的三张全屏功能页，呈现绑定统一过一遍 `PiboReleaseScope`。收在绑定
+    private var storySpeechStage: PiboCoreStorySpeechStage {
+        guard PiboReleaseScope.temporaryCooperationOnboarding else {
+            return .unresponded
+        }
+        return onboarding.eventProjection().speechStage
+    }
+
+    private var homeSpeechFacts: PiboHomeSpeechFacts {
+        PiboHomeSpeechFacts(
+            hasSteps: store.hasStepsData && store.rawSteps > 0,
+            hasSleepDuration: store.rawSleepHours > 0,
+            hasWorkoutType: store.hasWorkoutToday,
+            pendingBoCount: boLedger.state.ripeCount,
+            connectionAccepted: PiboReleaseScope.temporaryCooperationOnboarding
+                && onboarding.snapshot.connection == .accepted
+        )
+    }
+
+    private var homeSpeechValues: [String: String] {
+        var values: [String: String] = [:]
+        if store.hasStepsData, store.rawSteps > 0 {
+            values["steps"] = store.rawSteps.formatted()
+        }
+        if store.rawSleepHours > 0 {
+            values["sleepDuration"] = String(
+                format: "%.1f %@",
+                store.rawSleepHours,
+                AppLocalization.text("小时")
+            )
+        }
+        return values
+    }
+
+    private var idleSpeechContext: PiboCoreHomeSpeechContext? {
+        switch semanticAnimationStateID {
+        case "sleep-1", "sleep-2", "angry":
+            nil
+        case "awake":
+            store.wakingSleptEnough == false ? .wakingLowSleep : .waking
+        case "weak":
+            .lowSleepAndActivity
+        case "boring":
+            .lowActivity
+        case "tired":
+            .lowSleep
+        case "dive":
+            .dive
+        case "coolhide":
+            .coolhide
+        default:
+            store.hasRealHealthData ? .idle : .missingDataPibo
+        }
+    }
+
+    // 可选全屏功能页的呈现绑定统一过一遍 `PiboReleaseScope`。收在绑定
     // 上而不是只收在按钮上，是因为按钮不是唯一入口（重拍、启动参数、以后新加的
     // 任何一处赋值都会走这里），这样"关着"就不依赖调用方记得判断。
     private var cameraPresented: Binding<Bool> {
-        Binding(get: { showCamera && PiboReleaseScope.camera }, set: { showCamera = $0 })
+        Binding(
+            get: { showCamera && canUseDewCamera },
+            set: { showCamera = $0 && canUseDewCamera }
+        )
     }
 
     private var gamesPresented: Binding<Bool> {
@@ -127,7 +187,18 @@ struct HomeView: View {
     }
 
     private var walkDoodlePresented: Binding<Bool> {
-        Binding(get: { showWalkDoodle && PiboReleaseScope.miniGames }, set: { showWalkDoodle = $0 })
+        Binding(
+            get: { showWalkDoodle && canUseWalkDoodle },
+            set: { showWalkDoodle = $0 && canUseWalkDoodle }
+        )
+    }
+
+    private var canUseDewCamera: Bool {
+        PiboReleaseScope.camera && ornamentUnlocks.grants(.dewCamera)
+    }
+
+    private var canUseWalkDoodle: Bool {
+        PiboReleaseScope.walkDoodle && ornamentUnlocks.grants(.walkDoodle)
     }
 
     private var stageEnvironment: PiboStageEnvironment {
@@ -149,12 +220,12 @@ struct HomeView: View {
             return .suspended
         }
         switch activeSheet {
-        case .meal, .morningSleep, .achievement: return .suspended
+        case .meal, .morningSleep, .commonItemStatus, .achievement: return .suspended
         case nil: return .active
         }
     }
 
-    var body: some View {
+    private var homeScene: some View {
         ZStack {
             PiboStageView(
                 theme: store.currentTheme,
@@ -171,40 +242,58 @@ struct HomeView: View {
                 onHairPulled: handleHairPull,
                 onOrnamentLightTapped: handleOrnamentLightTap,
                 onOrnamentTapped: handleOrnamentTap,
-                isPaused: stagePaused
+                isPaused: stagePaused,
+                isObscured: showBoUnlockPage
             )
             .equatable()
             .ignoresSafeArea()
-            .accessibilityHidden(stagePaused)
+            .allowsHitTesting(!showBoUnlockPage)
+            .accessibilityHidden(stagePaused || showBoUnlockPage)
 
             chromeContent
-                .accessibilityHidden(stagePaused)
+                .allowsHitTesting(!showBoUnlockPage)
+                .accessibilityHidden(stagePaused || showBoUnlockPage)
+
+            if shouldShowStoryRecoveryBanner {
+                VStack {
+                    storyRecoveryBanner
+                    Spacer()
+                }
+                .padding(.horizontal, LP.Spacing.l)
+                .padding(.top, 108)
+            }
 
             // 发芽 close-up captions, synced to the stage phases.
             if sproutPhase == .collecting || sproutPhase == .sprouted {
                 VStack(spacing: 0) {
                     SproutCaptionView(text: sproutPhase == .collecting
-                                      ? "收集到你的运动能量！"
-                                      : "Pibo...发芽了啵！")
+                                      ? "收到一条新的运动记录"
+                                      : "Pibo 记下了这次变化")
                     Spacer()
                 }
                 .allowsHitTesting(false)
             }
 
-            // 能量已收集 pop — back on the home floor (Figma 70:4549).
+            // 运动记录同步 pop — back on the home floor (Figma 70:4549).
             if sproutPhase == .pop {
                 EnergyCollectedPop(onDismiss: dismissEnergyPop)
             }
 
-            if showWellnessInstrument {
-                WellnessInstrumentView(data: wellnessInstrumentData) {
-                    dismissWellnessInstrument()
+            if showBoUnlockPage {
+                BoUnlockOverlay(stageCommands: stageCommands) {
+                    showBoUnlockPage = false
+                    resumePendingHomeFlows()
                 }
-                .transition(wellnessInstrumentTransition)
-                .zIndex(200)
+                .transition(.opacity)
+                .zIndex(100)
             }
+
         }
-        .accessibilityHidden(stagePaused && !showWellnessInstrument)
+    }
+
+    private var homeTaskContent: some View {
+        homeScene
+        .accessibilityHidden(stagePaused)
         .task { await idleMutterLoop() }
         .task { await atmosphereClockLoop() }
         .task(id: store.animationExperience.angryUntil) {
@@ -232,6 +321,10 @@ struct HomeView: View {
         )) { notification in
             soundscape.handleSecondaryAudioHint(notification)
         }
+    }
+
+    private var homeLifecycleContent: some View {
+        homeTaskContent
         .onAppear {
             weather.activateForHome()
             greetingText = store.mowanGreeting
@@ -261,12 +354,6 @@ struct HomeView: View {
                 Task {
                     try? await Task.sleep(for: .milliseconds(350))
                     showHistory = true
-                }
-            }
-            if ProcessInfo.processInfo.arguments.contains("-PiboOpenWellnessInstrument") {
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    presentWellnessInstrument()
                 }
             }
             if ProcessInfo.processInfo.arguments.contains("-PiboShowMorningSleep") {
@@ -371,6 +458,10 @@ struct HomeView: View {
         .onChange(of: soundscapePresentation) { _, presentation in
             soundscape.setPresentation(presentation)
         }
+    }
+
+    private var homeStateObservationContent: some View {
+        homeLifecycleContent
         .onChange(of: animationRefreshToken) { oldValue, newValue in
             refreshAnimationState()
             let pendingChanged = oldValue.pendingAchievementID != newValue.pendingAchievementID
@@ -402,9 +493,16 @@ struct HomeView: View {
         .onChange(of: boLedger.hasRipeBo) { _, isRipe in
             if isRipe { announceFirstRipeBoIfNeeded() }
         }
+        .onChange(of: semanticAnimationStateID) { _, _ in
+            if boLedger.hasRipeBo { announceFirstRipeBoIfNeeded() }
+        }
         .onChange(of: sproutPhase) { _, phase in
             if phase == .idle { resumePendingHomeFlows() }
         }
+    }
+
+    private var homeWithoutSheet: some View {
+        homeStateObservationContent
         // Every cover/sheet resumes queued flows from `onDismiss`, i.e. once the
         // dismissal animation has finished. Reacting to the presentation binding
         // instead would try to present while the previous modal is still on its
@@ -416,7 +514,10 @@ struct HomeView: View {
             }).environment(store)
         }
         .fullScreenCover(isPresented: gamesPresented, onDismiss: resumePendingHomeFlows) {
-            GameListView(onWalkDoodleSaved: handleDoodleSaved)
+            GameListView(
+                walkDoodleEnabled: canUseWalkDoodle,
+                onWalkDoodleSaved: handleDoodleSaved
+            )
                 .environment(store)
                 .environment(history)
         }
@@ -425,18 +526,73 @@ struct HomeView: View {
                 .environment(store)
                 .environment(history)
         }
+        .fullScreenCover(isPresented: $showStoryRecovery) {
+            HealthAuthView(mode: .storyRecovery) {
+                showStoryRecovery = false
+                storyRecoveryDismissed = true
+            }
+        }
         .fullScreenCover(isPresented: walkDoodlePresented, onDismiss: resumePendingHomeFlows) {
             WalkDoodleView(onSaved: handleDoodleSaved)
-        }
-        .navigationDestination(isPresented: $showBoUnlockPage) {
-            BoUnlockPage()
         }
         .navigationDestination(isPresented: $showSettings) {
             settingsDestination
         }
+    }
+
+    var body: some View {
+        homeWithoutSheet
         .sheet(item: $activeSheet, onDismiss: resumePendingHomeFlows) { destination in
             homeSheet(destination)
         }
+    }
+
+    private var shouldShowStoryRecoveryBanner: Bool {
+        guard PiboReleaseScope.temporaryCooperationOnboarding,
+              onboarding.needsStoryRecovery,
+              !storyRecoveryDismissed
+        else { return false }
+        #if DEBUG
+        return true
+        #else
+        let day = Calendar.current.ordinality(of: .day, in: .era, for: .now) ?? 0
+        return day.isMultiple(of: 3)
+        #endif
+    }
+
+    private var storyRecoveryBanner: some View {
+        HStack(spacing: LP.Spacing.m) {
+            Button {
+                Analytics.track(.storyRecoveryOpened, screen: "home")
+                showStoryRecovery = true
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(AppLocalization.narrative(onboarding.recoveryMessageKey))
+                        .lpText(LP.Typography.c1Regular)
+                        .foregroundStyle(LP.Content.primary)
+                    Text(AppLocalization.narrative(onboarding.recoveryActionKey))
+                        .lpText(LP.Typography.c1Medium)
+                        .foregroundStyle(LP.Fill.foundationAccent)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                storyRecoveryDismissed = true
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(LP.Content.tertiary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(AppLocalization.narrative("onboarding.close"))
+        }
+        .padding(.horizontal, LP.Spacing.m)
+        .padding(.vertical, LP.Spacing.s)
+        .background(LP.Fill.bgContainer.opacity(0.94), in: RoundedRectangle(cornerRadius: 18))
+        .lpShadow(LP.Shadow.elevation2)
     }
 
     @ViewBuilder
@@ -464,13 +620,22 @@ struct HomeView: View {
             MealDetailView(meal: meal, onRecapture: startMealCapture)
                 .environment(history)
                 .environment(recognizer)
-        case .morningSleep(let presentation):
+        case .morningSleep(let presentation, let consumesPending):
             MorningSleepCard(
                 presentation: presentation,
                 appearance: store.appearance,
                 weekly: SleepWeeklyReport.make(store: store, history: history)
             )
-            .onAppear { morningSleep.markPresented(presentation) }
+            .onAppear {
+                if consumesPending { morningSleep.markPresented(presentation) }
+            }
+        case .commonItemStatus(let model):
+            CommonItemStatusModal(
+                ornamentID: model.ornamentID,
+                title: model.title,
+                status: model.status,
+                message: model.message
+            )
         case .achievement(let payload):
             PiboAchievementModal(payload: payload) { confirmAchievement(payload) }
                 .interactiveDismissDisabled()
@@ -593,11 +758,16 @@ struct HomeView: View {
 
     private var cornerActions: some View {
         HStack(spacing: LP.Spacing.s) {
-            if PiboReleaseScope.camera {
-                cornerButton(systemImage: "camera.fill", label: "露珠相机", rotation: -2) {
+            if canUseDewCamera {
+                cornerButton(systemImage: "camera.fill", label: "餐食相机", rotation: -2, size: 36) {
                     Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
                     cameraInitialMeal = nil
                     showCamera = true
+                }
+            }
+            if canUseWalkDoodle {
+                cornerButton(systemImage: "map.fill", label: "Walk Doodle", rotation: 1, size: 36) {
+                    showWalkDoodle = true
                 }
             }
             cornerButton(systemImage: "gearshape", label: "设置", rotation: 0, size: 36) {
@@ -704,7 +874,15 @@ struct HomeView: View {
         let now = Date()
         let hour = localHour(at: now)
         let sourceStateID = semanticAnimationStateID
-        let enteredAngry = store.animationExperience.registerActualPat(localHour: hour, now: now)
+        let sleeping = sourceStateID == "sleep-1" || sourceStateID == "sleep-2"
+        let resting = sleeping || sourceStateID == "awake"
+        let enteredAngry = store.animationExperience.registerActualPat(
+            localHour: hour,
+            countsTowardAngry: PiboCorePatAdapter.countsTowardAngry(
+                restingState: resting
+            ),
+            now: now
+        )
         refreshAnimationState(now: now)
         let targetStateID = semanticAnimationStateID
         if targetStateID != sourceStateID {
@@ -718,15 +896,51 @@ struct HomeView: View {
         if let contentID = PiboCoreAnimationAdapter.patContentID(
             stateID: semanticAnimationStateID,
             angryEntered: enteredAngry
-        ), let line = animationPatLine(contentID, angry: enteredAngry) {
-            show(line)
-            Analytics.track(.pat, screen: "home", ["reaction": .string(contentID)])
+        ) {
+            let isSleepNotice = contentID == "animation.sleep.pat"
+            let isAwakeLine = contentID == "animation.awake.pat"
+            if enteredAngry || isSleepNotice {
+                if let line = animationPatLine(contentID, angry: enteredAngry) {
+                    show(line)
+                }
+                Analytics.track(
+                    .pat,
+                    screen: "home",
+                    ["reaction": .string(enteredAngry ? "angry" : "protected_state")]
+                )
+                return
+            }
+            let resolution = piboSpeech.resolvePat(
+                storyStage: storySpeechStage,
+                restingState: resting,
+                sleepingState: sleeping,
+                facts: homeSpeechFacts,
+                neutralLegacyMode: !PiboReleaseScope.temporaryCooperationOnboarding
+            )
+            let shouldPresent = isAwakeLine && resolution.shouldSpeak
+            if shouldPresent, let line = animationPatLine(contentID, angry: enteredAngry) {
+                show(line)
+            }
+            Analytics.track(
+                .pat,
+                screen: "home",
+                ["reaction": .string(shouldPresent ? "protected_state" : "silent")]
+            )
             return
         }
-        let response = store.pat()
-        if response.turnsAway { stageCommands.playTurnAway() }
-        if let line = response.line { show(patLineWithData(line)) }
-        let reaction = response.line.map { $0.isStoryClue ? "story" : "spoke" } ?? "ignored"
+        guard sourceStateID != "angry", semanticAnimationStateID != "angry" else {
+            Analytics.track(.pat, screen: "home", ["reaction": .string("silent")])
+            return
+        }
+        let resolution = piboSpeech.resolvePat(
+            storyStage: storySpeechStage,
+            restingState: resting,
+            sleepingState: sleeping,
+            facts: homeSpeechFacts,
+            neutralLegacyMode: !PiboReleaseScope.temporaryCooperationOnboarding
+        )
+        if let speech = resolution.speech { show(speech) }
+        let reaction = resolution.speech == nil ? "silent" : "spoke"
         Analytics.track(.pat, screen: "home", ["reaction": .string(reaction)])
     }
 
@@ -749,6 +963,11 @@ struct HomeView: View {
     ///
     /// 也没有「点灭」的分支：灯只能点亮，天亮自己熄。
     private func handleOrnamentLightTap(_ id: PiboOrnament.ID, index: Int) {
+        guard id == .lantern,
+              ornamentUnlocks.grants(.lanternLighting),
+              let placement = PiboOrnament.ornament(.lantern)?.placement,
+              placement.lights.indices.contains(index)
+        else { return }
         guard ornamentLights.light(id, index: index) else { return }
         LPHaptics.tap()
         Analytics.track(.ornamentLight, screen: "home",
@@ -756,54 +975,36 @@ struct HomeView: View {
     }
 
     private func handleOrnamentTap(_ id: PiboOrnament.ID) {
-        guard id == .statusObserver,
-              ornamentUnlocks.grants(.recoveryStatus),
-              activeSheet == nil,
-              !fullScreenFeaturePresented,
-              sproutPhase == .idle
-        else { return }
+        guard activeSheet == nil, !fullScreenFeaturePresented, sproutPhase == .idle else { return }
         LPHaptics.tap()
         dismissSpeech()
-        presentWellnessInstrument()
-    }
 
-    private var wellnessInstrumentData: WellnessInstrumentData {
-        _ = history.revision
-        return WellnessInstrumentData(record: history.record(on: .now))
-    }
-
-    private var wellnessInstrumentTransition: AnyTransition {
-        if UIAccessibility.isReduceMotionEnabled {
-            return .opacity
-        }
-        return .asymmetric(
-            insertion: .scale(scale: 0.86, anchor: .bottomLeading).combined(with: .opacity),
-            removal: .scale(scale: 0.94, anchor: .bottomLeading).combined(with: .opacity)
-        )
-    }
-
-    private func presentWellnessInstrument() {
-        guard !showWellnessInstrument else { return }
-        let animation: Animation = UIAccessibility.isReduceMotionEnabled
-            ? .linear(duration: 0.12)
-            : .easeOut(duration: 0.28)
-        withAnimation(animation) {
-            showWellnessInstrument = true
-        }
-    }
-
-    private func dismissWellnessInstrument() {
-        let duration = UIAccessibility.isReduceMotionEnabled ? 0.1 : 0.2
-        let animation: Animation = UIAccessibility.isReduceMotionEnabled
-            ? .linear(duration: duration)
-            : .easeOut(duration: duration)
-        withAnimation(animation) {
-            showWellnessInstrument = false
-        }
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(duration))
-            guard !showWellnessInstrument else { return }
-            resumePendingHomeFlows()
+        switch id {
+        case .hammock:
+            guard ornamentUnlocks.grants(.sleepReview) else { return }
+            if let presentation = morningSleep.latestReviewPresentation() {
+                activeSheet = .morningSleep(presentation, consumesPending: false)
+            } else {
+                activeSheet = .commonItemStatus(CommonItemStatusModel(
+                    ornamentID: .hammock,
+                    title: "睡眠回顾",
+                    status: "等待数据",
+                    message: "收到可用的睡眠记录后，可以从吊床重复查看最近一次睡眠回顾。"
+                ))
+            }
+        case .statusObserver:
+            guard ornamentUnlocks.grants(.recoveryStatus) else { return }
+            let calibration = history.recoveryCalibrationState()
+            activeSheet = .commonItemStatus(CommonItemStatusModel(
+                ornamentID: .statusObserver,
+                title: "恢复状态",
+                status: calibration == .waitingForData ? "等待数据" : "正在校准",
+                message: calibration == .waitingForData
+                    ? "状态观测仪会使用已授权的睡眠和身体记录。收到数据后开始校准。"
+                    : "正在依据已授权的原始记录建立个人基线。恢复算法确认前不会显示分数。"
+            ))
+        case .chime, .lantern:
+            break
         }
     }
 
@@ -883,13 +1084,19 @@ struct HomeView: View {
     @discardableResult
     private func doPluck() -> Bool {
         // 账本先落，动画后播 —— 反过来的话，一次没成功的拔取会先演一遍收获。
-        guard boLedger.pluck() else { return false }
-        let grade = store.pluck()
+        let eventID = "local-pluck-\(UUID().uuidString)"
+        guard boLedger.pluck(eventID: eventID) else { return false }
         Analytics.track(.pluck, screen: "home",
-                        ["grade": .string(grade.rawValue),
-                         "balance": .int(boLedger.balance)])
-        stageCommands.playPluck(color: grade.seedColor)
-        show(PiboSpeechLine(text: grade.piboLines.randomElement() ?? "...给...你..."))
+                        ["balance": .int(boLedger.balance),
+                         "event_id": .string(eventID)])
+        stageCommands.playPluck()
+        show(.system(AppLocalization.narrative("home.bo.collected")))
+        if PiboReleaseScope.temporaryCooperationOnboarding {
+            onboarding.observeBoProgress(
+                lifetimeMinted: boLedger.lifetimeMinted,
+                lifetimeCollected: boLedger.lifetimeCollected
+            )
+        }
         return true
     }
 
@@ -898,23 +1105,18 @@ struct HomeView: View {
     /// Guarded because 重拍 is a second door into the camera; with the feature out
     /// of 首发 range there must be no way in at all.
     private func startMealCapture(_ meal: MealType) {
-        guard PiboReleaseScope.camera else { return }
+        guard canUseDewCamera else { return }
         Analytics.track(.cameraOpen, screen: "home", ["meal": .string(meal.rawValue)])
         cameraInitialMeal = meal
         showCamera = true
     }
 
     private func handlePhotoSaved(_ image: UIImage?, _ subjectLabel: String?, meal: MealType? = nil) {
-        // 拍照 = 认知能量. Nudge the head 毛 + let Pibo react (spec §4.3).
         LPLog.cutout.notice("photo saved → post-processing (hasImage=\(image != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public) meal=\(meal?.rawValue ?? "—", privacy: .public))")
         cameraInitialMeal = nil
-        stageCommands.playEnergyGain()
         Analytics.track(.photoSaved, screen: "camera",
                         ["meal": .string(meal?.rawValue ?? "none"),
                          "has_subject": .bool(subjectLabel != nil)])
-        if meal == nil, Bool.random() {
-            show(PiboSpeechLine(text: PiboCameraView.genericComments.randomElement() ?? "...颜色...记..."))
-        }
         guard let image else {
             LPLog.cutout.info("no captured image (placeholder device) — skipping 抠图/persist")
             return
@@ -946,15 +1148,13 @@ struct HomeView: View {
 
     // MARK: 地图涂鸦 (walk doodle — see Features/WalkDoodle)
 
-    /// Walk doodle saved (运动能量) — persist it for the 足迹涂鸦 history card,
-    /// nudge the head 毛, and let Pibo grumble a line (spec §3.4 energy lineage).
+    /// Walk Doodle is a saved route and authored reaction, never a `bo` source.
     private func handleDoodleSaved(_ result: WalkDoodleResult) {
         Analytics.track(.walkDoodleSaved, screen: "walk_doodle",
                         ["distance_m": .int(Int(result.distanceMeters)),
                          "area_m2": .int(Int(result.areaSquareMeters)),
                          "duration_s": .int(Int(result.duration))])
         history.addWalkDoodle(result)
-        stageCommands.playEnergyGain()
         if let line = piboSpeech.resolve(
             cues: [
                 .walkCompleted(
@@ -970,30 +1170,6 @@ struct HomeView: View {
     }
 
     // MARK: Speech plumbing
-
-    /// Adds a directly observed HealthKit fact to ordinary pat speech. This is
-    /// presentation-only: Core still decides whether Pibo speaks and which line
-    /// it uses; no activity threshold or state rule is duplicated here.
-    private func patLineWithData(_ line: PiboSpeechLine) -> PiboSpeechLine {
-        guard line.source == .pibo, line.mood == .normal, !line.isStoryClue else {
-            return line
-        }
-        var presented = line
-        if store.hasStepsData, store.rawSteps > 0 {
-            presented.data = PiboSpeechData(
-                prefix: AppLocalization.text("你今天走了 "),
-                value: AppLocalization.format("%d 步", store.rawSteps),
-                suffix: AppLocalization.text("。")
-            )
-        } else if store.rawSleepHours > 0 {
-            presented.data = PiboSpeechData(
-                prefix: AppLocalization.text("你昨晚睡了 "),
-                value: String(format: "%.1f %@", store.rawSleepHours, AppLocalization.text("小时")),
-                suffix: AppLocalization.text("。")
-            )
-        }
-        return presented
-    }
 
     private func dismissSpeech() {
         speechClear?.cancel()
@@ -1037,6 +1213,7 @@ struct HomeView: View {
 
     private func speakForWeather(trigger: PiboSpeechTrigger) {
         guard !stagePaused,
+              idleSpeechContext != nil,
               let weather = PiboSpeechWeather(rawValue: weather.condition.rawValue),
               let line = piboSpeech.resolve(
                 cues: [.weather(weather)],
@@ -1054,9 +1231,12 @@ struct HomeView: View {
             if speech == nil,
                sproutPhase == .idle,
                !stagePaused,
-               let line = piboSpeech.resolve(
-                cues: [.idle(activity: store.activityState.rawValue)],
-                context: .home(trigger: .idle)
+               let context = idleSpeechContext,
+               let line = piboSpeech.resolveIdle(
+                context: context,
+                storyStage: storySpeechStage,
+                facts: homeSpeechFacts,
+                values: homeSpeechValues
                ) {
                 show(line)
             }
@@ -1109,7 +1289,7 @@ struct HomeView: View {
         let sleepReference = PiboCoreAnimationAdapter.sleepReference(history: Array(sleepHistory))
         let baseline = store.stressBaseline
         let z = store.rmssd.flatMap { value in baseline.map { $0.z(for: value) } } ?? 0
-        let rmssdAge = store.rmssdMeasuredAt.map { max(0, now.timeIntervalSince($0)) }
+        let rmssdAge = store.rmssdMeasuredAt.map { now.timeIntervalSince($0) }
             ?? .greatestFiniteMagnitude
         let components = calendar.dateComponents([.year, .month, .day], from: now)
         let dayKey = Int64((components.year ?? 0) * 10_000 + (components.month ?? 0) * 100 + (components.day ?? 0))
@@ -1122,10 +1302,12 @@ struct HomeView: View {
             hasActivityData: store.hasStepsData,
             steps: store.rawSteps,
             hasWorkoutToday: store.hasWorkoutToday,
-            postPluckSleep: store.pluckSleepUntil.map { $0 > now } ?? false,
+            postPluckSleep: false,
             sleepDayKey: dayKey,
             angryActive: experience.angryActive(at: now),
-            hasEligibleRMSSD: store.rmssd != nil && baseline != nil,
+            hasEligibleRMSSD: store.rmssd != nil
+                && store.rmssdInterpretationEligible
+                && baseline != nil,
             stressBaselineDays: baseline?.dayCount ?? 0,
             stressZ: z,
             rmssdAgeSeconds: rmssdAge,
@@ -1231,12 +1413,12 @@ struct HomeView: View {
     private func animationPatLine(_ contentID: String, angry: Bool) -> PiboSpeechLine? {
         switch contentID {
         case "animation.sleep.pat":
-            .system(AppLocalization.text("Pibo 设置了请勿打扰"))
+            .system(AppLocalization.narrative("home.sleep.pat"))
         case "animation.awake.pat":
-            PiboSpeechLine(text: AppLocalization.text("我刚醒。让我再待一会儿。"),
+            PiboSpeechLine(text: AppLocalization.narrative("home.awake.pat"),
                            mood: angry ? .angry : .normal)
         case "animation.angry.enter":
-            PiboSpeechLine(text: AppLocalization.text("三次了。我需要安静一会儿。"),
+            PiboSpeechLine(text: AppLocalization.narrative("home.angry.enter"),
                            mood: angry ? .angry : .normal)
         default:
             nil
@@ -1245,6 +1427,7 @@ struct HomeView: View {
 
     private func presentMorningSleepIfPossible() {
         guard scenePhase == .active,
+              ornamentUnlocks.grants(.sleepReview),
               activeSheet == nil,
               !fullScreenFeaturePresented,
               sproutPhase == .idle,
@@ -1253,7 +1436,7 @@ struct HomeView: View {
               // night" after midnight, nor consume the wrong wake-day.
               let presentation = morningSleep.consumablePresentation()
         else { return }
-        activeSheet = .morningSleep(presentation)
+        activeSheet = .morningSleep(presentation, consumesPending: true)
     }
 
     /// Resume whatever the just-dismissed modal was covering. The sleep card
@@ -1265,19 +1448,25 @@ struct HomeView: View {
         guard activeSheet == nil else { return }
         presentMorningSleepIfPossible()
         presentStressCardIfPossible()
+        if activeSheet == nil { announceFirstRipeBoIfNeeded() }
     }
 
     /// 首枚 `bo` 长熟时讲一次规则，之后再不打扰。
     ///
-    /// 「熟了就能拔，拔不拔随你，但不拔就不会长新的」这条规则用户不可能自己猜到，
-    /// 所以必须讲一次；讲完就闭嘴 —— 每天催一遍就变成了决定 027 明确不要的那种
-    /// 施压。同一个一次性标志位同时把守气泡和通知。
+    /// 只说明首次形成事实；成熟物不会过期，也不会冻结后续积累。
     private func announceFirstRipeBoIfNeeded() {
         let key = PiboPersistenceKeys.Defaults.boFirstRipeNotified
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        guard boLedger.hasRipeBo,
+              !UserDefaults.standard.bool(forKey: key),
+              scenePhase == .active,
+              !stagePaused,
+              sproutPhase == .idle,
+              speech == nil,
+              idleSpeechContext != nil
+        else { return }
         UserDefaults.standard.set(true, forKey: key)
 
-        show(PiboSpeechLine(text: AppLocalization.text("...长好了...要收就收...不收...就不长新的...")))
+        show(PiboSpeechLine(text: AppLocalization.narrative("home.bo.firstRipe")))
         Task { await WorkoutCompletionNotifier.shared.notifyFirstBoRipened() }
     }
 
@@ -1315,12 +1504,12 @@ struct HomeView: View {
         // 重置也要清账本和已解锁物件，否则「重置」之后左上角还挂着上一轮的余额，
         // 森林里还挂着上一轮换来的灯。起始日重新以今天起算。
         boLedger.reset()
+        onboarding.reset()
         ornamentUnlocks.reset()
         ornamentLights.reset()
         UserDefaults.standard.removeObject(
             forKey: PiboPersistenceKeys.Defaults.boFirstRipeNotified
         )
-        onboardingDone = false
     }
 
 #if DEBUG
@@ -1363,16 +1552,26 @@ struct HomeView: View {
 
 private enum HomeSheetDestination: Equatable, Identifiable {
     case meal(MealType)
-    case morningSleep(MorningSleepPresentation)
+    case morningSleep(MorningSleepPresentation, consumesPending: Bool)
+    case commonItemStatus(CommonItemStatusModel)
     case achievement(PiboAnimationAchievementPayload)
 
     var id: String {
         switch self {
         case .meal(let meal): "meal-\(meal.rawValue)"
-        case .morningSleep(let presentation): "morning-sleep-\(presentation.id)"
+        case .morningSleep(let presentation, let consumesPending):
+            "morning-sleep-\(presentation.id)-\(consumesPending ? "wake" : "hammock")"
+        case .commonItemStatus(let model): "common-item-status-\(model.ornamentID.rawValue)"
         case .achievement(let payload): "animation-achievement-\(payload.id)"
         }
     }
+}
+
+private struct CommonItemStatusModel: Equatable {
+    let ornamentID: PiboOrnament.ID
+    let title: String
+    let status: String
+    let message: String
 }
 
 private struct AnimationRefreshToken: Equatable {

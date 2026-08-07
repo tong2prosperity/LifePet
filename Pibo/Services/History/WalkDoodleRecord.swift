@@ -50,8 +50,8 @@ struct WalkDoodleResult: Sendable, Equatable {
     }
 }
 
-/// A walk doodle the user traced by walking — Pibo's "用脚画一幅画 / 圈一块花田"
-/// task (home spec lineage: 运动能量). Persisted per day so completed doodles land
+/// A walk doodle the user traced by walking — Pibo's "用脚画一幅画" task.
+/// Persisted per day so completed doodles land
 /// on the 历史数据页's 足迹涂鸦 card, and so future builds can compare 完成度 /
 /// 比拼面积 across days. Only the GPS points are stored; the stroke is re-rendered
 /// from them by `WalkDoodleShape`.

@@ -12,13 +12,13 @@ enum StressAlertKind: Sendable {
     /// Reached 优秀 — the best tier, worth a small congratulation.
     case excellent
 
-    /// Body copy. Tone: 傲娇不卖惨 (per Pibo spec). Elevated defers to the
-    /// per-tier copy on `StressLevel`.
+    /// Body copy reports only the measured HRV tier. It does not infer emotion
+    /// or imply that the user's reading changes Pibo's physical condition.
     func body(for level: StressLevel) -> String {
         switch self {
         case .elevated:  return level.notificationBody
-        case .recovered: return "花缓过来一点了……这次先不追究你。"
-        case .excellent: return "心跳稳稳的，花也精神……算你今天没白活。"
+        case .recovered: return "stress.notification.recovered"
+        case .excellent: return "stress.notification.excellent"
         }
     }
 }
@@ -54,10 +54,11 @@ final class StressNotifier {
         didSet { UserDefaults.standard.set(pushEnabled, forKey: Self.enabledKey) }
     }
 
-    /// Diagnostic mode: fire a notification on **every** HRV computation (not
-    /// just tier transitions), carrying the raw RMSSD + tier. Bypasses all the
-    /// throttle/quiet-hours logic — noisy by design, meant for verifying "每次
-    /// 都在算". Sits *under* `pushEnabled` (that's still the master switch).
+    /// Report the result of **every** HRV computation (not just tier
+    /// transitions), carrying the reading + tier. Bypasses the throttle/quiet-hours
+    /// logic — frequent by design, for a user who wants to see that the
+    /// measurement is actually running. Sits *under* `pushEnabled` (that's still
+    /// the master switch). Exposed in production settings; default off.
     var notifyEveryReading: Bool {
         didSet { UserDefaults.standard.set(notifyEveryReading, forKey: Self.everyKey) }
     }
@@ -172,7 +173,7 @@ final class StressNotifier {
         横幅: \(banner) · 声音: \(sound)
         当前静默时段(\(PiboCoreStressAdapter.alertQuietStartHour)–\(PiboCoreStressAdapter.alertQuietEndHour)): \(quiet ? "是（智能模式此刻不推）" : "否")
         总开关 高压力提醒: \(pushEnabled ? "开" : "关")
-        每次测量都提醒: \(notifyEveryReading ? "开" : "关")
+        HRV 测量提醒: \(notifyEveryReading ? "开" : "关")
         上次已通知档位: \(lastLevel)
         """
     }
@@ -198,44 +199,22 @@ final class StressNotifier {
         }
     }
 
-    /// Diagnostic push: fire on every reading with the raw RMSSD + tier, no
-    /// throttle, no quiet hours, no ratchet updates (kept independent of the
-    /// smart-notify state so toggling the mode off resumes clean transitions).
-    private func notifyEvery(level: StressLevel, rmssd: Double) async -> Bool {
-        guard !isNotifying else { return false }
-        isNotifying = true
-        defer { isNotifying = false }
-
-        await refreshAuthState()
-        guard authorized else { return false }
-
-        let content = UNMutableNotificationContent()
-        content.title = AppLocalization.text("压力测量")
-        content.body = AppLocalization.format("%@ · RMSSD %d ms",
-                                              AppLocalization.text(level.displayName),
-                                              Int(rmssd.rounded()))
-        content.sound = .default
-        content.categoryIdentifier = AppNotificationCategory.stress
-        let request = UNNotificationRequest(
-            identifier: "pibo.stress.\(UUID().uuidString)",
-            content: content,
-            trigger: nil)
-        do {
-            try await UNUserNotificationCenter.current().add(request)
-            LPLog.app.notice("stress verbose push level=\(level.displayName, privacy: .public) rmssd=\(rmssd, privacy: .public)")
-            return true
-        } catch {
-            LPLog.app.error("stress verbose push add threw: \(error.localizedDescription, privacy: .public)")
-            return false
-        }
-    }
-
-    /// Diagnostic push for a window that **was** measured but failed the quality
-    /// gates, so it produced no RMSSD. Only fires in the every-reading mode, whose
-    /// contract is "每次测量都提醒" — going silent on a rejected window would read
-    /// as "没在算", which is the one conclusion that mode exists to rule out.
-    @discardableResult
-    func notifySkippedReading() async -> Bool {
+    /// Per-measurement readout: fires on every reading, no throttle, no quiet
+    /// hours, no ratchet updates (kept independent of the smart-notify state so
+    /// toggling the mode off resumes clean transitions).
+    ///
+    /// Pibo reports the number itself rather than the system doing it. Measuring,
+    /// naming and recording is its characterised behaviour (narrative-rebuild
+    /// 005), and every other notification this app sends is Pibo speaking — a
+    /// system-voice readout would be the one foreign register on the surface, and
+    /// would read as a debug artifact.
+    ///
+    /// The metric is surfaced as **HRV**, never as RMSSD: RMSSD is the algorithm
+    /// we happen to compute (`HRVAnalysis`), not a word the user has to carry.
+    /// It is deliberately *not* qualified as "≠ Apple 健康的 HRV" here — that
+    /// caveat belongs on the 压力卡, where there is room for it; a notification
+    /// body that explains its own metric has already lost the reader.
+    func notifyMeasurement(level: StressLevel?, rmssd: Double) async -> Bool {
         guard pushEnabled, notifyEveryReading else { return false }
         guard !isNotifying else { return false }
         isNotifying = true
@@ -245,8 +224,12 @@ final class StressNotifier {
         guard authorized else { return false }
 
         let content = UNMutableNotificationContent()
-        content.title = AppLocalization.text("压力测量")
-        content.body = AppLocalization.text("测到了，但这段心跳噪声太多，这次不作数。")
+        content.title = AppLocalization.text("Pibo")
+        let result = level.map { AppLocalization.text($0.displayName) }
+            ?? AppLocalization.text("仅记录")
+        content.body = AppLocalization.format("stress.measurement.body",
+                                              Int(rmssd.rounded()),
+                                              result)
         content.sound = .default
         content.categoryIdentifier = AppNotificationCategory.stress
         let request = UNNotificationRequest(
@@ -255,10 +238,10 @@ final class StressNotifier {
             trigger: nil)
         do {
             try await UNUserNotificationCenter.current().add(request)
-            LPLog.app.notice("stress verbose push: series rejected")
+            LPLog.app.notice("stress verbose push level=\(level?.displayName ?? "record-only", privacy: .public) rmssd=\(rmssd, privacy: .public)")
             return true
         } catch {
-            LPLog.app.error("stress skipped push add threw: \(error.localizedDescription, privacy: .public)")
+            LPLog.app.error("stress verbose push add threw: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }
@@ -272,7 +255,7 @@ final class StressNotifier {
         guard pushEnabled else { return false }
         // Diagnostic mode: every reading pushes, no throttle. Short-circuits the
         // whole transition/quiet-hours machine below.
-        if notifyEveryReading { return await notifyEvery(level: level, rmssd: rmssd) }
+        if notifyEveryReading { return await notifyMeasurement(level: level, rmssd: rmssd) }
         guard !isNotifying else { return false }
 
         // `lastLevelKey` tracks the last *alerted* tier — the anchor for both
@@ -283,11 +266,20 @@ final class StressNotifier {
         let hour = Calendar.current.component(.hour, from: Date())
         let now = Date()
         let lastAt = Self.defaults.object(forKey: Self.lastAtKey) as? Date
+        let secondsSinceLastAlert = lastAt.flatMap { value -> TimeInterval? in
+            let elapsed = now.timeIntervalSince(value)
+            return elapsed.isFinite && elapsed >= 0 ? elapsed : nil
+        }
+        if lastAt != nil, secondsSinceLastAlert == nil {
+            // A clock rollback or damaged future write must not suppress smart
+            // notifications until the wall clock catches up.
+            Self.defaults.removeObject(forKey: Self.lastAtKey)
+        }
         guard let kind = PiboCoreStressAdapter.alertKind(
             level: level,
             previousAlertedLevel: prev,
             localHour: Double(hour),
-            secondsSinceLastAlert: lastAt.map { now.timeIntervalSince($0) }
+            secondsSinceLastAlert: secondsSinceLastAlert
         ) else { return false }
 
         isNotifying = true

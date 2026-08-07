@@ -270,6 +270,14 @@ struct ForestLayoutMapper {
         CGSize(width: designSize.width * scale, height: designSize.height * scale)
     }
 
+    /// Converts a top-left design rect into SpriteKit's bottom-left scene space.
+    func rect(_ designRect: CGRect) -> CGRect {
+        CGRect(
+            origin: point(CGPoint(x: designRect.minX, y: designRect.maxY)),
+            size: size(designRect.size)
+        )
+    }
+
     func designPoint(_ scenePoint: CGPoint) -> CGPoint {
         CGPoint(
             x: (scenePoint.x - origin.x) / scale,

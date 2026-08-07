@@ -9,6 +9,7 @@ import UserNotifications
 private final class FakeNotificationCenter: MorningSleepNotificationScheduling {
     var authorizationStatus: UNAuthorizationStatus = .authorized
     private(set) var pending: [UNNotificationRequest] = []
+    var delivered: [String] = []
     private(set) var removedDelivered: [String] = []
 
     var pendingFireDelays: [TimeInterval] {
@@ -20,6 +21,8 @@ private final class FakeNotificationCenter: MorningSleepNotificationScheduling {
     func morningAuthorizationStatus() async -> UNAuthorizationStatus { authorizationStatus }
 
     func morningPendingIdentifiers() async -> [String] { pending.map(\.identifier) }
+
+    func morningDeliveredIdentifiers() async -> [String] { delivered }
 
     func morningAdd(_ request: UNNotificationRequest) async throws {
         pending.removeAll { $0.identifier == request.identifier }
@@ -272,5 +275,60 @@ struct MorningSleepCoordinatorTests {
             hasTerminalAwakeSignal: false
         ))
         #expect(defaults.data(forKey: "pibo.sleep.morning.baseline.v1") != nil)
+    }
+
+    @Test func lockedHammockStillArchivesRawSleepWithoutUIOrNotification() async {
+        let notifications = FakeNotificationCenter()
+        let (coordinator, defaults) = makeCoordinator(notifications: notifications)
+        coordinator.configureCapabilities(sleepReview: { false }, wakeNotification: { false })
+        coordinator.setAppActive(false)
+        coordinator.debugLocalHourOverride = 8
+
+        let summary = nightSummary(end: .now.addingTimeInterval(-40 * 60))
+        await coordinator.receive(summary)
+
+        #expect(coordinator.latestSummary?.wakeDayKey == summary.wakeDayKey)
+        #expect(coordinator.pendingPresentation == nil)
+        #expect(coordinator.latestReviewPresentation() == nil)
+        #expect(notifications.pending.isEmpty)
+        #expect(defaults.data(forKey: "pibo.sleep.morning.summaries.v2") != nil)
+    }
+
+    @Test func lockingHammockRemovesNotificationsScheduledByOlderBuilds() async {
+        let notifications = FakeNotificationCenter()
+        let (coordinator, _) = makeCoordinator(notifications: notifications)
+        try? await notifications.morningAdd(UNNotificationRequest(
+            identifier: "pibo.sleep.legacy-pending",
+            content: UNMutableNotificationContent(),
+            trigger: nil
+        ))
+        try? await notifications.morningAdd(UNNotificationRequest(
+            identifier: "unrelated.notification",
+            content: UNMutableNotificationContent(),
+            trigger: nil
+        ))
+        notifications.delivered = ["pibo.sleep.legacy-delivered", "unrelated.delivered"]
+
+        coordinator.configureCapabilities(sleepReview: { false }, wakeNotification: { false })
+        for _ in 0..<5 { await Task.yield() }
+
+        #expect(notifications.pending.map(\.identifier) == ["unrelated.notification"])
+        #expect(notifications.removedDelivered.contains("pibo.sleep.legacy-delivered"))
+        #expect(!notifications.removedDelivered.contains("unrelated.delivered"))
+    }
+
+    @Test func deniedNotificationsDoNotBlockUnlockedInAppReview() async {
+        let notifications = FakeNotificationCenter()
+        notifications.authorizationStatus = .denied
+        let (coordinator, _) = makeCoordinator(notifications: notifications)
+        coordinator.configureCapabilities(sleepReview: { true }, wakeNotification: { true })
+        coordinator.setAppActive(true)
+        coordinator.debugLocalHourOverride = 8
+
+        await coordinator.receive(nightSummary(end: .now))
+
+        #expect(coordinator.consumablePresentation() != nil)
+        #expect(coordinator.latestReviewPresentation() != nil)
+        #expect(notifications.pending.isEmpty)
     }
 }

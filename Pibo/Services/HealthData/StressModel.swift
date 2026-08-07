@@ -40,21 +40,22 @@ enum StressLevel: Int, CaseIterable, Sendable {
         }
     }
 
-    /// In-card one-liner. Tone: 傲娇不卖惨 (per Pibo spec).
+    /// In-card explanation stays with the measured signal. One HRV reading is
+    /// not enough to infer the user's emotions or make Pibo physically suffer.
     var caption: String {
         switch self {
-        case .excellent: return "心跳稳稳的，花也精神……算你今天还行。"
-        case .normal:    return "还行吧，别得意。"
-        case .notice:    return "心跳有点乱……花好像也蔫了一点。"
-        case .overload:  return "别撑了，你这样花会谢的……才不是我担心。"
+        case .excellent: return "stress.caption.excellent"
+        case .normal:    return "stress.caption.normal"
+        case .notice:    return "stress.caption.notice"
+        case .overload:  return "stress.caption.overload"
         }
     }
 
     /// Push body copy (注意 / 超载 only fire).
     var notificationBody: String {
         switch self {
-        case .notice:   return "花有点蔫了……歇会儿。才不是我在乎你。"
-        case .overload: return "你再这样花就要谢了，喘口气去。"
+        case .notice:   return "stress.notification.notice"
+        case .overload: return "stress.notification.overload"
         default:        return ""
         }
     }
@@ -62,15 +63,40 @@ enum StressLevel: Int, CaseIterable, Sendable {
 
 enum StressModel {
     /// Classify current stress from RMSSD against the wearer's personal baseline
-    /// via the unified `StressScore.anchor` (z-score once enough days accumulate,
-    /// population thresholds before that), then nudge one tier toward stress when
-    /// resting HR runs high. Lower RMSSD = more stress.
-    static func level(rmssd: Double, baseline: StressBaseline?, restingHR: Double) -> StressLevel {
+    /// via the unified `StressScore.anchor`. Before seven eligible natural days,
+    /// no tier is returned. Once ready, resting HR may nudge the personal tier
+    /// toward stress. Lower RMSSD = more stress.
+    static func level(rmssd: Double, baseline: StressBaseline?, restingHR: Double) -> StressLevel? {
         PiboCoreStressAdapter.level(
             rmssd: rmssd,
             baseline: baseline,
             restingHR: restingHR
         )
+    }
+}
+
+/// Platform timestamp checks around the shared Core freshness window. A future
+/// timestamp is invalid acquisition metadata, not a zero-age measurement: it
+/// may remain visible in the log, but it cannot be classified or notified even
+/// when the diagnostic every-reading mode is enabled.
+enum StressSampleTiming {
+    static func age(measuredAt: Date, now: Date = Date()) -> TimeInterval? {
+        let value = now.timeIntervalSince(measuredAt)
+        return value.isFinite && value >= 0 ? value : nil
+    }
+
+    static func isFresh(measuredAt: Date, now: Date = Date()) -> Bool {
+        guard let age = age(measuredAt: measuredAt, now: now) else { return false }
+        return age <= DerivedStressModel.maxAnchorAge
+    }
+
+    static func shouldAttemptNotification(
+        measuredAt: Date,
+        now: Date = Date(),
+        everyReading: Bool
+    ) -> Bool {
+        guard age(measuredAt: measuredAt, now: now) != nil else { return false }
+        return everyReading || isFresh(measuredAt: measuredAt, now: now)
     }
 }
 
@@ -136,7 +162,9 @@ enum StressHysteresis {
 /// self-inclusion bias. Only **resting** readings enter — active-time HRV is
 /// naturally low and would poison the baseline.
 enum StressBaselineStore {
-    /// **v4 = the adaptive artifact threshold** (see `HRVAnalysis.artifactThreshold`).
+    /// **v5 = Lipponen–Tarvainen corrected NN-RMSSD.** This version had not
+    /// shipped before the algorithm was finalized, so v5 can keep its name while
+    /// restarting every older baseline.
     ///
     /// The keys are versioned alongside the RMSSD algorithm and old values are
     /// *not* migrated. A baseline is only meaningful against readings produced the
@@ -149,26 +177,41 @@ enum StressBaselineStore {
     ///   one such beat can nearly double a quiet wearer's RMSSD — so v3 ran
     ///   sporadically **high**. Scoring a v4 reading against it is the same error
     ///   mirrored: a permanent apparent *drop*, i.e. weeks parked at 注意/超载.
+    /// - v4 applied an earlier adaptive artifact filter. Corrected v5 readings
+    ///   are not comparable to those medians, so the personal baseline restarts.
     ///
-    /// Dropping the history costs `coldStartDays` (7) on population thresholds,
-    /// then a linear blend back to fully personal by day 14. That's the honest
-    /// trade; rescaling the old medians would need a conversion factor we have no
-    /// way to know — the inflation depended on how many artifacts each window
-    /// happened to contain.
-    private static let todayKey = "pibo.stress.today.v4"
-    private static let dailyKey = "pibo.stress.daily.v4"
+    /// Until seven eligible natural days exist, readings remain visible but do
+    /// not receive a stress tier. Rescaling old medians would need a conversion
+    /// factor we cannot know for each historical window.
+    private static let todayKey = "pibo.stress.today.v5"
+    private static let dailyKey = "pibo.stress.daily.v5"
+    private static let historicalReadingsKey = "pibo.stress.historical.v5"
     private static let legacyKeys = [
         "pibo.stress.rmssd.window.v1",
         "pibo.stress.today.v2",
         "pibo.stress.daily.v2",
         "pibo.stress.today.v3",
         "pibo.stress.daily.v3",
+        "pibo.stress.today.v4",
+        "pibo.stress.daily.v4",
     ]
     /// Keep ~two months of daily medians.
     private static let maxDays = 60
+    private static let maxHistoricalReadings = 512
 
-    private struct TodayBucket: Codable { var dayStart: Date; var values: [Double] }
+    private struct TodayBucket: Codable {
+        var dayStart: Date
+        var values: [Double]
+        /// Series already folded into this open day. Optional keeps decoding
+        /// buckets written before series-level idempotency was added.
+        var seriesIDs: [UUID]?
+    }
     private struct DailyValue: Codable { var date: Date; var median: Double }
+    private struct HistoricalReading: Codable {
+        var seriesID: UUID
+        var date: Date
+        var rmssd: Double
+    }
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: PiboWidgetConstants.appGroupID) ?? .standard
@@ -178,29 +221,119 @@ enum StressBaselineStore {
     /// (computed from *past* days — this reading's day is still open). Non-resting
     /// readings are ignored for the baseline (they still get logged for display).
     @discardableResult
-    static func record(rmssd: Double, isResting: Bool, date: Date = Date()) -> StressBaseline? {
-        guard rmssd > 0, isResting else { return baseline }
+    static func record(
+        rmssd: Double,
+        isEligible: Bool,
+        date: Date = Date(),
+        now: Date = Date(),
+        seriesID: UUID? = nil
+    ) -> StressBaseline? {
+        guard rmssd.isFinite, rmssd > 0, isEligible,
+              date.timeIntervalSinceReferenceDate.isFinite,
+              now.timeIntervalSinceReferenceDate.isFinite,
+              date <= now
+        else { return baseline(at: now) }
+        let currentDayStart = Calendar.current.startOfDay(for: now)
         let dayStart = Calendar.current.startOfDay(for: date)
-        // Drop readings dated **before today**. `latestSample` returns the newest
-        // series across all time, so a cold-launch / background catch-up can carry
-        // last night's series with yesterday's date. Letting it in would either
-        // prematurely finalize today's in-progress bucket or inject a single-sample
-        // historical day — both skew σ. Baseline aggregates fresh, same-day data.
-        guard dayStart >= Calendar.current.startOfDay(for: Date()) else { return baseline }
+        // Only a sample genuinely measured today may update today's open bucket.
+        // Stale catch-up samples and future-dated/corrupt samples remain visible
+        // in the log but cannot manufacture or prematurely finalize baseline days.
+        guard dayStart == currentDayStart else { return baseline(at: now) }
         var bucket = loadToday()
         if let existing = bucket, existing.dayStart != dayStart {
-            // Genuine day rollover (bucket is a full previous day) — finalize it.
-            finalize(existing)
+            // Finalize only a genuine forward rollover. A persisted future bucket
+            // (for example after a clock rollback) is discarded, never promoted
+            // into the daily reference window.
+            if existing.dayStart < dayStart { finalize(existing) }
             bucket = nil
         }
-        var today = bucket ?? TodayBucket(dayStart: dayStart, values: [])
+        var today = bucket ?? TodayBucket(dayStart: dayStart, values: [], seriesIDs: [])
+        if let seriesID, today.seriesIDs?.contains(seriesID) == true {
+            return baseline(at: now)
+        }
         today.values.append(rmssd)
+        if let seriesID {
+            var ids = today.seriesIDs ?? []
+            ids.append(seriesID)
+            today.seriesIDs = ids
+        }
         saveToday(today)
-        return baseline
+        return baseline(at: now)
     }
 
     /// Personal baseline over the finalized daily medians (excludes today).
-    static var baseline: StressBaseline? { stats(of: loadDaily()) }
+    static var baseline: StressBaseline? { baseline(at: Date()) }
+
+    /// Merge eligible past HealthKit series into their natural-day medians.
+    /// Raw values retain the immutable series UUID, making retries idempotent and
+    /// allowing a later coalesced delivery to recompute the real median instead
+    /// of taking a statistically incorrect "median of medians".
+    @discardableResult
+    static func backfill(
+        _ readings: [(seriesID: UUID, rmssd: Double, date: Date)],
+        now: Date = Date()
+    ) -> StressBaseline? {
+        guard now.timeIntervalSinceReferenceDate.isFinite else { return nil }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let cutoff = calendar.date(byAdding: .day, value: -maxDays, to: today) ?? .distantPast
+        let valid = readings.filter {
+            $0.rmssd.isFinite && $0.rmssd > 0
+                && $0.date.timeIntervalSinceReferenceDate.isFinite
+                && $0.date >= cutoff
+                && $0.date < today
+        }
+        guard !valid.isEmpty else { return baseline(at: now) }
+
+        var historical = loadHistoricalReadings().filter {
+            $0.date >= cutoff && $0.date < today && $0.rmssd.isFinite && $0.rmssd > 0
+        }
+        for reading in valid {
+            historical.removeAll { $0.seriesID == reading.seriesID }
+            historical.append(HistoricalReading(
+                seriesID: reading.seriesID,
+                date: reading.date,
+                rmssd: reading.rmssd
+            ))
+        }
+        historical.sort { $0.date < $1.date }
+        if historical.count > maxHistoricalReadings {
+            historical.removeFirst(historical.count - maxHistoricalReadings)
+        }
+        saveHistoricalReadings(historical)
+
+        let affectedDays = Set(valid.map { calendar.startOfDay(for: $0.date) })
+        var daily = loadDaily().filter { !affectedDays.contains($0.date) }
+        for day in affectedDays {
+            let values = historical.compactMap { reading -> Double? in
+                calendar.startOfDay(for: reading.date) == day ? reading.rmssd : nil
+            }
+            let value = median(values)
+            if value > 0 { daily.append(DailyValue(date: day, median: value)) }
+        }
+        daily.sort { $0.date < $1.date }
+        if daily.count > maxDays { daily.removeFirst(daily.count - maxDays) }
+        saveDaily(daily)
+        return baseline(at: now)
+    }
+
+    private static func baseline(at now: Date) -> StressBaseline? {
+        guard now.timeIntervalSinceReferenceDate.isFinite else { return nil }
+        let today = Calendar.current.startOfDay(for: now)
+        if let bucket = loadToday(),
+           (!bucket.dayStart.timeIntervalSinceReferenceDate.isFinite || bucket.dayStart > today) {
+            defaults.removeObject(forKey: todayKey)
+        }
+        let storedDays = loadDaily()
+        let validPastDays = storedDays.filter {
+            $0.date.timeIntervalSinceReferenceDate.isFinite
+                && $0.date < today
+                && $0.median.isFinite
+                && $0.median > 0
+        }
+        if validPastDays.count != storedDays.count { saveDaily(validPastDays) }
+        return stats(of: validPastDays)
+    }
 
     /// That day's median resting RMSSD, if it has been finalized. This is the
     /// only per-day RMSSD the app keeps — `HealthDayRecord` persists Apple's
@@ -216,6 +349,7 @@ enum StressBaselineStore {
     static func reset() {
         defaults.removeObject(forKey: todayKey)
         defaults.removeObject(forKey: dailyKey)
+        defaults.removeObject(forKey: historicalReadingsKey)
         legacyKeys.forEach { defaults.removeObject(forKey: $0) }
     }
 
@@ -223,7 +357,8 @@ enum StressBaselineStore {
 
     private static func finalize(_ bucket: TodayBucket) {
         let m = median(bucket.values)
-        guard m > 0 else { return }
+        guard bucket.dayStart.timeIntervalSinceReferenceDate.isFinite,
+              m.isFinite, m > 0 else { return }
         var daily = loadDaily().filter { $0.date != bucket.dayStart }
         daily.append(DailyValue(date: bucket.dayStart, median: m))
         daily.sort { $0.date < $1.date }
@@ -238,7 +373,7 @@ enum StressBaselineStore {
     }
 
     private static func median(_ xs: [Double]) -> Double {
-        let s = xs.sorted()
+        let s = xs.filter { $0.isFinite && $0 > 0 }.sorted()
         guard !s.isEmpty else { return 0 }
         let mid = s.count / 2
         return s.count % 2 == 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid]
@@ -263,6 +398,16 @@ enum StressBaselineStore {
     private static func saveDaily(_ list: [DailyValue]) {
         guard let data = try? JSONEncoder().encode(list) else { return }
         defaults.set(data, forKey: dailyKey)
+    }
+    private static func loadHistoricalReadings() -> [HistoricalReading] {
+        guard let data = defaults.data(forKey: historicalReadingsKey),
+              let decoded = try? JSONDecoder().decode([HistoricalReading].self, from: data)
+        else { return [] }
+        return decoded
+    }
+    private static func saveHistoricalReadings(_ list: [HistoricalReading]) {
+        guard let data = try? JSONEncoder().encode(list) else { return }
+        defaults.set(data, forKey: historicalReadingsKey)
     }
 
     #if DEBUG

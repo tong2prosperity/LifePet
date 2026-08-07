@@ -21,6 +21,7 @@ final class WalkDoodleSession {
 
     private(set) var phase: Phase = .idle
     private(set) var authStatus: CLAuthorizationStatus
+    private(set) var accuracyAuthorization: CLAccuracyAuthorization
     /// Accepted points, in capture order — bound straight to the map's `MapPolyline`.
     private(set) var coordinates: [CLLocationCoordinate2D] = []
     private(set) var distanceMeters: Double = 0
@@ -60,6 +61,7 @@ final class WalkDoodleSession {
 
     init() {
         authStatus = manager.authorizationStatus
+        accuracyAuthorization = manager.accuracyAuthorization
         manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
         manager.activityType = .fitness
         manager.distanceFilter = Self.minPointSpacing
@@ -67,7 +69,10 @@ final class WalkDoodleSession {
         // recording in the background.
         manager.pausesLocationUpdatesAutomatically = false
         manager.showsBackgroundLocationIndicator = true
-        delegate.onAuth = { [weak self] status in self?.authStatus = status }
+        delegate.onAuth = { [weak self] status, accuracy in
+            self?.authStatus = status
+            self?.accuracyAuthorization = accuracy
+        }
         delegate.onLocations = { [weak self] locs in self?.ingest(locs) }
         manager.delegate = delegate
     }
@@ -75,11 +80,17 @@ final class WalkDoodleSession {
     // MARK: Authorization
 
     var isAuthorized: Bool {
-        authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways
+        (authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways)
+            && accuracyAuthorization == .fullAccuracy
     }
 
     var isDenied: Bool {
         authStatus == .denied || authStatus == .restricted
+    }
+
+    var needsPreciseLocation: Bool {
+        (authStatus == .authorizedWhenInUse || authStatus == .authorizedAlways)
+            && accuracyAuthorization == .reducedAccuracy
     }
 
     func requestAuthorization() {
@@ -91,7 +102,10 @@ final class WalkDoodleSession {
 
     func start() {
         guard phase != .recording else { return }
-        if authStatus == .notDetermined { requestAuthorization() }
+        guard isAuthorized else {
+            if authStatus == .notDetermined { requestAuthorization() }
+            return
+        }
         rawLocations.removeAll(keepingCapacity: true)
         coordinates.removeAll(keepingCapacity: true)
         distanceMeters = 0
@@ -253,7 +267,8 @@ final class WalkDoodleSession {
 /// `Task { @MainActor in }`.
 private final class WalkLocationDelegate: NSObject, CLLocationManagerDelegate {
     nonisolated(unsafe) var onLocations: (@MainActor ([CLLocation]) -> Void)?
-    nonisolated(unsafe) var onAuth: (@MainActor (CLAuthorizationStatus) -> Void)?
+    nonisolated(unsafe) var onAuth:
+        (@MainActor (CLAuthorizationStatus, CLAccuracyAuthorization) -> Void)?
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         let callback = onLocations
@@ -262,7 +277,8 @@ private final class WalkLocationDelegate: NSObject, CLLocationManagerDelegate {
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
+        let accuracy = manager.accuracyAuthorization
         let callback = onAuth
-        Task { @MainActor in callback?(status) }
+        Task { @MainActor in callback?(status, accuracy) }
     }
 }

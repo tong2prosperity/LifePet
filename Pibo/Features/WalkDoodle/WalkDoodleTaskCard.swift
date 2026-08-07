@@ -2,8 +2,8 @@ import SwiftUI
 
 /// The home affordance through which Pibo "布置" the walk-doodle task (home spec
 /// lineage: Pibo 在主界面给用户布置任务). A compact card floating just above the
-/// 露珠相机 — accent doodle glyph, the 「Pibo 的任务」 label, a title, and a garbled
-/// 魔丸-voice prompt. Tapping opens `WalkDoodleView` full-screen.
+/// 餐食相机 — accent doodle glyph, the 「Pibo 的任务」 label and a procedural
+/// route prompt. Tapping opens `WalkDoodleView` full-screen.
 ///
 /// Styled as a solid white card (`bgContainer` + elevation2), like the 相机 disc,
 /// so it stays legible over any themed stage.
@@ -21,11 +21,10 @@ struct WalkDoodleTaskCard: View {
                     Text(AppLocalization.text("Pibo 的任务"))
                         .lpText(LP.Typography.c2Medium)
                         .foregroundStyle(LP.Content.tertiary)
-                    Text(AppLocalization.text("出门走一幅画 · 圈一块花田"))
+                    Text(AppLocalization.text("出门走一幅画"))
                         .lpText(LP.Typography.b3Medium)
                         .foregroundStyle(LP.Content.primary)
-                    // Garbled 魔丸 speech stays raw (not localized), like `speechPool`.
-                    Text("...用脚...画一个圈...啵")
+                    Text(AppLocalization.text("用脚画一条路线。我会记录它的形状。"))
                         .lpText(LP.Typography.c1Regular)
                         .foregroundStyle(LP.Content.tertiary)
                         .lineLimit(1)

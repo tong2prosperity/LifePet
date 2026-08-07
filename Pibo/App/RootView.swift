@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Pibo shell. First launch runs the local login UI, then the HealthKit
-/// onboarding. Both gates persist independently so neither is shown twice.
+/// Pibo shell. First launch runs the versioned six-scene local flow; account
+/// login remains available from Settings and never blocks the product.
 struct RootView: View {
-    @AppStorage(PiboPersistenceKeys.Defaults.loginFlowDone) private var loginFlowDone: Bool = false
-    @AppStorage(PiboPersistenceKeys.Defaults.onboardingDone) private var onboardingDone: Bool = false
+    @Environment(OnboardingStateStore.self) private var onboarding
+    @Environment(BoLedgerStore.self) private var boLedger
     @AppStorage(PiboPersistenceKeys.Defaults.appLanguage) private var appLanguage: String = AppLanguage.preferred.rawValue
     #if DEBUG
     @State private var showWaterLab = false
@@ -45,23 +45,20 @@ struct RootView: View {
             if debugMiniGame != nil {
                 Color.clear
                     .ignoresSafeArea()
-            } else if !loginFlowDone && !debugBypassesOnboarding {
-                LoginFlowView(onComplete: { loginFlowDone = true })
-            } else if onboardingDone || debugBypassesOnboarding {
+            } else if !onboarding.shouldPresentFirstRun || debugBypassesOnboarding {
                 HomeView()
+            } else if PiboReleaseScope.temporaryCooperationOnboarding {
+                HealthAuthView(onContinue: {})
             } else {
-                HealthAuthView(onContinue: { onboardingDone = true })
+                LegacyHealthAuthView(onContinue: completeLegacyOnboarding)
             }
             #else
-            if !loginFlowDone {
-                LoginFlowView(onComplete: { loginFlowDone = true })
-            } else if onboardingDone {
-                // No bottom tab bar: the home is the only floor; swiping the grab
-                // bar up reveals the 数据二楼 (see `HomeView`). 图鉴 / 一起 are not
-                // wired to an entry point yet — re-surface later (二楼 or a menu).
+            if !onboarding.shouldPresentFirstRun {
                 HomeView()
+            } else if PiboReleaseScope.temporaryCooperationOnboarding {
+                HealthAuthView(onContinue: {})
             } else {
-                HealthAuthView(onContinue: { onboardingDone = true })
+                LegacyHealthAuthView(onContinue: completeLegacyOnboarding)
             }
             #endif
             }
@@ -89,6 +86,12 @@ struct RootView: View {
         }
         #endif
     }
+
+    private func completeLegacyOnboarding() {
+        let completedAt = Date()
+        onboarding.completeFirstRun(at: completedAt)
+        boLedger.setEligibilityBoundary(completedAt, source: .legacyOnboarding)
+    }
 }
 
 #Preview {
@@ -97,5 +100,7 @@ struct RootView: View {
         .environment(MorningSleepCoordinator())
         .environment(PetStateStore())
         .environment(PiboSpeechService())
+        .environment(OnboardingStateStore())
+        .environment(BoLedgerStore())
         .preferredColorScheme(.light)
 }

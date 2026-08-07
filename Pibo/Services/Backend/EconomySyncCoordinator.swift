@@ -102,7 +102,7 @@ final class EconomySyncCoordinator {
     func debugStampTodaySteps(perHour: Int = 3000, hours: ClosedRange<Int> = 6...9) {
         var hourly = Array(repeating: 0, count: 24)
         for h in hours where h >= 0 && h < 24 { hourly[h] = perHour }
-        history.upsert(day: .now) { rec in
+        history.upsert(day: .now, origin: .synthetic) { rec in
             rec.steps = hourly.reduce(0, +)
             rec.hourlySteps = hourly
         }

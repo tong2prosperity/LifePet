@@ -16,7 +16,7 @@ enum DoodleGeometry {
 
     /// Area (m²) enclosed by the stroke as if its ends were joined — the shoelace
     /// formula on a local equirectangular projection (metres relative to the first
-    /// point). This "圈住的地" is what the future 比拼面积 feature ranks.
+    /// point). The result is presented as route area; it never claims land.
     static func enclosedArea(_ coords: [CLLocationCoordinate2D]) -> Double {
         PiboCoreDoodleAdapter.enclosedArea(coords)
     }
@@ -121,44 +121,41 @@ struct WalkDoodleChallenge: Equatable {
 
     static let freeform = WalkDoodleChallenge(
         title: nil,
-        promptKey: "...用脚...画一个圈...给花占块地...啵")
+        promptKey: "用脚画一条路线。我会记录它的形状。")
 }
 
-// MARK: - Pibo voice (feature-local copy pools, like PiboCameraView.genericComments)
+// MARK: - Pibo voice
 
-/// 魔丸态 garbled-but-readable fragments for the walk-doodle task — tsundere,
-/// flower/land framing, never a plain "去运动吧". Pools stay local to the feature
-/// (mirrors `PiboCameraView.genericComments`); only the §2 greeting copy is locked
-/// app-wide.
+/// Short procedural observations. These never grade the route or claim land.
 enum WalkDoodleCopy {
     /// Task card subtitle + the idle-screen assignment line.
     static let taskPrompts = [
-        "...用脚...画一个圈...给花占块地...啵",
-        "...走出去...描一笔...大的...",
-        "...这片地...走一圈...圈住...种花...",
-        "...别用手...用脚画...啵",
+        "用脚画一条路线。我会记录它的形状。",
+        "走出去，留下完整的一笔。",
+        "从这里出发，再回到附近。",
+        "不用画得标准。路线本身就是记录。",
     ]
 
     /// Murmured while recording (shown faintly over the map).
     static let recordingHints = [
-        "...走...慢慢描...",
-        "...这一笔...歪了...啵",
-        "...再走...还没圈上...",
-        "...嗯...这块地...不错...",
+        "路线正在形成。",
+        "这一段方向变了。",
+        "还没有闭合。我继续记录。",
+        "位置和时间都在保存。",
     ]
 
     /// Spoken on save (also bubbles on the home stage).
     static let savedLines = [
-        "...嗯...这块地...归花了...",
-        "...画...完了...？还行...啵",
-        "...歪歪扭扭...花...喜欢...",
-        "...占住了...这块...种花...",
+        "路线保存完成。",
+        "这条线已经形成。",
+        "形状不规则，但记录完整。",
+        "我会记住这次路线。",
     ]
 
     /// When the user stops before drawing anything worth keeping.
     static let tooShortLines = [
-        "...就这么点...？再走...",
-        "...没画完...啵...回去走...",
-        "...这...不算...重画...",
+        "记录还太短，暂时不能保存。",
+        "还没有形成可用路线。",
+        "再走一段，记录会更完整。",
     ]
 }

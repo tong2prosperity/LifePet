@@ -6,11 +6,13 @@ nonisolated enum PiboPersistenceKeys {
         static let loginFlowDone = "pibo.loginFlowDone.v1"
         static let onboardingDone = "pibo.onboardingDone.v1"
         static let onboardingResumeAuth = "pibo.onboarding.resumeAuth.v1"
+        static let onboardingNarrativeState = "pibo.onboarding.narrative.v2"
         static let hatched = "pibo.hatched.v1"
         static let appLanguage = "pibo.appLanguage.v1"
         static let selectedThemeID = "pibo.theme.selectedID.v1"
         static let ambientSoundEnabled = "pibo.audio.ambientEnabled.v1"
         static let piboSpeechHistory = "pibo.speech.history.v1"
+        static let homeSpeechHistory = "pibo.speech.homeHistory.v2"
 
         static let identityCurrentPetId = "pibo.identity.currentPetId.v1"
         static let identityPetName = "pibo.identity.petName.v1"

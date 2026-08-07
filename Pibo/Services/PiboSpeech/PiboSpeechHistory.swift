@@ -59,12 +59,20 @@ struct PiboSpeechHistory {
         }
         if entry.cooldownHours > 0,
            let usage = state.lineUsage[entry.id],
-           date.timeIntervalSince(usage.lastSpokenAt) < entry.cooldownHours * 3_600 {
+           Self.isWithinCooldown(
+            since: usage.lastSpokenAt,
+            at: date,
+            duration: entry.cooldownHours * 3_600
+           ) {
             return false
         }
         if entry.topicCooldownHours > 0,
            let lastSpokenAt = state.topicLastSpokenAt[topic],
-           date.timeIntervalSince(lastSpokenAt) < entry.topicCooldownHours * 3_600 {
+           Self.isWithinCooldown(
+            since: lastSpokenAt,
+            at: date,
+            duration: entry.topicCooldownHours * 3_600
+           ) {
             return false
         }
         return true
@@ -100,5 +108,17 @@ struct PiboSpeechHistory {
     private static func dayKey(for date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return "\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
+    }
+
+    /// A wall-clock rollback or damaged future timestamp must not silence a
+    /// line until the clock catches up. Lifetime use counts remain intact; only
+    /// the time-based cooldown is ignored when its timestamp is in the future.
+    private static func isWithinCooldown(
+        since lastDate: Date,
+        at date: Date,
+        duration: TimeInterval
+    ) -> Bool {
+        let elapsed = date.timeIntervalSince(lastDate)
+        return elapsed.isFinite && elapsed >= 0 && elapsed < duration
     }
 }

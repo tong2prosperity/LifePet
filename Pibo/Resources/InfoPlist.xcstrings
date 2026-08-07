@@ -37,7 +37,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Pibo 会用相机记录食物，也会在镜前接花瓣小游戏中识别你的动作。"
+            "value" : "Pibo 使用相机拍摄餐食照片，以估算热量并保存到足迹。"
           }
         }
       }
@@ -48,13 +48,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pibo reads your steps, workouts, heart rate, and sleep data to feed your pixel pet."
+            "value" : "Pibo reads your steps, workouts, heart rate, and sleep to show activity state, record changes, and support your shared journey."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pibo 读取你的步数、运动、心率与睡眠数据，把它们喂给你的像素宠物。"
+            "value" : "Pibo 读取你的步数、运动、心率与睡眠数据，用于呈现活动状态、记录变化并推进共同旅程。"
           }
         }
       }
@@ -78,55 +78,31 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Pibo 使用大致位置获取当地天气，并在你主动记录步行时把路线画成地图涂鸦。"
+            "value" : "Pibo 使用大致位置获取当地天气；只有你主动开始 Walk Doodle 时，才使用精确位置绘制步行路线。"
           }
         }
       }
     },
     "NSMicrophoneUsageDescription" : {
-      "comment" : "Privacy - Microphone Usage Description",
+      "comment" : "Privacy - Microphone Usage Description (Debug inventory only)",
       "extractionState" : "manual",
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pibo needs to hear you call its name to confirm its arrival."
-          }
-        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pibo 需要听见你呼唤它的名字，才能确认降临。"
+            "value" : "Pibo 的开发版呼气互动会使用麦克风感知声音强度。"
           }
         }
       }
     },
     "NSMotionUsageDescription" : {
-      "comment" : "Privacy - Motion Usage Description",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Pibo 使用手机动作来给原地踏步和摇花铃小游戏计步、计次。"
-          }
-        }
-      }
-    },
-    "NSSpeechRecognitionUsageDescription" : {
-      "comment" : "Privacy - Speech Recognition Usage Description",
+      "comment" : "Privacy - Motion Usage Description (Debug inventory only)",
       "extractionState" : "manual",
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pibo uses speech recognition to check whether you called its name."
-          }
-        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pibo 使用语音识别确认你是否呼唤了它的名字。"
+            "value" : "Pibo 的开发版运动互动会使用手机动作计步、计次。"
           }
         }
       }

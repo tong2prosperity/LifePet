@@ -1,316 +1,368 @@
 import Foundation
 
-/// RMSSD from beat-to-beat RR intervals — the shared, platform-free core of
-/// Pibo's own HRV, used by both the phone's periodic stress reading
-/// (`HeartbeatSeriesReader`) and the watch's post-session breathing report
-/// (`CRCHeartbeatSeriesReader`).
+/// Apple heartbeat-series RR → corrected NN-RMSSD.
 ///
-/// It lives here rather than in either target because both compute the *same
-/// measurement from the same kind of data* — a complete `HKHeartbeatSeriesSample`
-/// — and they must not disagree: a breathing session and the next background
-/// reading would otherwise report two different HRVs for the same wearer minutes
-/// apart. The HealthKit enumeration stays per-target (this file is Foundation-only
-/// so the widget extension doesn't drag in HealthKit), but the arithmetic and
-/// every threshold live in exactly one place.
-///
-/// **Not in `pibo-core`, deliberately.** HarmonyOS has no raw beat-series data
-/// type — Health Service Kit hands over an already-computed HRV value, which it
-/// defines as RMSSD. So there is no second platform to share RR→RMSSD with; Core
-/// takes `rmssd` as an input and that boundary is correct. Same reasoning as
-/// logging: platform data acquisition stays native.
-///
-/// **RMSSD ≠ SDNN.** Apple's `heartRateVariabilitySDNN` measures the *total*
-/// variability of a window (slow components included); RMSSD only sees
-/// beat-to-beat. SDNN therefore reads systematically higher, and the gap widens
-/// as HRV rises — comparing the two numbers directly is a category error.
+/// HarmonyOS deliberately does not use this code: Huawei Health exposes an
+/// already-computed RMSSD value and no public beat-to-beat RR series. Apple raw
+/// RR intervals are classified and corrected with the Lipponen–Tarvainen (2019)
+/// method before the standard NN-RMSSD formula is applied. HealthKit gaps remain
+/// hard segment boundaries, so no difference is ever formed across missing data.
 enum HRVAnalysis {
-    /// One window's HRV, plus the numbers needed to judge whether to trust it.
+    enum CorrectionKind: String, Sendable, CaseIterable {
+        case ectopic
+        case missed
+        case extra
+        case longOrShort
+    }
+
+    struct CorrectionCounts: Sendable, Equatable {
+        var ectopic = 0
+        var missed = 0
+        var extra = 0
+        var longOrShort = 0
+
+        var total: Int { ectopic + missed + extra + longOrShort }
+
+        static func + (lhs: Self, rhs: Self) -> Self {
+            Self(
+                ectopic: lhs.ectopic + rhs.ectopic,
+                missed: lhs.missed + rhs.missed,
+                extra: lhs.extra + rhs.extra,
+                longOrShort: lhs.longOrShort + rhs.longOrShort
+            )
+        }
+    }
+
     struct Measurement: Sendable, Equatable {
-        /// Root mean square of successive RR differences, ms. 0 when no
-        /// difference survived artifact rejection.
+        /// Standard RMSSD over corrected normal-to-normal intervals, ms.
         var rmssd: Double
-        /// Mean RR over the window, ms. RMSSD is uninterpretable without it.
-        var meanRR: Double
-        /// Total RR intervals across all segments.
+        /// Uncorrected successive-RR RMSSD, retained for local audit.
+        var rawRMSSD: Double
+        /// Mean corrected NN interval, ms.
+        var meanNN: Double
+        /// Original RR interval count across all contiguous runs.
         var rrCount: Int
-        /// RR intervals flagged as artifacts.
-        var flagged: Int
-        /// Successive differences that actually entered the sum.
+        /// Corrected NN interval count across all contiguous runs.
+        var nnCount: Int
+        /// Corrected successive differences included in RMSSD.
         var diffs: Int
-        /// RR intervals artifact detection could actually reach a verdict on.
-        /// Below `rrCount` by up to four per contiguous run — see
-        /// `localMedianDeviations`. A window chopped into runs too short to
-        /// inspect is one nobody checked, which `isTrustworthy` refuses.
-        var judged: Int
-        /// The artifact threshold this window derived for itself, ms. Diagnostic:
-        /// it says whether the rule adapted to a quiet wearer or saturated at the
-        /// ceiling, which is the first thing to look at when a reading disagrees
-        /// with a reference device.
-        var artifactThresholdMs: Double
-    }
+        /// Sum of corrected NN intervals; gaps are excluded.
+        var durationSeconds: Double
+        var corrections: CorrectionCounts
 
-    /// RMSSD over the artifact-free (**NN**) portion of a gap-split RR series.
-    ///
-    /// The standard definition is `sqrt(1/(N-1) · Σ (NN[i+1] − NN[i])²)` over
-    /// *normal-to-normal* intervals — i.e. after ectopic/misdetected beats have
-    /// been removed. Everything interesting is in how you decide what's an
-    /// artifact.
-    ///
-    /// This rule has now failed in **both** directions, which is why the threshold
-    /// is neither a fraction of RR nor a constant.
-    ///
-    /// The original was self-referential: it dropped a successive difference
-    /// whenever the difference itself exceeded 20% of the preceding RR. That
-    /// filters on the very quantity being measured, so it could only bias RMSSD
-    /// downward, and it bit harder the higher the true HRV (the threshold was a
-    /// shrinking multiple of the signal). It was also asymmetric — with `a` as the
-    /// denominator, an 800→1000 ms swing was rejected while 1000→800 was kept, so
-    /// half of every large oscillation was deleted — and it scaled with heart rate,
-    /// tightening exactly when RR shortens.
-    ///
-    /// Its replacement, a flat 250 ms, fixed the high end and broke the low one:
-    /// sized against a normal HRV, it is far too loose for a quiet wearer, and a
-    /// single mis-detected beat survives to dominate a root-mean-square built out
-    /// of ~17 ms differences. See `artifactThreshold` for the numbers.
-    ///
-    /// The rule here asks whether **an RR interval is an outlier against its own
-    /// neighbourhood**: flag it when it deviates from the median of the
-    /// surrounding intervals by more than `artifactThreshold` — a threshold the
-    /// window derives from its own dispersion (see there). A smooth respiratory
-    /// oscillation tracks its local median and survives intact; a premature beat
-    /// or a dropped detection does not. Differences that *touch* a flagged
-    /// interval are then excluded from the sum — deleting the two bad differences
-    /// rather than interpolating, since interpolation would replace them with
-    /// artificially smooth values and pull RMSSD down again.
-
-    ///
-    /// Input is **segments**, not one flat array: a run has to be cut wherever the
-    /// recording lost beats, because the intervals on either side of a hole are not
-    /// temporally adjacent and differencing across them is meaningless.
-    ///
-    /// This applies **no trust gates** — see `isTrustworthy` / `analyze`. Callers
-    /// that want to report on a window they're about to reject (the diagnostic log)
-    /// need its numbers either way.
-    static func measure(_ segments: [[Double]]) -> Measurement {
-        // Deviations first, threshold from all of them pooled, flags last. The
-        // threshold is a property of the *window*, not of a run: a short segment
-        // on its own carries too few intervals to estimate a dispersion from.
-        let deviations = segments.map(localMedianDeviations)
-        let threshold = artifactThreshold(segments: segments, deviations: deviations)
-
-        var sumSq = 0.0
-        var diffs = 0
-        var rrCount = 0
-        var flaggedCount = 0
-        var judgedCount = 0
-        var sumRR = 0.0
-
-        for (rr, deviation) in zip(segments, deviations) {
-            rrCount += rr.count
-            sumRR += rr.reduce(0, +)
-            judgedCount += rr.indices.lazy.filter {
-                deviation[$0] != nil || !plausibleRR(rr[$0])
-            }.count
-            let flags = rr.indices.map {
-                isArtifact(rr: rr[$0], deviation: deviation[$0], threshold: threshold)
-            }
-            flaggedCount += flags.lazy.filter { $0 }.count
-            guard rr.count >= 2 else { continue }
-            for i in 0..<(rr.count - 1) where !flags[i] && !flags[i + 1] {
-                let d = rr[i + 1] - rr[i]
-                sumSq += d * d
-                diffs += 1
-            }
+        var correctionRate: Double {
+            guard rrCount > 0 else { return 0 }
+            return Double(corrections.total) / Double(rrCount)
         }
 
-        return Measurement(rmssd: diffs > 0 ? (sumSq / Double(diffs)).squareRoot() : 0,
-                           meanRR: rrCount > 0 ? sumRR / Double(rrCount) : 0,
-                           rrCount: rrCount,
-                           flagged: flaggedCount,
-                           diffs: diffs,
-                           judged: judgedCount,
-                           artifactThresholdMs: threshold)
+        /// Evidence gate for baseline, stress classification and notifications.
+        /// A value that fails this gate remains visible and persisted.
+        var canUpdateTrends: Bool {
+            durationSeconds >= minimumDurationSeconds
+                && nnCount >= minimumNNCount
+                && correctionRate <= maximumCorrectionRate
+        }
     }
 
-    /// Whether a measurement describes its window well enough to classify.
-    ///
-    /// Three gates. **Artifact budget** — too much of the window was artifact and
-    /// the survivors aren't a fair sample of it. Short recordings are conventionally
-    /// discarded past ~5% corrected, and here the discarded beats are exactly the
-    /// extreme ones, so a heavily-filtered window doesn't just read noisy, it reads
-    /// low. The absolute floor inside `artifactBudget` matters, because a single
-    /// event can cost several flags: a premature beat writes a short interval *and*
-    /// a compensatory long one, and on a strongly oscillating window it drags the
-    /// neighbours' local medians far enough to trip them too — up to four for one
-    /// ectopic. On a ~60-beat window a bare 5% sits below that, so one ectopic would
-    /// discard the whole reading; readings arrive every 2–5h and occasional
-    /// ectopics are common in healthy wearers, so that would quietly starve the
-    /// feature. Four *isolated* mild artifacts also fit, and that is fine — they are
-    /// removed from the sum, so the window still reports an honest number.
-    ///
-    /// **Difference count** — enough genuinely-adjacent pairs must remain to
-    /// average over. A ~1-min series yields dozens; a handful would put the whole
-    /// reading at the mercy of one or two beats.
-    ///
-    /// **Inspected share** — artifact detection needs a centred neighbourhood, so
-    /// it reaches no verdict on the two intervals at each end of a run. One long
-    /// run barely notices; a window the watch chopped into 4-beat fragments is
-    /// *entirely* ends, and would otherwise sail through with zero flags precisely
-    /// because nothing in it could be checked. Requiring most of the window to have
-    /// been inspected turns that silence back into a rejection.
-    ///
-    /// **Known limit.** All of this rests on an artifact being an outlier against
-    /// its neighbours. Past roughly a third of the beats corrupted, the
-    /// neighbourhoods are corrupted too, deviations stop looking exceptional, and a
-    /// wrecked window can report a plausible-looking number with nothing flagged.
-    /// That is the breakdown point of any local-outlier rule (it predates the
-    /// adaptive threshold — a fixed one fails there identically); separating signal
-    /// from noise at that contamination needs full beat classification, not a
-    /// tighter threshold.
-    static func isTrustworthy(_ measurement: Measurement) -> Bool {
-        measurement.rrCount > 0
-            && measurement.flagged <= artifactBudget(measurement.rrCount)
-            && measurement.diffs >= minValidDiffs
-            && Double(measurement.judged) >= minInspectedFraction * Double(measurement.rrCount)
-    }
+    static let minimumDurationSeconds = 60.0
+    static let minimumNNCount = 30
+    static let maximumCorrectionRate = 0.10
 
-    /// `measure` plus the trust gates — `nil` when the window can't be classified.
+    /// Corrects every contiguous segment independently, then pools squared
+    /// successive differences. `nil` means only that no segment contains a
+    /// mathematically usable successive pair.
     static func analyze(_ segments: [[Double]]) -> Measurement? {
-        let measurement = measure(segments)
-        return isTrustworthy(measurement) ? measurement : nil
-    }
+        var rawSquaredDifferenceSum = 0.0
+        var rawDifferenceCount = 0
+        var correctedSquaredDifferenceSum = 0.0
+        var correctedDifferenceCount = 0
+        var correctedSum = 0.0
+        var rrCount = 0
+        var nnCount = 0
+        var counts = CorrectionCounts()
 
-    /// Convenience for a single contiguous run — tests, and any caller holding a
-    /// plain RR array with no gap information.
-    static func rmssd(_ rrMs: [Double]) -> Double? { analyze([rrMs])?.rmssd }
+        for segment in segments {
+            // An invalid interval is a hole in the time series, not a value that
+            // can simply disappear. Filtering `[800, NaN, 900]` into
+            // `[800, 900]` would invent a successive difference across that hole.
+            for rr in contiguousValidRuns(in: segment) {
+                rrCount += rr.count
+                for (next, previous) in zip(rr.dropFirst(), rr.dropLast()) {
+                    let difference = next - previous
+                    rawSquaredDifferenceSum += difference * difference
+                    rawDifferenceCount += 1
+                }
 
-    // MARK: - Artifact detection
-
-    /// Whether one interval is an artifact: physiologically impossible, or too far
-    /// from the median of its own neighbourhood. A `nil` deviation means the run
-    /// was too short to have a neighbourhood — no evidence either way, so no flag.
-    private static func isArtifact(rr: Double, deviation: Double?, threshold: Double) -> Bool {
-        guard plausibleRR(rr) else { return true }
-        guard let deviation else { return false }
-        return abs(deviation) > threshold
-    }
-
-    /// Each interval's signed distance from the median of its immediate
-    /// neighbours (±2, itself excluded — including itself would let a bad beat
-    /// drag its own reference toward it). `nil` where no such verdict is possible.
-    ///
-    /// Comparing against a *local median* rather than the single preceding
-    /// interval is what lets a genuine respiratory oscillation through: the median
-    /// rides the oscillation, so only a beat that breaks the local pattern stands
-    /// out.
-    ///
-    /// **±2 is an upper bound, not a tuning knob.** The window has to stay
-    /// shorter than the respiratory period (~4–7 beats): widen it to ±3 and the
-    /// median stops tracking the oscillation and settles near its mean instead, at
-    /// which point every peak and trough reads as an outlier. Measured on a clean
-    /// 48-interval RSA fixture, ±2 flags nothing and ±3 flags 29.
-    ///
-    /// **The neighbourhood must be centred**, so the first and last two intervals
-    /// of a run get no verdict at all. A one-sided reference is a *biased*
-    /// predictor: in the interior the median of `i±2` brackets `i`, so the
-    /// deviation measures the curve's local curvature and stays small through a
-    /// steep ramp; at the edge every neighbour lies on one side, and the same
-    /// arithmetic measures its **slope** instead — `1.5 ×` the per-beat change.
-    /// During slow deep breathing (the CRC trainer's whole purpose) RR can move
-    /// ~60 ms per beat, so the two end intervals of every run would deviate ~90 ms
-    /// with nothing wrong with them. The old fixed 250 ms threshold hid that; an
-    /// adaptive one does not, and a sweep over breathing periods 6–24 beats found
-    /// clean windows losing intervals to it. Four unjudged intervals per run is
-    /// the cheaper error — and `judged` reports the cost so `isTrustworthy` can
-    /// refuse a window that is nothing *but* edges.
-    private static func localMedianDeviations(_ rr: [Double]) -> [Double?] {
-        rr.indices.map { i in
-            guard i >= 2, i <= rr.count - 3 else { return nil }
-            let neighbours = (i - 2...i + 2).filter { $0 != i }.map { rr[$0] }
-            guard let m = median(neighbours) else { return nil }
-            return rr[i] - m
-        }
-    }
-
-    private static func median(_ xs: [Double]) -> Double? {
-        guard !xs.isEmpty else { return nil }
-        let s = xs.sorted()
-        let mid = s.count / 2
-        return s.count % 2 == 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid]
-    }
-
-    // MARK: - Thresholds
-
-    /// How far an RR interval may sit from its local median before it counts as an
-    /// artifact — **derived from the window's own dispersion**, then clamped.
-    ///
-    /// A constant threshold fails for the same structural reason the original
-    /// `0.2 · RR` rule did, just at the other end of the range. 250 ms (Kubios'
-    /// "medium" level) is sized against a normal HRV; a resting wearer at
-    /// RMSSD ≈ 17 ms has real beat-to-beat differences of ~17 ms, so a mis-detected
-    /// beat landing 150 ms off its neighbours sails straight through — and because
-    /// RMSSD is a *root-mean-square*, that lone survivor dominates the sum. Two
-    /// differences of 150 ms among sixty of 17 ms report ≈ 31 ms: one bad beat
-    /// nearly doubles the reading. Observed in the field, against a reference
-    /// device reading 17 ms on the same wearer at the same minute.
-    ///
-    /// So scale the threshold to the wearer: `k · σ̂`, where σ̂ = 1.4826 · MAD of
-    /// the local-median deviations. Being **robust** is what makes it safe to
-    /// derive this from the measured quantity — a median absolute deviation is
-    /// unmoved by the very outliers being hunted (five planted artifacts move it by
-    /// single-digit ms), so the threshold tracks the *bulk* of the distribution and
-    /// cuts only its far tail. At `k = 5` that lands near 4 × RMSSD, inside the
-    /// range Kubios' own adaptive criterion uses (its `5.2 · QD(dRR)` ≈ 3.5 σ).
-    ///
-    /// The clamp bounds both failure modes. The **ceiling** keeps the old flat
-    /// 250 ms as an upper limit, so a high-HRV window saturates it and behaves
-    /// exactly as before — this change only ever tightens. The **floor** stops an
-    /// unusually rigid series from deriving a threshold so tight that ordinary
-    /// variation reads as artifact.
-    private static func artifactThreshold(segments: [[Double]],
-                                          deviations: [[Double?]]) -> Double {
-        var magnitudes: [Double] = []
-        for (rr, deviation) in zip(segments, deviations) {
-            // Implausible intervals are artifacts on their own evidence; letting
-            // them into the dispersion estimate would widen the threshold that is
-            // supposed to catch their milder cousins.
-            for i in rr.indices where plausibleRR(rr[i]) {
-                if let d = deviation[i] { magnitudes.append(abs(d)) }
+                let correction = correct(rr)
+                counts = counts + correction.counts
+                nnCount += correction.nn.count
+                correctedSum += correction.nn.reduce(0, +)
+                for (next, previous) in zip(correction.nn.dropFirst(), correction.nn.dropLast()) {
+                    let difference = next - previous
+                    correctedSquaredDifferenceSum += difference * difference
+                    correctedDifferenceCount += 1
+                }
             }
         }
-        guard let mad = median(magnitudes) else { return artifactThresholdCeilingMs }
-        let sigma = 1.4826 * mad
-        return min(max(artifactSigmaMultiple * sigma, artifactThresholdFloorMs),
-                   artifactThresholdCeilingMs)
+
+        guard rawDifferenceCount > 0, correctedDifferenceCount > 0, nnCount > 0 else {
+            return nil
+        }
+        let rmssd = (correctedSquaredDifferenceSum / Double(correctedDifferenceCount)).squareRoot()
+        let rawRMSSD = (rawSquaredDifferenceSum / Double(rawDifferenceCount)).squareRoot()
+        let meanNN = correctedSum / Double(nnCount)
+        let durationSeconds = correctedSum / 1_000
+        guard rmssd.isFinite, rawRMSSD.isFinite, meanNN.isFinite,
+              durationSeconds.isFinite else { return nil }
+        return Measurement(
+            rmssd: rmssd,
+            rawRMSSD: rawRMSSD,
+            meanNN: meanNN,
+            rrCount: rrCount,
+            nnCount: nnCount,
+            diffs: correctedDifferenceCount,
+            durationSeconds: durationSeconds,
+            corrections: counts
+        )
     }
 
-    /// How many robust standard deviations of slack an interval gets. Wide on
-    /// purpose: the job is to remove beats that are not heartbeats, not to trim
-    /// the tail of a real distribution.
-    private static let artifactSigmaMultiple = 5.0
-    /// Kubios' "medium" level, and the rule's previous fixed value.
-    private static let artifactThresholdCeilingMs = 250.0
-    private static let artifactThresholdFloorMs = 50.0
-
-    /// Above this share of flagged intervals the whole window is discarded, with
-    /// an absolute floor so one ectopic beat never costs a whole reading.
-    private static func artifactBudget(_ rrCount: Int) -> Int {
-        max(minArtifactAllowance, Int(Double(rrCount) * maxArtifactFraction))
+    static func rmssd(_ rrMs: [Double]) -> Double? {
+        analyze([rrMs])?.rmssd
     }
-    private static let maxArtifactFraction = 0.05
-    private static let minArtifactAllowance = 4
 
-    /// Minimum artifact-free successive differences for a trustworthy RMSSD.
-    /// A 60 s window at 40 bpm still clears this.
-    private static let minValidDiffs = 20
+    private static func contiguousValidRuns(in intervals: [Double]) -> [[Double]] {
+        var result: [[Double]] = []
+        var current: [Double] = []
+        for interval in intervals {
+            guard interval.isFinite, interval > 0 else {
+                if !current.isEmpty { result.append(current) }
+                current = []
+                continue
+            }
+            current.append(interval)
+        }
+        if !current.isEmpty { result.append(current) }
+        return result
+    }
 
-    /// Minimum share of the window artifact detection must have reached a verdict
-    /// on. Four intervals per run go uninspected, so this is really a floor on
-    /// average run length: at 0.6 a window has to average ~10-beat runs, which is
-    /// the shortest stretch worth calling a heart rhythm anyway.
-    private static let minInspectedFraction = 0.6
+    // MARK: - Lipponen–Tarvainen 2019
 
-    /// Physiologically plausible RR interval in ms: ~30–200 bpm. Anything outside
-    /// is a dropped/spurious beat, not a real heartbeat interval.
-    private static func plausibleRR(_ ms: Double) -> Bool { ms >= 300 && ms <= 2000 }
+    private struct ArtifactIndices {
+        var ectopic: [Int] = []
+        var missed: [Int] = []
+        var extra: [Int] = []
+        var longOrShort: [Int] = []
+
+        var counts: CorrectionCounts {
+            CorrectionCounts(
+                ectopic: Set(ectopic).count,
+                missed: Set(missed).count,
+                extra: Set(extra).count,
+                longOrShort: Set(longOrShort).count
+            )
+        }
+    }
+
+    private struct CorrectedSegment {
+        var nn: [Double]
+        var counts: CorrectionCounts
+    }
+
+    private static func correct(_ rr: [Double]) -> CorrectedSegment {
+        guard rr.count >= 2 else { return CorrectedSegment(nn: rr, counts: .init()) }
+        var peaks = [0.0]
+        peaks.reserveCapacity(rr.count + 1)
+        for interval in rr { peaks.append((peaks.last ?? 0) + interval) }
+
+        let artifacts = findArtifacts(peaks: peaks)
+        let correctedPeaks = correctArtifacts(artifacts, peaks: peaks)
+        let nn = zip(correctedPeaks.dropFirst(), correctedPeaks.dropLast()).map(-)
+        return CorrectedSegment(nn: nn, counts: artifacts.counts)
+    }
+
+    private static func findArtifacts(peaks: [Double]) -> ArtifactIndices {
+        let c1 = 0.13
+        let c2 = 0.17
+        let alpha = 5.2
+        let thresholdWindow = 91
+        let medianWindow = 11
+
+        var rr = [0.0]
+        rr.append(contentsOf: zip(peaks.dropFirst(), peaks.dropLast()).map(-))
+        if rr.count > 1 { rr[0] = rr.dropFirst().reduce(0, +) / Double(rr.count - 1) }
+
+        var drr = [0.0]
+        drr.append(contentsOf: zip(rr.dropFirst(), rr.dropLast()).map(-))
+        if drr.count > 1 { drr[0] = drr.dropFirst().reduce(0, +) / Double(drr.count - 1) }
+
+        let threshold1 = rollingThreshold(drr, alpha: alpha, width: thresholdWindow)
+        for index in drr.indices {
+            drr[index] = threshold1[index] == 0 ? .nan : drr[index] / threshold1[index]
+        }
+
+        var s12 = Array(repeating: 0.0, count: drr.count)
+        var s22 = Array(repeating: 0.0, count: drr.count)
+        for index in drr.indices {
+            if drr[index] > 0 {
+                s12[index] = max(reflected(drr, index - 1), reflected(drr, index + 1))
+            } else if drr[index] < 0 {
+                s12[index] = min(reflected(drr, index - 1), reflected(drr, index + 1))
+            }
+            if drr[index] >= 0 {
+                s22[index] = min(reflected(drr, index + 1), reflected(drr, index + 2))
+            } else if drr[index] < 0 {
+                s22[index] = max(reflected(drr, index + 1), reflected(drr, index + 2))
+            }
+        }
+
+        let medianRR = rollingMedian(rr, width: medianWindow)
+        var mrr = zip(rr, medianRR).map(-)
+        for index in mrr.indices where mrr[index] < 0 { mrr[index] *= 2 }
+        let threshold2 = rollingThreshold(mrr, alpha: alpha, width: thresholdWindow)
+        for index in mrr.indices {
+            mrr[index] = threshold2[index] == 0 ? .nan : mrr[index] / threshold2[index]
+        }
+
+        var result = ArtifactIndices()
+        var index = 0
+        while index < rr.count - 2 {
+            if abs(drr[index]) <= 1 {
+                index += 1
+                continue
+            }
+            let ectopicPositive = drr[index] > 1 && s12[index] < (-c1 * drr[index] - c2)
+            let ectopicNegative = drr[index] < -1 && s12[index] > (-c1 * drr[index] + c2)
+            if ectopicPositive || ectopicNegative {
+                result.ectopic.append(index)
+                index += 1
+                continue
+            }
+            if !(abs(drr[index]) > 1 || abs(mrr[index]) > 3) {
+                index += 1
+                continue
+            }
+
+            var candidates = [index]
+            if abs(drr[index + 1]) < abs(drr[index + 2]) { candidates.append(index + 1) }
+            for candidate in candidates {
+                let longBeat = drr[candidate] > 1 && s22[candidate] < -1
+                let longOrShort = abs(mrr[candidate]) > 3
+                let shortBeat = drr[candidate] < -1 && s22[candidate] > 1
+                guard longBeat || longOrShort || shortBeat else {
+                    index += 1
+                    continue
+                }
+
+                let missing = abs(rr[candidate] / 2 - medianRR[candidate]) < threshold2[candidate]
+                let extra = abs(rr[candidate] + rr[candidate + 1] - medianRR[candidate]) < threshold2[candidate]
+                if shortBeat && extra {
+                    result.extra.append(candidate)
+                } else if longBeat && missing {
+                    result.missed.append(candidate)
+                } else {
+                    result.longOrShort.append(candidate)
+                }
+                index += 1
+            }
+        }
+        return result
+    }
+
+    private static func correctArtifacts(_ artifacts: ArtifactIndices, peaks: [Double]) -> [Double] {
+        var corrected = peaks
+        var missed = artifacts.missed
+        var ectopic = artifacts.ectopic
+        var longOrShort = artifacts.longOrShort
+
+        let extra = Array(Set(artifacts.extra)).sorted()
+        if !extra.isEmpty {
+            corrected = corrected.enumerated().filter { !extra.contains($0.offset) }.map(\.element)
+            missed = updatedIndices(after: extra, indices: missed, delta: -1)
+            ectopic = updatedIndices(after: extra, indices: ectopic, delta: -1)
+            longOrShort = updatedIndices(after: extra, indices: longOrShort, delta: -1)
+        }
+
+        let validMissed = Array(Set(missed)).sorted().filter { $0 > 1 && $0 < corrected.count }
+        if !validMissed.isEmpty {
+            let additions = validMissed.map { index in
+                (index, corrected[index - 1] + (corrected[index] - corrected[index - 1]) / 2)
+            }
+            for (offset, addition) in additions.enumerated() {
+                corrected.insert(addition.1, at: addition.0 + offset)
+            }
+            ectopic = updatedIndices(after: validMissed, indices: ectopic, delta: 1)
+            longOrShort = updatedIndices(after: validMissed, indices: longOrShort, delta: 1)
+        }
+
+        corrected = correctMisaligned(ectopic, peaks: corrected)
+        corrected = correctMisaligned(longOrShort, peaks: corrected)
+        return corrected
+    }
+
+    private static func correctMisaligned(_ indices: [Int], peaks: [Double]) -> [Double] {
+        var result = peaks
+        let original = peaks
+        for index in Set(indices).sorted()
+        where index > 1 && index < original.count - 1 {
+            result[index] = original[index - 1] + (original[index + 1] - original[index - 1]) / 2
+        }
+        return result.sorted()
+    }
+
+    static func updatedIndices(after sources: [Int], indices: [Int], delta: Int) -> [Int] {
+        // `sources` and `indices` share the same pre-edit coordinate space. Do
+        // not compare a partially shifted index with the next unshifted source:
+        // removing 10 and 20 must map original 21 to 19, not 20.
+        let sortedSources = Array(Set(sources)).sorted()
+        let remapped = indices.map { index in
+            let precedingEdits = sortedSources.lazy.filter { $0 < index }.count
+            return index + delta * precedingEdits
+        }
+        return Array(Set(remapped)).sorted()
+    }
+
+    private static func rollingThreshold(_ values: [Double], alpha: Double, width: Int) -> [Double] {
+        rollingWindows(values, width: width).map { window in
+            alpha * (quantile(window.map(abs), probability: 0.75)
+                     - quantile(window.map(abs), probability: 0.25)) / 2
+        }
+    }
+
+    private static func rollingMedian(_ values: [Double], width: Int) -> [Double] {
+        rollingWindows(values, width: width).map {
+            quantile($0, probability: 0.5)
+        }
+    }
+
+    private static func rollingWindows(_ values: [Double], width: Int) -> [[Double]] {
+        let half = width / 2
+        return values.indices.map { index in
+            let lower = max(values.startIndex, index - half)
+            let upper = min(values.endIndex, index + half + 1)
+            return Array(values[lower..<upper])
+        }
+    }
+
+    /// Linear quantile interpolation, matching the reference implementation's
+    /// rolling pandas quantiles.
+    private static func quantile(_ values: [Double], probability: Double) -> Double {
+        let sorted = values.filter(\.isFinite).sorted()
+        guard !sorted.isEmpty else { return 0 }
+        let position = Double(sorted.count - 1) * probability
+        let lower = Int(position.rounded(.down))
+        let upper = Int(position.rounded(.up))
+        guard lower != upper else { return sorted[lower] }
+        return sorted[lower] + (position - Double(lower)) * (sorted[upper] - sorted[lower])
+    }
+
+    /// NumPy-style `reflect` padding without repeating the edge value.
+    private static func reflected(_ values: [Double], _ rawIndex: Int) -> Double {
+        guard values.count > 1 else { return values.first ?? 0 }
+        var index = rawIndex
+        while index < 0 || index >= values.count {
+            if index < 0 { index = -index }
+            if index >= values.count { index = 2 * values.count - 2 - index }
+        }
+        return values[index]
+    }
 }

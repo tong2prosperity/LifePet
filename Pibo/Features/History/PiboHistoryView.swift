@@ -267,12 +267,7 @@ struct PiboHistoryView: View {
     }
 
     private func stepsCaption(_ steps: Int) -> String {
-        switch steps {
-        case 10_000...: return "今天走了很远，花也跟着精神"
-        case 6_000...:  return "稳稳的一天，继续保持"
-        case 3_000...:  return "人生不过三万天，今天也走了几步"
-        default:        return "人生不过三万天，今天先迈出第一步"
-        }
+        steps > 0 ? "history.steps.recorded" : "history.steps.empty"
     }
 
     private static let dateFormatter: DateFormatter = {

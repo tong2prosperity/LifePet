@@ -11,10 +11,10 @@ import os
 /// enumerate those, take successive differences to get **RR intervals (ms)**,
 /// **split the run at any beat flagged `precededByGap`** (a dropped/uncertain
 /// beat: the intervals on either side of the hole are not temporally adjacent,
-/// so differencing across it is meaningless), and compute RMSSD (root-mean-square
-/// of successive RR differences) per segment. RMSSD is the short-window HRV
-/// metric most sensitive to acute stress, which is why it fits near-real-time
-/// monitoring better than SDNN.
+/// so differencing across it is meaningless), correct artifacts with the
+/// Lipponen–Tarvainen method, and compute standard NN-RMSSD. RMSSD is the
+/// short-window HRV metric most sensitive to acute stress, which is why it fits
+/// near-real-time monitoring better than SDNN.
 ///
 /// **RMSSD ≠ SDNN.** Apple's `heartRateVariabilitySDNN` measures the *total*
 /// variability of the same window (slow components included); RMSSD only sees
@@ -25,8 +25,8 @@ import os
 /// Availability: heartbeat series only exist on real hardware with a worn Apple
 /// Watch — the simulator has none. Callers must handle `nil`.
 enum HeartbeatSeriesReader {
-    /// One computed HRV reading + the context needed to judge it: when it was
-    /// measured and whether the wearer was at rest (no overlapping workout).
+    /// One computed HRV reading + its context: when it was measured and whether
+    /// the wearer was at rest (no overlapping workout).
     /// Only resting readings should enter the personal baseline — active-time
     /// HRV runs naturally low and would poison it.
     struct StressSample: Sendable {
@@ -35,42 +35,78 @@ enum HeartbeatSeriesReader {
         /// both re-fetch the newest one).
         var seriesID: UUID
         var rmssd: Double
+        var measurement: HRVAnalysis.Measurement
         var date: Date
+        /// Awake/resting context only; measurement evidence is tracked
+        /// separately by `measurement.canUpdateTrends`.
         var isResting: Bool
+
+        var canInterpretStress: Bool {
+            isResting && measurement.canUpdateTrends
+        }
     }
 
-    /// The newest heartbeat series as a `StressSample`, or `nil` if none is
-    /// readable (no series in the store, too few beats, too many artifacts, or
-    /// the type isn't authorized).
+    enum SampleRead: Sendable {
+        case computed(StressSample)
+        /// The immutable series was read successfully but contains no usable
+        /// successive RR pair, so retrying cannot change the result.
+        case uncomputable
+        /// HealthKit failed during beat enumeration; leave it uncheckpointed so
+        /// a later observer/reconcile can retry.
+        case unavailable
+    }
+
+    /// The newest heartbeat series as a `StressSample`, or `nil` if no series is
+    /// readable or it contains no successive RR pair. Pibo does not reject a
+    /// series based on its rhythm or an app-defined quality score.
     static func latestSample(store: HKHealthStore) async -> StressSample? {
         guard let series = await latestSeries(store: store) else { return nil }
-        let measurement = HRVAnalysis.measure(await rrSegments(for: series, store: store))
-        let trusted = HRVAnalysis.isTrustworthy(measurement)
-        // Diagnostic: our RMSSD next to Apple's SDNN for the *same* window, plus
-        // how much of the window survived artifact rejection. This is what tells
-        // "our filter is eating real signal" apart from "the other app is simply
-        // showing SDNN". Cheap — one extra query per series (every 2–5h).
-        //
-        // Logged for **rejected** windows too, and before the gate: the trust
-        // gates are strict enough to drop a real reading, and a rejection that
-        // leaves no trace makes "为什么压力记录是空的" unanswerable — the counts
-        // here are exactly what says whether it was artifacts or a short series.
+        return await sample(for: series, store: store)
+    }
+
+    /// Converts one known series. Kept separate from the query so the ingestion
+    /// layer can backfill every unprocessed series instead of repeatedly reading
+    /// only the newest one.
+    static func sample(for series: HKHeartbeatSeriesSample,
+                       store: HKHealthStore) async -> StressSample? {
+        guard case .computed(let sample) = await readSample(for: series, store: store) else {
+            return nil
+        }
+        return sample
+    }
+
+    static func readSample(for series: HKHeartbeatSeriesSample,
+                           store: HKHealthStore) async -> SampleRead {
+        guard case .success(let segments) = await rrSegments(for: series, store: store) else {
+            return .unavailable
+        }
+        guard let measurement = HRVAnalysis.analyze(segments) else {
+            let rrCount = segments.reduce(0) { $0 + $1.count }
+            LPLog.healthKit.notice("hrv unavailable: no successive RR pair rr=\(rrCount, privacy: .public)")
+            return .uncomputable
+        }
+        // Diagnostic: corrected NN-RMSSD, raw RR-RMSSD and Apple's SDNN. They
+        // are different quantities; the comparison is for audit, never a gate.
         let sdnn = await sdnnMs(around: series, store: store)
         LPLog.healthKit.notice("""
-            hrv \(trusted ? "ok" : "rejected", privacy: .public) \
+            hrv computed \
             rmssd=\(measurement.rmssd, format: .fixed(precision: 1), privacy: .public)ms \
+            raw=\(measurement.rawRMSSD, format: .fixed(precision: 1), privacy: .public)ms \
             sdnn=\(sdnn ?? -1, format: .fixed(precision: 1), privacy: .public)ms \
-            meanRR=\(measurement.meanRR, format: .fixed(precision: 0), privacy: .public)ms \
+            meanNN=\(measurement.meanNN, format: .fixed(precision: 0), privacy: .public)ms \
             rr=\(measurement.rrCount, privacy: .public) \
-            flagged=\(measurement.flagged, privacy: .public) \
-            diffs=\(measurement.diffs, privacy: .public) \
-            judged=\(measurement.judged, privacy: .public) \
-            thr=\(measurement.artifactThresholdMs, format: .fixed(precision: 0), privacy: .public)ms
+            nn=\(measurement.nnCount, privacy: .public) \
+            corrected=\(measurement.corrections.total, privacy: .public) \
+            eligible=\(measurement.canUpdateTrends, privacy: .public)
             """)
-        guard trusted else { return nil }
         let resting = await isEligibleResting(during: series, store: store)
-        return StressSample(seriesID: series.uuid, rmssd: measurement.rmssd,
-                            date: series.startDate, isResting: resting)
+        return .computed(StressSample(
+            seriesID: series.uuid,
+            rmssd: measurement.rmssd,
+            measurement: measurement,
+            date: series.startDate,
+            isResting: resting
+        ))
     }
 
     /// The newest heartbeat series' stable id, without the expensive per-beat RR
@@ -88,12 +124,23 @@ enum HeartbeatSeriesReader {
                                           store: HKHealthStore) async -> Bool {
         async let workoutOverlap = hasWorkoutOverlap(during: series, store: store)
         async let sleepOverlap = hasSleepOverlap(during: series, store: store)
-        let (hasWorkout, hasSleep) = await (workoutOverlap, sleepOverlap)
-        return !hasWorkout && !hasSleep
+        async let mindfulnessOverlap = hasMindfulnessOverlap(during: series, store: store)
+        let (workout, sleep, mindfulness) = await (
+            workoutOverlap, sleepOverlap, mindfulnessOverlap
+        )
+        // Unknown acquisition context must be record-only. Treating a failed
+        // query as an empty result silently poisons the personal resting baseline.
+        return workout == .clear && sleep == .clear && mindfulness == .clear
+    }
+
+    private enum OverlapRead: Sendable, Equatable {
+        case clear
+        case overlap
+        case unavailable
     }
 
     private static func hasWorkoutOverlap(during series: HKHeartbeatSeriesSample,
-                                          store: HKHealthStore) async -> Bool {
+                                          store: HKHealthStore) async -> OverlapRead {
         await withCheckedContinuation { continuation in
             let predicate = HKQuery.predicateForSamples(
                 withStart: series.startDate, end: series.endDate, options: [])
@@ -102,15 +149,20 @@ enum HeartbeatSeriesReader {
                 predicate: predicate,
                 limit: 1,
                 sortDescriptors: nil
-            ) { _, samples, _ in
-                continuation.resume(returning: !(samples?.isEmpty ?? true))
+            ) { _, samples, error in
+                if let error {
+                    LPLog.healthKit.error("workout overlap query threw: \(error.localizedDescription, privacy: .public)")
+                    continuation.resume(returning: .unavailable)
+                } else {
+                    continuation.resume(returning: samples?.isEmpty == false ? .overlap : .clear)
+                }
             }
             store.execute(query)
         }
     }
 
     private static func hasSleepOverlap(during series: HKHeartbeatSeriesSample,
-                                        store: HKHealthStore) async -> Bool {
+                                        store: HKHealthStore) async -> OverlapRead {
         await withCheckedContinuation { continuation in
             let predicate = HKQuery.predicateForSamples(
                 withStart: series.startDate, end: series.endDate, options: [])
@@ -119,11 +171,40 @@ enum HeartbeatSeriesReader {
                 predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
-            ) { _, samples, _ in
+            ) { _, samples, error in
+                if let error {
+                    LPLog.healthKit.error("sleep overlap query threw: \(error.localizedDescription, privacy: .public)")
+                    continuation.resume(returning: .unavailable)
+                    return
+                }
                 let overlapsSleep = (samples as? [HKCategorySample])?.contains {
                     sleepValueMeansAsleep($0.value)
                 } ?? false
-                continuation.resume(returning: overlapsSleep)
+                continuation.resume(returning: overlapsSleep ? .overlap : .clear)
+            }
+            store.execute(query)
+        }
+    }
+
+    /// Excludes Apple Mindfulness sessions. Pibo's CRC watch trainer is already
+    /// excluded through its overlapping `.mindAndBody` workout.
+    private static func hasMindfulnessOverlap(during series: HKHeartbeatSeriesSample,
+                                               store: HKHealthStore) async -> OverlapRead {
+        await withCheckedContinuation { continuation in
+            let predicate = HKQuery.predicateForSamples(
+                withStart: series.startDate, end: series.endDate, options: [])
+            let query = HKSampleQuery(
+                sampleType: HKCategoryType(.mindfulSession),
+                predicate: predicate,
+                limit: 1,
+                sortDescriptors: nil
+            ) { _, samples, error in
+                if let error {
+                    LPLog.healthKit.error("mindfulness overlap query threw: \(error.localizedDescription, privacy: .public)")
+                    continuation.resume(returning: .unavailable)
+                } else {
+                    continuation.resume(returning: samples?.isEmpty == false ? .overlap : .clear)
+                }
             }
             store.execute(query)
         }
@@ -157,6 +238,34 @@ enum HeartbeatSeriesReader {
         }
     }
 
+    /// Recent series in chronological order. HealthKit observer delivery is
+    /// coalesced, so one wake can represent several immutable samples; callers
+    /// must drain the batch rather than assuming `limit: 1` means no data loss.
+    static func recentSeries(store: HKHealthStore,
+                             since: Date,
+                             limit: Int = 256) async -> [HKHeartbeatSeriesSample] {
+        await withCheckedContinuation { continuation in
+            let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
+            let predicate = HKQuery.predicateForSamples(withStart: since, end: nil)
+            let query = HKSampleQuery(
+                sampleType: HKSeriesType.heartbeat(),
+                predicate: predicate,
+                limit: limit,
+                sortDescriptors: [sort]
+            ) { _, samples, error in
+                if let error {
+                    LPLog.healthKit.error("recent heartbeat series query threw: \(error.localizedDescription, privacy: .public)")
+                    continuation.resume(returning: [])
+                    return
+                }
+                let series = ((samples as? [HKHeartbeatSeriesSample]) ?? [])
+                    .sorted { $0.startDate < $1.startDate }
+                continuation.resume(returning: series)
+            }
+            store.execute(query)
+        }
+    }
+
     /// Enumerate a series' beat timestamps → **contiguous runs** of RR intervals
     /// (ms). `HKHeartbeatSeriesQuery` still uses the closure-callback API, so wrap
     /// it in a continuation that resumes once, when `done == true`.
@@ -168,12 +277,18 @@ enum HeartbeatSeriesReader {
     /// are not temporally adjacent. A flat array loses that boundary and
     /// `zip(dropLast, dropFirst)` silently differences straight across it. Cutting
     /// a new segment at every gap makes the boundary structural.
+    private enum RRRead: Sendable {
+        case success([[Double]])
+        case unavailable
+    }
+
     private static func rrSegments(for series: HKHeartbeatSeriesSample,
-                                   store: HKHealthStore) async -> [[Double]] {
+                                   store: HKHealthStore) async -> RRRead {
         await withCheckedContinuation { continuation in
             var segments: [[Double]] = []
             var current: [Double] = []
             var previous: TimeInterval?
+            var hadError = false
             let query = HKHeartbeatSeriesQuery(heartbeatSeries: series) { _, timeSinceStart, precededByGap, done, error in
                 if error == nil {
                     if precededByGap {
@@ -188,6 +303,7 @@ enum HeartbeatSeriesReader {
                         previous = timeSinceStart
                     }
                 } else {
+                    hadError = true
                     // A skipped beat is a hole like any other. Dropping the anchor
                     // too is what stops the next good beat from differencing back
                     // to a stale one across it — the same bridging hazard the gap
@@ -198,7 +314,7 @@ enum HeartbeatSeriesReader {
                 }
                 if done {
                     if current.count > 0 { segments.append(current) }
-                    continuation.resume(returning: segments)
+                    continuation.resume(returning: hadError ? .unavailable : .success(segments))
                 }
             }
             store.execute(query)
@@ -235,7 +351,7 @@ enum HeartbeatSeriesReader {
     /// diagnostic. Answers "为什么压力记录是空的" by checking, in the last 30
     /// days: whether HealthKit is available, whether SDNN HRV samples exist (the
     /// *control* — proves the watch measures HRV at all), and whether heartbeat
-    /// **series** exist + yield a usable RMSSD. A series count of 0 while SDNN
+    /// **series** exist + yield a calculable RMSSD. A series count of 0 while SDNN
     /// has data almost always means the series type was never authorized.
     struct StressProbe: Sendable {
         var healthAvailable: Bool
@@ -245,10 +361,12 @@ enum HeartbeatSeriesReader {
         var seriesLatest: Date?
         var rrCount: Int
         var rmssd: Double?
-        /// RR intervals the newest series had rejected as artifacts, and the
-        /// successive differences that survived. When `rmssd` is nil these two
-        /// say *which* gate failed — noisy data vs. too short a series.
-        var flagged: Int
+        var rawRMSSD: Double?
+        var nnCount: Int
+        var correctionCount: Int
+        var correctionRate: Double
+        var durationSeconds: Double
+        var canUpdateTrends: Bool
         var diffs: Int
     }
 
@@ -256,24 +374,32 @@ enum HeartbeatSeriesReader {
         guard HKHealthStore.isHealthDataAvailable() else {
             return StressProbe(healthAvailable: false, hrvCount: 0, hrvLatest: nil,
                                seriesCount: 0, seriesLatest: nil, rrCount: 0, rmssd: nil,
-                               flagged: 0, diffs: 0)
+                               rawRMSSD: nil, nnCount: 0, correctionCount: 0,
+                               correctionRate: 0, durationSeconds: 0, canUpdateTrends: false,
+                               diffs: 0)
         }
         let (hrvCount, hrvLatest) = await countAndLatest(HKQuantityType(.heartRateVariabilitySDNN), store: store)
         let (seriesCount, seriesLatest) = await countAndLatest(HKSeriesType.heartbeat(), store: store)
 
         var segments: [[Double]] = []
         if let series = await latestSeries(store: store) {
-            segments = await rrSegments(for: series, store: store)
+            if case .success(let readSegments) = await rrSegments(for: series, store: store) {
+                segments = readSegments
+            }
         }
         let analysis = HRVAnalysis.analyze(segments)
-        let measurement = HRVAnalysis.measure(segments)
         return StressProbe(healthAvailable: true,
                            hrvCount: hrvCount, hrvLatest: hrvLatest,
                            seriesCount: seriesCount, seriesLatest: seriesLatest,
                            rrCount: segments.reduce(0) { $0 + $1.count },
                            rmssd: analysis?.rmssd,
-                           flagged: measurement.flagged,
-                           diffs: measurement.diffs)
+                           rawRMSSD: analysis?.rawRMSSD,
+                           nnCount: analysis?.nnCount ?? 0,
+                           correctionCount: analysis?.corrections.total ?? 0,
+                           correctionRate: analysis?.correctionRate ?? 0,
+                           durationSeconds: analysis?.durationSeconds ?? 0,
+                           canUpdateTrends: analysis?.canUpdateTrends ?? false,
+                           diffs: analysis?.diffs ?? 0)
     }
 
     /// Count samples of a type in the last 30 days + the newest one's start.

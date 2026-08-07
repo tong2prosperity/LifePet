@@ -1,28 +1,24 @@
 import SwiftUI
 import Observation
-import AVFoundation
+@preconcurrency import AVFoundation
 import UIKit
 import os
 
-/// 拍照页 / 记录饮食 (Figma `488:1337` §拍照页). Opened from the home 露珠相机 button.
+/// 餐食相机 / 记录饮食 (Figma `488:1337` §拍照页).
 ///
-/// Flow: choose 记录卡路里 or 普通拍照记录 → choose 早/中/晚 when calorie capture
-/// is selected → live camera viewfinder → 拍立得 preview → 重拍 / 保存. A recapture
+/// Flow: choose 早/中/晚 → live camera viewfinder → 拍立得 preview → 重拍 / 保存. A recapture
 /// launched from meal detail can inject its meal and enter the viewfinder directly.
 ///
-/// Capture is a real `AVCaptureSession`. On a device without a camera (simulator)
-/// or when access is denied, it falls back to a synthesized placeholder frame so
-/// the whole flow still demos.
+/// Capture is a real `AVCaptureSession`. Missing permission or hardware is shown
+/// honestly and cannot create a synthetic meal record.
 struct PiboCameraView: View {
     @Environment(\.dismiss) private var dismiss
-    /// Called on 保存 with the captured frame (nil on a camera-less device) and
-    /// the 识图 subject label (nil when classification found nothing). The home
-    /// persists a background-removed (抠图) + 镶边框 copy as a 今日记录 food
-    /// photo and raises 认知能量.
+    /// Called on 保存 with a real captured frame, its best-effort 识图 label, and
+    /// the selected meal. Camera-less or denied devices cannot reach this callback.
     var onPhotoSaved: (UIImage?, String?, MealType?) -> Void
 
     @State private var camera = CameraController()
-    private enum Stage { case purpose, meal, viewfinder, preview }
+    private enum Stage: Hashable { case meal, viewfinder, preview }
     @State private var stage: Stage
     @State private var selectedMeal: MealType?
     private let startsWithMeal: Bool
@@ -44,21 +40,26 @@ struct PiboCameraView: View {
         self.onPhotoSaved = onPhotoSaved
         self.startsWithMeal = initialMeal != nil
         _selectedMeal = State(initialValue: initialMeal)
-        _stage = State(initialValue: initialMeal == nil ? .purpose : .viewfinder)
+        _stage = State(initialValue: initialMeal == nil ? .meal : .viewfinder)
     }
 
     var body: some View {
         ZStack {
             LP.Fill.bgSurface.ignoresSafeArea()
             switch stage {
-            case .purpose:    purposeSelection
             case .meal:       mealSelection
             case .viewfinder: viewfinder
             case .preview:    preview
             }
         }
+        .task(id: stage) {
+            if stage == .viewfinder {
+                await camera.start()
+            } else {
+                camera.stop()
+            }
+        }
         .task {
-            await camera.configure()
             // Off-main disk read + JPEG decode of the last shot's thumbnail.
             if lastThumb == nil {
                 lastThumb = await Task.detached { PiboPhotoStore.loadLatest() }.value
@@ -67,57 +68,12 @@ struct PiboCameraView: View {
         .onDisappear { camera.stop() }
     }
 
-    // MARK: - Capture purpose
-
-    private var purposeSelection: some View {
-        VStack(spacing: 0) {
-            selectionHeader(
-                title: "露珠相机",
-                subtitle: "这次想记录什么？",
-                backAction: { dismiss() }
-            )
-
-            VStack(spacing: LP.Spacing.m) {
-                purposeButton(
-                    icon: "flame.fill",
-                    title: "记录卡路里",
-                    subtitle: "拍下食物，识别这一餐的热量",
-                    accent: LP.Fill.foundationAccent
-                ) {
-                    selectedMeal = nil
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                        stage = .meal
-                    }
-                }
-
-                purposeButton(
-                    icon: "camera.fill",
-                    title: "普通拍照记录",
-                    subtitle: "保存今天想记住的画面",
-                    accent: LP.Content.secondary
-                ) {
-                    selectedMeal = nil
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                        stage = .viewfinder
-                    }
-                }
-            }
-            .padding(.horizontal, LP.Spacing.xl)
-
-            Spacer(minLength: LP.Spacing.xl)
-        }
-    }
-
     private var mealSelection: some View {
         VStack(spacing: 0) {
             selectionHeader(
-                title: "记录卡路里",
+                title: "餐食相机",
                 subtitle: "选择这张照片属于哪一餐",
-                backAction: {
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                        stage = .purpose
-                    }
-                }
+                backAction: { dismiss() }
             )
 
             VStack(spacing: LP.Spacing.s) {
@@ -153,54 +109,6 @@ struct PiboCameraView: View {
             }
         }
         .padding(LP.Spacing.xl)
-    }
-
-    private func purposeButton(
-        icon: String,
-        title: String,
-        subtitle: String,
-        accent: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            LPHaptics.tap()
-            action()
-        } label: {
-            HStack(spacing: LP.Spacing.l) {
-                Image(systemName: icon)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(accent)
-                    .frame(width: 52, height: 52)
-                    .background(Circle().fill(accent.opacity(0.12)))
-
-                VStack(alignment: .leading, spacing: LP.Spacing.xs) {
-                    Text(AppLocalization.text(title))
-                        .lpText(LP.Typography.b1Medium)
-                        .foregroundStyle(LP.Content.primary)
-                    Text(AppLocalization.text(subtitle))
-                        .lpText(LP.Typography.c1Regular)
-                        .foregroundStyle(LP.Content.tertiary)
-                }
-
-                Spacer(minLength: LP.Spacing.s)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(LP.Content.quarternary)
-            }
-            .padding(LP.Spacing.l)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                    .fill(LP.Fill.bgContainer)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                    .strokeBorder(LP.Border.primary, lineWidth: LP.BorderWidth.hair)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(AppLocalization.text(title))
-        .accessibilityHint(AppLocalization.text(subtitle))
     }
 
     private func mealButton(_ meal: MealType) -> some View {
@@ -276,11 +184,11 @@ struct PiboCameraView: View {
     }
 
     private var captureTitle: String {
-        selectedMeal.map { "记录\($0.title)" } ?? "普通拍照记录"
+        selectedMeal.map { "记录\($0.title)" } ?? "餐食相机"
     }
 
     private var captureSubtitle: String {
-        selectedMeal == nil ? "拍下今天想记住的画面" : "pibo想知道你吃了什么"
+        selectedMeal == nil ? "请选择餐次" : "pibo想知道你吃了什么"
     }
 
     private func backButton(action: @escaping () -> Void) -> some View {
@@ -320,7 +228,7 @@ struct PiboCameraView: View {
             VStack(spacing: LP.Spacing.m) {
                 Image(systemName: "camera.fill")
                     .font(.system(size: 30, weight: .regular))
-                Text(AppLocalization.text("相机不可用 · 用示意画面继续"))
+                Text(AppLocalization.text("相机不可用，请检查权限或设备"))
                     .lpText(LP.Typography.c1Regular)
             }
             .foregroundStyle(.white.opacity(0.55))
@@ -366,6 +274,8 @@ struct PiboCameraView: View {
             .frame(width: 88, height: 88)
         }
         .buttonStyle(.plain)
+        .disabled(!camera.isReady || camera.isCapturing)
+        .opacity(camera.isReady && !camera.isCapturing ? 1 : 0.44)
         .accessibilityLabel(AppLocalization.text("拍摄"))
     }
 
@@ -485,6 +395,7 @@ struct PiboCameraView: View {
     // MARK: - Actions
 
     private func shutter() {
+        guard camera.isReady, !camera.isCapturing else { return }
         LPHaptics.tap()
         LPLog.camera.notice("shutter tapped (aspect=\(aspect.label, privacy: .public))")
         capturedAt = Date()
@@ -493,6 +404,10 @@ struct PiboCameraView: View {
         Task {
             let img = await camera.capturePhoto()
             try? await Task.sleep(for: .milliseconds(90))
+            guard let img else {
+                withAnimation(.easeOut(duration: 0.18)) { flash = false }
+                return
+            }
             shot = img
             withAnimation(.easeOut(duration: 0.18)) { flash = false }
             withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) { stage = .preview }
@@ -531,17 +446,16 @@ struct PiboCameraView: View {
             return
         }
         withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-            stage = selectedMeal == nil ? .purpose : .meal
+            stage = .meal
         }
     }
 
     private func save() {
+        guard let shot, let selectedMeal else { return }
         LPHaptics.tap()
-        LPLog.camera.notice("保存 photo (hasShot=\(shot != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public))")
-        if let shot {
-            PiboPhotoStore.saveLatest(shot)
-            lastThumb = shot
-        }
+        LPLog.camera.notice("保存 meal photo label=\(subjectLabel ?? "—", privacy: .public)")
+        PiboPhotoStore.saveLatest(shot)
+        lastThumb = shot
         onPhotoSaved(shot, subjectLabel, selectedMeal)
         dismiss()
     }
@@ -554,13 +468,6 @@ struct PiboCameraView: View {
         return f.string(from: capturedAt)
     }
 
-    /// 通用弹幕池 — Pibo's after-save reaction is raised on the *home* (spec §4.3),
-    /// so this pool stays here for `HomeView.handlePhotoSaved` to draw from.
-    static let genericComments = [
-        "…这个…能吃？", "…地球的…食物…好奇怪…", "…#@!%…闻起来…", "…花…不吃…这个…",
-        "…人的能量…从这儿来…？", "…Pibo…只能…光合作用…", "…看起来…比土壤…好吃…",
-        "…颜色…没…见过…", "…形状…不像…花…", "…地球…东西…都…能吃？",
-    ]
 }
 
 /// 4:3 (default) ↔ 1:1 framing. `ratio` is width∶height for display (portrait).
@@ -574,22 +481,32 @@ private enum CaptureAspect {
 // MARK: - Camera session
 
 /// Thin `AVCaptureSession` wrapper. Session setup / start / stop run on a private
-/// serial queue; `isReady` (observed) flips on the main actor once a real capture
-/// device is wired up — it stays `false` on the simulator so the UI shows the
-/// placeholder frame.
+/// serial queue; observed readiness/capture state flips on the main actor. The
+/// session runs only while the viewfinder is visible and stays unavailable on a
+/// simulator or denied device.
 @Observable
 final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
-    @ObservationIgnored let session = AVCaptureSession()
-    @ObservationIgnored private let output = AVCapturePhotoOutput()
+    /// AVFoundation owns its own synchronization; all mutations still go
+    /// through `queue`, while SwiftUI reads `session` only to attach a preview.
+    @ObservationIgnored nonisolated(unsafe) let session = AVCaptureSession()
+    @ObservationIgnored nonisolated(unsafe) private let output = AVCapturePhotoOutput()
     @ObservationIgnored private let queue = DispatchQueue(label: "fun.tiebao.co.Pibo.camera.session")
     @ObservationIgnored private var pending: CheckedContinuation<UIImage?, Never>?
+    @ObservationIgnored private var pendingCaptureID: Int64?
+    @ObservationIgnored private var captureTimeout: Task<Void, Never>?
+    @ObservationIgnored private var lifecycleGeneration: UInt = 0
 
     /// True once a usable back camera is running (false on simulator / when denied).
     var isReady = false
+    /// Prevents a second shutter from replacing the first capture continuation.
+    private(set) var isCapturing = false
 
     override init() { super.init() }
 
-    func configure() async {
+    func start() async {
+        guard !isReady else { return }
+        lifecycleGeneration &+= 1
+        let generation = lifecycleGeneration
         let granted: Bool
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:    granted = true
@@ -597,22 +514,29 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
         default:             granted = false
         }
         guard granted else {
-            LPLog.camera.notice("camera access not granted — using placeholder viewfinder")
+            LPLog.camera.notice("camera access not granted")
             return
         }
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+        // A back action may happen while the system authorization sheet or
+        // hardware setup is in flight. A stale request must not revive the
+        // session after the viewfinder has gone away.
+        guard generation == lifecycleGeneration else { return }
+        let ready = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             queue.async {
-                let ok = self.buildSession()
+                let configured = !self.session.inputs.isEmpty
+                    && self.session.outputs.contains { $0 === self.output }
+                let ok = configured || self.buildSession()
                 if ok {
-                    self.session.startRunning()
+                    if !self.session.isRunning { self.session.startRunning() }
                     LPLog.camera.notice("capture session ready")
                 } else {
                     LPLog.camera.error("capture session build failed — no usable camera input")
                 }
-                Task { @MainActor in self.isReady = ok }
-                cont.resume()
+                cont.resume(returning: ok && self.session.isRunning)
             }
         }
+        guard generation == lifecycleGeneration else { return }
+        isReady = ready
     }
 
     /// Runs on `queue`. Returns whether a camera input + photo output were wired up.
@@ -631,20 +555,41 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
     }
 
     func capturePhoto() async -> UIImage? {
-        guard isReady else {
-            LPLog.camera.info("capturePhoto skipped — session not ready (placeholder device)")
+        guard isReady, !isCapturing else {
+            LPLog.camera.info("capturePhoto skipped — session not ready")
             return nil
         }
+        isCapturing = true
         LPLog.camera.debug("capturePhoto requested")
+        let settings = AVCapturePhotoSettings()
+        let captureID = settings.uniqueID
         return await withCheckedContinuation { cont in
             pending = cont
+            pendingCaptureID = captureID
+            captureTimeout?.cancel()
+            captureTimeout = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(10))
+                guard !Task.isCancelled else { return }
+                LPLog.camera.error("photo capture timed out")
+                self?.completeCapture(id: captureID, image: nil)
+            }
             queue.async {
-                self.output.capturePhoto(with: AVCapturePhotoSettings(), delegate: self)
+                self.output.capturePhoto(with: settings, delegate: self)
             }
         }
     }
 
     func stop() {
+        lifecycleGeneration &+= 1
+        isReady = false
+        isCapturing = false
+        captureTimeout?.cancel()
+        captureTimeout = nil
+        pendingCaptureID = nil
+        if let pending {
+            self.pending = nil
+            pending.resume(returning: nil)
+        }
         queue.async { if self.session.isRunning { self.session.stopRunning() } }
     }
 
@@ -659,10 +604,24 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
         } else {
             LPLog.camera.error("photo captured but image decode failed (no fileDataRepresentation)")
         }
+        let captureID = photo.resolvedSettings.uniqueID
         Task { @MainActor in
-            self.pending?.resume(returning: image)
-            self.pending = nil
+            self.completeCapture(id: captureID, image: image)
         }
+    }
+
+    /// A stopped capture can still deliver its delegate callback after a new
+    /// viewfinder session has started. Match AVFoundation's capture ID so that
+    /// stale callback can never resume the newer shutter's continuation.
+    private func completeCapture(id: Int64, image: UIImage?) {
+        guard pendingCaptureID == id else { return }
+        captureTimeout?.cancel()
+        captureTimeout = nil
+        pendingCaptureID = nil
+        let continuation = pending
+        pending = nil
+        isCapturing = false
+        continuation?.resume(returning: image)
     }
 }
 

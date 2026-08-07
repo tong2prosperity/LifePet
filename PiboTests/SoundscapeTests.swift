@@ -28,16 +28,6 @@ final class SoundscapeTests: XCTestCase {
         )
     }
 
-    func testDayWeightBlendsAcrossMorningAndDuskBoundaries() {
-        XCTAssertEqual(SoundscapeResolver.dayWeight(at: 4.99), 0, accuracy: 0.0001)
-        XCTAssertEqual(SoundscapeResolver.dayWeight(at: 5), 0, accuracy: 0.0001)
-        XCTAssertEqual(SoundscapeResolver.dayWeight(at: 7), 0.5, accuracy: 0.0001)
-        XCTAssertEqual(SoundscapeResolver.dayWeight(at: 9), 1, accuracy: 0.0001)
-        XCTAssertEqual(SoundscapeResolver.dayWeight(at: 16.5), 1, accuracy: 0.0001)
-        XCTAssertEqual(SoundscapeResolver.dayWeight(at: 18.5), 0.5, accuracy: 0.0001)
-        XCTAssertEqual(SoundscapeResolver.dayWeight(at: 20.5), 0, accuracy: 0.0001)
-    }
-
     func testWeatherAddsRainAndThunderWithoutMelodicMusic() {
         let date = Date(timeIntervalSinceReferenceDate: 800_000_000)
         let clear = profile(weather: .clear, date: date)

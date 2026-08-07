@@ -26,8 +26,8 @@ struct PiboWidgetsLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("+\(context.state.vitalityGain)")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                    Image(systemName: context.state.isComplete ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
+                        .font(.system(size: 17, weight: .bold))
                         .foregroundStyle(PiboLivePalette.coral)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -41,7 +41,7 @@ struct PiboWidgetsLiveActivity: Widget {
                     .font(.system(size: 13, weight: .black, design: .rounded))
                     .foregroundStyle(PiboLivePalette.coral)
             } compactTrailing: {
-                Text("+\(context.state.vitalityGain)")
+                Text(context.state.isComplete ? "已记录" : "同步")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
             } minimal: {
                 Text("✦")
@@ -68,7 +68,7 @@ private struct PiboLiveActivityLockScreenView: View {
                         .foregroundStyle(PiboLivePalette.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
-                    Text(context.state.isComplete ? "已记录" : "等待喂养")
+                    Text(context.state.isComplete ? "已记录" : "待查看")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(context.state.isComplete ? PiboLivePalette.sage : PiboLivePalette.coral)
                         .lineLimit(1)
@@ -88,11 +88,11 @@ private struct PiboLiveActivityLockScreenView: View {
 
             Spacer(minLength: 4)
 
-            VStack(spacing: 2) {
-                Text("+\(context.state.vitalityGain)")
-                    .font(.system(size: 22, weight: .black, design: .rounded))
+            VStack(spacing: 4) {
+                Image(systemName: context.state.isComplete ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
+                    .font(.system(size: 21, weight: .bold))
                     .foregroundStyle(PiboLivePalette.coral)
-                Text("活力")
+                Text(context.state.isComplete ? "已同步" : "记录")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(PiboLivePalette.muted)
             }
@@ -124,10 +124,10 @@ private struct PiboLivePetGlyph: View {
                 }
                 Capsule()
                     .fill(PiboLivePalette.ink)
-                    .frame(width: stateTag == "SLEEPING" ? 14 : 22, height: 4)
+                    .frame(width: stateTag == "deepSleep" ? 14 : 22, height: 4)
             }
 
-            if stateTag == "EXCITED" || stateTag == "BLISSFUL" {
+            if stateTag == "active" {
                 Circle()
                     .fill(PiboLivePalette.sticky)
                     .frame(width: 8, height: 8)
@@ -138,9 +138,9 @@ private struct PiboLivePetGlyph: View {
 
     private var accent: Color {
         switch stateTag {
-        case "EXCITED", "BLISSFUL": return PiboLivePalette.coral
-        case "SLEEPING": return PiboLivePalette.sage
-        case "TIRED", "SICK": return PiboLivePalette.muted
+        case "active": return PiboLivePalette.coral
+        case "deepSleep", "waking": return PiboLivePalette.sage
+        case "irritated", "disturbed": return PiboLivePalette.muted
         default: return PiboLivePalette.ink
         }
     }
@@ -166,9 +166,9 @@ extension PiboFeedActivityAttributes.ContentState {
     fileprivate static var pending: PiboFeedActivityAttributes.ContentState {
         PiboFeedActivityAttributes.ContentState(
             title: "跑步完成",
-            message: "可喂给 Pibo，活力星光正在落下",
+            message: "收到一条新的运动记录",
             vitalityGain: 32,
-            stateTag: "EXCITED",
+            stateTag: "active",
             endedAt: Date(),
             isComplete: false
         )
@@ -176,10 +176,10 @@ extension PiboFeedActivityAttributes.ContentState {
 
     fileprivate static var complete: PiboFeedActivityAttributes.ContentState {
         PiboFeedActivityAttributes.ContentState(
-            title: "已喂给 Pibo",
-            message: "今日运动已记录，Pibo 明亮了一点",
+            title: "跑步已记录",
+            message: "运动记录已同步，会用于之后的可见积累",
             vitalityGain: 32,
-            stateTag: "BLISSFUL",
+            stateTag: "idle",
             endedAt: Date(),
             isComplete: true
         )

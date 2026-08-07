@@ -22,7 +22,7 @@ struct PiboThemeSprite: Hashable {
 
 /// How far Pibo's head 毛 has grown. MVP ships two steps of the 魔丸 arc:
 /// the D1 「?」 curl, and the first 发芽 (a leaf sprouts after the first
-/// collected 运动能量 — Figma《识别到用户的活动》74:6102).
+/// a newly synced workout record — Figma《识别到用户的活动》74:6102).
 enum PiboGrowthStage: String {
     case mystery    // D1 — 黑洞 + 「?」卷芽, nothing grown yet
     case sprouted   // 第一次能量收集后 — 卷芽长出叶片, 黑洞消失

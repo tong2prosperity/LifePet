@@ -609,7 +609,7 @@ struct FootprintsFoodDetailView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: LP.Spacing.xxl) {
                 FootprintsSheetHeader(
-                    eyebrow: food.meal?.title ?? "露珠相机",
+                    eyebrow: food.meal?.title ?? "餐食相机",
                     title: food.dishName ?? food.subjectLabel ?? "一张记录",
                     icon: food.meal?.symbol ?? "camera.fill",
                     tint: LP.Colorful.green500
@@ -769,7 +769,7 @@ struct FootprintsDoodleDetailView: View {
 
                 HStack(spacing: LP.Spacing.s) {
                     metric("距离", DoodleGeometry.distanceText(doodle.distanceMeters))
-                    metric("圈地", DoodleGeometry.areaText(doodle.areaSquareMeters))
+                    metric("路线面积", DoodleGeometry.areaText(doodle.areaSquareMeters))
                     metric("时长", durationText)
                 }
 

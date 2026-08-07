@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 足迹涂鸦 card — the day's walk doodles (GPS strokes the user traced on the map).
 /// Each doodle re-renders offline from its stored points via `WalkDoodleShape` (no
-/// map tile persisted), shown on a cool-grey tile with its 距离 · 圈地 caption — the
+/// map tile persisted), shown on a cool-grey tile with its 距离 · 路线面积 caption — the
 /// surface that grows into the future 完成度 / 比拼面积 view. Hides on no-data days
 /// like 运动记录 / 体征.
 struct HistoryDoodleCard: View {
@@ -55,7 +55,7 @@ struct HistoryDoodleCard: View {
         .frame(width: 128)
     }
 
-    // 空态不再指路涂鸦 —— 地图涂鸦属小游戏，在首发范围外
+    // 空态保持安静；Walk Doodle 的独立入口在首页，不从历史页反向拉起记录。
     // （`PiboReleaseScope.miniGames`）。卡片保留，老数据仍要能看。
     private var emptyState: some View {
         HStack(spacing: LP.Spacing.s) {

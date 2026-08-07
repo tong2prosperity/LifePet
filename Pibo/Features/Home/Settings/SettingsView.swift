@@ -10,10 +10,14 @@ struct SettingsView: View {
     @Environment(AuthService.self) private var auth
     @Environment(StressNotifier.self) private var messageNotifier
     @Environment(WorkoutCompletionNotifier.self) private var workoutNotifier
+    @Environment(OnboardingStateStore.self) private var onboarding
+    @Environment(HealthDataService.self) private var health
 
     @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled)
     private var ambientSoundEnabled = true
     @State private var showLogoutConfirmation = false
+    @State private var showStoryRecovery = false
+    @State private var healthRequestInFlight = false
 
     #if DEBUG
     var onReset: () -> Void = {}
@@ -25,6 +29,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: LP.Spacing.xl) {
                 accountSection
+                connectionSection
                 soundSection
                 notificationSection
                 aboutSection
@@ -50,6 +55,9 @@ struct SettingsView: View {
             }
             Button(AppLocalization.text("取消"), role: .cancel) {}
         }
+        .fullScreenCover(isPresented: $showStoryRecovery) {
+            HealthAuthView(mode: .storyRecovery) { showStoryRecovery = false }
+        }
     }
 
     private var accountSection: some View {
@@ -60,6 +68,58 @@ struct SettingsView: View {
                 settingsRow(title: "用户名", detail: accountDetail, showsChevron: true)
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var connectionSection: some View {
+        if PiboReleaseScope.temporaryCooperationOnboarding,
+           onboarding.needsStoryRecovery {
+            settingsSection("settings.connection.title") {
+                Button {
+                    Analytics.track(.storyRecoveryOpened, screen: "settings")
+                    showStoryRecovery = true
+                } label: {
+                    settingsRow(
+                        title: "settings.connection.continue",
+                        showsChevron: true
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        } else if !onboarding.hasObservedHealthSource,
+                  (!PiboReleaseScope.temporaryCooperationOnboarding
+                    || onboarding.snapshot.connection == .accepted) {
+            settingsSection("settings.connection.title") {
+                Button {
+                    connectHealthRecords()
+                } label: {
+                    settingsRow(
+                        title: "settings.connection.health",
+                        showsChevron: true
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(healthRequestInFlight)
+            }
+        }
+    }
+
+    private func connectHealthRecords() {
+        guard !healthRequestInFlight else { return }
+        healthRequestInFlight = true
+        Task {
+            await health.requestAuthorization()
+            let readiness = await health.onboardingReadiness()
+            if PiboReleaseScope.temporaryCooperationOnboarding {
+                onboarding.markHealthRequestCompleted(readiness: readiness)
+            }
+            Analytics.track(
+                .healthAuth,
+                screen: "settings",
+                ["observed_source": .bool(readiness.isReady)]
+            )
+            healthRequestInFlight = false
         }
     }
 
@@ -88,9 +148,21 @@ struct SettingsView: View {
                 Divider().overlay(LP.Separator.primary)
                 settingToggle(
                     title: "运动完成提醒",
-                    subtitle: "手表运动同步后，状态更新提醒",
+                    subtitle: "运动同步后，Pibo 会确认记录已收到",
                     isOn: workoutNotificationsBinding
                 )
+                Divider().overlay(LP.Separator.primary)
+                // Frequent by design — a reading lands whenever the watch writes a
+                // heartbeat series, so this stays off unless the user asks for it.
+                // Gated on 消息通知 because `StressNotifier.pushEnabled` is the
+                // master switch: with it off this toggle would silently do nothing.
+                settingToggle(
+                    title: "HRV 测量提醒",
+                    subtitle: "每次测到 HRV 都告诉你结果，会比较频繁",
+                    isOn: hrvReadingNotificationsBinding
+                )
+                .disabled(!messageNotifier.pushEnabled)
+                .opacity(messageNotifier.pushEnabled ? 1 : 0.44)
             }
         }
     }
@@ -184,6 +256,22 @@ struct SettingsView: View {
                 LPHaptics.tap()
                 messageNotifier.pushEnabled = enabled
                 messageNotifier.sleepSummaryPushEnabled = enabled
+                if enabled {
+                    Task { await messageNotifier.requestAuthorization() }
+                }
+            }
+        )
+    }
+
+    private var hrvReadingNotificationsBinding: Binding<Bool> {
+        Binding(
+            get: { messageNotifier.notifyEveryReading },
+            set: { enabled in
+                LPHaptics.tap()
+                messageNotifier.notifyEveryReading = enabled
+                // Provisional auth delivers silently to Notification Center only,
+                // which for a per-reading readout reads as "没提醒". Upgrading to
+                // full auth here is the same move the 消息通知 toggle makes.
                 if enabled {
                     Task { await messageNotifier.requestAuthorization() }
                 }

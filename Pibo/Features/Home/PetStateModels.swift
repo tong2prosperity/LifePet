@@ -84,9 +84,9 @@ struct StatDelta: Equatable, Sendable {
 
 /// 一次"刚同步过来的运动"待用户确认。`HealthDataService` 检测到 fresh
 /// workout（≤5 min ago）→ `PetStateStore` 把它装进 `pendingWorkout` 而不
-/// 立刻 applyGain；`HomeView` 看到非 nil 时弹 `WorkoutAlertSheet`。用户点
-/// 「喂养」→ `consume(...)` 真正应用增益、插 done 卡、触发动画；用户划
-/// 走 / 点 backdrop → `dismiss(...)` 静默应用增益（不丢数据）。
+/// 立刻呈现；`HomeView` 看到非 nil 时弹 `WorkoutAlertSheet`。用户确认后
+/// `consume(...)` 记录变化、插 done 卡并触发动画；用户划走或点 backdrop
+/// 时 `dismiss(...)` 静默保存记录（不丢数据）。
 ///
 /// Replay workouts（>5min 旧）走老路径：直接插展示卡，**不**入这个队列，
 /// 因为它们的 vitality 已经被 aggregate snapshot 吸收过。

@@ -17,21 +17,19 @@ import HealthKit
 /// wearer. Only the HealthKit enumeration is per-target (`HRVAnalysis` stays
 /// Foundation-only so the widget extension doesn't pull in HealthKit).
 enum CRCHeartbeatSeriesReader {
-    /// Median RMSSD (ms) across every readable heartbeat series overlapping
-    /// `[start, end]`, or `nil` if none yielded a trustworthy value. Median (not
-    /// mean) so one noisy-but-passing series can't skew the session figure.
+    /// Corrected NN-RMSSD (ms) across every readable heartbeat series overlapping
+    /// `[start, end]`, or `nil` if none contains a pair. The same shared
+    /// Lipponen–Tarvainen correction used by the phone keeps session and passive
+    /// Apple measurements comparable. Session display is not a stress decision,
+    /// so short evidence remains visible here.
     static func sessionRMSSD(store: HKHealthStore, start: Date, end: Date) async -> Double? {
         let series = await seriesOverlapping(store: store, start: start, end: end)
         guard !series.isEmpty else { return nil }
-        var values: [Double] = []
+        var allSegments: [[Double]] = []
         for s in series {
-            let segments = await rrSegments(for: s, store: store)
-            if let v = HRVAnalysis.analyze(segments)?.rmssd { values.append(v) }
+            allSegments.append(contentsOf: await rrSegments(for: s, store: store))
         }
-        guard !values.isEmpty else { return nil }
-        let sorted = values.sorted()
-        let mid = sorted.count / 2
-        return sorted.count % 2 == 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+        return HRVAnalysis.analyze(allSegments)?.rmssd
     }
 
     /// Every `HKHeartbeatSeriesSample` whose interval overlaps the window.

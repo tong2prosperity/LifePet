@@ -155,9 +155,6 @@
     "...别把我放进菜单里...快开始...啵" : {
 
     },
-    "...用脚...画一个圈...啵" : {
-
-    },
     "...雾散一点就好...啵" : {
 
     },
@@ -330,6 +327,16 @@
         }
       }
     },
+    "%@ %lld" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$lld"
+          }
+        }
+      }
+    },
     "%@ 醒过来一点！+%d 活力星光" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -343,6 +350,59 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 醒过来一点！+%d 活力星光"
+          }
+        }
+      }
+    },
+    "%@，%@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@，%2$@"
+          }
+        }
+      }
+    },
+    "%@，%@，%@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@，%2$@，%3$@"
+          }
+        }
+      }
+    },
+    "%@，已拥有" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, owned"
+          }
+        }
+      }
+    },
+    "%@，当前目标" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, current goal"
+          }
+        }
+      }
+    },
+    "%@，未来物件" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, future item"
           }
         }
       }
@@ -370,6 +430,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@完成"
+          }
+        }
+      }
+    },
+    "%@已解锁" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ unlocked"
+          }
+        }
+      }
+    },
+    "%@待查看" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ready to view"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@待查看"
+          }
+        }
+      }
+    },
+    "%d bo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d bo"
+          }
+        }
+      }
+    },
+    "%d bo 解锁" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock for %d bo"
           }
         }
       }
@@ -1094,6 +1204,9 @@
         }
       }
     },
+    "14 天观察窗" : {
+
+    },
     "20 分钟" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1233,6 +1346,876 @@
         }
       }
     },
+    "history.steps.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No step record has arrived yet today"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天暂时没有步数记录"
+          }
+        }
+      }
+    },
+    "history.steps.recorded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's step record is organized"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天的步数记录已整理"
+          }
+        }
+      }
+    },
+    "home.angry.enter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Three times. I need some quiet now."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三次了。我需要安静一会儿。"
+          }
+        }
+      }
+    },
+    "home.awake.pat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I just woke up. Let me stay here a little longer."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我刚醒。让我再待一会儿。"
+          }
+        }
+      }
+    },
+    "home.bo.collected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added to our shared inventory"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已放入共同库存"
+          }
+        }
+      }
+    },
+    "home.bo.firstPluckPrompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This should come off now. You try."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个应该可以取下来。你来试。"
+          }
+        }
+      }
+    },
+    "home.bo.firstRipe" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formation complete. This route works."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形成完成。看来这条路线有效。"
+          }
+        }
+      }
+    },
+    "home.bo.ripe" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another one has formed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "又形成了一枚。"
+          }
+        }
+      }
+    },
+    "home.bo.slow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There isn't enough accumulated yet. I'll keep recording."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前积累还不够。我会继续记录。"
+          }
+        }
+      }
+    },
+    "home.coolhide.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'll observe from somewhere else."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我换个位置观察。"
+          }
+        }
+      }
+    },
+    "home.coolhide.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The sounds are clearer from this grass."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "草丛这里的声音更清楚。"
+          }
+        }
+      }
+    },
+    "home.dive.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'm going underwater for a while."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我去水下待一会儿。"
+          }
+        }
+      }
+    },
+    "home.dive.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are fewer sounds here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这里的声音少一些。"
+          }
+        }
+      }
+    },
+    "home.garbled.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Receiving… stable."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接收……稳定。"
+          }
+        }
+      }
+    },
+    "home.garbled.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record… complete for now."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录……暂时完整。"
+          }
+        }
+      }
+    },
+    "home.garbled.03" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That word… failed to translate."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个词……翻译失败。"
+          }
+        }
+      }
+    },
+    "home.garbled.04" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait. The language module is still calibrating."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等一下。语言模块还在校准。"
+          }
+        }
+      }
+    },
+    "home.idle.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The forest hasn't changed much today."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "森林今天没有明显变化。"
+          }
+        }
+      }
+    },
+    "home.idle.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I just checked the records. The connection is normal."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我刚检查完记录。连接正常。"
+          }
+        }
+      }
+    },
+    "home.idle.03" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{steps} steps recorded today."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天记录到 {steps} 步。"
+          }
+        }
+      }
+    },
+    "home.idle.04" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The ripples on the water are different from last time."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "水面的波纹和上次不一样。"
+          }
+        }
+      }
+    },
+    "home.idle.05" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another `bo` has formed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "又有一枚 `bo` 形成了。"
+          }
+        }
+      }
+    },
+    "home.idle.06" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formation complete. Take it when you have time."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形成完成。你有空时可以取下。"
+          }
+        }
+      }
+    },
+    "home.lowActivity.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{steps} steps recorded so far today."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天暂时记录到 {steps} 步。"
+          }
+        }
+      }
+    },
+    "home.lowActivity.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No new activity record right now. I'll observe for a while."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在没有新的活动记录。我先观察一会儿。"
+          }
+        }
+      }
+    },
+    "home.lowBoth.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There aren't many usable records today. I'll keep them as they arrive."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天可用的记录不多。我会继续保存。"
+          }
+        }
+      }
+    },
+    "home.lowBoth.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There isn't enough to draw a conclusion yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前不足以下结论。"
+          }
+        }
+      }
+    },
+    "home.lowSleep.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{sleepDuration} recorded last night. That's only one night's data."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨晚记录到 {sleepDuration}。这只是一晚的数据。"
+          }
+        }
+      }
+    },
+    "home.lowSleep.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'll keep recording. No judgment yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我会继续记录，暂时不判断。"
+          }
+        }
+      }
+    },
+    "home.missing.pibo.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no new records right now. I'll keep observing."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在没有新的记录。我会继续观察。"
+          }
+        }
+      }
+    },
+    "home.missing.pibo.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The channel hasn't changed for now."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通道暂时没有变化。"
+          }
+        }
+      }
+    },
+    "home.missing.system.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No new health records received for now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时没有收到新的健康记录"
+          }
+        }
+      }
+    },
+    "home.missing.system.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health data hasn't synced yet. Check again later."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "健康数据尚未同步。你可以稍后再看。"
+          }
+        }
+      }
+    },
+    "home.sleep.pat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo has enabled Do Not Disturb"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo 设置了请勿打扰"
+          }
+        }
+      }
+    },
+    "home.tap.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Received."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收到。"
+          }
+        }
+      }
+    },
+    "home.tap.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You touched the window."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你碰到窗口了。"
+          }
+        }
+      }
+    },
+    "home.tap.03" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection normal."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接正常。"
+          }
+        }
+      }
+    },
+    "home.tap.04" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'm organizing the records."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我正在整理记录。"
+          }
+        }
+      }
+    },
+    "home.tap.05" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The wind direction changed here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这里的风向变了。"
+          }
+        }
+      }
+    },
+    "home.tap.06" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Water is very noticeable on Earth."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "地球的水声很明显。"
+          }
+        }
+      }
+    },
+    "home.tap.07" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "`bo` is forming more slowly than I expected."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "`bo` 的形成比我预计得慢。"
+          }
+        }
+      }
+    },
+    "home.tap.08" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordinary sleep and walking leave an accumulation too."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "普通的睡眠和行走也会留下积累。"
+          }
+        }
+      }
+    },
+    "home.tap.09" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I haven't finished explaining these records."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我还没有解释完这些记录。"
+          }
+        }
+      }
+    },
+    "home.tap.10" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait. I'm observing."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等一下，我在观察。"
+          }
+        }
+      }
+    },
+    "home.waking.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I just woke up. The connection is still here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我刚醒。连接还在。"
+          }
+        }
+      }
+    },
+    "home.waking.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{sleepDuration} recorded last night. I'm still organizing it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨晚记录到 {sleepDuration}。我还在整理。"
+          }
+        }
+      }
+    },
+    "home.waking.03" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The wind here is different in the morning than at night."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这里早上的风向和晚上不同。"
+          }
+        }
+      }
+    },
+    "home.waking.04" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I just woke up. Let me stay here a little longer."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我刚醒。让我再待一会儿。"
+          }
+        }
+      }
+    },
+    "home.wakingTired.01" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "{sleepDuration} recorded last night. I'll keep today's records separate."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨晚记录到 {sleepDuration}。我会把今天的记录分开看。"
+          }
+        }
+      }
+    },
+    "home.wakingTired.02" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is less data than usual. No conclusion yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据比平时少一些。先不下结论。"
+          }
+        }
+      }
+    },
+    "HRV" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HRV"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HRV"
+          }
+        }
+      }
+    },
+    "HRV · ms" : {
+
+    },
     "HRV · 心率稳定度" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1290,6 +2273,23 @@
     "kcal · 估算" : {
 
     },
+    "NN %d · 校正 %d（%d%%）· %d 秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NN %d · corrected %d (%d%%) · %d sec"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NN %d · 校正 %d（%d%%）· %d 秒"
+          }
+        }
+      }
+    },
     "NOCT 只活了 14 天。它从没见过早晨的太阳——你总在凌晨才睡，醒来直接坐到电脑前。它等了很久，你始终没动。慢慢地，它懒得再动。被你熬死的第 3 只。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1307,8 +2307,926 @@
         }
       }
     },
+    "onboarding.close" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
+        }
+      }
+    },
+    "onboarding.compact.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo can turn the sleep, steps, and workouts you allow into visible accumulation. You can also view health records, log meal calories, and use Walk Doodle to preserve a walking route."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo 可以把你允许的睡眠、步行和运动记录转化为可见积累。你也可以查看健康记录、记录餐食卡路里，并使用 Walk Doodle 留下步行路线。"
+          }
+        }
+      }
+    },
+    "onboarding.compact.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complete basic setup first"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先完成基本设置"
+          }
+        }
+      }
+    },
+    "onboarding.continue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续"
+          }
+        }
+      }
+    },
+    "onboarding.encounter.line1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "…Signal connected."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "……信号接通了。"
+          }
+        }
+      }
+    },
+    "onboarding.encounter.line2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Is someone there?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这里有人吗？"
+          }
+        }
+      }
+    },
+    "onboarding.encounter.primary" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'm here"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我在"
+          }
+        }
+      }
+    },
+    "onboarding.enterHome" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter Home"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进入主页"
+          }
+        }
+      }
+    },
+    "onboarding.finish.connected.line1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The channel is established."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通道建立了。"
+          }
+        }
+      }
+    },
+    "onboarding.finish.connected.line2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Real records will take some time."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真实的记录需要一点时间。"
+          }
+        }
+      }
+    },
+    "onboarding.finish.connected.line3" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We start today."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们从今天开始。"
+          }
+        }
+      }
+    },
+    "onboarding.finish.hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep, walking, and workouts will gradually form the first `bo`."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠、步行和运动会在之后慢慢形成第一枚 `bo`。"
+          }
+        }
+      }
+    },
+    "onboarding.finish.noData.line1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health records aren't connected yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "健康记录还没有接入。"
+          }
+        }
+      }
+    },
+    "onboarding.finish.noData.line2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The window will remain open."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "窗口会保留。"
+          }
+        }
+      }
+    },
+    "onboarding.finish.noData.line3" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue when you're ready."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "准备好以后再继续。"
+          }
+        }
+      }
+    },
+    "onboarding.finish.unanswered.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can use Pibo now. Respond when you want to continue this connection."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你可以直接使用 Pibo；想继续这段连接时，再回应它。"
+          }
+        }
+      }
+    },
+    "onboarding.finish.unanswered.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Initial setup is complete"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首次设置已完成"
+          }
+        }
+      }
+    },
+    "onboarding.health.activity.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steps, standing, active energy, and workouts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "步数、站立、活动消耗与运动"
+          }
+        }
+      }
+    },
+    "onboarding.health.activity.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily activity"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日常活动"
+          }
+        }
+      }
+    },
+    "onboarding.health.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo reads the health data you allow in the system to show your records and let real sleep and activity gradually form `bo`."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo 会读取你在系统中允许的健康数据，用于展示健康记录，并让真实的睡眠与活动逐渐形成 `bo`。"
+          }
+        }
+      }
+    },
+    "onboarding.health.boundary" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This information is not used for medical diagnosis. You can adjust permissions in System Settings."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些信息不用于医疗诊断。你可以在系统设置中调整权限。"
+          }
+        }
+      }
+    },
+    "onboarding.health.connect" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect Health Records"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接健康记录"
+          }
+        }
+      }
+    },
+    "onboarding.health.notNow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂不连接"
+          }
+        }
+      }
+    },
+    "onboarding.health.rest.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "睡眠"
+          }
+        }
+      }
+    },
+    "onboarding.health.rest.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rest records"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "休息记录"
+          }
+        }
+      }
+    },
+    "onboarding.health.signals.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heart rate, resting heart rate, HRV, and more, for health trends and enabled health features"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心率、静息心率、HRV 等，用于健康趋势和已启用的健康功能"
+          }
+        }
+      }
+    },
+    "onboarding.health.signals.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Body signals"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "身体信号"
+          }
+        }
+      }
+    },
+    "onboarding.health.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect Health Records"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接健康记录"
+          }
+        }
+      }
+    },
+    "onboarding.identity.line1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I heard you."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听到了。"
+          }
+        }
+      }
+    },
+    "onboarding.identity.line2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My name is Pibo. I still remember that."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我叫 Pibo。这个还记得。"
+          }
+        }
+      }
+    },
+    "onboarding.identity.line3" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The other records… are incomplete."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他记录……不完整。"
+          }
+        }
+      }
+    },
+    "onboarding.identity.line4" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I remember I need to find `bo`, then go back. There are traces of it here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我记得要找到 `bo`，然后回去。这里有它的痕迹。"
+          }
+        }
+      }
+    },
+    "onboarding.later" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍后"
+          }
+        }
+      }
+    },
+    "onboarding.notification.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo can notify you at these times:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo 可以在这些时候发送通知："
+          }
+        }
+      }
+    },
+    "onboarding.notification.boundary" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Declining notifications does not affect health records, the story, or `bo` formation."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拒绝通知不会影响健康记录、故事或 `bo` 的形成。"
+          }
+        }
+      }
+    },
+    "onboarding.notification.items" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "• A sleep record is ready\n• `bo` is ready to collect\n• Important health alerts you enable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "• 睡眠记录整理完成\n• `bo` 达到可以收取的状态\n• 你主动启用的重要健康提醒"
+          }
+        }
+      }
+    },
+    "onboarding.notification.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tell you when something important changes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在重要变化发生时告诉你"
+          }
+        }
+      }
+    },
+    "onboarding.partnership.accept" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accept Temporary Cooperation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接受临时合作"
+          }
+        }
+      }
+    },
+    "onboarding.partnership.bo.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The sleep, walking, and workout records you allow will gradually form visible accumulation. The first `bo` will not appear immediately after authorization."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你允许的睡眠、步行和运动记录，会慢慢形成可见积累。第一枚 `bo` 不会在授权后立刻出现。"
+          }
+        }
+      }
+    },
+    "onboarding.partnership.bo.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Form `bo`"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形成 `bo`"
+          }
+        }
+      }
+    },
+    "onboarding.partnership.boundary" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo can only use records you allow. It cannot read your emotions, motives, or real-life experiences. You can revoke permissions, and you decide how formed `bo` is used."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo 只能使用你允许的记录，不能读取你的情绪、动机和现实经历。权限可以撤回，形成的 `bo` 由你决定如何使用。"
+          }
+        }
+      }
+    },
+    "onboarding.partnership.life.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View health records, use the meal camera to record calories, or preserve a walking route with Walk Doodle."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看健康记录，用餐食相机记录一餐的卡路里，或通过 Walk Doodle 留下走过的路线。"
+          }
+        }
+      }
+    },
+    "onboarding.partnership.life.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record your life"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录自己的生活"
+          }
+        }
+      }
+    },
+    "onboarding.partnership.line1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I need to confirm how it forms."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我需要确认它是怎样形成的。"
+          }
+        }
+      }
+    },
+    "onboarding.partnership.line2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you're willing, let me observe the records you open."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果你愿意，可以让我观察你开放的记录。"
+          }
+        }
+      }
+    },
+    "onboarding.partnership.line3" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Let's cooperate until we understand it. You can stop at any time."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先合作到我们弄清楚为止。你随时可以停。"
+          }
+        }
+      }
+    },
+    "onboarding.recovery.continue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Learn More"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续了解"
+          }
+        }
+      }
+    },
+    "onboarding.recovery.respond" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Respond to Pibo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回应 Pibo"
+          }
+        }
+      }
+    },
+    "onboarding.recovery.responded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That temporary cooperation still needs your decision."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那项临时合作，还需要你的决定。"
+          }
+        }
+      }
+    },
+    "onboarding.recovery.unresponded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The last signal still has no response."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次的信号还没有收到回应。"
+          }
+        }
+      }
+    },
     "or" : {
 
+    },
+    "ornament.chime.entry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An instrument for recording traces left on Earth. Dew gathers light so Pibo can understand images of food; the chime translates invisible movement into lines left on a map.\n\nIt does not replace the phone’s camera or location system. It simply gives Pibo a way to interpret what those instruments collect.\n\nThe dictionary therefore classifies photographs and walking routes together: both are evidence that someone passed through this place."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一种记录地球留下的痕迹的装置。露珠聚拢光线，帮助 Pibo 理解食物影像；风铃把不可见的移动过程翻译成地图上的线条。\n\n它不会取代手机的相机或定位系统，只是让 Pibo 能够理解这些仪器收集到的东西。\n\n因此，这本词典把照片和步行路线归在同一类：它们都证明有人曾从这里经过。"
+          }
+        }
+      }
+    },
+    "ornament.hammock.entry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An extremely ancient anti-gravity device.\n\nIt cannot actually resist gravity. It merely persuades gravity, very politely, to stop pulling the human body toward the ground for a while.\n\nPeople on this planet seem to believe that entrusting an afternoon to two trees instead of a task list is evidence that civilization has not yet failed completely.\n\nWhat Pibo does not know is that civilization still fails from time to time on this planet—reality exerts far more weight than gravity."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一种极其古老的反重力装置。\n\n它实际上并不能真的反抗地心引力，只是用非常委婉的方式劝说地心引力暂时别把人体拉向地面。\n\n这个星球的人似乎认为：愿意把下午交给两棵树而非任务列表，是文明尚未彻底失败的证据。\n\n但 Pibo 不知道的是，在这个星球上，文明依然时常失败——毕竟现实的引力远比地心引力沉重。"
+          }
+        }
+      }
+    },
+    "ornament.lantern.entry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A small light based on a naturally living plant. Native to Bird Planet and largely harmless.\n\nAs a natural agricultural product, it is not bright enough for war, interrogation, large-scale infrastructure, or any undertaking serious enough to be unsettling.\n\nThe editor recommends using it to illuminate a book, a cup of tea, or the moment an intelligent being concludes, “My life is still worth continuing.”"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基于天然活体植物的小型照明体。原产于鸟星，基本无公害。\n\n作为纯天然农产品，其亮度不足以用于战争、审讯、大规模基础建设或任何严肃得令人不安的事业。\n\n编者建议用它照亮一本书、一杯茶，或者某个智慧生物作出“我的生命依然值得继续”判断的瞬间。"
+          }
+        }
+      }
+    },
+    "ornament.status_observer.entry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A small instrument that translates heartbeat intervals, temperature fluctuations, and traces of sleep into a few arcs.\n\nIts maker hoped it would answer, “How much strength does this life-form have left?” After arriving on Earth, it discovered a more common situation: a life-form has no strength left and still insists, “I’m fine.”\n\nOne clarification is necessary: this instrument observes; it does not command. When its readings are low, the universe usually will not end. The day’s plan, however, can do a little less ending of its user."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一种把心跳间隙、体温起伏和睡眠残留翻译成几道弧线的小型观测装置。\n\n制造者原本希望它回答“这个生命体还剩多少力气”。抵达地球以后，它发现更常见的问题是：生命体明明已经没有力气，仍然坚持回答“没事”。\n\n需要特别说明：本仪器负责观测，不负责命令。读数偏低时，宇宙通常不会毁灭；当天的计划倒是可以少毁灭一点使用者。"
+          }
+        }
+      }
     },
     "Pibo" : {
 
@@ -1407,6 +3325,23 @@
         }
       }
     },
+    "Pibo 的任务，地图涂鸦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo's task, Walk Doodle"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo 的任务，地图涂鸦"
+          }
+        }
+      }
+    },
     "Pibo 的任务：出门走一幅地图涂鸦" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1427,8 +3362,101 @@
     "PIBO 看见的趋势" : {
 
     },
-    "RMSSD · ms" : {
-
+    "Pibo 记下了这次变化" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo recorded this change"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo 记下了这次变化"
+          }
+        }
+      }
+    },
+    "Pibo 词典记录" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo dictionary entry"
+          }
+        }
+      }
+    },
+    "settings.connection.continue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Connection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续连接"
+          }
+        }
+      }
+    },
+    "settings.connection.health" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect Health Records"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接健康记录"
+          }
+        }
+      }
+    },
+    "settings.connection.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo Connection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo 连接"
+          }
+        }
+      }
+    },
+    "settings.stress.summary" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifies you when HRV enters a lower tier, returns to its usual tier, or reaches a higher tier"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HRV 进入较低档位、回到常见档位或处在较高档位时通知你"
+          }
+        }
+      }
     },
     "SICK 突变" : {
       "extractionState" : "manual",
@@ -1447,6 +3475,159 @@
         }
       }
     },
+    "stress.caption.excellent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This HRV reading is above the current reference range. I'll record it first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次 HRV 高于当前参考范围。先记录下来。"
+          }
+        }
+      }
+    },
+    "stress.caption.normal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This HRV reading is within the current reference range."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次 HRV 在当前参考范围内。"
+          }
+        }
+      }
+    },
+    "stress.caption.notice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This HRV reading is below the current reference range. Look at the trend first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次 HRV 低于当前参考范围。先看趋势。"
+          }
+        }
+      }
+    },
+    "stress.caption.overload" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This HRV reading is well below the current reference range. One reading isn't enough for a conclusion."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次 HRV 明显低于当前参考范围。单次记录不下结论。"
+          }
+        }
+      }
+    },
+    "stress.measurement.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measured once. HRV %d ms · %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "量了一次。HRV %d ms · %@"
+          }
+        }
+      }
+    },
+    "stress.notification.excellent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This HRV reading is above the current reference range. I've recorded it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次 HRV 高于当前参考范围。我记录下来了。"
+          }
+        }
+      }
+    },
+    "stress.notification.notice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This HRV reading is below the current reference range. Recorded."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次 HRV 低于当前参考范围。已记录。"
+          }
+        }
+      }
+    },
+    "stress.notification.overload" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This HRV reading is well below the current reference range. Look at the trend first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次 HRV 明显低于当前参考范围。先看趋势。"
+          }
+        }
+      }
+    },
+    "stress.notification.recovered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This HRV reading is back within the current reference range. I've recorded it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次 HRV 回到当前参考范围。我记录下来了。"
+          }
+        }
+      }
+    },
     "TIRED 常态" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1460,6 +3641,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "TIRED 常态"
+          }
+        }
+      }
+    },
+    "Walk Doodle：记录步行路线，把移动过程留成地图上的线条" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walk Doodle: record a walk and leave its movement as lines on a map"
           }
         }
       }
@@ -1515,6 +3707,9 @@
         }
       }
     },
+    "两条根系使用同一比例尺，只比较近期负荷与个人记录。" : {
+
+    },
     "个人中位数" : {
 
     },
@@ -1524,6 +3719,23 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "个人中位数 %1$@ %2$@"
+          }
+        }
+      }
+    },
+    "个人化中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personalizing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "个人化中"
           }
         }
       }
@@ -1596,6 +3808,43 @@
         }
       }
     },
+    "仅使用已授权且实际到达设备的记录；缺失数据不会按 0 分处理。" : {
+
+    },
+    "仅记录" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recorded only"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅记录"
+          }
+        }
+      }
+    },
+    "仅记录，暂不更新趋势" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recorded only; trends are not updated"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅记录，暂不更新趋势"
+          }
+        }
+      }
+    },
     "今 %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1646,6 +3895,9 @@
           }
         }
       }
+    },
+    "今天的恢复记录已生成" : {
+
     },
     "今天的星光很轻。我可能会慢一点回应。" : {
       "extractionState" : "manual",
@@ -1813,6 +4065,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以后再说"
+          }
+        }
+      }
+    },
+    "优秀" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excellent"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "优秀"
+          }
+        }
+      }
+    },
+    "会用于之后的可见积累" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It will count toward visible accumulation later"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会用于之后的可见积累"
           }
         }
       }
@@ -2004,6 +4290,23 @@
         }
       }
     },
+    "你刚完成了「%@」。我注意到了。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You just completed \"%@\". I noticed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你刚完成了「%@」。我注意到了。"
+          }
+        }
+      }
+    },
     "你开始冥想 → 好起来" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2034,6 +4337,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你送走了它。它最喜欢你早晨跑步那段——那是它最活跃的节奏。4/11 你压力很大的那天，它生病了；后来好起来，就在你第一次冥想的第二天。它活成了你那段时间的样子。"
+          }
+        }
+      }
+    },
+    "使用 %d bo 解锁" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use %d bo to unlock"
+          }
+        }
+      }
+    },
+    "使用 %d bo 解锁「%@」？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use %d bo to unlock “%@”?"
           }
         }
       }
@@ -2071,6 +4396,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "健身房"
+          }
+        }
+      }
+    },
+    "先解锁「%@」" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock “%@” first"
           }
         }
       }
@@ -2163,6 +4499,39 @@
     "六位验证码" : {
 
     },
+    "共同物件" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shared objects"
+          }
+        }
+      }
+    },
+    "共同空间还会继续留下新的位置。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More places will appear in the shared space."
+          }
+        }
+      }
+    },
+    "共同空间里的休息处" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A resting place in the shared space"
+          }
+        }
+      }
+    },
     "共陪伴" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2227,6 +4596,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "关闭"
+          }
+        }
+      }
+    },
+    "关闭状态观测仪" : {
+
+    },
+    "关闭运动记录提示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close workout record notice"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭运动记录提示"
           }
         }
       }
@@ -2387,19 +4776,19 @@
         }
       }
     },
-    "出门走一幅画 · 圈一块花田" : {
+    "出门走一幅画" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Walk out and draw · claim a flower patch"
+            "value" : "Walk out and draw"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "出门走一幅画 · 圈一块花田"
+            "value" : "出门走一幅画"
           }
         }
       }
@@ -2471,6 +4860,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "午安"
+          }
+        }
+      }
+    },
+    "华为平台 RMSSD" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Huawei platform RMSSD"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "华为平台 RMSSD"
           }
         }
       }
@@ -2549,6 +4955,28 @@
         }
       }
     },
+    "只使用已授权的健康数据，不生成单一健康分数。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uses only authorized health data and never generates a single health score."
+          }
+        }
+      }
+    },
+    "只使用已授权的原始健康记录。数据不足时等待或校准，不生成恢复分数。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uses only authorized raw health records. When data is insufficient it waits or calibrates, without generating a recovery score."
+          }
+        }
+      }
+    },
     "可举行" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2562,6 +4990,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可举行"
+          }
+        }
+      }
+    },
+    "可投入" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Available"
           }
         }
       }
@@ -2600,6 +5039,17 @@
         }
       }
     },
+    "吊床" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hammock"
+          }
+        }
+      }
+    },
     "同学" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2634,40 +5084,6 @@
         }
       }
     },
-    "喂养 %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Feed %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "喂养 %@"
-          }
-        }
-      }
-    },
-    "喂养 %@，应用本次运动的体力增益" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Feed %@ and apply this workout's vitality gain"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "喂养 %@，应用本次运动的体力增益"
-          }
-        }
-      }
-    },
     "回到我的位置" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2681,6 +5097,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "回到我的位置"
+          }
+        }
+      }
+    },
+    "回到森林" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Return to forest"
           }
         }
       }
@@ -2753,40 +5180,6 @@
         }
       }
     },
-    "圈一块花田" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claim a flower patch"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "圈一块花田"
-          }
-        }
-      }
-    },
-    "圈地" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Area"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "圈地"
-          }
-        }
-      }
-    },
     "在场人数" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2834,6 +5227,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在跑步"
+          }
+        }
+      }
+    },
+    "地图涂鸦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walk Doodle"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "地图涂鸦"
           }
         }
       }
@@ -3017,6 +5427,17 @@
         }
       }
     },
+    "它只改变共同空间，不读取新的数据。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It only changes the shared space and reads no new data."
+          }
+        }
+      }
+    },
     "它开始缩回星壳。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3119,6 +5540,17 @@
         }
       }
     },
+    "实际使用相机时才会请求相机权限。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera access is requested only when you use the camera."
+          }
+        }
+      }
+    },
     "家人" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3207,6 +5639,28 @@
         }
       }
     },
+    "尚未开放" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available yet"
+          }
+        }
+      }
+    },
+    "展开物件详情" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand object details"
+          }
+        }
+      }
+    },
     "已为 %@ 加油 ✨" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3247,6 +5701,17 @@
     "已同意隐私政策和用户协议" : {
 
     },
+    "已在森林" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already in the forest"
+          }
+        }
+      }
+    },
     "已复制 %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3277,6 +5742,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已完成的运动"
+          }
+        }
+      }
+    },
+    "已展开" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expanded"
+          }
+        }
+      }
+    },
+    "已折叠" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collapsed"
           }
         }
       }
@@ -3315,7 +5802,21 @@
         }
       }
     },
+    "已留在森林" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left in the forest"
+          }
+        }
+      }
+    },
     "已登录" : {
+
+    },
+    "已观测 %lld / 14 天" : {
 
     },
     "已跳过 · 下次少推%@" : {
@@ -3437,6 +5938,40 @@
         }
       }
     },
+    "建立个人参考中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building your reference"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建立个人参考中"
+          }
+        }
+      }
+    },
+    "建立个人参考中 · %d/%d 天" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building your reference · %d/%d days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建立个人参考中 · %d/%d 天"
+          }
+        }
+      }
+    },
     "建议: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3467,6 +6002,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开始涂鸦"
+          }
+        }
+      }
+    },
+    "开始记录路线时才会请求定位权限。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location access is requested only when route recording begins."
           }
         }
       }
@@ -3505,6 +6051,34 @@
         }
       }
     },
+    "当前只有大概位置权限，记录轨迹需要精确位置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Precise Location is required to record the route; only approximate location is currently allowed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前只有大概位置权限，记录轨迹需要精确位置"
+          }
+        }
+      }
+    },
+    "当前可以准备的物件" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Object currently available to prepare"
+          }
+        }
+      }
+    },
     "当前所有 stats、卡片和孵化记录都会清掉。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3518,6 +6092,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前所有 stats、卡片和孵化记录都会清掉。"
+          }
+        }
+      }
+    },
+    "当前有 %d bo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current balance: %d bo"
           }
         }
       }
@@ -3674,6 +6259,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "总天数"
+          }
+        }
+      }
+    },
+    "恢复分" : {
+
+    },
+    "恢复分，%@，%@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "恢复分，%1$@，%2$@"
+          }
+        }
+      }
+    },
+    "恢复状态" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovery Status"
+          }
+        }
+      }
+    },
+    "恢复状态：根据已授权的原始记录等待数据或校准" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovery status: wait for data or calibrate from authorized raw records"
           }
         }
       }
@@ -3854,6 +6474,23 @@
         }
       }
     },
+    "戴上手表过一会儿，华为健康记录的 HRV 会出现在这里。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wear your watch for a while. HRV recorded by Huawei Health will appear here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "戴上手表过一会儿，华为健康记录的 HRV 会出现在这里。"
+          }
+        }
+      }
+    },
     "戳一下 %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3931,6 +6568,39 @@
         }
       }
     },
+    "打开恢复状态" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open recovery status"
+          }
+        }
+      }
+    },
+    "打开睡眠回顾" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open sleep review"
+          }
+        }
+      }
+    },
+    "打开确认后即可解锁，不需要长按" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the confirmation to unlock; no hold is required"
+          }
+        }
+      }
+    },
     "扫码功能即将上线" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3978,6 +6648,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "持续危险"
+          }
+        }
+      }
+    },
+    "按住插画，可以先看它会留在哪里。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold the artwork to preview where it will remain."
+          }
+        }
+      }
+    },
+    "按住解锁 · %d bo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold to unlock · %d bo"
           }
         }
       }
@@ -4067,6 +6759,34 @@
         }
       }
     },
+    "收到一条新的运动记录" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new workout record came in"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收到一条新的运动记录"
+          }
+        }
+      }
+    },
+    "收到可用的睡眠记录后，可以从吊床重复查看最近一次睡眠回顾。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once a usable sleep record arrives, the hammock can reopen the latest sleep review."
+          }
+        }
+      }
+    },
     "收香" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4107,6 +6827,26 @@
     "数据怎么来的" : {
 
     },
+    "数据还不够。先继续观察。" : {
+
+    },
+    "新记录待查看" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New record ready to view"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新记录待查看"
+          }
+        }
+      }
+    },
     "无名星壳" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4126,6 +6866,17 @@
     },
     "无效验证码，请重试" : {
 
+    },
+    "无需新增权限。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No additional permission is required."
+          }
+        }
+      }
     },
     "日期" : {
 
@@ -4555,6 +7306,23 @@
         }
       }
     },
+    "暂无" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无"
+          }
+        }
+      }
+    },
     "暂无可用数据" : {
 
     },
@@ -4669,6 +7437,42 @@
         }
       }
     },
+    "松开即可回到物件说明" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Release to return to the object details"
+          }
+        }
+      }
+    },
+    "查看恢复状态" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View recovery status"
+          }
+        }
+      }
+    },
+    "查看计算依据" : {
+
+    },
+    "查看身体状态留下的线索" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review clues left by body state"
+          }
+        }
+      }
+    },
     "橘子" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4722,6 +7526,78 @@
     },
     "欢迎来到 Pibo" : {
 
+    },
+    "正在依据已授权的原始记录建立个人基线。恢复算法确认前不会显示分数。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A personal baseline is being calibrated from authorized raw records. No score is shown until the recovery algorithm is approved."
+          }
+        }
+      }
+    },
+    "正在建立" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building"
+          }
+        }
+      }
+    },
+    "正在建立%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building %@"
+          }
+        }
+      }
+    },
+    "正在建立物件" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building object"
+          }
+        }
+      }
+    },
+    "正在校准" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calibrating"
+          }
+        }
+      }
+    },
+    "正常" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正常"
+          }
+        }
+      }
     },
     "步" : {
       "extractionState" : "manual",
@@ -4859,6 +7735,23 @@
         }
       }
     },
+    "注意" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notice"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "注意"
+          }
+        }
+      }
+    },
     "活力星光" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4981,6 +7874,17 @@
         }
       }
     },
+    "照亮散步留下的路线" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Illuminate the route left by a walk"
+          }
+        }
+      }
+    },
     "爸爸" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5045,6 +7949,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "状态良好"
+          }
+        }
+      }
+    },
+    "状态观测仪" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status Observer"
+          }
+        }
+      }
+    },
+    "状态观测仪会使用已授权的睡眠和身体记录。收到数据后开始校准。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The status observer uses authorized sleep and body records. Calibration begins when data arrives."
           }
         }
       }
@@ -5174,6 +8100,23 @@
         }
       }
     },
+    "用脚画一条路线。我会记录它的形状。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw a route with your feet. I'll record its shape."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用脚画一条路线。我会记录它的形状。"
+          }
+        }
+      }
+    },
     "由 TA 一生的健康数据生成 · 时长 15 秒" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5196,6 +8139,17 @@
     },
     "登录即代表你同意我们的 " : {
 
+    },
+    "相机与精确定位权限会在分别使用两项能力时请求。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera and precise location permissions are requested only when each capability is used."
+          }
+        }
+      }
     },
     "睡眠" : {
       "extractionState" : "manual",
@@ -5231,6 +8185,39 @@
         }
       }
     },
+    "睡眠回顾" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep Review"
+          }
+        }
+      }
+    },
+    "睡眠回顾：在 App 内查看最近一次睡眠" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep review: view your latest sleep in the app"
+          }
+        }
+      }
+    },
+    "睡眠回顾与睡醒通知" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep review and wake notifications"
+          }
+        }
+      }
+    },
     "睡眠让 Pibo 稳定醒来" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5244,6 +8231,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "睡眠让 Pibo 稳定醒来"
+          }
+        }
+      }
+    },
+    "睡醒通知：每天睡醒后提醒你查看" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wake notification: a reminder after you wake each day"
           }
         }
       }
@@ -5312,6 +8310,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "破损铃铛"
+          }
+        }
+      }
+    },
+    "确认解锁" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm unlock"
+          }
+        }
+      }
+    },
+    "确认解锁 · %d bo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm unlock · %d bo"
           }
         }
       }
@@ -5452,6 +8472,17 @@
         }
       }
     },
+    "等待数据" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for data"
+          }
+        }
+      }
+    },
     "签订契约并连接 HealthKit" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5579,6 +8610,42 @@
     },
     "获取验证码" : {
 
+    },
+    "补梦风铃" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dream-mending Chime"
+          }
+        }
+      }
+    },
+    "解锁后获得" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlocked capabilities"
+          }
+        }
+      }
+    },
+    "训练负荷" : {
+
+    },
+    "记录露珠相片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture dewdrop photos"
+          }
+        }
+      }
     },
     "记得吃早饭 🥣" : {
       "extractionState" : "manual",
@@ -5739,6 +8806,23 @@
         }
       }
     },
+    "超载" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overload"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超载"
+          }
+        }
+      }
+    },
     "足迹" : {
 
     },
@@ -5789,6 +8873,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "距离"
+          }
+        }
+      }
+    },
+    "路线面积" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Route area"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路线面积"
           }
         }
       }
@@ -5898,6 +8999,23 @@
         }
       }
     },
+    "运动同步后，Pibo 会确认记录已收到" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After a workout syncs, Pibo will confirm that the record was received"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运动同步后，Pibo 会确认记录已收到"
+          }
+        }
+      }
+    },
     "运动让 Pibo 更清醒" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5911,6 +9029,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "运动让 Pibo 更清醒"
+          }
+        }
+      }
+    },
+    "运动记录已同步" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workout record synced"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运动记录已同步"
           }
         }
       }
@@ -5949,6 +9084,28 @@
         }
       }
     },
+    "返回森林" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to forest"
+          }
+        }
+      }
+    },
+    "还差 %d bo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d bo short"
+          }
+        }
+      }
+    },
     "还差 %d 天。继续给 Pibo 留下一点活力星光和静息星光。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5962,6 +9119,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "还差 %d 天。继续给 Pibo 留下一点活力星光和静息星光。"
+          }
+        }
+      }
+    },
+    "还没有 HRV 数据" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No HRV data yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有 HRV 数据"
           }
         }
       }
@@ -6013,6 +9187,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这一天还没有记录"
+          }
+        }
+      }
+    },
+    "这些物件会留在共同空间里" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These objects remain in the shared space"
+          }
+        }
+      }
+    },
+    "这件物件还没有开放。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This object is not available yet."
           }
         }
       }
@@ -6174,6 +9370,17 @@
         }
       }
     },
+    "铃兰灯" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lily-of-the-valley Lamp"
+          }
+        }
+      }
+    },
     "铃声不是为了命令谁回来。它只是告诉迷路的人，仍然有人在等。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6296,6 +9503,28 @@
     "隐私政策" : {
 
     },
+    "需要 %d bo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requires %d bo"
+          }
+        }
+      }
+    },
+    "需要先完成前面的物件" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Complete the preceding object first"
+          }
+        }
+      }
+    },
     "需要定位权限才能画地图涂鸦" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6309,6 +9538,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需要定位权限才能画地图涂鸦"
+          }
+        }
+      }
+    },
+    "需要已授权的睡眠记录。拒绝通知权限仍可在 App 内查看睡眠回顾。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authorized sleep records are required. If notifications are declined, sleep review remains available in the app."
+          }
+        }
+      }
+    },
+    "露珠相机：拍下地球食物，估算热量并保存到足迹" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dew Camera: photograph Earth food, estimate calories, and save it to Footprints"
+          }
+        }
+      }
+    },
+    "露珠相机与 Walk Doodle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dew Camera and Walk Doodle"
           }
         }
       }
@@ -6343,6 +9605,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "静息星光"
+          }
+        }
+      }
+    },
+    "韧性" : {
+
+    },
+    "韧性，%@，已观测 %lld 天，%@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "韧性，%1$@，已观测 %2$lld 天，%3$@"
+          }
+        }
+      }
+    },
+    "预览%@在森林中的位置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview %@ in the forest"
+          }
+        }
+      }
+    },
+    "预览位置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview placement"
           }
         }
       }
@@ -6437,6 +9734,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "高强度训练"
+          }
+        }
+      }
+    },
+    "魔法点灯" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magic lamp lighting"
+          }
+        }
+      }
+    },
+    "魔法点灯：亲手点亮森林里的铃兰灯" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magic lighting: light the lily-of-the-valley lamps in the forest"
           }
         }
       }

@@ -62,6 +62,10 @@ final class OrnamentLightStore {
     @discardableResult
     func light(_ id: PiboOrnament.ID, index: Int, now: Date = Date()) -> Bool {
         refresh(now: now)
+        guard id == .lantern,
+              let placement = PiboOrnament.ornament(id)?.placement,
+              placement.lights.indices.contains(index)
+        else { return false }
         guard !isLit(id, index: index) else { return false }
         lit[id, default: []].insert(index)
         litDay = Self.lightingDay(at: now, calendar: calendar)

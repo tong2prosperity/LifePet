@@ -5,11 +5,12 @@ import SwiftUI
 import UIKit
 
 /// Runtime cadence for the home stage. Ambient and authored animation stays at
-/// 60Hz; only direct finger tracking may use ProMotion. Low Power Mode caps the
-/// scene at 30Hz.
+/// 60Hz; only direct finger tracking may use ProMotion. Low Power Mode and a
+/// mostly opaque in-place overlay cap the scene at 30Hz.
 enum PiboStageRenderMode: Equatable {
     case ambient
     case interactive
+    case obscured
     case lowPower
     case paused
 }
@@ -31,18 +32,23 @@ final class PiboStageRenderController {
         lowPowerModeEnabled = enabled
     }
 
-    func renderMode(isPaused: Bool) -> PiboStageRenderMode {
+    func renderMode(isPaused: Bool, isObscured: Bool = false) -> PiboStageRenderMode {
         if isPaused { return .paused }
         if lowPowerModeEnabled { return .lowPower }
+        if isObscured { return .obscured }
         if directManipulationActive { return .interactive }
         return .ambient
     }
 
-    func preferredFramesPerSecond(isPaused: Bool, displayMaximum: Int) -> Int {
-        switch renderMode(isPaused: isPaused) {
+    func preferredFramesPerSecond(
+        isPaused: Bool,
+        isObscured: Bool = false,
+        displayMaximum: Int
+    ) -> Int {
+        switch renderMode(isPaused: isPaused, isObscured: isObscured) {
         case .paused:
             return 1
-        case .lowPower:
+        case .obscured, .lowPower:
             return 30
         case .ambient:
             return 60

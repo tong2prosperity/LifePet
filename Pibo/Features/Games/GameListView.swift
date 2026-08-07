@@ -6,7 +6,8 @@ struct GameListView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// A finished walk doodle — `HomeView` persists it + grants 运动能量.
+    var walkDoodleEnabled: Bool = true
+    /// A finished walk doodle — `HomeView` persists the route and shows an authored reaction.
     var onWalkDoodleSaved: (WalkDoodleResult) -> Void
 
     @State private var selectedGame: MiniGameKind?
@@ -23,7 +24,7 @@ struct GameListView: View {
                 LazyVStack(alignment: .leading, spacing: LP.Spacing.xxl) {
                     header
                     chessSection
-                    ForEach(MiniGameKind.sections, id: \.category) { section in
+                    ForEach(visibleSections, id: \.category) { section in
                         gameSection(section.category, games: section.games)
                     }
                     Color.clear.frame(height: LP.Spacing.xxl)
@@ -45,7 +46,9 @@ struct GameListView: View {
         .onAppear {
             Analytics.track(.gamesOpen, screen: "games")
             #if DEBUG
-            if !debugOpenedGame, let debugGame = MiniGameKind.debugRequestedLaunchGame() {
+            if !debugOpenedGame,
+               let debugGame = MiniGameKind.debugRequestedLaunchGame(),
+               debugGame != .walkDoodle || walkDoodleEnabled {
                 debugOpenedGame = true
                 Task {
                     try? await Task.sleep(for: .milliseconds(350))
@@ -53,6 +56,13 @@ struct GameListView: View {
                 }
             }
             #endif
+        }
+    }
+
+    private var visibleSections: [(category: MiniGameCategory, games: [MiniGameKind])] {
+        MiniGameKind.sections.compactMap { section in
+            let games = section.games.filter { $0 != .walkDoodle || walkDoodleEnabled }
+            return games.isEmpty ? nil : (section.category, games)
         }
     }
 

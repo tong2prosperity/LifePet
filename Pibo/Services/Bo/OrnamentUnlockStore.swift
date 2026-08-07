@@ -38,13 +38,13 @@ final class OrnamentUnlockStore {
         ownershipKey: String = PiboPersistenceKeys.Defaults.boOwnedOrnaments,
         eligibilityKey: String = PiboPersistenceKeys.Defaults.boEligibleOrnaments,
         pendingPurchaseKey: String = PiboPersistenceKeys.Defaults.boPendingOrnamentPurchase,
-        debugUnlockOverride: Bool = _isDebugAssertConfiguration()
+        debugUnlockOverride: Bool? = nil
     ) {
         self.defaults = defaults
         self.ownershipKey = ownershipKey
         self.eligibilityKey = eligibilityKey
         self.pendingPurchaseKey = pendingPurchaseKey
-        self.debugUnlockOverride = debugUnlockOverride
+        self.debugUnlockOverride = debugUnlockOverride ?? Self.launchArgumentUnlockOverride
         self.hasSeenUnlockGuide = defaults.bool(forKey: PiboPersistenceKeys.Defaults.boUnlockGuideSeen)
         self.owned = Set((defaults.array(forKey: ownershipKey) as? [String] ?? [])
             .compactMap(PiboOrnament.ID.init(rawValue:)))
@@ -63,6 +63,15 @@ final class OrnamentUnlockStore {
     }
 
     func isUnlocked(_ id: PiboOrnament.ID) -> Bool { unlocked.contains(id) }
+
+    /// Capabilities are always derived from permanent ownership through Core.
+    /// No platform feature keeps a second entitlement flag, so users who
+    /// already own an item automatically receive newly connected routes.
+    func grants(_ capability: PiboCoreUnlockableCapability) -> Bool {
+        unlocked.contains { id in
+            PiboCoreUnlockableItems.grants(capability, from: id.coreID)
+        }
+    }
 
     var nextLocked: PiboOrnament? {
         PiboOrnament.ordered.first { !isUnlocked($0.id) }
@@ -117,16 +126,20 @@ final class OrnamentUnlockStore {
     /// Completes the only crash window: ledger persisted its debit but inventory
     /// did not yet persist ownership. No other item purchase can overlap on the
     /// main actor, so the before/after balance identifies that committed debit.
-    func recoverPendingPurchase(using ledger: BoLedgerStore) {
+    @discardableResult
+    func recoverPendingPurchase(using ledger: BoLedgerStore) -> PiboOrnament.ID? {
         guard let data = defaults.data(forKey: pendingPurchaseKey),
               let pending = try? JSONDecoder().decode(PendingOrnamentPurchase.self, from: data)
-        else { return }
+        else { return nil }
+        var recoveredID: PiboOrnament.ID?
         if ledger.balance <= pending.balanceBefore - pending.cost {
             owned.insert(pending.id)
             persistInventory()
+            recoveredID = pending.id
             LPLog.bo.notice("recovered ornament purchase=\(pending.id.rawValue, privacy: .public)")
         }
         clearPending()
+        return recoveredID
     }
 
     func shouldHighlightUnlockGuide(balance: Int) -> Bool {
@@ -164,5 +177,13 @@ final class OrnamentUnlockStore {
 
     private func clearPending() {
         defaults.removeObject(forKey: pendingPurchaseKey)
+    }
+
+    private static var launchArgumentUnlockOverride: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-PiboUnlockAllCommonItems")
+        #else
+        false
+        #endif
     }
 }

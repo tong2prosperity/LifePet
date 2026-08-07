@@ -10,6 +10,9 @@ import SwiftUI
 final class PiboStageCommandController {
     @ObservationIgnored private weak var scene: PiboStageScene?
     @ObservationIgnored private var pendingBoProgress: BoProgressMilestone?
+    @ObservationIgnored private var ornamentConstruction: (enabled: Bool, selected: PiboOrnament.ID?) = (false, nil)
+    @ObservationIgnored private var ornamentPreview: PiboOrnament.ID?
+    @ObservationIgnored private var pendingOrnamentReveal: PiboOrnament.ID?
 
     /// Reserved capability seams. They remain nil in this release, so the bo
     /// progress effect performs no audio or haptic system calls.
@@ -22,6 +25,14 @@ final class PiboStageCommandController {
         if let pendingBoProgress {
             self.pendingBoProgress = nil
             _ = scene.playBoProgressFeedback(pendingBoProgress)
+        }
+        scene.setOrnamentConstructionMode(
+            enabled: ornamentConstruction.enabled,
+            selected: ornamentConstruction.selected
+        )
+        scene.setOrnamentPlacementPreview(ornamentPreview)
+        if let pendingOrnamentReveal {
+            scene.prepareOrnamentReveal(pendingOrnamentReveal)
         }
     }
 
@@ -50,8 +61,8 @@ final class PiboStageCommandController {
         scene?.playSproutGrowth(from: start, to: target)
     }
 
-    func playPluck(color: Color) {
-        scene?.playPluck(color: SKColor(color))
+    func playPluck() {
+        scene?.playPluck()
     }
 
     func playTurnAway() {
@@ -63,6 +74,38 @@ final class PiboStageCommandController {
         intent: PiboCoreAnimationAdapter.TransitionIntent
     ) {
         scene?.transitionAnimation(to: stateID, intent: intent)
+    }
+
+    func setOrnamentConstructionMode(enabled: Bool, selected: PiboOrnament.ID?) {
+        ornamentConstruction = (enabled, selected)
+        scene?.setOrnamentConstructionMode(enabled: enabled, selected: selected)
+    }
+
+    func setOrnamentPlacementPreview(_ id: PiboOrnament.ID?) {
+        ornamentPreview = id
+        scene?.setOrnamentPlacementPreview(id)
+    }
+
+    func prepareOrnamentReveal(_ id: PiboOrnament.ID) {
+        pendingOrnamentReveal = id
+        scene?.prepareOrnamentReveal(id)
+    }
+
+    func ornamentTargetFrame(_ id: PiboOrnament.ID) -> CGRect? {
+        // Window/global coordinates, matching SwiftUI's `.global` space.
+        scene?.ornamentTargetFrame(id)
+    }
+
+    func completeOrnamentReveal(_ id: PiboOrnament.ID) {
+        pendingOrnamentReveal = nil
+        scene?.completeOrnamentReveal(id)
+    }
+
+    func cancelOrnamentPresentation() {
+        ornamentConstruction = (false, nil)
+        ornamentPreview = nil
+        pendingOrnamentReveal = nil
+        scene?.cancelOrnamentPresentation()
     }
 
     #if DEBUG

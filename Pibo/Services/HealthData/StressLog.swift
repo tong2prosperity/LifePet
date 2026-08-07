@@ -11,46 +11,70 @@ struct StressReading: Codable, Identifiable, Sendable, Equatable {
     /// Geometric mean of the personal baseline at the time (你的常态 ≈ X ms).
     /// `nil` before any baseline exists.
     var baseline: Double?
-    var levelRaw: Int
+    /// Absent while building the seven-day reference or when this measurement
+    /// is record-only.
+    var levelRaw: Int?
     /// Whether this reading fired a local notification.
     var notified: Bool
     /// Where the reading came from — a real heartbeat-series wake vs. a DEBUG
     /// injection — so the log view can label synthetic rows honestly.
     var synthetic: Bool
-    /// z-distance from the personal mean (ln scale). `nil` in cold start (still
-    /// on population thresholds) — so the UI can honestly say "个人化中".
+    /// z-distance from the personal mean (ln scale). `nil` during cold start or
+    /// for a record-only measurement.
     var z: Double?
     /// Distinct days the baseline covered when this was classified.
     var dayCount: Int?
     /// Whether the reading was at rest (entered the baseline). `nil` = legacy row.
     var isResting: Bool?
-    /// True when a heartbeat series **was** measured but its window failed the
-    /// quality gates (too many artifacts, too few usable differences), so no
-    /// RMSSD was produced. `nil`/false = a real reading.
-    ///
-    /// These rows exist because this log's entire job is answering "到底有没有在
-    /// 算". Omitting a rejected window would make a noisy-data user see an empty
-    /// list and conclude nothing runs — the exact wrong conclusion, drawn from the
-    /// exact screen built to prevent it.
-    var skipped: Bool?
+    /// Apple-only local evidence for the corrected NN-RMSSD calculation.
+    var rawRMSSD: Double?
+    var durationSeconds: Double?
+    var nnCount: Int?
+    var correctionCount: Int?
+    var correctionRate: Double?
+    var measurementEligible: Bool?
+    var contextEligible: Bool?
+    var sourceRaw: String?
+    /// Stable HealthKit identity. New rows use this to make a retry idempotent if
+    /// the process was interrupted after persistence but before the processed-ID
+    /// checkpoint was written.
+    var seriesID: UUID? = nil
+    /// Continuous personalized Core score (0 calm...1 tense). Optional keeps
+    /// old persisted rows and pre-baseline readings valid without inventing a
+    /// population score.
+    var stressScore: Double? = nil
 
-    var level: StressLevel { StressLevel(rawValue: levelRaw) ?? .normal }
+    var level: StressLevel? { levelRaw.flatMap(StressLevel.init(rawValue:)) }
+    var source: StressMeasurementSource {
+        sourceRaw.flatMap(StressMeasurementSource.init(rawValue:)) ?? .correctedNN
+    }
+    var interpretationEligible: Bool {
+        (measurementEligible ?? true) && (contextEligible ?? isResting ?? true)
+    }
 
-    /// True when the window was measured but rejected — no usable RMSSD.
-    var isSkipped: Bool { skipped == true }
-
-    /// True once the baseline drove the tier via personal z-score (vs. cold-start
-    /// population thresholds).
+    /// True once a ready personal baseline drove the tier via z-score.
     var isPersonalized: Bool { z != nil }
+}
+
+enum StressMeasurementSource: String, Codable, Sendable {
+    case correctedNN
+    case platformComputed
 }
 
 /// Rolling log of stress computations, persisted in the App Group so a reading
 /// computed during a **background** HealthKit wake and the foreground log view
 /// share the same list. Bounded — we only keep the most recent readings.
 enum StressLogStore {
-    private static let key = "pibo.stress.log.v1"
-    private static let lastSeriesKey = "pibo.stress.lastSeries.v1"
+    /// v2 starts a clean log for the corrected NN-RMSSD algorithm. It also gives the
+    /// newest series a chance to be recomputed instead of inheriting v1's
+    /// quality-gate decision.
+    private static let key = "pibo.stress.log.v2"
+    private static let lastSeriesKey = "pibo.stress.lastSeries.v2"
+    private static let processedSeriesKey = "pibo.stress.processedSeries.v2"
+    private static let legacyKey = "pibo.stress.log.v1"
+    private static let legacyLastSeriesKey = "pibo.stress.lastSeries.v1"
     private static let maxCount = 80
+    private static let maxProcessedSeries = 512
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: PiboWidgetConstants.appGroupID) ?? .standard
@@ -70,32 +94,84 @@ enum StressLogStore {
         }
     }
 
+    static func hasProcessedSeries(_ id: UUID) -> Bool {
+        if lastProcessedSeriesID == id { return true }
+        return processedSeriesIDs.contains(id)
+    }
+
+    static func markProcessedSeries(_ id: UUID) {
+        var ids = processedSeriesIDs.filter { $0 != id }
+        ids.append(id)
+        if ids.count > maxProcessedSeries {
+            ids.removeFirst(ids.count - maxProcessedSeries)
+        }
+        if let data = try? JSONEncoder().encode(ids) {
+            defaults.set(data, forKey: processedSeriesKey)
+        }
+        lastProcessedSeriesID = id
+    }
+
+    private static var processedSeriesIDs: [UUID] {
+        guard let data = defaults.data(forKey: processedSeriesKey),
+              let ids = try? JSONDecoder().decode([UUID].self, from: data)
+        else { return [] }
+        return ids
+    }
+
     /// Append a computation, trim to the last `maxCount`, return the stored row.
     @discardableResult
     static func record(rmssd: Double,
                        baseline: StressBaseline?,
-                       level: StressLevel,
+                       level: StressLevel?,
                        notified: Bool,
                        isResting: Bool = true,
                        date: Date = Date(),
-                       synthetic: Bool = false) -> StressReading {
-        // Surface the personal z only once past cold-start (else the row honestly
-        // reads as "个人化中 · 暂用通用阈值").
-        let personalized = (baseline?.dayCount ?? 0) >= StressScore.coldStartDays
+                       synthetic: Bool = false,
+                       measurement: HRVAnalysis.Measurement? = nil,
+                       measurementEligible: Bool? = nil,
+                       source: StressMeasurementSource = .correctedNN,
+                       seriesID: UUID? = nil) -> StressReading {
+        // Surface the personal z only once the seven-day reference is ready.
+        let evidenceEligible = measurementEligible ?? measurement?.canUpdateTrends ?? isResting
+        let interpretationEligible = evidenceEligible && isResting
+        let personalized = interpretationEligible
+            && level != nil
+            && (baseline?.dayCount ?? 0) >= StressScore.coldStartDays
             && (baseline?.sdLn ?? 0) > 0
         let reading = StressReading(
             id: UUID(),
             date: date,
             rmssd: rmssd,
             baseline: baseline?.geoMean,
-            levelRaw: level.rawValue,
+            levelRaw: level?.rawValue,
             notified: notified,
             synthetic: synthetic,
             z: personalized ? baseline?.z(for: rmssd) : nil,
             dayCount: baseline?.dayCount,
-            isResting: isResting)
-        var list = entries
-        list.append(reading)
+            isResting: isResting,
+            rawRMSSD: measurement?.rawRMSSD,
+            durationSeconds: measurement?.durationSeconds,
+            nnCount: measurement?.nnCount,
+            correctionCount: measurement?.corrections.total,
+            correctionRate: measurement?.correctionRate,
+            measurementEligible: evidenceEligible,
+            contextEligible: isResting,
+            sourceRaw: source.rawValue,
+            seriesID: seriesID,
+            stressScore: interpretationEligible
+                ? StressScore.anchor(rmssd: rmssd, baseline: baseline)
+                : nil)
+        // `entries` is newest-first for UI consumption. Normalize before
+        // trimming so exceeding the cap removes the oldest row, never the
+        // newest measurement that was just appended.
+        var list = entries.sorted { $0.date < $1.date }
+        if let seriesID,
+           let index = list.firstIndex(where: { $0.seriesID == seriesID }) {
+            list[index] = reading
+        } else {
+            list.append(reading)
+        }
+        list.sort { $0.date < $1.date }
         if list.count > maxCount { list.removeFirst(list.count - maxCount) }
         persist(list)
         return reading
@@ -109,31 +185,12 @@ enum StressLogStore {
         return decoded.sorted { $0.date > $1.date }
     }
 
-    /// Record that a heartbeat series was measured but rejected by the quality
-    /// gates. Carries no RMSSD — there isn't one — but keeps the log's count of
-    /// "how often did Pibo actually run" honest.
-    static func recordSkipped(date: Date = Date()) {
-        let reading = StressReading(
-            id: UUID(),
-            date: date,
-            rmssd: 0,
-            baseline: nil,
-            levelRaw: StressLevel.normal.rawValue,
-            notified: false,
-            synthetic: false,
-            z: nil,
-            dayCount: nil,
-            isResting: nil,
-            skipped: true)
-        var list = entries
-        list.append(reading)
-        if list.count > maxCount { list.removeFirst(list.count - maxCount) }
-        persist(list)
-    }
-
     static func reset() {
         defaults.removeObject(forKey: key)
         defaults.removeObject(forKey: lastSeriesKey)
+        defaults.removeObject(forKey: processedSeriesKey)
+        defaults.removeObject(forKey: legacyKey)
+        defaults.removeObject(forKey: legacyLastSeriesKey)
     }
 
     private static func persist(_ list: [StressReading]) {
@@ -165,7 +222,15 @@ enum StressLogStore {
                           synthetic: true,
                           z: (Foundation.log(s.rmssd / 46.0)) / 0.08,
                           dayCount: 15,
-                          isResting: true)
+                          isResting: true,
+                          rawRMSSD: s.rmssd,
+                          durationSeconds: 65,
+                          nnCount: 64,
+                          correctionCount: 0,
+                          correctionRate: 0,
+                          measurementEligible: true,
+                          contextEligible: true,
+                          sourceRaw: StressMeasurementSource.correctedNN.rawValue)
         }
         list.sort { $0.date < $1.date }
         persist(list)

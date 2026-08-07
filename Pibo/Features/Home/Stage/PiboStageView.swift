@@ -40,11 +40,17 @@ struct PiboStageView: View, Equatable {
     var onHairPulled: () -> Void = {}
     /// Fired when a tap lights one of an ornament's lamps (铃兰灯的一盏铃铛).
     var onOrnamentLightTapped: (PiboOrnament.ID, Int) -> Void = { _, _ in }
+    /// Fired when a tappable common item in the forest is selected.
+    var onOrnamentTapped: (PiboOrnament.ID) -> Void = { _ in }
     /// Suspend the stage when an opaque feature covers Home. The `SpriteView`
     /// itself is detached below; `isPaused` alone does not reliably stop
     /// `SKView`'s display-link/render callbacks while a full-screen cover keeps
     /// the underlying SwiftUI hierarchy alive.
     var isPaused: Bool = false
+    /// The unlock page intentionally leaves the forest mounted for placement
+    /// preview and shared-space return. Its opaque content does not need a 60Hz
+    /// background, so keep continuity at the lower ambient cadence.
+    var isObscured: Bool = false
 
     // `StateObject` defers the heavyweight scene allocation until SwiftUI
     // installs this view's identity, instead of evaluating it for every
@@ -57,6 +63,7 @@ struct PiboStageView: View, Equatable {
     private var preferredFramesPerSecond: Int {
         renderController.preferredFramesPerSecond(
             isPaused: isPaused,
+            isObscured: isObscured,
             displayMaximum: UIScreen.main.maximumFramesPerSecond
         )
     }
@@ -112,6 +119,37 @@ struct PiboStageView: View, Equatable {
                 commandController.detach(scene: scene)
             }
         }
+        .accessibilityRepresentation {
+            commonItemAccessibilityControls
+        }
+    }
+
+    /// SpriteKit nodes do not become reliable VoiceOver controls through the
+    /// SwiftUI bridge. Mirror only the unlocked interactive common items here;
+    /// locked entries therefore remain absent semantically as well as visually.
+    @ViewBuilder
+    private var commonItemAccessibilityControls: some View {
+        VStack {
+            if unlockedOrnaments.contains(.hammock) {
+                Button(AppLocalization.text("打开睡眠回顾")) {
+                    onOrnamentTapped(.hammock)
+                }
+            }
+            if unlockedOrnaments.contains(.statusObserver) {
+                Button(AppLocalization.text("打开恢复状态")) {
+                    onOrnamentTapped(.statusObserver)
+                }
+            }
+            if unlockedOrnaments.contains(.lantern),
+               let lights = PiboOrnament.ornament(.lantern)?.placement?.lights {
+                ForEach(lights.indices, id: \.self) { index in
+                    Button("\(AppLocalization.text("魔法点灯")) \(index + 1)") {
+                        onOrnamentLightTapped(.lantern, index)
+                    }
+                    .disabled(litOrnamentLights[.lantern]?.contains(index) == true)
+                }
+            }
+        }
     }
 
     private func configureScene(size: CGSize) {
@@ -122,6 +160,7 @@ struct PiboStageView: View, Equatable {
         scene.onPat = onPat
         scene.onHairPulled = onHairPulled
         scene.onOrnamentLightTapped = onOrnamentLightTapped
+        scene.onOrnamentTapped = onOrnamentTapped
         scene.onDirectManipulationChanged = { [weak renderController] active in
             renderController?.setDirectManipulation(
                 active: active,
@@ -156,6 +195,7 @@ struct PiboStageView: View, Equatable {
             && lhs.litOrnamentLights == rhs.litOrnamentLights
             && lhs.tuning == rhs.tuning
             && lhs.isPaused == rhs.isPaused
+            && lhs.isObscured == rhs.isObscured
             && lhs.commandController === rhs.commandController
     }
 }

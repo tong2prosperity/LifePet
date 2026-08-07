@@ -439,17 +439,8 @@ final class PiboCharacterRenderer {
     func playTurnAway() {}
 
 
-    func playPluck(color: SKColor) {
-        let seed = SKShapeNode(ellipseOf: CGSize(width: 14, height: 18))
-        seed.fillColor = color
-        seed.strokeColor = .clear
-        seed.position = CGPoint(x: rootNode.position.x, y: rootNode.position.y + bodyHeight * 0.65)
-        seed.zPosition = 50
-        effectsNode.addChild(seed)
+    func playPluck() {
         headRig.addImpulse(CGFloat.random(in: -2.3 ... 2.3))
-        let drop = SKAction.moveBy(x: CGFloat.random(in: -16...16), y: -bodyHeight * 0.5, duration: 0.8)
-        drop.timingMode = .easeIn
-        seed.run(.sequence([.wait(forDuration: 0.1), drop, .fadeOut(withDuration: 0.4), .removeFromParent()]))
         headNode.run(.sequence([.rotate(byAngle: 0.2, duration: 0.08), .rotate(byAngle: -0.2, duration: 0.12)]))
     }
 

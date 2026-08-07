@@ -11,15 +11,15 @@ import Foundation
 /// (some people swing ±5ms, some ±20ms).
 ///
 /// `dayCount` is the number of distinct past days the baseline covers — it
-/// drives the cold-start blend (see `StressScore`): a baseline built from a
-/// single busy day is not yet trustworthy, so we lean on absolute thresholds
-/// until enough *calendar days* accumulate.
+/// drives cold start (see `StressScore`): a baseline built from a single busy
+/// day is not trustworthy, so stress remains unclassified until seven eligible
+/// *calendar days* accumulate.
 struct StressBaseline: Sendable, Equatable {
     /// Mean of ln(daily median RMSSD) over the historical window.
     var meanLn: Double
     /// Sample SD (n-1) of ln(daily median RMSSD), floored so z never explodes.
     var sdLn: Double
-    /// Distinct past days the window covers. Drives cold-start → personal blend.
+    /// Distinct past days the window covers. Drives cold-start readiness.
     var dayCount: Int
     /// exp(meanLn) — the geometric mean, a display-friendly "你的常态 ≈ X ms".
     var geoMean: Double
@@ -40,18 +40,14 @@ struct StressBaseline: Sendable, Equatable {
 /// Score convention: 0 = calm, 1 = tense. Tier boundaries (0.30 / 0.50 / 0.70)
 /// are shared via `tier(for:)`.
 enum StressScore {
-    /// Below this many covered days, the baseline is untrustworthy → use
-    /// absolute thresholds only.
+    /// Below this many covered days, HRV is visible but stress is unclassified.
     static let coldStartDays = PiboCoreStressAdapter.coldStartDays
-    /// At/above this many days, use the personal z-score fully. Between the two
-    /// we blend, weighting toward personal as days accumulate.
+    /// Compatibility alias. Personal scoring becomes fully available on day 7.
     static let fullPersonalDays = PiboCoreStressAdapter.fullPersonalDays
 
     /// Continuous 0…1 stress from RMSSD relative to the personal baseline.
-    /// Returns `nil` only when there's no usable RMSSD. Graduated:
-    /// - `dayCount ≥ fullPersonalDays` → pure personal z-score.
-    /// - `coldStartDays ≤ dayCount < fullPersonalDays` → z ⨯ absolute blend.
-    /// - otherwise → absolute thresholds (population defaults).
+    /// Returns `nil` for invalid RMSSD or before the seven-day personal baseline
+    /// is ready; otherwise returns the pure personal z-score mapping.
     static func anchor(rmssd: Double?, baseline: StressBaseline?) -> Double? {
         PiboCoreStressAdapter.anchor(rmssd: rmssd, baseline: baseline)
     }
@@ -69,7 +65,8 @@ enum StressScore {
         PiboCoreStressAdapter.personalScore(rmssd: rmssd, baseline: baseline)
     }
 
-    /// Population-default score before a personal baseline exists. Piecewise
+    /// Legacy population reference retained for diagnostics/compatibility. It is
+    /// not used to classify users before a personal baseline exists. Piecewise
     /// linear on the classic RMSSD thresholds, aligned to the same boundaries:
     /// 50ms→0.30, 30ms→0.50, 20ms→0.70 (higher RMSSD = calmer = lower score).
     static func absoluteScore(_ rmssd: Double) -> Double {

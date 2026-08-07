@@ -24,6 +24,7 @@ struct MorningSleepPresentation: Equatable, Identifiable, Sendable {
 protocol MorningSleepNotificationScheduling: AnyObject {
     func morningAuthorizationStatus() async -> UNAuthorizationStatus
     func morningPendingIdentifiers() async -> [String]
+    func morningDeliveredIdentifiers() async -> [String]
     func morningAdd(_ request: UNNotificationRequest) async throws
     func morningRemovePending(_ identifiers: [String])
     func morningRemoveDelivered(_ identifiers: [String])
@@ -36,6 +37,10 @@ extension UNUserNotificationCenter: MorningSleepNotificationScheduling {
 
     func morningPendingIdentifiers() async -> [String] {
         await pendingNotificationRequests().map(\.identifier)
+    }
+
+    func morningDeliveredIdentifiers() async -> [String] {
+        await deliveredNotifications().map { $0.request.identifier }
     }
 
     func morningAdd(_ request: UNNotificationRequest) async throws {
@@ -71,6 +76,11 @@ final class MorningSleepCoordinator {
     /// still settling gets a second look without waiting for another observer
     /// wake-up (which may never come once the last sample has landed).
     @ObservationIgnored var onRecheckNeeded: (() async -> Void)?
+    /// Feature presentation and wake notifications are unlocked by the
+    /// hammock. Acquisition and archiving stay unconditional; these closures
+    /// gate only the two user-facing delivery surfaces.
+    @ObservationIgnored private var allowsSleepReview: () -> Bool = { true }
+    @ObservationIgnored private var allowsWakeNotification: () -> Bool = { true }
 
     #if DEBUG
     /// Pretend it is this local hour when applying the quiet-band rule, so the
@@ -139,6 +149,22 @@ final class MorningSleepCoordinator {
         }
     }
 
+    func configureCapabilities(
+        sleepReview: @escaping () -> Bool,
+        wakeNotification: @escaping () -> Bool
+    ) {
+        allowsSleepReview = sleepReview
+        allowsWakeNotification = wakeNotification
+        if !allowsSleepReview() {
+            pendingPresentation = nil
+        }
+        if !allowsWakeNotification() {
+            Task { [weak self] in
+                await self?.cancelLockedWakeNotifications()
+            }
+        }
+    }
+
     /// Called inside the HealthKit observer's bounded background work. The
     /// summary is archived before any scheduling so a cold launch from the
     /// notification can always reconstruct the card.
@@ -165,7 +191,7 @@ final class MorningSleepCoordinator {
               !isBlockedByPriorPresentation(summary, isSettled: isSettled)
         else { return }
 
-        if readiness == .final, appIsActive, delivery(at: now) == .deliverNow {
+        if readiness == .final, appIsActive, allowsSleepReview(), delivery(at: now) == .deliverNow {
             cancelNotification(for: summary)
             pendingPresentation = MorningSleepPresentation(
                 summary: summary,
@@ -188,7 +214,7 @@ final class MorningSleepCoordinator {
     /// Foreground fallback for force-quit, delayed Watch sync, denied system
     /// notifications, or a notification the user cleared without opening.
     func presentLatestIfEligible(now: Date = .now) {
-        guard appIsActive, let summary = latestSummary else { return }
+        guard allowsSleepReview(), appIsActive, let summary = latestSummary else { return }
         let isSettled = summary.readiness(now: now, userIsInteracting: false) == .final
         guard summary.readiness(now: now, userIsInteracting: true) == .final,
               summary.isWithinCatchupWindow(now: now),
@@ -207,6 +233,10 @@ final class MorningSleepCoordinator {
     /// card queued late in the evening must not surface as "last night" after
     /// midnight, and must not consume the wrong wake-day when it does.
     func consumablePresentation(now: Date = .now) -> MorningSleepPresentation? {
+        guard allowsSleepReview() else {
+            pendingPresentation = nil
+            return nil
+        }
         guard let pending = pendingPresentation else { return nil }
         let summary = pending.summary
 
@@ -232,6 +262,7 @@ final class MorningSleepCoordinator {
     }
 
     func handleNotificationOpen(wakeDayKey: String?, isMock: Bool = false, now: Date = .now) {
+        guard allowsSleepReview() else { return }
         let match: MorningSleepSummary?
         if let wakeDayKey {
             match = archive.first { $0.wakeDayKey == wakeDayKey }
@@ -298,8 +329,20 @@ final class MorningSleepCoordinator {
         )
     }
 
+    /// Direct hammock access is intentionally repeatable and independent of
+    /// the once-per-wake-day notification/presentation bookkeeping.
+    func latestReviewPresentation(now: Date = .now) -> MorningSleepPresentation? {
+        guard allowsSleepReview(), let summary = latestSummary else { return nil }
+        return MorningSleepPresentation(
+            summary: summary,
+            isSettled: summary.readiness(now: now, userIsInteracting: false) == .final,
+            isCatchUp: summary.isCatchUp(now: now)
+        )
+    }
+
     #if DEBUG
     func debugPresentFixture() {
+        guard allowsSleepReview() else { return }
         let summary = MorningSleepSummary.debugFixture()
         store(summary)
         mockPresentationWakeDayKey = summary.wakeDayKey
@@ -314,6 +357,7 @@ final class MorningSleepCoordinator {
     /// category is allowed to show as a foreground banner; only tapping that
     /// banner routes the fixture into the normal home-sheet presentation.
     func debugScheduleFixtureNotification(delay: TimeInterval = 3) async -> Bool {
+        guard allowsSleepReview(), allowsWakeNotification() else { return false }
         guard await debugNotificationAuthorizationAvailable() else {
             LPLog.app.error("Morning sleep mock notification unavailable: not authorized")
             return false
@@ -444,6 +488,10 @@ final class MorningSleepCoordinator {
         isSettled: Bool,
         at fireDate: Date
     ) async {
+        guard allowsWakeNotification() else {
+            LPLog.app.debug("Morning sleep notification skipped: hammock not unlocked")
+            return
+        }
         guard StressNotifier.shared.sleepSummaryPushEnabled else {
             LPLog.app.debug("Morning sleep notification skipped: disabled by user")
             return
@@ -519,6 +567,20 @@ final class MorningSleepCoordinator {
         let identifiers = [summary.notificationIdentifier]
         notifications.morningRemovePending(identifiers)
         notifications.morningRemoveDelivered(identifiers)
+    }
+
+    /// Upgrade/reset migration: a notification scheduled by an older build must
+    /// not survive after the hammock capability becomes locked. Raw summaries
+    /// remain archived; only user-facing notification surfaces are removed.
+    private func cancelLockedWakeNotifications() async {
+        guard !allowsWakeNotification() else { return }
+        let pending = await notifications.morningPendingIdentifiers()
+        let delivered = await notifications.morningDeliveredIdentifiers()
+        let identifiers = Set(pending + delivered).filter { $0.hasPrefix("pibo.sleep.") }
+        guard !identifiers.isEmpty else { return }
+        let values = Array(identifiers)
+        notifications.morningRemovePending(values)
+        notifications.morningRemoveDelivered(values)
     }
 
     // MARK: - Consumption bookkeeping

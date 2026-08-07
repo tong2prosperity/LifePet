@@ -29,7 +29,7 @@ enum HealthEvent: Sendable, Equatable {
     /// `measuredAt` is the series' own start time (when the watch actually took
     /// the reading — can be hours old), *not* the ingest time, so the card's
     /// "测于 N 分钟前" freshness line stays honest.
-    case hrvRMSSD(value: Double, measuredAt: Date)
+    case hrvRMSSD(value: Double, measuredAt: Date, interpretationEligible: Bool)
     /// Latest resting HR, bpm. Slow-changing baseline.
     case restingHR(Double)
     /// Latest blood-oxygen (SpO2) reading as a fraction 0–1 (HK `.percent()`).

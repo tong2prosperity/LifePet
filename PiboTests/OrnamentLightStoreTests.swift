@@ -79,6 +79,16 @@ private func date(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
 }
 
 @MainActor
+@Test func onlyRealLanternBellIndicesCanBePersisted() {
+    let (store, _) = makeStore(now: date(10, 20))
+
+    #expect(!store.light(.hammock, index: 0, now: date(10, 20)))
+    #expect(!store.light(.lantern, index: -1, now: date(10, 20)))
+    #expect(!store.light(.lantern, index: 3, now: date(10, 20)))
+    #expect(store.lit.isEmpty)
+}
+
+@MainActor
 @Test func litLampsSurviveRelaunchWithinTheSameLightingDay() {
     let suite = UserDefaults(suiteName: "ornament-light-\(UUID().uuidString)")!
     let first = OrnamentLightStore(defaults: suite, calendar: calendar, now: date(10, 21))

@@ -35,6 +35,11 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     /// 定向增删，而不是每次都重扫清单。
     private var unlockedOrnaments: Set<PiboOrnament.ID> = []
     private var ornamentNodes: [PiboOrnament.ID: SKSpriteNode] = [:]
+    private var constructionModeEnabled = false
+    private var constructionSelection: PiboOrnament.ID?
+    private var constructionNode: SKNode?
+    private var previewNode: SKSpriteNode?
+    private var revealPending: Set<PiboOrnament.ID> = []
     /// 物件身上那些可以被点亮的灯。**没有自动夜光** —— 一盏灯不亮到用户亲手点它
     /// 为止（决定 013/014：这盏灯的意义就在于是用户点的）。
     private var ornamentLights: [PiboOrnament.ID: [OrnamentLight]] = [:]
@@ -151,10 +156,104 @@ final class ForestThemeRenderer: PiboThemeRenderer {
 
         var tunedWind = wind
         tunedWind.strength *= CGFloat(renderPolicy.ambientMotionScale)
+            * (constructionModeEnabled ? 0.15 : 1)
         updateFoliageNeighborTargets(reduceMotion: reduceMotion)
         for leaf in foliage {
             leaf.update(time: time, deltaTime: deltaTime, wind: tunedWind, reduceMotion: reduceMotion)
         }
+    }
+
+    func setOrnamentConstructionMode(enabled: Bool, selected: PiboOrnament.ID?) {
+        constructionModeEnabled = enabled
+        constructionSelection = selected
+        rebuildConstructionDrawing()
+    }
+
+    func setOrnamentPlacementPreview(_ id: PiboOrnament.ID?) {
+        previewNode?.removeFromParent()
+        previewNode = nil
+        guard let id,
+              let context,
+              let ornament = PiboOrnament.ornament(id),
+              let placement = ornament.placement,
+              UIImage(named: placement.image) != nil else { return }
+
+        let definition = ForestSceneManifest.Layer(
+            image: placement.image,
+            frame: placement.frame,
+            zPosition: placement.zPosition + 0.01,
+            lightingGroup: placement.lightingGroup
+        )
+        let node = forestSprite(for: definition, mapper: ForestLayoutMapper(sceneSize: size))
+        node.alpha = 0.42
+        node.color = UIColor(red: 0.11, green: 0.55, blue: 0.45, alpha: 1)
+        node.colorBlendFactor = 0.18
+        context.layers.background.addChild(node)
+        previewNode = node
+    }
+
+    func prepareOrnamentReveal(_ id: PiboOrnament.ID) {
+        revealPending.insert(id)
+        ornamentNodes[id]?.alpha = 0
+    }
+
+    func ornamentTargetFrame(_ id: PiboOrnament.ID) -> CGRect? {
+        guard let frame = PiboOrnament.ornament(id)?.placement?.frame else { return nil }
+        // SpriteKit scene coordinates; PiboStageScene owns view/window conversion.
+        return ForestLayoutMapper(sceneSize: size).rect(frame)
+    }
+
+    func completeOrnamentReveal(_ id: PiboOrnament.ID) {
+        revealPending.remove(id)
+        syncOrnaments()
+        guard let node = ornamentNodes[id] else { return }
+        node.removeAction(forKey: "ornament.reveal")
+        node.alpha = 1
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+
+        let action: SKAction
+        switch id {
+        case .hammock:
+            node.yScale = 0.94
+            action = .sequence([
+                .group([.scaleY(to: 1.02, duration: 0.22), .fadeIn(withDuration: 0.18)]),
+                .scaleY(to: 1, duration: 0.34),
+            ])
+        case .chime:
+            node.zRotation = -0.055
+            action = .sequence([
+                .rotate(toAngle: 0.04, duration: 0.24, shortestUnitArc: true),
+                .rotate(toAngle: -0.018, duration: 0.20, shortestUnitArc: true),
+                .rotate(toAngle: 0, duration: 0.28, shortestUnitArc: true),
+            ])
+        case .statusObserver:
+            node.setScale(0.97)
+            action = .group([
+                .scale(to: 1, duration: 0.60),
+                .sequence([.fadeAlpha(to: 0.55, duration: 0.12), .fadeAlpha(to: 1, duration: 0.48)]),
+            ])
+        case .lantern:
+            node.setScale(0.96)
+            action = .group([
+                .scale(to: 1, duration: 0.76),
+                .sequence([.fadeAlpha(to: 0.42, duration: 0.14), .fadeAlpha(to: 1, duration: 0.62)]),
+            ])
+        }
+        action.timingMode = .easeInEaseOut
+        node.run(action, withKey: "ornament.reveal")
+    }
+
+    func cancelOrnamentPresentation() {
+        constructionModeEnabled = false
+        constructionSelection = nil
+        constructionNode?.removeFromParent()
+        constructionNode = nil
+        previewNode?.removeFromParent()
+        previewNode = nil
+        for id in revealPending {
+            ornamentNodes[id]?.alpha = 1
+        }
+        revealPending.removeAll()
     }
 
     func didEvaluateActions() {
@@ -406,6 +505,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         applyWaterPerformanceUniforms()
         applyLighting()
         syncOrnaments()
+        rebuildConstructionDrawing()
     }
 
     // MARK: 兑换来的物件
@@ -446,6 +546,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
             )
             let sprite = forestSprite(for: definition, mapper: mapper)
             sprite.shader = materialShader(for: placement.lightingGroup)
+            sprite.alpha = revealPending.contains(ornament.id) ? 0 : 1
             context.layers.background.addChild(sprite)
             ornamentNodes[ornament.id] = sprite
             // 刻意**不**写进 `layerNodes` —— 那是清单图层的索引（反射代理按名字从里面
@@ -465,6 +566,70 @@ final class ForestThemeRenderer: PiboThemeRenderer {
             }
         }
         refreshOrnamentLights(igniting: [])
+    }
+
+    private func rebuildConstructionDrawing() {
+        constructionNode?.removeFromParent()
+        constructionNode = nil
+        guard constructionModeEnabled, let context, size.width > 1, size.height > 1 else { return }
+
+        let root = SKNode()
+        root.zPosition = 0
+        let wash = SKSpriteNode(
+            color: UIColor(red: 0.80, green: 0.95, blue: 0.90, alpha: 0.16),
+            size: size
+        )
+        wash.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        wash.blendMode = .alpha
+        root.addChild(wash)
+
+        let grid = CGMutablePath()
+        let mapper = ForestLayoutMapper(sceneSize: size)
+        var x: CGFloat = 8
+        while x < ForestSceneManifest.designSize.width {
+            let start = mapper.point(CGPoint(x: x, y: 0))
+            let end = mapper.point(CGPoint(x: x, y: ForestSceneManifest.designSize.height))
+            grid.move(to: start)
+            grid.addLine(to: end)
+            x += 32
+        }
+        var y: CGFloat = 8
+        while y < ForestSceneManifest.designSize.height {
+            let start = mapper.point(CGPoint(x: 0, y: y))
+            let end = mapper.point(CGPoint(x: ForestSceneManifest.designSize.width, y: y))
+            grid.move(to: start)
+            grid.addLine(to: end)
+            y += 32
+        }
+        let gridNode = SKShapeNode(path: grid)
+        gridNode.strokeColor = UIColor(red: 0.08, green: 0.42, blue: 0.36, alpha: 0.12)
+        gridNode.lineWidth = max(0.5, mapper.scale * 0.5)
+        root.addChild(gridNode)
+
+        if let selection = constructionSelection,
+           let frame = PiboOrnament.ornament(selection)?.placement?.frame {
+            let size = mapper.size(frame.size)
+            let outline = SKShapeNode(rectOf: size, cornerRadius: 6 * mapper.scale)
+            outline.position = mapper.point(CGPoint(x: frame.midX, y: frame.midY))
+            outline.strokeColor = UIColor(red: 0.08, green: 0.42, blue: 0.36, alpha: 0.62)
+            outline.lineWidth = max(1, mapper.scale)
+            outline.fillColor = .clear
+            root.addChild(outline)
+
+            let cross = CGMutablePath()
+            let radius = 8 * mapper.scale
+            cross.move(to: CGPoint(x: outline.position.x - radius, y: outline.position.y))
+            cross.addLine(to: CGPoint(x: outline.position.x + radius, y: outline.position.y))
+            cross.move(to: CGPoint(x: outline.position.x, y: outline.position.y - radius))
+            cross.addLine(to: CGPoint(x: outline.position.x, y: outline.position.y + radius))
+            let crossNode = SKShapeNode(path: cross)
+            crossNode.strokeColor = outline.strokeColor
+            crossNode.lineWidth = outline.lineWidth
+            root.addChild(crossNode)
+        }
+
+        context.layers.atmosphere.addChild(root)
+        constructionNode = root
     }
 
     private func makeOrnamentLight(
@@ -588,10 +753,24 @@ final class ForestThemeRenderer: PiboThemeRenderer {
                 if distance < current.distance { best = (id, light.index, distance) }
             }
         }
-        guard let best else { return nil }
-        // 已经亮着的灯照样上报。渲染器这份 `litOrnamentLights` 是存储的镜像、
-        // 可能慢一帧，在这里私自吞掉点击会比让存储做一次空操作更难查。
-        return .ornamentLight(best.id, index: best.index)
+        if let best {
+            // 已经亮着的灯照样上报。渲染器这份 `litOrnamentLights` 是存储的镜像、
+            // 可能慢一帧，在这里私自吞掉点击会比让存储做一次空操作更难查。
+            return .ornamentLight(best.id, index: best.index)
+        }
+
+        // 灯先判，确保铃兰仍是逐盏点亮。只有能力本身挂在物件上的两件东西
+        // 才把整张森林素材作为入口；风铃通过独立的相机 / Walk Doodle 入口发现，
+        // 铃兰则只保留点灯。
+        let tappable: Set<PiboOrnament.ID> = [.hammock, .statusObserver]
+        let hit = ornamentNodes
+            .filter { tappable.contains($0.key) && !$0.value.isHidden && $0.value.alpha > 0.01 }
+            .filter { _, node in
+                guard let parent = node.parent, let scene = context?.scene else { return false }
+                return node.contains(parent.convert(point, from: scene))
+            }
+            .max { lhs, rhs in lhs.value.zPosition < rhs.value.zPosition }
+        return hit.map { .ornament($0.key) }
     }
 
     private func clearReferences() {
@@ -600,6 +779,8 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         foliageNodes.removeAll(keepingCapacity: true)
         ornamentNodes.removeAll(keepingCapacity: true)
         ornamentLights.removeAll(keepingCapacity: true)
+        constructionNode = nil
+        previewNode = nil
         reflectionLayer.removeAllChildren()
         reflectionLayer.maskNode = nil
         reflectionProxies.removeAll(keepingCapacity: true)

@@ -474,6 +474,7 @@ struct PiboAnimationIntegrationTests {
         #expect(state(hour: 15, stressZ: -0.6, baselineDays: 7, previous: "dive") == "dive")
         #expect(state(hour: 15, stressZ: -0.49, baselineDays: 7, previous: "dive") == "default")
         #expect(state(hour: 15, stressZ: -2, baselineDays: 7, rmssdAge: 21_601) == "default")
+        #expect(state(hour: 15, stressZ: -2, baselineDays: 7, rmssdAge: -1) == "default")
     }
 
     @Test func stressHysteresisMemorySurvivesAppRelaunch() {
@@ -516,6 +517,26 @@ struct PiboAnimationIntegrationTests {
         let fixedExpiry = deterministic.angryUntil
         #expect(!deterministic.registerActualPat(localHour: 15, now: fixed.addingTimeInterval(3)))
         #expect(deterministic.angryUntil == fixedExpiry)
+    }
+
+    @Test func futurePatStateCannotLockAngryAfterClockRollbackOrCorruption() throws {
+        let defaults = testDefaults()
+        let future = Date.now.addingTimeInterval(
+            PiboCorePatAdapter.recentWindowSeconds * 10
+        )
+        defaults.set(
+            future.timeIntervalSince1970,
+            forKey: "pibo.animation.angry-until.v1"
+        )
+        defaults.set(
+            try JSONEncoder().encode([future]),
+            forKey: "pibo.animation.actual-pats.v1"
+        )
+
+        let experience = PiboAnimationExperienceStore(defaults: defaults)
+
+        #expect(experience.angryUntil == nil)
+        #expect(experience.actualPatTimes.isEmpty)
     }
 
     @Test func latestWorkoutReplacesAndSameBatchPiguWins() {

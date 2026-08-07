@@ -60,6 +60,10 @@ enum AppLocalization {
     static func format(_ key: String, _ args: CVarArg...) -> String {
         String(format: text(key), locale: AppLanguage.current.locale, arguments: args)
     }
+
+    static func narrative(_ key: String) -> String {
+        text(key)
+    }
 }
 
 extension Text {

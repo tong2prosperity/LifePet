@@ -4,7 +4,8 @@ import SwiftUI
 //
 // When the app opens with a freshly-detected workout (`store.pendingWorkout`),
 // the home auto-plays a close-up of Pibo's head: 毛抖动 → 发力 → 长出叶片,
-// then pulls back and shows the 能量已收集 pop. The first collection is what
+// then pulls back and confirms that the workout record was synced. The first
+// acknowledged workout is what
 // sprouts the 魔丸 「?」卷芽 into a leaf (pibo头顶发生变化); later collections
 // play the small in-place head shake instead.
 //
@@ -31,9 +32,9 @@ enum SproutAnimationStyle {
 /// Where the home currently is in the energy-collection choreography.
 enum SproutFlowPhase: Equatable {
     case idle
-    case collecting   // camera in, 毛抖动 — "收集到你的运动能量！"
-    case sprouted     // 长出叶片 — "Pibo...发芽了啵！"
-    case pop          // back on the home floor — 能量已收集 card
+    case collecting   // camera in, 毛抖动 — 新运动记录
+    case sprouted     // 长出叶片 — Pibo 记下变化
+    case pop          // back on the home floor — 记录已同步 card
 }
 
 // MARK: - Close-up caption (Figma Frame 9397 — centered, top of the screen)
@@ -53,10 +54,11 @@ struct SproutCaptionView: View {
     }
 }
 
-// MARK: - 能量已收集 pop (Figma `pop` 76:6725, used in 70:4549)
+// MARK: - Workout record synced pop (Figma `pop` 76:6725, used in 70:4549)
 
 /// White rounded card floated over a muted scrim: hand glyph, two-line copy
-/// (能量已收集 / 上划查看今日能量状态), dismiss via the faint ✕ or any tap.
+/// The existing visual choreography remains, but the copy describes the durable
+/// workout fact instead of inventing a separate collectible-energy source.
 struct EnergyCollectedPop: View {
     var onDismiss: () -> Void
 
@@ -73,8 +75,8 @@ struct EnergyCollectedPop: View {
                     .frame(width: 72, height: 72)
 
                 VStack(spacing: 2) {
-                    Text(AppLocalization.text("能量已收集"))
-                    Text(AppLocalization.text("上划查看今日能量状态"))
+                    Text(AppLocalization.text("运动记录已同步"))
+                    Text(AppLocalization.text("会用于之后的可见积累"))
                 }
                 .lpText(LP.Typography.b3Medium)
                 .foregroundStyle(LP.Content.secondary)

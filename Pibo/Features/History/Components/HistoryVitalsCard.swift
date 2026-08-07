@@ -49,7 +49,7 @@ struct HistoryVitalsCard: View {
     }
     private var stressTile: VitalTile {
         VitalTile(icon: "figure.mind.and.body", title: "HRV",
-                  qualifier: rmssd > 0 ? (stressLevel?.displayName ?? "个人化中") : "暂无",
+                  qualifier: rmssd > 0 ? (stressLevel?.displayName ?? "建立个人参考中") : "暂无",
                   value: rmssd > 0 ? String(format: "%.0f", rmssd) : "—", unit: "ms",
                   tint: LP.Colorful.yellow500, bg: LP.Colorful.yellow100)
     }

@@ -4,7 +4,7 @@ import AppIntents
 import Foundation
 
 /// Live Activity for an in-progress 地图涂鸦 walk (Dynamic Island + Lock Screen):
-/// shows 正在行走 with live 距离 / 圈地 and a self-counting timer, plus a 结束
+/// shows 正在行走 with live 距离 / 路线面积 and a self-counting timer, plus a 结束
 /// button. Started / updated / ended by `WalkDoodleSession`; rendered by
 /// `WalkDoodleLiveActivity` in the widget extension.
 nonisolated struct WalkDoodleActivityAttributes: ActivityAttributes {

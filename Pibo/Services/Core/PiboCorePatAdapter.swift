@@ -4,33 +4,39 @@ enum PiboCorePatAdapter {
     static let recentWindowSeconds = PiboCorePat.recentWindowSeconds
     static let dailyWindowSeconds = PiboCorePat.dailyWindowSeconds
 
-    enum Decision {
-        case ignored
-        case stateSpeech
-        case storySpeech
+    static func shouldIdleMutter(roll: Double) -> Bool {
+        PiboCorePat.shouldIdleMutter(roll: roll)
     }
 
-    static func decide(
+    struct V2Result: Equatable {
+        let speaks: Bool
+        let countsTowardAngry: Bool
+    }
+
+    static func decideV2(
         spokenIn24Hours: Int,
         spokenIn10Minutes: Int,
         speechRoll: Double,
-        storyRoll: Double,
-        hasUnrevealedStory: Bool
-    ) -> Decision {
-        switch PiboCorePat.decide(
+        restingState: Bool
+    ) -> V2Result {
+        let result = PiboCorePat.decideV2(
             spokenIn24Hours: spokenIn24Hours,
             spokenIn10Minutes: spokenIn10Minutes,
             speechRoll: speechRoll,
-            storyRoll: storyRoll,
-            hasUnrevealedStory: hasUnrevealedStory
-        ) {
-        case .ignored: .ignored
-        case .stateSpeech: .stateSpeech
-        case .storySpeech: .storySpeech
-        }
+            restingState: restingState
+        )
+        return V2Result(
+            speaks: result.decision == .speak,
+            countsTowardAngry: result.countsTowardAngry
+        )
     }
 
-    static func shouldIdleMutter(roll: Double) -> Bool {
-        PiboCorePat.shouldIdleMutter(roll: roll)
+    static func countsTowardAngry(restingState: Bool) -> Bool {
+        decideV2(
+            spokenIn24Hours: 0,
+            spokenIn10Minutes: 0,
+            speechRoll: 1,
+            restingState: restingState
+        ).countsTowardAngry
     }
 }

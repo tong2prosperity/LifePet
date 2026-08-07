@@ -12,7 +12,7 @@
     "id": "walk.completed.002",
     "cue": "walk.completed",
     "surfaces": ["home", "walkCard"],
-    "text": "走了 {distance}{distanceUnit}，最后还是回来了。……还行。",
+    "text": "走了 {distance}{distanceUnit}。这条线已经保存。",
     "cooldownHours": 72,
     "topicCooldownHours": 2,
     "maximumUses": 16
@@ -21,7 +21,7 @@
     "id": "walk.completed.003",
     "cue": "walk.completed",
     "surfaces": ["home", "walkCard"],
-    "text": "这条线歪歪扭扭。花认得。",
+    "text": "这条线有自己的形状。我会记住。",
     "cooldownHours": 72,
     "topicCooldownHours": 2,
     "maximumUses": 16

@@ -37,7 +37,7 @@ struct PiboWidgetsEntryView: View {
         case .accessoryRectangular:
             PiboAccessoryRectangularWidget(snapshot: entry.snapshot)
         case .accessoryInline:
-            Text("Pibo \(entry.snapshot.stateLabel) · \(entry.snapshot.vitality)/\(entry.snapshot.energy)/\(entry.snapshot.mood)")
+            Text("Pibo · \(entry.snapshot.stateLabel)")
         default:
             PiboSmallWidget(snapshot: entry.snapshot)
         }
@@ -54,7 +54,7 @@ struct PiboWidgets: Widget {
                 .containerBackground(PiboWidgetPalette.paper, for: .widget)
         }
         .configurationDisplayName("Pibo")
-        .description("查看 Pibo 的星光状态。")
+        .description("查看 Pibo 当前状态和最新同步记录。")
         .supportedFamilies([
             .systemSmall,
             .systemMedium,
@@ -95,18 +95,25 @@ private struct PiboSmallWidget: View {
                 PiboPixelPetMark(stateTag: snapshot.stateTag)
                     .frame(width: 48, height: 48)
                 VStack(alignment: .leading, spacing: 5) {
-                    PiboCompactStat(label: "活力", value: snapshot.vitality, tint: PiboWidgetPalette.coral)
-                    PiboCompactStat(label: "静息", value: snapshot.energy, tint: PiboWidgetPalette.sage)
-                    PiboCompactStat(label: "心绪", value: snapshot.mood, tint: PiboWidgetPalette.stickyInk)
+                    Text("当前状态")
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(PiboWidgetPalette.muted)
+                    Text(snapshot.stateLabel)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(PiboWidgetPalette.ink)
                 }
             }
 
-            if let title = snapshot.pendingWorkoutTitle, let gain = snapshot.pendingWorkoutGain {
-                Text("\(title) +\(gain)")
+            if let title = snapshot.pendingWorkoutTitle {
+                Text("\(title) · 待查看")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(PiboWidgetPalette.coral)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+            } else {
+                Text("记录更新于 \(snapshot.updatedAt, style: .time)")
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundStyle(PiboWidgetPalette.muted)
             }
         }
         .padding(2)
@@ -127,7 +134,7 @@ private struct PiboMediumWidget: View {
             }
             .frame(width: 86)
 
-            VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(snapshot.petName)
                         .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -140,12 +147,20 @@ private struct PiboMediumWidget: View {
                         .foregroundStyle(PiboWidgetPalette.muted)
                 }
 
-                PiboWidgetStatBar(title: "活力星光", value: snapshot.vitality, tint: PiboWidgetPalette.coral)
-                PiboWidgetStatBar(title: "静息星光", value: snapshot.energy, tint: PiboWidgetPalette.sage)
-                PiboWidgetStatBar(title: "心绪回声", value: snapshot.mood, tint: PiboWidgetPalette.stickyInk)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("当前状态")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundStyle(PiboWidgetPalette.muted)
+                    Text(snapshot.stateLabel)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(PiboWidgetPalette.ink)
+                    Text("健康记录会在后台持续同步")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundStyle(PiboWidgetPalette.muted)
+                }
 
-                if let title = snapshot.pendingWorkoutTitle, let gain = snapshot.pendingWorkoutGain {
-                    Text("\(title) 等待喂养 · +\(gain) 活力")
+                if let title = snapshot.pendingWorkoutTitle {
+                    Text("\(title) · 新记录待查看")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(PiboWidgetPalette.coral)
                         .lineLimit(1)
@@ -165,14 +180,9 @@ private struct PiboAccessoryCircularWidget: View {
     let snapshot: PiboWidgetSnapshot
 
     var body: some View {
-        Gauge(value: Double(snapshot.vitality), in: 0...100) {
-            Text("P")
-        } currentValueLabel: {
-            Text("\(snapshot.vitality)")
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-        }
-        .gaugeStyle(.accessoryCircularCapacity)
-        .tint(PiboWidgetPalette.coral)
+        PiboPixelPetMark(stateTag: snapshot.stateTag)
+            .padding(4)
+            .accessibilityLabel("Pibo，\(snapshot.stateLabel)")
     }
 }
 
@@ -184,63 +194,15 @@ private struct PiboAccessoryRectangularWidget: View {
             Text("\(snapshot.petName) · \(snapshot.stateLabel)")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .lineLimit(1)
-            Text("活力 \(snapshot.vitality) · 静息 \(snapshot.energy) · 心绪 \(snapshot.mood)")
-                .font(.system(size: 12, design: .rounded))
-                .lineLimit(1)
             if let title = snapshot.pendingWorkoutTitle {
-                Text(title)
+                Text("\(title) · 待查看")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .lineLimit(1)
+            } else {
+                Text("健康记录持续同步")
+                    .font(.system(size: 11, design: .rounded))
+                    .lineLimit(1)
             }
-        }
-    }
-}
-
-private struct PiboCompactStat: View {
-    let label: String
-    let value: Int
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(tint)
-                .frame(width: 6, height: 6)
-            Text(label)
-                .font(.system(size: 10, design: .rounded))
-                .foregroundStyle(PiboWidgetPalette.muted)
-            Text("\(value)")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(PiboWidgetPalette.ink)
-        }
-    }
-}
-
-private struct PiboWidgetStatBar: View {
-    let title: String
-    let value: Int
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Text(title)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(PiboWidgetPalette.muted)
-                Spacer(minLength: 6)
-                Text("\(value)")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(PiboWidgetPalette.ink)
-            }
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(PiboWidgetPalette.hairline)
-                    Capsule()
-                        .fill(tint)
-                        .frame(width: proxy.size.width * CGFloat(max(0, min(value, 100))) / 100)
-                }
-            }
-            .frame(height: 5)
         }
     }
 }
@@ -250,9 +212,10 @@ private struct PiboPixelPetMark: View {
 
     private var accent: Color {
         switch stateTag {
-        case "EXCITED", "BLISSFUL": return PiboWidgetPalette.coral
-        case "SLEEPING": return PiboWidgetPalette.sage
-        case "TIRED", "SICK": return PiboWidgetPalette.muted
+        case "active", "irritated": return PiboWidgetPalette.coral
+        case "deepSleep": return PiboWidgetPalette.sage
+        case "waking": return PiboWidgetPalette.stickyInk
+        case "disturbed": return PiboWidgetPalette.muted
         default: return PiboWidgetPalette.ink
         }
     }
@@ -278,10 +241,10 @@ private struct PiboPixelPetMark: View {
                 }
                 Capsule()
                     .fill(PiboWidgetPalette.ink)
-                    .frame(width: stateTag == "SLEEPING" ? 14 : 22, height: 4)
+                    .frame(width: stateTag == "deepSleep" ? 14 : 22, height: 4)
             }
 
-            if stateTag == "EXCITED" || stateTag == "BLISSFUL" {
+            if stateTag == "active" {
                 Circle()
                     .fill(PiboWidgetPalette.sticky)
                     .frame(width: 8, height: 8)

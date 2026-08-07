@@ -135,11 +135,18 @@ final class PiboAnimationExperienceStore {
     }
 
     /// Returns true only for the pat that enters angry.
-    func registerActualPat(localHour: Double, now: Date = .now) -> Bool {
+    func registerActualPat(
+        localHour: Double,
+        countsTowardAngry: Bool = true,
+        now: Date = .now
+    ) -> Bool {
         refreshExpiries(now: now)
-        guard !angryActive(at: now) else { return false }
-        let cutoff = now.addingTimeInterval(-600)
-        actualPatTimes = actualPatTimes.filter { $0 > cutoff }
+        guard countsTowardAngry, !angryActive(at: now) else { return false }
+        let window = PiboCorePatAdapter.recentWindowSeconds
+        actualPatTimes = actualPatTimes.filter {
+            let age = now.timeIntervalSince($0)
+            return age.isFinite && age >= 0 && age < window
+        }
         actualPatTimes.append(now)
         let shouldStart = PiboCoreAnimationAdapter.angryShouldStart(
             localHour: localHour,
@@ -147,7 +154,7 @@ final class PiboAnimationExperienceStore {
             angryActive: false
         )
         if shouldStart {
-            angryUntil = now.addingTimeInterval(600)
+            angryUntil = now.addingTimeInterval(window)
             actualPatTimes.removeAll()
         }
         persistInteractionState()
@@ -155,10 +162,14 @@ final class PiboAnimationExperienceStore {
     }
 
     func refreshExpiries(now: Date = .now) {
-        if let angryUntil, angryUntil <= now {
-            self.angryUntil = nil
-            actualPatTimes.removeAll()
-            persistInteractionState()
+        if let angryUntil {
+            let remaining = angryUntil.timeIntervalSince(now)
+            if !remaining.isFinite || remaining <= 0
+                || remaining > PiboCorePatAdapter.recentWindowSeconds {
+                self.angryUntil = nil
+                actualPatTimes.removeAll()
+                persistInteractionState()
+            }
         }
         let heldUntil = Date(timeIntervalSince1970: defaults.double(forKey: Self.heldUntilKey))
         if heldAchievement != nil, heldUntil <= now { clearHold() }
@@ -198,10 +209,21 @@ final class PiboAnimationExperienceStore {
             heldAchievement = kind
         }
         let angryDate = Date(timeIntervalSince1970: defaults.double(forKey: Self.angryUntilKey))
-        if angryDate > now { angryUntil = angryDate }
+        let angryRemaining = angryDate.timeIntervalSince(now)
+        if angryRemaining.isFinite, angryRemaining > 0,
+           angryRemaining <= PiboCorePatAdapter.recentWindowSeconds {
+            angryUntil = angryDate
+        } else {
+            defaults.removeObject(forKey: Self.angryUntilKey)
+        }
         if let data = defaults.data(forKey: Self.patTimesKey),
            let values = try? JSONDecoder().decode([Date].self, from: data) {
-            actualPatTimes = values.filter { now.timeIntervalSince($0) < 600 }
+            actualPatTimes = values.filter {
+                let age = now.timeIntervalSince($0)
+                return age.isFinite && age >= 0
+                    && age < PiboCorePatAdapter.recentWindowSeconds
+            }
+            if actualPatTimes.count != values.count { persistInteractionState() }
         }
     }
 

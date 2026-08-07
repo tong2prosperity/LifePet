@@ -193,6 +193,15 @@ extension HealthDayRecord {
     /// Has any signal worth showing (filters all-zero placeholder days).
     var hasData: Bool {
         steps > 0 || sleepTotal > 0 || activeEnergy > 0 || exerciseMinutes > 0
+            || standMinutes > 0 || workoutCount > 0 || mindfulMinutes > 0
+            || restingHR > 0 || heartRateAvg > 0 || hrv > 0 || oxygenSaturation > 0
+    }
+
+    /// The currently published Core bo model has real inputs for these three
+    /// axes. Other observed sources remain valid story/health facts but must
+    /// not create Core's non-zero zero-MVPA floor by themselves.
+    var hasCoreBoEvidence: Bool {
+        sleepTotal > 0 || steps > 0 || exerciseMinutes > 0
     }
 
     /// 深睡 share, 0–100. 0 when no sleep recorded.

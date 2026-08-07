@@ -577,11 +577,11 @@ private enum StepsPreviewData {
     ScrollView {
         VStack(spacing: LP.Spacing.l) {
             HistoryStepsCard(steps: 8234, hourlySteps: StepsPreviewData.day(8234),
-                             isToday: false, caption: "走得不错，花也精神", dayID: .now)
+                             isToday: false, caption: "今天的步数记录已整理", dayID: .now)
             HistoryStepsCard(steps: 16_500, hourlySteps: StepsPreviewData.day(16_500),
-                             isToday: false, caption: "今天像在森林里穿行", dayID: .now)
+                             isToday: false, caption: "今天的步数记录已整理", dayID: .now)
             HistoryStepsCard(steps: 1_820, hourlySteps: StepsPreviewData.day(1_820),
-                             isToday: false, caption: "...今天...有点懒啵", dayID: .now)
+                             isToday: false, caption: "今天的步数记录已整理", dayID: .now)
             HistoryStepsCard(steps: 4_300, hourlySteps: StepsPreviewData.day(9_000),
                              isToday: true, caption: "今天才刚开始（未到的时段会变暗）", dayID: .now)
             HistoryStepsCard(steps: 7_000, hourlySteps: [],

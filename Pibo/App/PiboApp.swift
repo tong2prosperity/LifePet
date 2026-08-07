@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import os
+import PiboCore
 
 @main
 struct PiboApp: App {
@@ -23,6 +24,8 @@ struct PiboApp: App {
     /// Sole consumer of `health.events`. The store is the only thing that
     /// mutates pet state; views observe it via `@Environment`.
     @State private var store: PetStateStore
+    /// Versioned first-run, story-consent and events 01–03 facts.
+    @State private var onboarding: OnboardingStateStore
     /// Coalesced, durable presentation request for the latest crossed bo
     /// milestone. The local ledger writes committed balances into this seam.
     @State private var boProgressFeedback: BoProgressFeedbackStore
@@ -92,11 +95,10 @@ struct PiboApp: App {
         _health = State(initialValue: h)
         _morningSleep = State(initialValue: morning)
         _store = State(initialValue: s)
+        let onboardingState = OnboardingStateStore()
+        _onboarding = State(initialValue: onboardingState)
         let boFeedback = BoProgressFeedbackStore()
         _boProgressFeedback = State(initialValue: boFeedback)
-        _piboSpeech = State(initialValue: PiboSpeechService(
-            narrativeProgress: { s.story.revealedCount }
-        ))
 
         modelContainer = Self.makeModelContainer()
         let hist = HealthHistoryStore(context: modelContainer.mainContext)
@@ -104,10 +106,51 @@ struct PiboApp: App {
 
         // 账本从「它自己被创建的那天」起算，不追溯 —— 老用户升级上来时，之前几十天
         // 的健康记录不会被扫进来（那只会被冻结规则一次性烧掉，见 `BoLedgerStore.init`）。
-        let ledger = BoLedgerStore(progressFeedback: boFeedback)
+        let boEligibilityStartAt = PiboReleaseScope.temporaryCooperationOnboarding
+            ? onboardingState.acceptedAt
+            : onboardingState.snapshot.completedAt
+        let boEligibilitySource: BoEligibilitySource? = if PiboReleaseScope.temporaryCooperationOnboarding {
+            boEligibilityStartAt == nil ? nil : .temporaryCooperation
+        } else {
+            switch onboardingState.completionTimeBasis {
+            case .legacyMigrationFallback:
+                .legacyOnboardingMigration
+            case .recorded:
+                .legacyOnboarding
+            case nil:
+                nil
+            }
+        }
+        let ledger = BoLedgerStore(
+            acceptedAt: boEligibilityStartAt,
+            eligibilitySource: boEligibilitySource,
+            eligibilityEnabled: boEligibilityStartAt != nil,
+            progressFeedback: boFeedback
+        )
         _boLedger = State(initialValue: ledger)
+        onboardingState.configureTemporaryCooperation(
+            enabled: PiboReleaseScope.temporaryCooperationOnboarding,
+            boLifetimeMinted: ledger.lifetimeMinted,
+            boLifetimeCollected: ledger.lifetimeCollected
+        )
+        _piboSpeech = State(initialValue: PiboSpeechService(
+            narrativeProgress: {
+                guard PiboReleaseScope.temporaryCooperationOnboarding else {
+                    return Int(PiboCoreStorySpeechStage.unresponded.rawValue)
+                }
+                return Int(onboardingState.eventProjection().speechStage.rawValue)
+            }
+        ))
         let inventory = OrnamentUnlockStore()
         inventory.recoverPendingPurchase(using: ledger)
+        morning.configureCapabilities(
+            sleepReview: { [weak inventory] in
+                inventory?.grants(.sleepReview) == true
+            },
+            wakeNotification: { [weak inventory] in
+                inventory?.grants(.wakeNotification) == true
+            }
+        )
         _ornamentUnlocks = State(initialValue: inventory)
 
         let a = AuthService()
@@ -196,6 +239,7 @@ struct PiboApp: App {
                 .environment(health)
                 .environment(morningSleep)
                 .environment(store)
+                .environment(onboarding)
                 .environment(boProgressFeedback)
                 .environment(boLedger)
                 .environment(ornamentUnlocks)
@@ -250,17 +294,14 @@ struct PiboApp: App {
                         store.debugSeedStressIfNeeded()
                     }
                     #endif
-                    if health.authState == .granted {
-                        let values = await health.fetchDailyHistory()
-                        history.ingest(values)
-                        let workouts = await health.fetchWorkoutHistory()
-                        history.ingestWorkouts(workouts)
-                        history.recomputeWellness()
+                    await backfillHealthHistoryIfAuthorized()
+                    if PiboReleaseScope.temporaryCooperationOnboarding {
+                        onboarding.observeHealth(in: history)
                     }
                     // 健康历史落定之后重算 `bo`。放在这里而不是 HK 事件流里，是因为
                     // 账本要的是「已窗口化的每日真相」，而重算本身是幂等的 ——
-                    // 多跑一次只会补差额。DEBUG 播种的模拟器数据也走同一条路。
-                    boLedger.recompute(history: history)
+                    // 多跑一次只会补差额。DEBUG 示例历史会被来源标记过滤。
+                    recomputeBoLedger()
                     #if DEBUG
                     applyDebugBoOverrides()
                     #endif
@@ -325,16 +366,48 @@ struct PiboApp: App {
                 // 历史被写过之后再算一次。前台的增量刷新（今日小时步数、
                 // reconcile 落库）不会经过启动那一段，靠这个兜住。
                 .onChange(of: history.revision) { _, _ in
-                    boLedger.recompute(history: history)
+                    if PiboReleaseScope.temporaryCooperationOnboarding {
+                        onboarding.observeHealth(in: history)
+                    }
+                    recomputeBoLedger()
                 }
+                .onChange(of: health.authState) { _, state in
+                    guard state == .granted else { return }
+                    Task {
+                        await backfillHealthHistoryIfAuthorized()
+                        if PiboReleaseScope.temporaryCooperationOnboarding {
+                            onboarding.observeHealth(in: history)
+                        }
+                        recomputeBoLedger()
+                    }
+                }
+        }
+    }
+
+    private func backfillHealthHistoryIfAuthorized() async {
+        guard health.authState == .granted else { return }
+        let values = await health.fetchDailyHistory()
+        history.ingest(values)
+        let workouts = await health.fetchWorkoutHistory()
+        history.ingestWorkouts(workouts)
+        history.recomputeWellness()
+    }
+
+    private func recomputeBoLedger() {
+        boLedger.recompute(history: history)
+        if PiboReleaseScope.temporaryCooperationOnboarding {
+            onboarding.observeBoProgress(
+                lifetimeMinted: boLedger.lifetimeMinted,
+                lifetimeCollected: boLedger.lifetimeCollected
+            )
         }
     }
 
     #if DEBUG
     /// 免真实健康数据地把账本摆到某个状态，用于模拟器截图验证：
     /// `-PiboBoBalance=8`（余额）/ `-PiboBoRipe`（有一枚熟了）/
-    /// `-PiboBoGrowth=0.6`（当前这枚的成熟进度）。Debug 构建始终在运行时全解锁物件，
-    /// 且不会把这项覆盖写入本地库存。
+    /// `-PiboBoGrowth=0.6`（当前这枚的成熟进度）。需要全解锁共同物件时另加
+    /// `-PiboUnlockAllCommonItems`；该覆盖只在读取时生效，不会写入本地库存。
     private func applyDebugBoOverrides() {
         let arguments = ProcessInfo.processInfo.arguments
         func value(_ flag: String) -> String? {

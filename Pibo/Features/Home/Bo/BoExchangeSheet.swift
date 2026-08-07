@@ -1,309 +1,826 @@
 import Foundation
+import AVFAudio
+import PiboCore
 import SwiftUI
+import UIKit
 
-/// Figma 6444:41862 的独立物品解锁页。
-///
-/// 三件物品严格沿「吊床 → 补梦风铃 → 铃兰灯」顺序开放。价格继续取自
-/// `PiboOrnament`，页面不复制数值规则。
-struct BoUnlockPage: View {
-    @Environment(\.dismiss) private var dismiss
+/// A full-screen overlay over the live forest. The forest remains mounted so
+/// preview and reveal use one continuous spatial model instead of navigating
+/// to an unrelated store page.
+struct BoUnlockOverlay: View {
+    let stageCommands: PiboStageCommandController
+    let onDismiss: () -> Void
+
     @Environment(BoLedgerStore.self) private var ledger
     @Environment(OrnamentUnlockStore.self) private var unlocks
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled) private var soundEnabled = true
 
-    @State private var expanded: PiboOrnament.ID?
+    @State private var flow = OrnamentUnlockFlowCoordinator()
+    @State private var sound = OrnamentUnlockSoundService()
+    @State private var dictionaryExpanded: PiboOrnament.ID?
+    @State private var artworkGlobalFrames: [PiboOrnament.ID: CGRect] = [:]
+    @State private var overlayGlobalFrame: CGRect = .zero
+    @State private var pendingUnlockConfirmation: PiboOrnament.ID?
+    @AccessibilityFocusState private var headingFocused: Bool
 
     private var ornaments: [PiboOrnament] { PiboOrnament.ordered }
+    private var selectedID: PiboOrnament.ID {
+        flow.selectedID ?? unlocks.nextLocked?.id ?? ornaments.last!.id
+    }
 
-    /// Component geometry from the linked Figma states. The 24pt card radius is
-    /// also the house radius on the history surface; keeping it local avoids
-    /// changing the global `xxl` token, which is 36pt in the newer UI-kit ramp.
-    private enum Layout {
-        static let cardRadius: CGFloat = 24
-        static let timelineLeading: CGFloat = 27
-        static let timelineWidth: CGFloat = 24
-        static let timelineGap: CGFloat = 10
-        static let railWidth: CGFloat = 3
+    private var isPreviewingPlacement: Bool { flow.previewedID != nil }
+    private var contentOpacity: Double {
+        if isPreviewingPlacement { return 0.18 }
+        if case .dismissing = flow.phase { return 0 }
+        if case .returning = flow.phase { return 0 }
+        return 1
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            pageHeader
-            balanceBar
+        GeometryReader { geometry in
+            ZStack {
+                LP.Fill.bgSurface
+                    .opacity(isPreviewingPlacement ? 0.10 : 0.90)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: LP.Spacing.l) {
-                    ForEach(ornaments) { ornament in
-                        ornamentStep(ornament)
-                    }
+                VStack(spacing: 0) {
+                    header
+                    balanceHeader
+                    ornamentList
+                    footer
+                }
+                .opacity(contentOpacity)
+                .allowsHitTesting(!isPreviewingPlacement && !isReturning)
 
-                    HStack(spacing: Layout.timelineGap) {
-                        timelineDot(reached: false)
-                        Text(AppLocalization.text("更多道具上线中......"))
-                            .lpText(LP.Typography.b1Medium)
-                            .foregroundStyle(LP.Content.quarternary)
-                    }
-                    .padding(.top, LP.Spacing.xxl4)
-                    .padding(.bottom, LP.Spacing.xxl)
+                if let id = flow.returningID,
+                   let ornament = PiboOrnament.ornament(id) {
+                    travellingArtwork(ornament)
                 }
-                .background(alignment: .topLeading) {
-                    Capsule()
-                        .fill(LP.Neutral.grey250.opacity(0.72))
-                        .frame(width: Layout.railWidth)
-                        .padding(.leading, (Layout.timelineWidth - Layout.railWidth) / 2)
-                        .padding(.top, 49)
+
+                if isPreviewingPlacement {
+                    placementPreviewHint
                 }
-                .padding(.leading, Layout.timelineLeading)
-                .padding(.trailing, LP.Spacing.xl)
-                .padding(.top, LP.Spacing.xxl)
             }
-        }
-        .background(LP.Fill.bgSurfaceSecondary.ignoresSafeArea())
-        .navigationBarBackButtonHidden()
-        .toolbar(.hidden, for: .navigationBar)
-        .onAppear {
-            unlocks.markUnlockGuideSeen()
-            if expanded == nil {
-                expanded = unlocks.nextLocked?.id ?? ornaments.last?.id
+            .onPreferenceChange(OrnamentArtworkFrameKey.self) { artworkGlobalFrames = $0 }
+            .onAppear { overlayGlobalFrame = geometry.frame(in: .global) }
+            .onChange(of: geometry.frame(in: .global)) { _, frame in
+                overlayGlobalFrame = frame
+            }
+            .accessibilityAddTraits(.isModal)
+            .task { present() }
+            .onChange(of: selectedID) { _, id in
+                stageCommands.setOrnamentConstructionMode(enabled: true, selected: id)
+            }
+            .onChange(of: flow.previewedID) { _, id in
+                stageCommands.setOrnamentPlacementPreview(id)
+            }
+            .onChange(of: soundEnabled) { _, _ in updateSoundEnabled() }
+            .onChange(of: reduceMotion) { _, _ in updateSoundEnabled() }
+            .onChange(of: scenePhase) { _, phase in handleScenePhase(phase) }
+            .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) {
+                sound.handleInterruption($0)
+            }
+            .onReceive(NotificationCenter.default.publisher(
+                for: AVAudioSession.silenceSecondaryAudioHintNotification
+            )) {
+                sound.handleSecondaryAudioHint($0)
+            }
+            .task(id: materializationTaskID) {
+                await finishMaterializationIfNeeded()
+            }
+            .onDisappear {
+                flow.dispose()
+                sound.stop()
+                stageCommands.cancelOrnamentPresentation()
+            }
+            .confirmationDialog(
+                unlockConfirmationTitle,
+                isPresented: Binding(
+                    get: { pendingUnlockConfirmation != nil },
+                    set: { if !$0 { pendingUnlockConfirmation = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                if let id = pendingUnlockConfirmation,
+                   let ornament = PiboOrnament.ornament(id) {
+                    Button(AppLocalization.format("%d bo 解锁", ornament.cost)) {
+                        pendingUnlockConfirmation = nil
+                        commit(id, input: "tap_confirmation")
+                    }
+                }
+                Button(AppLocalization.text("取消"), role: .cancel) {
+                    pendingUnlockConfirmation = nil
+                }
             }
         }
     }
 
-    private var pageHeader: some View {
+    private var isReturning: Bool {
+        if case .returning = flow.phase { return true }
+        return false
+    }
+
+    private var header: some View {
         ZStack {
-            Text(AppLocalization.text("兑换道具"))
+            Text(AppLocalization.text("共同物件"))
                 .lpText(LP.Typography.b1Medium)
-                .foregroundStyle(LP.Content.secondary)
+                .foregroundStyle(LP.Content.primary)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($headingFocused)
 
             HStack {
-                Button {
-                    dismiss()
-                } label: {
+                Button(action: dismiss) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(LP.Content.secondary)
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(LP.Content.primary)
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(AppLocalization.text("返回"))
+                .disabled(flow.isBusy)
+                .accessibilityLabel(AppLocalization.text("返回森林"))
                 Spacer()
             }
         }
-        .frame(height: 44)
+        .frame(height: 52)
         .padding(.horizontal, LP.Spacing.m)
         .padding(.top, LP.Spacing.s)
     }
 
-    private var balanceBar: some View {
-        HStack {
-            Text(AppLocalization.text("当前bo数"))
-                .lpText(LP.Typography.b1Medium)
-                .foregroundStyle(LP.Content.secondary)
-            Spacer()
+    private var balanceHeader: some View {
+        HStack(spacing: LP.Spacing.m) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(AppLocalization.text("可投入"))
+                    .lpText(LP.Typography.b4Medium)
+                    .foregroundStyle(LP.Content.tertiary)
+                Text(AppLocalization.text("这些物件会留在共同空间里"))
+                    .lpText(LP.Typography.b3Regular)
+                    .foregroundStyle(LP.Content.secondary)
+            }
+            Spacer(minLength: LP.Spacing.s)
             HStack(spacing: LP.Spacing.xs) {
                 PiboBoGlyph()
-                    .frame(width: 26, height: 36)
+                    .frame(width: 24, height: 34)
+                    .accessibilityHidden(true)
                 Text(AppLocalization.format("%d bo", ledger.balance))
                     .lpText(LP.Typography.b1Medium)
-                    .foregroundStyle(LP.Colorful.teal600)
+                    .foregroundStyle(LP.Content.accent)
                     .contentTransition(.numericText())
+                    .monospacedDigit()
             }
             .padding(.horizontal, LP.Spacing.m)
-            .frame(height: 36)
-            .background(Capsule().fill(LP.Fill.bgContainer))
+            .frame(minHeight: 44)
+            .background(Capsule().fill(LP.Fill.bgContainer.opacity(0.94)))
+            .overlay(Capsule().strokeBorder(LP.Border.secondary, lineWidth: LP.BorderWidth.hair))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(AppLocalization.format("当前有 %d bo", ledger.balance))
         }
-        .padding(.leading, 30)
-        .padding(.trailing, LP.Spacing.xl)
-        .padding(.top, LP.Spacing.xl)
+        .padding(.horizontal, LP.Spacing.xl)
+        .padding(.bottom, LP.Spacing.l)
     }
 
-    private func ornamentStep(_ ornament: PiboOrnament) -> some View {
-        let unlocked = unlocks.isUnlocked(ornament.id)
-        let canUnlock = unlocks.canUnlock(ornament.id, balance: ledger.balance)
-        let isExpanded = expanded == ornament.id
+    private var ornamentList: some View {
+        ScrollView {
+            LazyVStack(spacing: LP.Spacing.m) {
+                ForEach(ornaments) { ornament in
+                    ornamentRow(ornament)
+                }
+                Text(AppLocalization.text("共同空间还会继续留下新的位置。"))
+                    .lpText(LP.Typography.b4Regular)
+                    .foregroundStyle(LP.Content.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 42)
+                    .padding(.vertical, LP.Spacing.l)
+            }
+            .padding(.horizontal, LP.Spacing.xl)
+            .padding(.bottom, LP.Spacing.xl)
+        }
+        .scrollDisabled(flow.isBusy || isPreviewingPlacement)
+        .disabled(flow.isBusy)
+    }
 
-        return HStack(alignment: .top, spacing: Layout.timelineGap) {
-            timelineDot(reached: unlocked || ledger.balance >= ornament.cost)
-                .padding(.top, 41)
-
+    private func ornamentRow(_ ornament: PiboOrnament) -> some View {
+        let selected = selectedID == ornament.id
+        return HStack(alignment: .top, spacing: LP.Spacing.m) {
+            progressNode(for: ornament)
+                .padding(.top, selected ? 34 : 26)
             Group {
-                if isExpanded {
-                    expandedCard(
-                        ornament,
-                        unlocked: unlocked,
-                        canUnlock: canUnlock
-                    )
+                if selected {
+                    expandedCard(ornament)
                 } else {
-                    collapsedCard(
-                        ornament,
-                        unlocked: unlocked,
-                        canUnlock: canUnlock
-                    )
+                    collapsedCard(ornament)
                 }
             }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func progressNode(for ornament: PiboOrnament) -> some View {
+        let owned = unlocks.isUnlocked(ornament.id)
+        let current = unlocks.nextLocked?.id == ornament.id
+        return ZStack {
+            Circle()
+                .fill(owned ? LP.Fill.foundationAccent : LP.Fill.bgContainer)
+                .frame(width: 22, height: 22)
+                .overlay {
+                    Circle().strokeBorder(
+                        current ? LP.Fill.foundationAccent : LP.Border.primary,
+                        lineWidth: current ? 3 : 1
+                    )
+                }
+            if owned {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(LP.Fill.foundationOnAccent)
+            } else if current {
+                Circle().fill(LP.Fill.foundationAccent).frame(width: 6, height: 6)
+            }
+        }
+        .frame(width: 22, height: 22)
+        .background(alignment: .top) {
+            if ornament.id != ornaments.last?.id {
+                Rectangle()
+                    .fill(LP.Border.secondary)
+                    .frame(width: 1.5, height: selectedID == ornament.id ? 420 : 96)
+                    .offset(y: 22)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(progressAccessibilityLabel(ornament))
+    }
+
+    private func collapsedCard(_ ornament: PiboOrnament) -> some View {
+        Button {
+            Analytics.track(.boUnlockItemSelect, screen: "bo_unlock", [
+                "item": .string(ornament.id.rawValue),
+                "item_state": .string(itemStateName(ornament)),
+            ])
+            withAnimation(reduceMotion ? nil : .timingCurve(0.65, 0, 0.35, 1, duration: 0.24)) {
+                flow.select(ornament.id)
+            }
+        } label: {
+            HStack(spacing: LP.Spacing.l) {
+                OrnamentArtwork(ornament: ornament, locked: !unlocks.isUnlocked(ornament.id))
+                    .frame(width: 64, height: 72)
+                VStack(alignment: .leading, spacing: LP.Spacing.xs) {
+                    Text(ornament.localizedName)
+                        .lpText(LP.Typography.b1Medium)
+                        .foregroundStyle(LP.Content.primary)
+                    Text(capability(for: ornament.id))
+                        .lpText(LP.Typography.b4Regular)
+                        .foregroundStyle(LP.Content.secondary)
+                        .lineLimit(2)
+                    Text(AppLocalization.format("%d bo", ornament.cost))
+                        .lpText(LP.Typography.b4Medium)
+                        .foregroundStyle(LP.Content.accent)
+                        .monospacedDigit()
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(LP.Content.tertiary)
+            }
+            .padding(LP.Spacing.l)
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .background(cardBackground(radius: 18))
+        .accessibilityHint(AppLocalization.text("展开物件详情"))
+    }
+
+    private func expandedCard(_ ornament: PiboOrnament) -> some View {
+        VStack(alignment: .leading, spacing: LP.Spacing.l) {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: LP.Spacing.m) {
+                    artwork(ornament).frame(maxWidth: .infinity)
+                    titleAndCost(ornament)
+                }
+            } else {
+                HStack(alignment: .top, spacing: LP.Spacing.l) {
+                    artwork(ornament)
+                        .frame(width: 126, height: 142)
+                    titleAndCost(ornament)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: LP.Spacing.s) {
+                Text(AppLocalization.text("解锁后获得"))
+                    .lpText(LP.Typography.b4Medium)
+                    .foregroundStyle(LP.Content.accent)
+
+                ForEach(capabilityDetails(for: ornament.id), id: \.self) { detail in
+                    Label(detail, systemImage: "checkmark.circle.fill")
+                        .lpText(LP.Typography.b3Medium)
+                        .foregroundStyle(LP.Content.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text(permissionNote(for: ornament.id))
+                    .lpText(LP.Typography.b4Regular)
+                    .foregroundStyle(LP.Content.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(LP.Spacing.m)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: Layout.cardRadius, style: .continuous)
-                    .fill(LP.Fill.bgContainer)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(LP.Fill.bgSurfaceSecondary.opacity(0.70))
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: Layout.cardRadius, style: .continuous)
-                    .strokeBorder(LP.Border.secondary, lineWidth: LP.BorderWidth.hair)
-            )
-        }
-    }
 
-    private func expandedCard(
-        _ ornament: PiboOrnament,
-        unlocked: Bool,
-        canUnlock: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: LP.Spacing.l) {
-            ZStack(alignment: .topTrailing) {
-                expandedArtwork(ornament, locked: !unlocked)
-                statusControl(ornament, unlocked: unlocked, canUnlock: canUnlock)
-                    .padding(.top, LP.Spacing.s)
-                    .padding(.trailing, LP.Spacing.s)
-            }
-
-            Text(ornament.localizedName)
-                .lpText(LP.Typography.b1Medium)
-                .foregroundStyle(LP.Colorful.teal600)
-
-            Text(compactEntry(ornament.localizedEntry))
-                .lpText(LP.Typography.b3Regular)
+            Button {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.20)) {
+                    dictionaryExpanded = dictionaryExpanded == ornament.id ? nil : ornament.id
+                }
+            } label: {
+                HStack {
+                    Text(AppLocalization.text("Pibo 词典记录"))
+                        .lpText(LP.Typography.b4Medium)
+                    Spacer()
+                    Image(systemName: dictionaryExpanded == ornament.id ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                }
                 .foregroundStyle(LP.Content.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button {
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
-                    expanded = nil
-                }
-            } label: {
-                Label(AppLocalization.text("收起"), systemImage: "chevron.up")
-                    .labelStyle(.titleAndIcon)
-                    .lpText(LP.Typography.b4Medium)
-                    .foregroundStyle(LP.Colorful.teal500)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(LP.Spacing.l)
-    }
-
-    private func collapsedCard(
-        _ ornament: PiboOrnament,
-        unlocked: Bool,
-        canUnlock: Bool
-    ) -> some View {
-        HStack(spacing: LP.Spacing.s) {
-            Button {
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
-                    expanded = ornament.id
-                }
-            } label: {
-                HStack(spacing: LP.Spacing.l) {
-                    OrnamentThumbnail(ornament: ornament, isLocked: !unlocked)
-                    VStack(alignment: .leading, spacing: LP.Spacing.xs) {
-                        Text(ornament.localizedName)
-                            .lpText(LP.Typography.b1Medium)
-                            .foregroundStyle(LP.Colorful.teal600)
-                        Text(AppLocalization.format("%d bo", ornament.cost))
-                            .lpText(LP.Typography.b1Medium)
-                            .foregroundStyle(LP.Content.secondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityHint(AppLocalization.text("查看"))
+            .accessibilityValue(dictionaryExpanded == ornament.id
+                                ? AppLocalization.text("已展开")
+                                : AppLocalization.text("已折叠"))
 
-            statusControl(ornament, unlocked: unlocked, canUnlock: canUnlock)
+            if dictionaryExpanded == ornament.id {
+                Text(ornament.localizedEntry)
+                    .lpText(LP.Typography.b4Regular)
+                    .foregroundStyle(LP.Content.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+            }
+
+            if let message = flow.message {
+                Label(message, systemImage: "info.circle")
+                    .lpText(LP.Typography.b4Medium)
+                    .foregroundStyle(LP.Content.secondary)
+            }
         }
-        .padding(.horizontal, LP.Spacing.xl)
-        .padding(.vertical, LP.Spacing.l)
-        .frame(minHeight: 98)
+        .padding(LP.Spacing.l)
+        .background(cardBackground(radius: 22))
     }
 
-    private func compactEntry(_ text: String) -> String {
-        text.replacingOccurrences(of: "\n\n", with: "\n")
-    }
-
-    private func expandedArtwork(_ ornament: PiboOrnament, locked: Bool) -> some View {
-        OrnamentThumbnail(
+    private func artwork(_ ornament: PiboOrnament) -> some View {
+        OrnamentMaterializationArtwork(
             ornament: ornament,
-            isLocked: locked,
-            size: CGSize(width: 224, height: 168)
+            locked: !unlocks.isUnlocked(ornament.id),
+            isMaterializing: isMaterializing(ornament.id),
+            reduceMotion: reduceMotion
         )
-            .frame(maxWidth: .infinity)
+            .frame(width: dynamicTypeSize.isAccessibilitySize ? 160 : 126,
+                   height: dynamicTypeSize.isAccessibilitySize ? 160 : 142)
+            .opacity(flow.returningID == ornament.id ? 0 : 1)
+            .contentShape(Rectangle())
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: OrnamentArtworkFrameKey.self,
+                        value: [ornament.id: proxy.frame(in: .global)]
+                    )
+                }
+            }
+            .onLongPressGesture(
+                minimumDuration: 0.18,
+                maximumDistance: 12,
+                pressing: { pressing in
+                    if !pressing { flow.endPlacementPreview() }
+                },
+                perform: {
+                    flow.beginPlacementPreview(ornament.id)
+                    Analytics.track(.boUnlockPlacementPreview, screen: "bo_unlock", [
+                        "item": .string(ornament.id.rawValue),
+                        "input": .string("touch"),
+                    ])
+                }
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(AppLocalization.format("预览%@在森林中的位置", ornament.localizedName))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: AppLocalization.text("预览位置")) {
+                flow.beginPlacementPreview(ornament.id)
+                Analytics.track(.boUnlockPlacementPreview, screen: "bo_unlock", [
+                    "item": .string(ornament.id.rawValue),
+                    "input": .string("accessibility"),
+                ])
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    flow.endPlacementPreview()
+                }
+            }
+    }
+
+    private func titleAndCost(_ ornament: PiboOrnament) -> some View {
+        VStack(alignment: .leading, spacing: LP.Spacing.s) {
+            Text(ornament.localizedName)
+                .lpText(LP.Typography.uiH5)
+                .foregroundStyle(LP.Content.primary)
+                .accessibilityAddTraits(.isHeader)
+            Text(AppLocalization.format("需要 %d bo", ornament.cost))
+                .lpText(LP.Typography.b1Medium)
+                .foregroundStyle(LP.Content.accent)
+                .monospacedDigit()
+            Text(itemStatusText(ornament))
+                .lpText(LP.Typography.b4Medium)
+                .foregroundStyle(LP.Content.tertiary)
+            Text(AppLocalization.text("按住插画，可以先看它会留在哪里。"))
+                .lpText(LP.Typography.b4Regular)
+                .foregroundStyle(LP.Content.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
-    private func statusControl(
-        _ ornament: PiboOrnament,
-        unlocked: Bool,
-        canUnlock: Bool
-    ) -> some View {
-        if unlocked {
-            statusPill("已解锁", foreground: LP.Colorful.teal600,
-                       background: LP.Colorful.green500.opacity(0.1))
-        } else if canUnlock {
+    private var footer: some View {
+        VStack(spacing: LP.Spacing.s) {
+            LPDashedRule(color: LP.Border.secondary, lineWidth: 1, dash: [4, 4])
+            footerControl
+        }
+        .padding(.horizontal, LP.Spacing.xl)
+        .padding(.top, LP.Spacing.m)
+        .padding(.bottom, LP.Spacing.l)
+        .background(LP.Fill.bgSurface.opacity(0.96))
+    }
+
+    @ViewBuilder
+    private var footerControl: some View {
+        let ornament = PiboOrnament.ornament(selectedID)!
+        if isMaterializing(ornament.id) {
+            HStack(spacing: LP.Spacing.m) {
+                PiboBoGlyph()
+                    .frame(width: 17, height: 24)
+                    .accessibilityHidden(true)
+                Text(AppLocalization.text("正在建立物件"))
+                    .lpText(LP.Typography.b1Medium)
+                    .foregroundStyle(LP.Content.accent)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, LP.Spacing.l)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(LP.Fill.foundationAccent.opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(LP.Fill.foundationAccent.opacity(0.42), lineWidth: 1)
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(AppLocalization.format("正在建立%@", ornament.localizedName))
+        } else if flow.phase == .success(ornament.id) {
             Button {
-                guard unlocks.purchase(ornament.id, using: ledger) == .purchased else { return }
-                LPHaptics.success()
-                Analytics.track(.boUnlock, screen: "bo_unlock",
-                                ["ornament": .string(ornament.id.rawValue),
-                                 "cost": .int(ornament.cost)])
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
-                    expanded = unlocks.nextLocked?.id ?? ornament.id
-                }
+                returnToForest(ornament)
             } label: {
-                statusPill("解锁", foreground: LP.Fill.foundationOnAccent,
-                           background: LP.Fill.foundationAccent)
+                Text(AppLocalization.text("回到森林"))
+                    .lpText(LP.Typography.b1Medium)
+                    .foregroundStyle(LP.Fill.foundationOnAccent)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(LP.Fill.foundationAccent)
+                    )
+            }
+            .buttonStyle(.plain)
+        } else if unlocks.state(ornament.id, balance: ledger.balance) == .purchasable {
+            Button {
+                pendingUnlockConfirmation = ornament.id
+            } label: {
+                Text(AppLocalization.format("%d bo 解锁", ornament.cost))
+                    .lpText(LP.Typography.b1Medium)
+                    .foregroundStyle(LP.Fill.foundationOnAccent)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(LP.Fill.foundationAccent)
+                    )
             }
             .buttonStyle(.plain)
         } else {
-            statusPill("待解锁", foreground: LP.Neutral.grey500,
-                       background: Color.black.opacity(0.05))
+            Text(footerUnavailableText(ornament))
+                .lpText(LP.Typography.b1Medium)
+                .foregroundStyle(LP.Content.tertiary)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(LP.Fill.bgSurfaceSecondary)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(LP.Border.secondary, lineWidth: LP.BorderWidth.hair)
+                )
+                .accessibilityLabel(footerUnavailableText(ornament))
         }
     }
 
-    private func statusPill(
-        _ text: String,
-        foreground: Color,
-        background: Color
-    ) -> some View {
-        Text(AppLocalization.text(text))
-            .lpText(LP.Typography.b4Medium)
-            .foregroundStyle(foreground)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
-            .background(Capsule().fill(background))
+    private var placementPreviewHint: some View {
+        VStack {
+            Spacer()
+            Text(AppLocalization.text("松开即可回到物件说明"))
+                .lpText(LP.Typography.b4Medium)
+                .foregroundStyle(LP.Content.primary)
+                .padding(.horizontal, LP.Spacing.l)
+                .frame(minHeight: 44)
+                .background(Capsule().fill(LP.Fill.bgPop.opacity(0.94)))
+                .overlay(Capsule().strokeBorder(LP.Border.secondary, lineWidth: 1))
+                .padding(.bottom, 40)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
-    private func timelineDot(reached: Bool) -> some View {
-        Circle()
-            .fill(reached ? LP.Fill.foundationAccent : LP.Content.quarternary)
-            .frame(width: 16, height: 16)
-            .frame(width: Layout.timelineWidth)
+    private func travellingArtwork(_ ornament: PiboOrnament) -> some View {
+        let frame = interpolatedTravelFrame
+        return OrnamentArtwork(ornament: ornament, locked: false)
+            .frame(width: frame.width, height: frame.height)
+            .position(x: frame.midX, y: frame.midY)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    private var interpolatedTravelFrame: CGRect {
+        let p = flow.travelProgress
+        let source = flow.travelSource
+        let target = flow.travelTarget
+        return CGRect(
+            x: source.minX + (target.minX - source.minX) * p,
+            y: source.minY + (target.minY - source.minY) * p,
+            width: source.width + (target.width - source.width) * p,
+            height: source.height + (target.height - source.height) * p
+        )
+    }
+
+    private func cardBackground(radius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .fill(LP.Fill.bgContainer.opacity(0.96))
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(LP.Border.secondary, lineWidth: LP.BorderWidth.hair)
+            )
+    }
+
+    private func present() {
+        let id = unlocks.nextLocked?.id ?? ornaments.last!.id
+        unlocks.markUnlockGuideSeen()
+        updateSoundEnabled()
+        sound.refreshExternalAudioSuppression()
+        stageCommands.setOrnamentConstructionMode(enabled: true, selected: id)
+        flow.present(selected: id, reduceMotion: reduceMotion)
+        DispatchQueue.main.async { headingFocused = true }
+    }
+
+    private func dismiss() {
+        flow.beginDismiss(reduceMotion: reduceMotion) {
+            stageCommands.cancelOrnamentPresentation()
+            flow.finishDismissal()
+            onDismiss()
+        }
+    }
+
+    private func commit(_ id: PiboOrnament.ID, input: String) {
+        guard flow.beginCommit(id), let ornament = PiboOrnament.ornament(id) else { return }
+        Analytics.track(.boUnlockAttempt, screen: "bo_unlock", [
+            "item": .string(id.rawValue),
+            "cost": .int(ornament.cost),
+            "input": .string(input),
+        ])
+        stageCommands.prepareOrnamentReveal(id)
+        LPHaptics.confirm()
+
+        switch unlocks.purchase(id, using: ledger) {
+        case .purchased:
+            sound.playInvestment()
+            flow.beginMaterializing(id)
+            Analytics.track(.boUnlock, screen: "bo_unlock", [
+                "ornament": .string(id.rawValue),
+                "cost": .int(ornament.cost),
+                "remaining_balance": .int(ledger.balance),
+                "input": .string(input),
+            ])
+        case .alreadyOwned:
+            stageCommands.completeOrnamentReveal(id)
+            flow.completeMaterialization(id)
+        case .insufficientBalance:
+            reportFailure(id, reason: "insufficient_balance", text: footerUnavailableText(ornament))
+        case .prerequisiteMissing:
+            reportFailure(id, reason: "prerequisite_missing", text: footerUnavailableText(ornament))
+        case .unavailable:
+            reportFailure(id, reason: "unavailable", text: AppLocalization.text("这件物件还没有开放。"))
+        }
+    }
+
+    private func reportFailure(_ id: PiboOrnament.ID, reason: String, text: String) {
+        stageCommands.completeOrnamentReveal(id)
+        flow.showFailure(text, item: id)
+        Analytics.track(.boUnlockFailed, screen: "bo_unlock", [
+            "item": .string(id.rawValue),
+            "reason": .string(reason),
+        ])
+    }
+
+    private func returnToForest(_ ornament: PiboOrnament) {
+        let fallback = CGRect(
+            x: overlayGlobalFrame.minX + 150,
+            y: overlayGlobalFrame.minY + 220,
+            width: 96,
+            height: 128
+        )
+        let sourceGlobal = artworkGlobalFrames[ornament.id] ?? fallback
+        let targetGlobal = stageCommands.ornamentTargetFrame(ornament.id) ?? sourceGlobal
+        let source = overlayLocalFrame(sourceGlobal)
+        let target = overlayLocalFrame(targetGlobal)
+        flow.beginReturn(
+            ornament.id,
+            source: source,
+            target: target,
+            reduceMotion: reduceMotion
+        ) {
+            stageCommands.completeOrnamentReveal(ornament.id)
+            stageCommands.setOrnamentConstructionMode(enabled: false, selected: nil)
+            Analytics.track(.boUnlockReturn, screen: "bo_unlock", [
+                "item": .string(ornament.id.rawValue),
+                "motion_mode": .string(reduceMotion ? "reduced" : "full"),
+            ])
+            flow.finishDismissal()
+            onDismiss()
+        }
+    }
+
+    @MainActor
+    private func finishMaterializationIfNeeded() async {
+        guard case .materializing(let id) = flow.phase,
+              let ornament = PiboOrnament.ornament(id) else { return }
+        if !reduceMotion {
+            do {
+                try await Task.sleep(for: OrnamentUnlockMotion.materializationDuration)
+            } catch {
+                return
+            }
+        }
+        guard !Task.isCancelled, flow.phase == .materializing(id) else { return }
+        flow.completeMaterialization(id)
+        sound.playCompletion(for: id)
+        LPHaptics.success()
+        AccessibilityNotification.Announcement(
+            AppLocalization.format("%@已解锁", ornament.localizedName)
+        ).post()
+    }
+
+    private func overlayLocalFrame(_ globalFrame: CGRect) -> CGRect {
+        globalFrame.offsetBy(dx: -overlayGlobalFrame.minX, dy: -overlayGlobalFrame.minY)
+    }
+
+    private func handleScenePhase(_ phase: ScenePhase) {
+        guard phase != .active else {
+            sound.refreshExternalAudioSuppression()
+            return
+        }
+        sound.stop()
+        if let id = flow.prepareForBackground() {
+            stageCommands.completeOrnamentReveal(id)
+        }
+        stageCommands.setOrnamentPlacementPreview(nil)
+    }
+
+    private func updateSoundEnabled() {
+        sound.setEnabled(soundEnabled && !reduceMotion)
+    }
+
+    private func capability(for id: PiboOrnament.ID) -> String {
+        switch id {
+        case .hammock: AppLocalization.text("睡眠回顾与睡醒通知")
+        case .chime: AppLocalization.text("露珠相机与 Walk Doodle")
+        case .statusObserver: AppLocalization.text("查看恢复状态")
+        case .lantern: AppLocalization.text("魔法点灯")
+        }
+    }
+
+    private func capabilityDetails(for id: PiboOrnament.ID) -> [String] {
+        switch id {
+        case .hammock:
+            [
+                AppLocalization.text("睡眠回顾：在 App 内查看最近一次睡眠"),
+                AppLocalization.text("睡醒通知：每天睡醒后提醒你查看"),
+            ]
+        case .chime:
+            [
+                AppLocalization.text("露珠相机：拍下地球食物，估算热量并保存到足迹"),
+                AppLocalization.text("Walk Doodle：记录步行路线，把移动过程留成地图上的线条"),
+            ]
+        case .statusObserver:
+            [AppLocalization.text("恢复状态：根据已授权的原始记录等待数据或校准")]
+        case .lantern:
+            [AppLocalization.text("魔法点灯：亲手点亮森林里的铃兰灯")]
+        }
+    }
+
+    private func permissionNote(for id: PiboOrnament.ID) -> String {
+        switch id {
+        case .hammock:
+            AppLocalization.text("需要已授权的睡眠记录。拒绝通知权限仍可在 App 内查看睡眠回顾。")
+        case .chime:
+            AppLocalization.text("相机与精确定位权限会在分别使用两项能力时请求。")
+        case .statusObserver:
+            AppLocalization.text("只使用已授权的原始健康记录。数据不足时等待或校准，不生成恢复分数。")
+        case .lantern:
+            AppLocalization.text("无需新增权限。")
+        }
+    }
+
+    private func itemStatusText(_ ornament: PiboOrnament) -> String {
+        if isMaterializing(ornament.id) { return AppLocalization.text("正在建立") }
+        if unlocks.isUnlocked(ornament.id) { return AppLocalization.text("已留在森林") }
+        if unlocks.nextLocked?.id == ornament.id { return AppLocalization.text("当前可以准备的物件") }
+        return AppLocalization.text("需要先完成前面的物件")
+    }
+
+    private func footerUnavailableText(_ ornament: PiboOrnament) -> String {
+        switch unlocks.state(ornament.id, balance: ledger.balance) {
+        case .owned:
+            AppLocalization.text("已在森林")
+        case .unavailable:
+            AppLocalization.text("尚未开放")
+        case .eligible:
+            if let prerequisiteID = PiboOrnament.coreDefinition(ornament.id).prerequisiteID,
+               let prerequisite = PiboOrnament.ordered.first(where: { $0.id.coreID == prerequisiteID }),
+               !unlocks.isUnlocked(prerequisite.id) {
+                AppLocalization.format("先解锁「%@」", prerequisite.localizedName)
+            } else {
+                AppLocalization.format("还差 %d bo", max(0, ornament.cost - ledger.balance))
+            }
+        case .purchasable:
+            AppLocalization.format("%d bo 解锁", ornament.cost)
+        }
+    }
+
+    private func progressAccessibilityLabel(_ ornament: PiboOrnament) -> String {
+        if unlocks.isUnlocked(ornament.id) {
+            return AppLocalization.format("%@，已拥有", ornament.localizedName)
+        }
+        if unlocks.nextLocked?.id == ornament.id {
+            return AppLocalization.format("%@，当前目标", ornament.localizedName)
+        }
+        return AppLocalization.format("%@，未来物件", ornament.localizedName)
+    }
+
+    private func itemStateName(_ ornament: PiboOrnament) -> String {
+        if unlocks.isUnlocked(ornament.id) { return "owned" }
+        if unlocks.nextLocked?.id == ornament.id { return "current" }
+        return "future"
+    }
+
+    private func isMaterializing(_ id: PiboOrnament.ID) -> Bool {
+        flow.phase == .materializing(id)
+    }
+
+    private var materializationTaskID: String {
+        guard case .materializing(let id) = flow.phase else { return "idle" }
+        return "\(id.rawValue):\(reduceMotion)"
+    }
+
+    private var unlockConfirmationTitle: String {
+        guard let id = pendingUnlockConfirmation,
+              let ornament = PiboOrnament.ornament(id) else {
+            return AppLocalization.text("确认解锁")
+        }
+        return AppLocalization.format("使用 %d bo 解锁「%@」？", ornament.cost, ornament.localizedName)
     }
 }
 
-private struct OrnamentThumbnail: View {
-    let ornament: PiboOrnament
-    let isLocked: Bool
-    let size: CGSize
+enum OrnamentUnlockMotion {
+    static let materializationMilliseconds: Int64 = 1_120
+    static let flightMilliseconds: Int64 = 280
+    static let layerMilliseconds: Int64 = 200
+    static let confirmationMilliseconds: Int64 = 240
+    static let easingBezier = [0.22, 1.0, 0.36, 1.0]
 
-    init(
-        ornament: PiboOrnament,
-        isLocked: Bool,
-        size: CGSize = CGSize(width: 64, height: 64)
-    ) {
-        self.ornament = ornament
-        self.isLocked = isLocked
-        self.size = size
+    static let materializationDuration: Duration = .milliseconds(materializationMilliseconds)
+    static let flightDuration = Double(flightMilliseconds) / 1_000
+    static let layerDuration = Double(layerMilliseconds) / 1_000
+    static let confirmationDuration = Double(confirmationMilliseconds) / 1_000
+
+    static func constructionAnimation(duration: Double) -> Animation {
+        .timingCurve(
+            easingBezier[0],
+            easingBezier[1],
+            easingBezier[2],
+            easingBezier[3],
+            duration: duration
+        )
     }
+}
+
+struct OrnamentArtwork: View {
+    let ornament: PiboOrnament
+    let locked: Bool
 
     var body: some View {
         Group {
@@ -311,22 +828,304 @@ private struct OrnamentThumbnail: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
-                    .saturation(isLocked ? 0.15 : 1)
-                    .opacity(isLocked ? 0.3 : 1)
+                    .saturation(locked ? 0.42 : 1)
+                    .opacity(locked ? 0.62 : 1)
             } else {
                 Image(systemName: "leaf")
-                    .font(.system(size: min(size.width, size.height) > 64 ? 40 : 24))
+                    .font(.system(size: 36, weight: .regular))
                     .foregroundStyle(LP.Content.tertiary)
             }
         }
-        .frame(width: size.width, height: size.height)
+    }
+}
+
+/// Turns the committed transaction into a visible construction story without
+/// inventing a second art style. The approved flat artwork is revealed in an
+/// object-specific structural order; once layered masters arrive, the same
+/// stage contract can drive those assets without changing purchase state.
+private struct OrnamentMaterializationArtwork: View {
+    let ornament: PiboOrnament
+    let locked: Bool
+    let isMaterializing: Bool
+    let reduceMotion: Bool
+
+    @State private var stage = 0
+    @State private var flightProgress: CGFloat = 0
+
+    private var regions: [OrnamentBuildRegion] {
+        OrnamentBuildRegion.plan(for: ornament.id)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                if !isMaterializing || reduceMotion {
+                    OrnamentArtwork(ornament: ornament, locked: locked)
+                } else {
+                    OrnamentConstructionGuide()
+                        .opacity(stage >= 1 && stage < 5 ? 1 : 0)
+
+                    ForEach(Array(regions.enumerated()), id: \.element.id) { index, region in
+                        OrnamentArtwork(ornament: ornament, locked: false)
+                            .mask(OrnamentRegionMask(region: region))
+                            .offset(
+                                x: stage >= index + 2 ? 0 : region.entryOffset.width,
+                                y: stage >= index + 2 ? 0 : region.entryOffset.height
+                            )
+                            .opacity(stage >= index + 2 ? 1 : 0)
+                    }
+
+                    InvestmentFlightPath()
+                        .trim(
+                            from: max(0, flightProgress - 0.32),
+                            to: flightProgress
+                        )
+                        .stroke(
+                            LP.Fill.foundationAccent.opacity(0.34),
+                            style: StrokeStyle(lineWidth: 1.5, lineCap: .round)
+                        )
+                        .opacity(stage == 1 ? 1 : 0)
+
+                    let point = InvestmentFlightPath.point(
+                        at: flightProgress,
+                        in: proxy.size
+                    )
+                    PiboBoGlyph()
+                        .frame(width: 15, height: 22)
+                        .position(point)
+                        .scaleEffect(1 - flightProgress * 0.22)
+                        .opacity(stage == 1 ? 1 : 0)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .task(id: materializationTaskID) {
+            await runMaterializationIfNeeded()
+        }
         .accessibilityHidden(true)
+    }
+
+    @MainActor
+    private func runMaterializationIfNeeded() async {
+        resetMotionState()
+        guard isMaterializing, !reduceMotion else { return }
+
+        withAnimation(.easeOut(duration: 0.12)) {
+            stage = 1
+        }
+        withAnimation(OrnamentUnlockMotion.constructionAnimation(
+            duration: OrnamentUnlockMotion.flightDuration
+        )) {
+            flightProgress = 1
+        }
+        guard await wait(.milliseconds(OrnamentUnlockMotion.flightMilliseconds)) else { return }
+
+        for nextStage in 2...4 {
+            withAnimation(OrnamentUnlockMotion.constructionAnimation(
+                duration: OrnamentUnlockMotion.layerDuration
+            )) {
+                stage = nextStage
+            }
+            guard await wait(.milliseconds(OrnamentUnlockMotion.layerMilliseconds)) else { return }
+        }
+
+        withAnimation(.easeOut(duration: OrnamentUnlockMotion.confirmationDuration)) {
+            stage = 5
+        }
+    }
+
+    @MainActor
+    private func resetMotionState() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            stage = 0
+            flightProgress = 0
+        }
+    }
+
+    private func wait(_ duration: Duration) async -> Bool {
+        do {
+            try await Task.sleep(for: duration)
+            return !Task.isCancelled
+        } catch {
+            return false
+        }
+    }
+
+    private var materializationTaskID: String {
+        "\(isMaterializing):\(reduceMotion)"
+    }
+}
+
+private struct OrnamentBuildRegion: Identifiable {
+    let id: String
+    let frame: CGRect
+    let entryOffset: CGSize
+
+    static func plan(for id: PiboOrnament.ID) -> [OrnamentBuildRegion] {
+        switch id {
+        case .hammock:
+            // Suspension first, then the cradle, then its lower details.
+            topDown(prefix: "hammock")
+        case .chime:
+            // The hanging point is the physical prerequisite for every bell.
+            topDown(prefix: "chime")
+        case .statusObserver:
+            // A freestanding instrument is assembled base → body → lens.
+            bottomUp(prefix: "observer")
+        case .lantern:
+            // The plant grows from its rooted base into stems and flower lamps.
+            bottomUp(prefix: "lantern")
+        }
+    }
+
+    private static func topDown(prefix: String) -> [OrnamentBuildRegion] {
+        [
+            OrnamentBuildRegion(
+                id: "\(prefix).anchor",
+                frame: CGRect(x: 0, y: 0, width: 1, height: 0.34),
+                entryOffset: CGSize(width: 0, height: -7)
+            ),
+            OrnamentBuildRegion(
+                id: "\(prefix).body",
+                frame: CGRect(x: 0, y: 0.34, width: 1, height: 0.34),
+                entryOffset: CGSize(width: 0, height: -5)
+            ),
+            OrnamentBuildRegion(
+                id: "\(prefix).detail",
+                frame: CGRect(x: 0, y: 0.68, width: 1, height: 0.32),
+                entryOffset: CGSize(width: 0, height: -3)
+            ),
+        ]
+    }
+
+    private static func bottomUp(prefix: String) -> [OrnamentBuildRegion] {
+        [
+            OrnamentBuildRegion(
+                id: "\(prefix).base",
+                frame: CGRect(x: 0, y: 0.68, width: 1, height: 0.32),
+                entryOffset: CGSize(width: 0, height: 7)
+            ),
+            OrnamentBuildRegion(
+                id: "\(prefix).body",
+                frame: CGRect(x: 0, y: 0.34, width: 1, height: 0.34),
+                entryOffset: CGSize(width: 0, height: 5)
+            ),
+            OrnamentBuildRegion(
+                id: "\(prefix).detail",
+                frame: CGRect(x: 0, y: 0, width: 1, height: 0.34),
+                entryOffset: CGSize(width: 0, height: 3)
+            ),
+        ]
+    }
+}
+
+private struct OrnamentRegionMask: View {
+    let region: OrnamentBuildRegion
+
+    var body: some View {
+        GeometryReader { proxy in
+            Rectangle()
+                .frame(
+                    width: proxy.size.width * region.frame.width,
+                    height: proxy.size.height * region.frame.height
+                )
+                .offset(
+                    x: proxy.size.width * region.frame.minX,
+                    y: proxy.size.height * region.frame.minY
+                )
+        }
+    }
+}
+
+private struct OrnamentConstructionGuide: View {
+    var body: some View {
+        Canvas { context, size in
+            let color = LP.Fill.foundationAccent.opacity(0.22)
+            let frame = Path(
+                roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: 3, dy: 3),
+                cornerRadius: 12
+            )
+            context.stroke(
+                frame,
+                with: .color(color),
+                style: StrokeStyle(lineWidth: 1, dash: [4, 4])
+            )
+
+            var crosshair = Path()
+            crosshair.move(to: CGPoint(x: size.width * 0.5, y: 8))
+            crosshair.addLine(to: CGPoint(x: size.width * 0.5, y: size.height - 8))
+            crosshair.move(to: CGPoint(x: 8, y: size.height * 0.5))
+            crosshair.addLine(to: CGPoint(x: size.width - 8, y: size.height * 0.5))
+            context.stroke(crosshair, with: .color(color.opacity(0.65)), lineWidth: 0.75)
+        }
+    }
+}
+
+private struct InvestmentFlightPath: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: Self.start(in: rect.size))
+        path.addCurve(
+            to: Self.end(in: rect.size),
+            control1: Self.control1(in: rect.size),
+            control2: Self.control2(in: rect.size)
+        )
+        return path
+    }
+
+    static func point(at rawProgress: CGFloat, in size: CGSize) -> CGPoint {
+        let progress = min(max(rawProgress, 0), 1)
+        let inverse = 1 - progress
+        let start = start(in: size)
+        let first = control1(in: size)
+        let second = control2(in: size)
+        let end = end(in: size)
+        return CGPoint(
+            x: inverse * inverse * inverse * start.x
+                + 3 * inverse * inverse * progress * first.x
+                + 3 * inverse * progress * progress * second.x
+                + progress * progress * progress * end.x,
+            y: inverse * inverse * inverse * start.y
+                + 3 * inverse * inverse * progress * first.y
+                + 3 * inverse * progress * progress * second.y
+                + progress * progress * progress * end.y
+        )
+    }
+
+    private static func start(in size: CGSize) -> CGPoint {
+        CGPoint(x: size.width + 14, y: -6)
+    }
+
+    private static func control1(in size: CGSize) -> CGPoint {
+        CGPoint(x: size.width * 0.92, y: size.height * 0.34)
+    }
+
+    private static func control2(in size: CGSize) -> CGPoint {
+        CGPoint(x: size.width * 0.38, y: size.height * 0.08)
+    }
+
+    private static func end(in size: CGSize) -> CGPoint {
+        CGPoint(x: size.width * 0.5, y: size.height * 0.52)
+    }
+}
+
+private struct OrnamentArtworkFrameKey: PreferenceKey {
+    static var defaultValue: [PiboOrnament.ID: CGRect] = [:]
+
+    static func reduce(
+        value: inout [PiboOrnament.ID: CGRect],
+        nextValue: () -> [PiboOrnament.ID: CGRect]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }
 
 #Preview {
-    NavigationStack {
-        BoUnlockPage()
+    ZStack {
+        LP.Colorful.green50.ignoresSafeArea()
+        BoUnlockOverlay(stageCommands: PiboStageCommandController(), onDismiss: {})
             .environment(BoLedgerStore())
             .environment(OrnamentUnlockStore())
     }

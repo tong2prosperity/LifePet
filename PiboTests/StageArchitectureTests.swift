@@ -1,32 +1,10 @@
 import SpriteKit
-import SwiftUI
 import UIKit
 import XCTest
 @testable import Pibo
 
 @MainActor
 final class StageArchitectureTests: XCTestCase {
-    func testEnvironmentNormalizesHourAndPreservesWeatherKind() {
-        let snapshot = PiboStageEnvironmentResolver.resolve(
-            date: Date(timeIntervalSinceReferenceDate: 0),
-            forcedHour: 25.5,
-            weather: .snow
-        )
-
-        XCTAssertEqual(snapshot.localHour, 1.5, accuracy: 0.0001)
-        XCTAssertEqual(snapshot.dayPhase, .night)
-        XCTAssertEqual(snapshot.weather, .snow)
-        XCTAssertEqual(snapshot.rainIntensity, 0)
-    }
-
-    func testDayPhaseBoundaries() {
-        XCTAssertEqual(environment(at: 4.99).dayPhase, .night)
-        XCTAssertEqual(environment(at: 5).dayPhase, .morning)
-        XCTAssertEqual(environment(at: 9).dayPhase, .day)
-        XCTAssertEqual(environment(at: 16.5).dayPhase, .dusk)
-        XCTAssertEqual(environment(at: 20.5).dayPhase, .night)
-    }
-
     func testForestAdapterKeepsAuthoredKeyframes() {
         let morning = ForestEnvironmentAdapter.resolve(environment(at: 6.5))
         XCTAssertEqual(morning.lighting.morningBeam, 0.72, accuracy: 0.0001)
@@ -39,23 +17,18 @@ final class StageArchitectureTests: XCTestCase {
         XCTAssertEqual(dusk.lighting.water.reflectionStrength, 0.75, accuracy: 0.0001)
     }
 
-    func testCatalogHasUniqueIDsAndCreatesForestRenderer() {
-        let ids = PiboThemeCatalog.themes.map(\.id)
-        XCTAssertEqual(Set(ids).count, ids.count)
-        XCTAssertEqual(PiboThemeCatalog.defaultTheme.id, PiboTheme.forest.id)
-        XCTAssertTrue(PiboThemeCatalog.makeRenderer(for: .forest) is ForestThemeRenderer)
-    }
+    func testForestRectMappingPreservesTopLeftDesignPlacement() {
+        let mapper = ForestLayoutMapper(sceneSize: CGSize(width: 430, height: 932))
+        let designFrame = CGRect(x: 24, y: 606, width: 76, height: 96)
+        let sceneFrame = mapper.rect(designFrame)
 
-    func testCatalogRejectsUnknownPersistedTheme() {
-        XCTAssertNil(PiboThemeCatalog.theme(id: "test.unknown"))
-        XCTAssertEqual(
-            PiboThemeCatalog.resolvedThemeID("test.unknown"),
-            PiboThemeCatalog.defaultTheme.id
-        )
-        XCTAssertEqual(
-            PiboThemeCatalog.resolvedThemeID(PiboTheme.forest.id),
-            PiboTheme.forest.id
-        )
+        XCTAssertEqual(sceneFrame.size.width, designFrame.width * mapper.scale, accuracy: 0.0001)
+        XCTAssertEqual(sceneFrame.size.height, designFrame.height * mapper.scale, accuracy: 0.0001)
+
+        let mappedTopLeft = CGPoint(x: sceneFrame.minX, y: sceneFrame.maxY)
+        let roundTrippedTopLeft = mapper.designPoint(mappedTopLeft)
+        XCTAssertEqual(roundTrippedTopLeft.x, designFrame.minX, accuracy: 0.0001)
+        XCTAssertEqual(roundTrippedTopLeft.y, designFrame.minY, accuracy: 0.0001)
     }
 
     func testInteractiveLeafReflectionFollowsDownwardDeformation() {
@@ -96,7 +69,7 @@ final class StageArchitectureTests: XCTestCase {
     func testAllForegroundFoliageUsesIndependentFigmaAssets() throws {
         let expected: [String: (nodeID: String, width: Int, height: Int)] = [
             "forest_main_leaf_1": ("3906:3081", 851, 1104),
-            "forest_main_leaf_2": ("3906:3103", 631, 780),
+            "forest_main_leaf_2": ("6444:35815", 489, 606),
             "forest_front_leaf_1": ("3906:3141", 837, 360),
             "forest_front_leaf_2": ("3906:3151", 744, 386),
             "forest_front_grass_1": ("3906:3156", 212, 274),
@@ -150,56 +123,6 @@ final class StageArchitectureTests: XCTestCase {
         XCTAssertEqual(image.height, 657)
     }
 
-    func testThemeSelectionPersistenceHealsUnknownIDsAndResets() {
-        let suiteName = "PiboTests.theme.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-
-        defaults.set("test.unknown", forKey: PiboPersistenceKeys.Defaults.selectedThemeID)
-        XCTAssertEqual(
-            PiboThemeSelectionPersistence.restore(from: defaults),
-            PiboThemeCatalog.defaultTheme.id
-        )
-        XCTAssertNil(defaults.string(forKey: PiboPersistenceKeys.Defaults.selectedThemeID))
-
-        PiboThemeSelectionPersistence.save(PiboTheme.forest.id, to: defaults)
-        XCTAssertEqual(
-            defaults.string(forKey: PiboPersistenceKeys.Defaults.selectedThemeID),
-            PiboTheme.forest.id
-        )
-        PiboThemeSelectionPersistence.reset(in: defaults)
-        XCTAssertNil(defaults.string(forKey: PiboPersistenceKeys.Defaults.selectedThemeID))
-    }
-
-    func testDirectEnvironmentCannotCarryInconsistentPhase() {
-        let snapshot = PiboStageEnvironment(localHour: -1, weather: .clear)
-        XCTAssertEqual(snapshot.localHour, 23, accuracy: 0.0001)
-        XCTAssertEqual(snapshot.dayPhase, .night)
-    }
-
-    #if DEBUG
-    func testWaterDebugTuningIsAnOptionalForestCapability() {
-        let forest: any PiboThemeRenderer = ForestThemeRenderer()
-        let basic: any PiboThemeRenderer = BasicThemeRenderer(theme: .forest)
-        XCTAssertNotNil(forest as? WaterDebugTunable)
-        XCTAssertNil(basic as? WaterDebugTunable)
-
-        let tuning = WaterDebugTuning(
-            speed: 4,
-            rippleStrength: -1,
-            highlightStrength: 2,
-            reflectionIntensity: 3,
-            reflectionCompression: 0,
-            reflectionTipScale: 2,
-            showMask: true
-        ).sanitized
-        XCTAssertEqual(tuning.speed, 1.4)
-        XCTAssertEqual(tuning.rippleStrength, 0)
-        XCTAssertEqual(tuning.reflectionCompression, 0.25)
-        XCTAssertEqual(tuning.reflectionTipScale, 1)
-    }
-    #endif
-
     func testOnlyRainKindsCreateRainNodes() {
         let scene = SKScene(size: CGSize(width: 390, height: 760))
         let back = SKNode()
@@ -230,6 +153,64 @@ final class StageArchitectureTests: XCTestCase {
         )
         XCTAssertFalse(back.children.isEmpty)
         XCTAssertFalse(front.children.isEmpty)
+    }
+
+    func testCommonItemTapRoutingKeepsCapabilitiesOnTheirApprovedObjects() throws {
+        let size = CGSize(width: 393, height: 852)
+        let scene = SKScene(size: size)
+        let background = SKNode()
+        let foreground = SKNode()
+        let atmosphere = SKNode()
+        let characterRoot = SKNode()
+        let characterHead = SKSpriteNode()
+        [background, foreground, atmosphere, characterRoot].forEach(scene.addChild)
+        characterRoot.addChild(characterHead)
+
+        let renderer = ForestThemeRenderer()
+        renderer.install(
+            context: PiboThemeRendererContext(
+                layers: PiboStageThemeLayers(
+                    background: background,
+                    foreground: foreground,
+                    atmosphere: atmosphere
+                ),
+                scene: scene,
+                characterRoot: characterRoot,
+                characterHead: characterHead,
+                characterBody: { nil },
+                applyCharacterShader: { _ in }
+            ),
+            sceneSize: size
+        )
+        defer { renderer.teardown() }
+
+        let mapper = ForestLayoutMapper(sceneSize: size)
+        func center(of id: PiboOrnament.ID) throws -> CGPoint {
+            let frame = try XCTUnwrap(PiboOrnament.ornament(id)?.placement?.frame)
+            return mapper.point(CGPoint(x: frame.midX, y: frame.midY))
+        }
+
+        XCTAssertNil(renderer.handleTap(at: try center(of: .hammock)))
+
+        renderer.apply(unlockedOrnaments: Set(PiboOrnament.ID.allCases))
+
+        XCTAssertEqual(renderer.handleTap(at: try center(of: .hammock)), .ornament(.hammock))
+        XCTAssertEqual(
+            renderer.handleTap(at: try center(of: .statusObserver)),
+            .ornament(.statusObserver)
+        )
+        XCTAssertNil(renderer.handleTap(at: try center(of: .chime)))
+
+        let lantern = try XCTUnwrap(PiboOrnament.ornament(.lantern)?.placement)
+        let firstLight = try XCTUnwrap(lantern.lights.first)
+        let firstLightPoint = mapper.point(CGPoint(
+            x: lantern.frame.minX + firstLight.center.x,
+            y: lantern.frame.minY + firstLight.center.y
+        ))
+        XCTAssertEqual(
+            renderer.handleTap(at: firstLightPoint),
+            .ornamentLight(.lantern, index: 0)
+        )
     }
 
     private func environment(

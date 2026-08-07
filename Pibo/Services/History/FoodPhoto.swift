@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// A food photo the user captured from the 露珠相机, background-removed (抠图 via
+/// A food photo the user captured from the 餐食相机, background-removed (抠图 via
 /// `SubjectCutout`) and kept as a per-day history record for the 今日记录 card on
 /// the 历史数据页. Stored as PNG bytes with a transparent background so the
 /// cut-out subject floats on the card's paper texture.

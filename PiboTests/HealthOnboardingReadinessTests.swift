@@ -3,8 +3,8 @@ import Testing
 
 @Suite("Health onboarding readiness")
 struct HealthOnboardingReadinessTests {
-    @Test("requires sleep, steps, and exercise together")
-    func requiresEveryBaselineInput() {
+    @Test("one observed bo-eligible source is enough")
+    func acceptsAnyObservedBaselineInput() {
         let ready = HealthDataService.OnboardingReadiness(
             hasSleep: true,
             hasSteps: true,
@@ -12,19 +12,24 @@ struct HealthOnboardingReadinessTests {
         )
         #expect(ready.isReady)
 
-        #expect(!HealthDataService.OnboardingReadiness(
+        #expect(HealthDataService.OnboardingReadiness(
             hasSleep: false,
             hasSteps: true,
             hasExercise: true
         ).isReady)
-        #expect(!HealthDataService.OnboardingReadiness(
+        #expect(HealthDataService.OnboardingReadiness(
             hasSleep: true,
+            hasSteps: false,
+            hasExercise: false
+        ).isReady)
+        #expect(HealthDataService.OnboardingReadiness(
+            hasSleep: false,
             hasSteps: false,
             hasExercise: true
         ).isReady)
         #expect(!HealthDataService.OnboardingReadiness(
-            hasSleep: true,
-            hasSteps: true,
+            hasSleep: false,
+            hasSteps: false,
             hasExercise: false
         ).isReady)
     }

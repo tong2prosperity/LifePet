@@ -23,9 +23,9 @@ import UIKit
 /// Phases of the 发芽 close-up (Figma《识别到用户的活动》74:6102), reported back
 /// so the SwiftUI overlay can swap its caption in sync.
 enum SproutCloseupPhase {
-    case shaking    // 毛抖动 — "收集到你的运动能量！"
+    case shaking    // 毛抖动 — a newly synced workout record
     case sprouted   // 长出叶片 — "Pibo...发芽了啵！"
-    case finished   // 缩回主页面 — show the 能量已收集 pop
+    case finished   // 缩回主页面 — show the workout-sync result pop
 }
 
 final class PiboStageScene: SKScene {
@@ -50,6 +50,8 @@ final class PiboStageScene: SKScene {
     /// Fired when a tap lights one of an ornament's lamps (铃兰灯的一盏铃铛).
     /// The scene only reports it — 亮多久、什么时候熄 由 `OrnamentLightStore` 决定。
     var onOrnamentLightTapped: ((PiboOrnament.ID, Int) -> Void)?
+    /// Fired when a forest common item is itself an interaction entry.
+    var onOrnamentTapped: ((PiboOrnament.ID) -> Void)?
 
     // — Nodes —
     private let backdrop = SKNode()
@@ -213,6 +215,57 @@ final class PiboStageScene: SKScene {
         themeRenderer?.apply(litOrnamentLights: lights)
     }
 
+    func setOrnamentConstructionMode(enabled: Bool, selected: PiboOrnament.ID?) {
+        guard built else { return }
+        (themeRenderer as? ForestThemeRenderer)?.setOrnamentConstructionMode(
+            enabled: enabled,
+            selected: selected
+        )
+    }
+
+    func setOrnamentPlacementPreview(_ id: PiboOrnament.ID?) {
+        guard built else { return }
+        (themeRenderer as? ForestThemeRenderer)?.setOrnamentPlacementPreview(id)
+    }
+
+    func prepareOrnamentReveal(_ id: PiboOrnament.ID) {
+        guard built else { return }
+        (themeRenderer as? ForestThemeRenderer)?.prepareOrnamentReveal(id)
+    }
+
+    func ornamentTargetFrame(_ id: PiboOrnament.ID) -> CGRect? {
+        guard built,
+              let sceneFrame = (themeRenderer as? ForestThemeRenderer)?.ornamentTargetFrame(id),
+              let view else { return nil }
+
+        // The unlock overlay measures its source in SwiftUI's global space.
+        // Convert all four corners through SpriteKit so camera transforms,
+        // aspect fill, safe areas, and the SKView's window origin are honored.
+        let viewPoints = [
+            CGPoint(x: sceneFrame.minX, y: sceneFrame.minY),
+            CGPoint(x: sceneFrame.maxX, y: sceneFrame.minY),
+            CGPoint(x: sceneFrame.minX, y: sceneFrame.maxY),
+            CGPoint(x: sceneFrame.maxX, y: sceneFrame.maxY),
+        ].map { convertPoint(toView: $0) }
+        guard let first = viewPoints.first else { return nil }
+        let viewFrame = viewPoints.dropFirst().reduce(
+            CGRect(origin: first, size: .zero)
+        ) { partial, point in
+            partial.union(CGRect(origin: point, size: .zero))
+        }
+        return view.convert(viewFrame, to: nil)
+    }
+
+    func completeOrnamentReveal(_ id: PiboOrnament.ID) {
+        guard built else { return }
+        (themeRenderer as? ForestThemeRenderer)?.completeOrnamentReveal(id)
+    }
+
+    func cancelOrnamentPresentation() {
+        guard built else { return }
+        (themeRenderer as? ForestThemeRenderer)?.cancelOrnamentPresentation()
+    }
+
     func transitionAnimation(
         to stateID: String,
         intent: PiboCoreAnimationAdapter.TransitionIntent
@@ -334,10 +387,10 @@ final class PiboStageScene: SKScene {
         character.playTurnAway()
     }
 
-    /// 拔毛 — a seed drops from the head and falls to the ground.
-    func playPluck(color: SKColor) {
+    /// 拔毛 — the sprout takes an impulse as the bo is taken off it.
+    func playPluck() {
         guard built else { return }
-        character.playPluck(color: color)
+        character.playPluck()
     }
 
     // MARK: Touch → 拍一拍 (body) / 拖毛 (hair) / 拨开树叶
@@ -486,6 +539,8 @@ final class PiboStageScene: SKScene {
         // 也刻意**不**走 `beginInteraction`：那条路是给可拖拽的叶子用的，会在
         // `touchesBegan` 抢在 Pibo 之前，还会顺手把刷新率拉满 —— 对一次点击是白给的。
         switch themeRenderer?.handleTap(at: p) {
+        case .ornament(let id):
+            onOrnamentTapped?(id)
         case .ornamentLight(let id, let index):
             onOrnamentLightTapped?(id, index)
         case nil:

@@ -1,27 +1,44 @@
 import Testing
 @testable import Pibo
 
-@Test func rustPatPolicyDrivesTheAppDomain() {
-    #expect(PiboCorePatAdapter.decide(
+@Test func rustPatV2UsesFortyPercentAndBothSpeechCaps() {
+    #expect(PiboCorePatAdapter.decideV2(
+        spokenIn24Hours: 0,
+        spokenIn10Minutes: 0,
+        speechRoll: 0.399_999,
+        restingState: false
+    ).speaks)
+    #expect(!PiboCorePatAdapter.decideV2(
+        spokenIn24Hours: 0,
+        spokenIn10Minutes: 0,
+        speechRoll: 0.4,
+        restingState: false
+    ).speaks)
+    #expect(!PiboCorePatAdapter.decideV2(
         spokenIn24Hours: 9,
         spokenIn10Minutes: 0,
         speechRoll: 0,
-        storyRoll: 0,
-        hasUnrevealedStory: true
-    ) == .ignored)
-    #expect(PiboCorePatAdapter.decide(
-        spokenIn24Hours: 8,
-        spokenIn10Minutes: 2,
-        speechRoll: 0.29,
-        storyRoll: 0.24,
-        hasUnrevealedStory: true
-    ) == .storySpeech)
-    #expect(PiboCorePatAdapter.decide(
+        restingState: false
+    ).speaks)
+    #expect(!PiboCorePatAdapter.decideV2(
         spokenIn24Hours: 0,
-        spokenIn10Minutes: 0,
-        speechRoll: 0.29,
-        storyRoll: 0.24,
-        hasUnrevealedStory: false
-    ) == .stateSpeech)
+        spokenIn10Minutes: 3,
+        speechRoll: 0,
+        restingState: false
+    ).speaks)
 }
 
+@Test func sleepAndWakingPatsNeverCountTowardAngry() {
+    #expect(!PiboCorePatAdapter.decideV2(
+        spokenIn24Hours: 0,
+        spokenIn10Minutes: 0,
+        speechRoll: 0,
+        restingState: true
+    ).countsTowardAngry)
+    #expect(PiboCorePatAdapter.decideV2(
+        spokenIn24Hours: 0,
+        spokenIn10Minutes: 0,
+        speechRoll: 0,
+        restingState: false
+    ).countsTowardAngry)
+}

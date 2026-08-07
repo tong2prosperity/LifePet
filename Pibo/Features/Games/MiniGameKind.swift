@@ -110,7 +110,7 @@ enum MiniGameKind: String, CaseIterable, Identifiable {
 
     var tag: String {
         switch self {
-        case .walkDoodle: return "运动能量"
+        case .walkDoodle: return "步行创作"
         case .huarongRoad: return "解谜"
         case .mistBreath, .breathFloat: return "即时放松"
         case .stepLights, .bellSquat, .mirrorPetals: return "微运动"
