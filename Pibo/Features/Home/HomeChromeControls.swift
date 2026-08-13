@@ -62,9 +62,10 @@ struct HomeHeader: View {
                 walkDoodleEnabled: walkDoodleEnabled,
                 dismissSpeech: dismissSpeech,
                 onOpenCamera: {
-                    Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
-                    featurePresentation.cameraInitialMeal = nil
-                    featurePresentation.showCamera = true
+                    HomeCameraPresentationCoordinator.open(
+                        meal: nil,
+                        presentation: featurePresentation
+                    )
                 },
                 onOpenWalkDoodle: {
                     featurePresentation.showWalkDoodle = true

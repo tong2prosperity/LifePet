@@ -753,10 +753,11 @@ struct HomeView: View {
     /// Guarded because 重拍 is a second door into the camera; with the feature out
     /// of 首发 range there must be no way in at all.
     private func startMealCapture(_ meal: MealType) {
-        guard canUseDewCamera else { return }
-        Analytics.track(.cameraOpen, screen: "home", ["meal": .string(meal.rawValue)])
-        featurePresentation.cameraInitialMeal = meal
-        featurePresentation.showCamera = true
+        HomeCameraPresentationCoordinator.openIfEnabled(
+            meal: meal,
+            isEnabled: canUseDewCamera,
+            presentation: featurePresentation
+        )
     }
 
     private func handlePhotoSaved(_ image: UIImage?, _ subjectLabel: String?, meal: MealType? = nil) {
