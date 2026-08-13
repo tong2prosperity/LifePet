@@ -937,17 +937,13 @@ struct HomeView: View {
     ///
     /// 只说明首次形成事实；成熟物不会过期，也不会冻结后续积累。
     private func announceFirstRipeBoIfNeeded() {
-        let key = PiboPersistenceKeys.Defaults.boFirstRipeNotified
-        guard presentationPolicy.shouldAnnounceFirstRipeBo(
+        HomeFirstRipeBoAnnouncementCoordinator.announceIfNeeded(
+            policy: presentationPolicy,
             hasRipeBo: boLedger.hasRipeBo,
-            wasAnnounced: UserDefaults.standard.bool(forKey: key),
             speechIsAbsent: speechPresentation.line == nil,
-            idleSpeechContextAvailable: idleSpeechContext != nil
-        ) else { return }
-        UserDefaults.standard.set(true, forKey: key)
-
-        show(PiboSpeechLine(text: AppLocalization.narrative("home.bo.firstRipe")))
-        Task { await WorkoutCompletionNotifier.shared.notifyFirstBoRipened() }
+            idleSpeechContextAvailable: idleSpeechContext != nil,
+            show: show
+        )
     }
 
     /// Open the history surface on the 压力卡 after a stress notification tap.
