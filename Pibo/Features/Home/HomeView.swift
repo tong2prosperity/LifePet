@@ -863,7 +863,10 @@ struct HomeView: View {
             let isSleepNotice = contentID == "animation.sleep.pat"
             let isAwakeLine = contentID == "animation.awake.pat"
             if enteredAngry || isSleepNotice {
-                if let line = animationPatLine(contentID, angry: enteredAngry) {
+                if let line = HomeSpeechPresentationPolicy.animationPatLine(
+                    contentID: contentID,
+                    angry: enteredAngry
+                ) {
                     show(line)
                 }
                 Analytics.track(
@@ -881,7 +884,10 @@ struct HomeView: View {
                 neutralLegacyMode: !PiboReleaseScope.temporaryCooperationOnboarding
             )
             let shouldPresent = isAwakeLine && resolution.shouldSpeak
-            if shouldPresent, let line = animationPatLine(contentID, angry: enteredAngry) {
+            if shouldPresent, let line = HomeSpeechPresentationPolicy.animationPatLine(
+                contentID: contentID,
+                angry: enteredAngry
+            ) {
                 show(line)
             }
             Analytics.track(
@@ -1142,17 +1148,7 @@ struct HomeView: View {
     private func show(_ line: PiboSpeechLine) {
         speechClear?.cancel()
         withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) { speech = line }
-        // A system notice is a full sentence rather than a garbled fragment, so
-        // it holds a beat longer than ordinary speech.
-        let linger: Double = if line.data != nil {
-            5.0
-        } else if line.source == .system {
-            3.0
-        } else if line.mood == .murmur || line.isStoryClue {
-            3.4
-        } else {
-            2.0
-        }
+        let linger = HomeSpeechPresentationPolicy.lingerDuration(for: line)
         speechClear = Task {
             try? await Task.sleep(for: .seconds(linger))
             if !Task.isCancelled {
@@ -1162,16 +1158,7 @@ struct HomeView: View {
     }
 
     private func show(_ resolved: PiboSpeech) {
-        let mood: PiboSpeechMood = switch resolved.presentation {
-        case .normal, .story: .normal
-        case .angry: .angry
-        case .murmur: .murmur
-        }
-        show(PiboSpeechLine(
-            text: resolved.text,
-            mood: mood,
-            isStoryClue: resolved.presentation == .story
-        ))
+        show(HomeSpeechPresentationPolicy.line(for: resolved))
     }
 
     private func speakForWeather(trigger: PiboSpeechTrigger) {
@@ -1365,25 +1352,6 @@ struct HomeView: View {
         refreshAnimationState()
         homeSheetDismissalInProgress = true
         activeSheet = nil
-    }
-
-    /// The bubble a pat earns while Core has authored content for the current
-    /// pose. `sleep` is deliberately **not** a line of Pibo's: asleep it cannot
-    /// answer, so the app posts a system notice instead of putting words in a
-    /// sleeping character's mouth.
-    private func animationPatLine(_ contentID: String, angry: Bool) -> PiboSpeechLine? {
-        switch contentID {
-        case "animation.sleep.pat":
-            .system(AppLocalization.narrative("home.sleep.pat"))
-        case "animation.awake.pat":
-            PiboSpeechLine(text: AppLocalization.narrative("home.awake.pat"),
-                           mood: angry ? .angry : .normal)
-        case "animation.angry.enter":
-            PiboSpeechLine(text: AppLocalization.narrative("home.angry.enter"),
-                           mood: angry ? .angry : .normal)
-        default:
-            nil
-        }
     }
 
     private func presentMorningSleepIfPossible() {
