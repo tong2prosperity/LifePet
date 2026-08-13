@@ -30,8 +30,7 @@ struct HomeView: View {
 
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var speech: PiboSpeechLine? = nil
-    @State private var speechClear: Task<Void, Never>? = nil
+    @State private var speechPresentation = HomeSpeechPresentationController()
     @State private var showCamera = false
     @State private var showGames = false
     @State private var showHistory = false
@@ -512,7 +511,7 @@ struct HomeView: View {
     private var chromeContent: some View {
         ZStack {
             // Speech bubble floats just above Pibo's head (~30% down).
-            if let speech {
+            if let speech = speechPresentation.line {
                 HomeSpeechOverlay.make(line: speech) {
                     dismissSpeech()
                     Analytics.track(.historyOpen, screen: "home_speech")
@@ -864,24 +863,15 @@ struct HomeView: View {
     // MARK: Speech plumbing
 
     private func dismissSpeech() {
-        speechClear?.cancel()
-        withAnimation(.easeOut(duration: 0.2)) { speech = nil }
+        speechPresentation.dismiss()
     }
 
     private func show(_ line: PiboSpeechLine) {
-        speechClear?.cancel()
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) { speech = line }
-        let linger = HomeSpeechPresentationPolicy.lingerDuration(for: line)
-        speechClear = Task {
-            try? await Task.sleep(for: .seconds(linger))
-            if !Task.isCancelled {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) { speech = nil }
-            }
-        }
+        speechPresentation.show(line)
     }
 
     private func show(_ resolved: PiboSpeech) {
-        show(HomeSpeechPresentationPolicy.line(for: resolved))
+        speechPresentation.show(resolved)
     }
 
     private func speakForWeather(trigger: PiboSpeechTrigger) {
@@ -901,7 +891,7 @@ struct HomeView: View {
     private func idleMutterLoop() async {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(Double.random(in: 15...30)))
-            if speech == nil,
+            if speechPresentation.line == nil,
                sproutPhase == .idle,
                !stagePaused,
                let context = idleSpeechContext,
@@ -1097,7 +1087,7 @@ struct HomeView: View {
         guard presentationPolicy.shouldAnnounceFirstRipeBo(
             hasRipeBo: boLedger.hasRipeBo,
             wasAnnounced: UserDefaults.standard.bool(forKey: key),
-            speechIsAbsent: speech == nil,
+            speechIsAbsent: speechPresentation.line == nil,
             idleSpeechContextAvailable: idleSpeechContext != nil
         ) else { return }
         UserDefaults.standard.set(true, forKey: key)
