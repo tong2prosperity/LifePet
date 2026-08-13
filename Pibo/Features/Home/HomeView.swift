@@ -844,24 +844,19 @@ struct HomeView: View {
     }
 
     private func presentAchievementIfPossible() {
-        guard let payload = presentationPolicy.pendingAchievement(
+        HomeAchievementPresentationCoordinator.presentIfPossible(
+            policy: presentationPolicy,
             animationStateID: semanticAnimationStateID,
-            pendingAchievement: store.animationExperience.pendingAchievement
-        ) else { return }
-        activeSheet = .achievement(payload)
+            pendingAchievement: store.animationExperience.pendingAchievement,
+            destination: &activeSheet
+        )
     }
 
-    /// HealthKit can deliver a newer workout while an achievement sheet is
-    /// already visible. Keep the sheet bound to the replaceable pending slot;
-    /// otherwise its Confirm button targets an obsolete UUID and becomes an
-    /// undismissable no-op because interactive dismissal is disabled.
     private func reconcilePresentedAchievement() {
-        guard case .achievement(let presented) = activeSheet else { return }
-        let reconciliation = HomeAchievementPresentationPolicy.reconciliation(
-            presentedAchievement: presented,
+        HomeAchievementPresentationCoordinator.reconcile(
+            destination: &activeSheet,
             pendingAchievement: store.animationExperience.pendingAchievement
         )
-        reconciliation.apply(to: &activeSheet)
     }
 
     private func confirmAchievement(_ payload: PiboAnimationAchievementPayload) {
