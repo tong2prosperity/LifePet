@@ -10,15 +10,15 @@ import SwiftUI
 // sprouts the 魔丸 「?」卷芽 into a leaf (pibo头顶发生变化); later collections
 // play the small in-place head shake instead.
 //
-// `HomeView` owns the phase state; the SpriteKit stage performs the placeholder
-// animation (`PiboStageScene.playSproutCloseup`).
+// `HomeSproutFlowController` owns the phase state; the SpriteKit stage performs
+// the placeholder animation (`PiboStageScene.playSproutCloseup`).
 
 /// **The animation seam.** The designer's close-up is planned as a Lottie
 /// (Figma note: 暂定为lottie素材 — 毛抖动-发力-长出叶片, not yet delivered).
 /// Until it lands, the stage placeholder animates the existing sprites.
 ///
 /// To plug the real asset in: add a Lottie runtime (SwiftPM), build a
-/// full-screen player view for the `.lottie` case in `HomeView.startEnergyFlow`,
+/// full-screen player view for the `.lottie` case in the Home sprout flow,
 /// and flip `current`. The phase callbacks (`SproutCloseupPhase`) are the
 /// contract either implementation must honor.
 enum SproutAnimationStyle {
@@ -40,7 +40,7 @@ enum SproutFlowPhase: Equatable {
 
 /// Resolves whether a pending workout can start the Home sprout choreography
 /// and which existing renderer path it should use. Playback and phase changes
-/// stay in `HomeView`; this type only packages the decision inputs.
+/// stay in `HomeSproutFlowController`; this type only packages decision inputs.
 enum HomeSproutFlowStartResolver {
     enum Animation: Equatable {
         case stageCloseup

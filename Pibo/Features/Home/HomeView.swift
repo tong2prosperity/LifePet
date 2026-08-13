@@ -47,7 +47,7 @@ struct HomeView: View {
     @State private var stageCommands = PiboStageCommandController()
     /// 发芽 close-up trigger + phase (Figma 74:6102: workout detected → 特写
     /// pibo头顶动画 → 运动记录同步 pop). See `EnergySproutFlow.swift`.
-    @State private var sproutPhase: SproutFlowPhase = .idle
+    @State private var sproutFlow = HomeSproutFlowController()
     /// Greeting / day-label cached once (they're "drawn once per day").
     @State private var greetingText: String = ""
     @State private var dayLabelText: String = ""
@@ -68,6 +68,10 @@ struct HomeView: View {
 
     private var semanticAnimationStateID: String {
         animationPresentation.stateID
+    }
+
+    private var sproutPhase: SproutFlowPhase {
+        sproutFlow.phase
     }
 
     private var presentationPolicy: HomePresentationPolicy {
@@ -688,7 +692,7 @@ struct HomeView: View {
         // The close-up runs on the SpriteKit stage, which `stagePaused` freezes
         // while any sheet or cover is up — starting it behind one would play the
         // whole beat where nobody can see it.
-        guard let request = HomeSproutFlowStartResolver.resolve(
+        let request = HomeSproutFlowStartResolver.resolve(
             pendingWorkout: store.pendingWorkout,
             phase: sproutPhase,
             sheetPresented: activeSheet != nil,
@@ -698,43 +702,25 @@ struct HomeView: View {
             canSprout: store.growthStage == .mystery
                 && store.currentTheme.sproutedHeadSprite != nil,
             animationStyle: SproutAnimationStyle.current
-        ) else { return }
-
-        setSproutPhase(.collecting)
-        switch request.animation {
-        case .stageCloseup, .lottieCloseup:
-            // Both routes use the stage placeholder until the Lottie asset lands.
-            stageCommands.playSproutCloseup(
-                growthFrom: request.growthStart,
-                growthTo: request.growthTarget,
-                onPhase: handleSproutPhase
+        )
+        sproutFlow.start(
+            request: request,
+            reduceMotion: UIAccessibility.isReduceMotionEnabled,
+            handlers: .init(
+                playCloseup: { start, target, onPhase in
+                    stageCommands.playSproutCloseup(
+                        growthFrom: start,
+                        growthTo: target,
+                        onPhase: onPhase
+                    )
+                },
+                playGrowth: { start, target in
+                    stageCommands.playSproutGrowth(from: start, to: target)
+                },
+                markSprouted: { store.markSprouted() },
+                currentPendingWorkoutID: { store.pendingWorkout?.id }
             )
-        case .inPlaceGrowth:
-            stageCommands.playSproutGrowth(
-                from: request.growthStart,
-                to: request.growthTarget
-            )
-            Task { @MainActor in
-                let delay = UIAccessibility.isReduceMotionEnabled ? 0.15 : 1.35
-                try? await Task.sleep(for: .seconds(delay))
-                guard store.pendingWorkout?.id == request.workoutID,
-                      sproutPhase == .collecting
-                else { return }
-                setSproutPhase(.pop)
-            }
-        }
-    }
-
-    private func handleSproutPhase(_ phase: SproutCloseupPhase) {
-        switch phase {
-        case .shaking:
-            break
-        case .sprouted:
-            store.markSprouted()
-            setSproutPhase(.sprouted)
-        case .finished:
-            setSproutPhase(.pop)
-        }
+        )
     }
 
     private func dismissEnergyPop() {
@@ -744,11 +730,7 @@ struct HomeView: View {
         // 发芽只讲「收集到能量」。运动完成的成果表演归成果卡片，`pigu` 不在主场景
         // 出现 —— 这里曾经接着演一遍首页剧本，等于同一件事演两次。
         store.consumePendingWorkout()
-        setSproutPhase(.idle)
-    }
-
-    private func setSproutPhase(_ phase: SproutFlowPhase) {
-        withAnimation(.spring(response: 0.36, dampingFraction: 0.84)) { sproutPhase = phase }
+        sproutFlow.finishPop()
     }
 
     // MARK: 拔毛 / 拍照
