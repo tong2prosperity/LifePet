@@ -55,4 +55,9 @@ final class HomeFeaturePresentationState {
             set: { self.showStoryRecovery = $0 }
         )
     }
+
+    func completeStoryRecovery() {
+        showStoryRecovery = false
+        storyRecoveryDismissed = true
+    }
 }

@@ -381,45 +381,21 @@ struct HomeView: View {
 
     private var homeWithoutSheet: some View {
         homeStateObservationContent
-        // Every cover/sheet resumes queued flows from `onDismiss`, i.e. once the
-        // dismissal animation has finished. Reacting to the presentation binding
-        // instead would try to present while the previous modal is still on its
-        // way out, which SwiftUI silently drops — leaving `activeSheet` non-nil
-        // with nothing on screen and no way back.
-        .fullScreenCover(isPresented: cameraPresented, onDismiss: resumePendingHomeFlows) {
-            PiboCameraView(
-                initialMeal: featurePresentation.cameraInitialMeal,
-                onPhotoSaved: { image, label, meal in
-                    handlePhotoSaved(image, label, meal: meal)
-                }
-            )
-            .environment(store)
-        }
-        .fullScreenCover(isPresented: gamesPresented, onDismiss: resumePendingHomeFlows) {
-            GameListView(
+        .modifier(
+            HomeFeatureCoversModifier(
+                presentation: featurePresentation,
+                cameraPresented: cameraPresented,
+                gamesPresented: gamesPresented,
+                walkDoodlePresented: walkDoodlePresented,
                 walkDoodleEnabled: canUseWalkDoodle,
-                onWalkDoodleSaved: handleDoodleSaved
+                store: store,
+                history: history,
+                resumePendingFlows: resumePendingHomeFlows,
+                historyDismissed: historyDismissed,
+                photoSaved: handlePhotoSaved,
+                doodleSaved: handleDoodleSaved
             )
-                .environment(store)
-                .environment(history)
-        }
-        .fullScreenCover(
-            isPresented: featurePresentation.historyBinding,
-            onDismiss: historyDismissed
-        ) {
-            HistoryScreen(focus: featurePresentation.historyFocus)
-                .environment(store)
-                .environment(history)
-        }
-        .fullScreenCover(isPresented: featurePresentation.storyRecoveryBinding) {
-            HealthAuthView(mode: .storyRecovery) {
-                featurePresentation.showStoryRecovery = false
-                featurePresentation.storyRecoveryDismissed = true
-            }
-        }
-        .fullScreenCover(isPresented: walkDoodlePresented, onDismiss: resumePendingHomeFlows) {
-            WalkDoodleView(onSaved: handleDoodleSaved)
-        }
+        )
         .navigationDestination(isPresented: featurePresentation.settingsBinding) {
             settingsDestination
         }

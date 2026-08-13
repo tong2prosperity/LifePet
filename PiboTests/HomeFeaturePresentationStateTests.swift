@@ -73,4 +73,14 @@ struct HomeFeaturePresentationStateTests {
         #expect(state.historyFocus == .stress)
         #expect(state.storyRecoveryDismissed)
     }
+
+    @Test func completingStoryRecoveryDismissesAndRecordsTheChoice() {
+        let state = HomeFeaturePresentationState()
+        state.showStoryRecovery = true
+
+        state.completeStoryRecovery()
+
+        #expect(!state.showStoryRecovery)
+        #expect(state.storyRecoveryDismissed)
+    }
 }
