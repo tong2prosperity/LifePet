@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftUI
+import UIKit
 
 /// Owns the phase transitions and playback timing of Home's workout sprout
 /// choreography. Eligibility stays in `HomeSproutFlowStartResolver`; concrete
@@ -36,6 +37,46 @@ final class HomeSproutFlowController {
         }
     ) {
         self.scheduleCompletion = scheduleCompletion
+    }
+
+    func startIfPossible(
+        store: PetStateStore,
+        sheetPresented: @autoclosure () -> Bool,
+        fullScreenFeaturePresented: @autoclosure () -> Bool,
+        stageCommands: PiboStageCommandController
+    ) {
+        // The close-up runs on the SpriteKit stage, which presentation state
+        // freezes. Starting behind a sheet or cover would play the whole beat
+        // where nobody can see it.
+        let request = HomeSproutFlowStartResolver.resolve(
+            pendingWorkout: store.pendingWorkout,
+            phase: phase,
+            sheetPresented: sheetPresented(),
+            fullScreenFeaturePresented: fullScreenFeaturePresented(),
+            growthStart: store.headSproutGrowthProgress,
+            growthTarget: { store.sproutGrowthTarget(for: $0) },
+            canSprout: store.growthStage == .mystery
+                && store.currentTheme.sproutedHeadSprite != nil,
+            animationStyle: SproutAnimationStyle.current
+        )
+        start(
+            request: request,
+            reduceMotion: UIAccessibility.isReduceMotionEnabled,
+            handlers: Handlers(
+                playCloseup: { start, target, onPhase in
+                    stageCommands.playSproutCloseup(
+                        growthFrom: start,
+                        growthTo: target,
+                        onPhase: onPhase
+                    )
+                },
+                playGrowth: { start, target in
+                    stageCommands.playSproutGrowth(from: start, to: target)
+                },
+                markSprouted: { store.markSprouted() },
+                currentPendingWorkoutID: { store.pendingWorkout?.id }
+            )
+        )
     }
 
     func start(

@@ -665,37 +665,11 @@ struct HomeView: View {
 
     // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)
     private func maybeStartEnergyFlow() {
-        // The close-up runs on the SpriteKit stage, which `stagePaused` freezes
-        // while any sheet or cover is up — starting it behind one would play the
-        // whole beat where nobody can see it.
-        let request = HomeSproutFlowStartResolver.resolve(
-            pendingWorkout: store.pendingWorkout,
-            phase: sproutPhase,
+        sproutFlow.startIfPossible(
+            store: store,
             sheetPresented: activeSheet != nil,
             fullScreenFeaturePresented: fullScreenFeaturePresented,
-            growthStart: store.headSproutGrowthProgress,
-            growthTarget: { store.sproutGrowthTarget(for: $0) },
-            canSprout: store.growthStage == .mystery
-                && store.currentTheme.sproutedHeadSprite != nil,
-            animationStyle: SproutAnimationStyle.current
-        )
-        sproutFlow.start(
-            request: request,
-            reduceMotion: UIAccessibility.isReduceMotionEnabled,
-            handlers: .init(
-                playCloseup: { start, target, onPhase in
-                    stageCommands.playSproutCloseup(
-                        growthFrom: start,
-                        growthTo: target,
-                        onPhase: onPhase
-                    )
-                },
-                playGrowth: { start, target in
-                    stageCommands.playSproutGrowth(from: start, to: target)
-                },
-                markSprouted: { store.markSprouted() },
-                currentPendingWorkoutID: { store.pendingWorkout?.id }
-            )
+            stageCommands: stageCommands
         )
     }
 
