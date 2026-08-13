@@ -650,12 +650,11 @@ struct HomeView: View {
     /// 拖毛 released past the pull threshold. 毛熟了的时候这就是拔毛；没熟的时候
     /// Pibo 只是不喜欢被扯，扭头了事。
     private func handleHairPull() {
-        LPHaptics.tap()
-        if boLedger.hasRipeBo {
-            doPluck()
-        } else {
-            stageCommands.playTurnAway()
-        }
+        HomeHairPullCoordinator.handle(
+            ledger: boLedger,
+            stageCommands: stageCommands,
+            pluck: doPluck
+        )
     }
 
     /// 点亮铃兰灯的一盏铃铛。
