@@ -109,7 +109,17 @@ struct MorningSleepCoordinatorTests {
         // Exactly one request, and it is parked for the morning rather than fired.
         #expect(notifications.pending.count == 1)
         let delay = try #require(notifications.pendingFireDelays.first)
-        #expect(delay > 60 * 60)
+        let fireDate = Date().addingTimeInterval(delay)
+        let fireComponents = Calendar.current.dateComponents(
+            [.hour, .minute],
+            from: fireDate
+        )
+        let deferredHour = PiboCoreSleepAdapter.morningDeferredHour
+        let deferredMinute = Int(
+            deferredHour.truncatingRemainder(dividingBy: 1) * 60
+        )
+        #expect(fireComponents.hour == Int(deferredHour))
+        #expect(fireComponents.minute == deferredMinute)
     }
 
     @Test func aMoreCompleteNightReplacesTheStillPendingRequest() async {
