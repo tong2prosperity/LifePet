@@ -1114,39 +1114,28 @@ struct HomeView: View {
         let experience = store.animationExperience
         experience.refreshExpiries(now: now)
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: now)
-        let historyStart = calendar.date(byAdding: .day, value: -40, to: today) ?? today
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
-        let sleepHistory = history.records(from: historyStart, to: yesterday)
-            .map(\.sleepTotal)
-            .filter { $0 > 0 }
-            .suffix(28)
-            .map { $0 / 3600 }
-        let sleepReference = PiboCoreAnimationAdapter.sleepReference(history: Array(sleepHistory))
-        let baseline = store.stressBaseline
-        let z = store.rmssd.flatMap { value in baseline.map { $0.z(for: value) } } ?? 0
-        let rmssdAge = store.rmssdMeasuredAt.map { now.timeIntervalSince($0) }
-            ?? .greatestFiniteMagnitude
-        let components = calendar.dateComponents([.year, .month, .day], from: now)
-        let dayKey = Int64((components.year ?? 0) * 10_000 + (components.month ?? 0) * 100 + (components.day ?? 0))
-
-        let input = HomeAnimationStateResolver.Input(
+        let historyWindow = HomeAnimationInputResolver.sleepHistoryWindow(
+            at: now,
+            calendar: calendar
+        )
+        let sleepHistoryTotals = history.records(
+            from: historyWindow.start,
+            to: historyWindow.end
+        ).map(\.sleepTotal)
+        let input = HomeAnimationInputResolver.resolve(
+            at: now,
+            calendar: calendar,
+            sleepHistoryTotals: sleepHistoryTotals,
             localHour: localHour(at: now),
-            hasSleepData: store.rawSleepHours > 0,
-            sleepHours: store.rawSleepHours,
-            sleepReferenceHours: sleepReference.hours,
-            hasActivityData: store.hasStepsData,
-            steps: store.rawSteps,
+            rawSleepHours: store.rawSleepHours,
+            hasStepsData: store.hasStepsData,
+            rawSteps: store.rawSteps,
             hasWorkoutToday: store.hasWorkoutToday,
-            postPluckSleep: false,
-            sleepDayKey: dayKey,
             angryActive: experience.angryActive(at: now),
-            hasEligibleRMSSD: store.rmssd != nil
-                && store.rmssdInterpretationEligible
-                && baseline != nil,
-            stressBaselineDays: baseline?.dayCount ?? 0,
-            stressZ: z,
-            rmssdAgeSeconds: rmssdAge,
+            rmssd: store.rmssd,
+            rmssdMeasuredAt: store.rmssdMeasuredAt,
+            rmssdInterpretationEligible: store.rmssdInterpretationEligible,
+            stressBaseline: store.stressBaseline,
             previousStressStateID: experience.previousStressStateID,
             heldAchievement: experience.heldAchievement
         )
