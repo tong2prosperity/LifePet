@@ -809,21 +809,12 @@ struct HomeView: View {
 
     @discardableResult
     private func doPluck() -> Bool {
-        // 账本先落，动画后播 —— 反过来的话，一次没成功的拔取会先演一遍收获。
-        let eventID = "local-pluck-\(UUID().uuidString)"
-        guard boLedger.pluck(eventID: eventID) else { return false }
-        Analytics.track(.pluck, screen: "home",
-                        ["balance": .int(boLedger.balance),
-                         "event_id": .string(eventID)])
-        stageCommands.playPluck()
-        show(.system(AppLocalization.narrative("home.bo.collected")))
-        if PiboReleaseScope.temporaryCooperationOnboarding {
-            onboarding.observeBoProgress(
-                lifetimeMinted: boLedger.lifetimeMinted,
-                lifetimeCollected: boLedger.lifetimeCollected
-            )
-        }
-        return true
+        HomePluckCoordinator.run(
+            ledger: boLedger,
+            stageCommands: stageCommands,
+            onboarding: onboarding,
+            show: show
+        )
     }
 
     /// Open the camera for a specific meal slot (早/中/晚) — the saved photo goes
