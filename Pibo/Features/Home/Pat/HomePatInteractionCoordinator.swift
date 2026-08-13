@@ -1,5 +1,8 @@
-/// Sequences one Home pat while leaving app state, presentation, and analytics
-/// ownership with the injected platform handlers.
+import Foundation
+import PiboCore
+
+/// Sequences one Home pat. The production entry adapts Home services into the
+/// handler-based core so state reads and effects retain their established order.
 @MainActor
 enum HomePatInteractionCoordinator {
     struct Handlers {
@@ -16,6 +19,66 @@ enum HomePatInteractionCoordinator {
         let showAnimationLine: (PiboSpeechLine) -> Void
         let showResolvedSpeech: (PiboSpeech) -> Void
         let trackReaction: (HomePatInteractionPolicy.Reaction) -> Void
+    }
+
+    static func run(
+        store: PetStateStore,
+        history: HealthHistoryStore,
+        animationPresentation: HomeAnimationPresentationController,
+        stageCommands: PiboStageCommandController,
+        speech: PiboSpeechService,
+        storyStage: @escaping () -> PiboCoreStorySpeechStage,
+        facts: @escaping () -> PiboHomeSpeechFacts,
+        neutralLegacyMode: @escaping () -> Bool,
+        showAnimationLine: @escaping (PiboSpeechLine) -> Void,
+        showResolvedSpeech: @escaping (PiboSpeech) -> Void
+    ) {
+        LPHaptics.tap()
+        let now = Date()
+        let localHour = HomeAtmosphereClock.localHour(at: now)
+        let sourceStateID = animationPresentation.stateID
+        run(
+            localHour: localHour,
+            sourceStateID: sourceStateID,
+            handlers: Handlers(
+                registerActualPat: { localHour, countsTowardAngry in
+                    store.animationExperience.registerActualPat(
+                        localHour: localHour,
+                        countsTowardAngry: countsTowardAngry,
+                        now: now
+                    )
+                },
+                refreshAnimationState: {
+                    animationPresentation.refresh(
+                        store: store,
+                        history: history,
+                        now: now
+                    )
+                },
+                currentAnimationStateID: { animationPresentation.stateID },
+                transitionAnimation: { targetStateID, intent in
+                    stageCommands.transitionAnimation(to: targetStateID, intent: intent)
+                },
+                resolvePatSpeech: { context in
+                    speech.resolvePat(
+                        storyStage: storyStage(),
+                        restingState: context.resting,
+                        sleepingState: context.sleeping,
+                        facts: facts(),
+                        neutralLegacyMode: neutralLegacyMode()
+                    )
+                },
+                showAnimationLine: showAnimationLine,
+                showResolvedSpeech: showResolvedSpeech,
+                trackReaction: { reaction in
+                    Analytics.track(
+                        .pat,
+                        screen: "home",
+                        ["reaction": .string(reaction.rawValue)]
+                    )
+                }
+            )
+        )
     }
 
     static func run(

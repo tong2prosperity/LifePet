@@ -605,45 +605,19 @@ struct HomeView: View {
     // MARK: 拍一拍
 
     private func handlePat() {
-        LPHaptics.tap()
-        let now = Date()
-        let hour = HomeAtmosphereClock.localHour(at: now)
-        let sourceStateID = semanticAnimationStateID
         HomePatInteractionCoordinator.run(
-            localHour: hour,
-            sourceStateID: sourceStateID,
-            handlers: .init(
-                registerActualPat: { localHour, countsTowardAngry in
-                    store.animationExperience.registerActualPat(
-                        localHour: localHour,
-                        countsTowardAngry: countsTowardAngry,
-                        now: now
-                    )
-                },
-                refreshAnimationState: { refreshAnimationState(now: now) },
-                currentAnimationStateID: { semanticAnimationStateID },
-                transitionAnimation: { targetStateID, intent in
-                    stageCommands.transitionAnimation(to: targetStateID, intent: intent)
-                },
-                resolvePatSpeech: { context in
-                    piboSpeech.resolvePat(
-                        storyStage: storySpeechStage,
-                        restingState: context.resting,
-                        sleepingState: context.sleeping,
-                        facts: homeSpeechFacts,
-                        neutralLegacyMode: !PiboReleaseScope.temporaryCooperationOnboarding
-                    )
-                },
-                showAnimationLine: show,
-                showResolvedSpeech: show,
-                trackReaction: { reaction in
-                    Analytics.track(
-                        .pat,
-                        screen: "home",
-                        ["reaction": .string(reaction.rawValue)]
-                    )
-                }
-            )
+            store: store,
+            history: history,
+            animationPresentation: animationPresentation,
+            stageCommands: stageCommands,
+            speech: piboSpeech,
+            storyStage: { storySpeechStage },
+            facts: { homeSpeechFacts },
+            neutralLegacyMode: {
+                !PiboReleaseScope.temporaryCooperationOnboarding
+            },
+            showAnimationLine: show,
+            showResolvedSpeech: show
         )
     }
 
