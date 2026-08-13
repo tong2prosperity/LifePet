@@ -1149,7 +1149,7 @@ struct HomeView: View {
         let components = calendar.dateComponents([.year, .month, .day], from: now)
         let dayKey = Int64((components.year ?? 0) * 10_000 + (components.month ?? 0) * 100 + (components.day ?? 0))
 
-        var decided = PiboCoreAnimationAdapter.completeAmbientStateID(
+        let input = HomeAnimationStateResolver.Input(
             localHour: localHour(at: now),
             hasSleepData: store.rawSleepHours > 0,
             sleepHours: store.rawSleepHours,
@@ -1166,16 +1166,12 @@ struct HomeView: View {
             stressBaselineDays: baseline?.dayCount ?? 0,
             stressZ: z,
             rmssdAgeSeconds: rmssdAge,
-            previousStressStateID: experience.previousStressStateID
+            previousStressStateID: experience.previousStressStateID,
+            heldAchievement: experience.heldAchievement
         )
-        experience.previousStressStateID = PiboCoreAnimationAdapter.nextStressMemoryStateID(
-            decidedStateID: decided,
-            previousStressStateID: experience.previousStressStateID
-        )
-        decided = PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
-            to: decided,
-            held: experience.heldAchievement
-        )
+        let resolution = HomeAnimationStateResolver.resolve(input)
+        experience.previousStressStateID = resolution.nextStressStateID
+        var decided = resolution.stateID
         #if DEBUG
         coreAnimationStateID = decided
         // 覆盖必须落在这里：前台对账 / HealthKit 更新 / 整点定时都会重跑本函数，
