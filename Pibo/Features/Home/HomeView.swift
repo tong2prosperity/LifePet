@@ -929,12 +929,11 @@ struct HomeView: View {
     /// flag simply stays raised and `resumePendingHomeFlows` retries from the next
     /// `onDismiss`.
     private func presentStressCardIfPossible() {
-        guard presentationPolicy.shouldPresentStressCard(
-            pendingCardOpen: stressNotifier.pendingCardOpen
-        ) else { return }
-        stressNotifier.pendingCardOpen = false
-        featurePresentation.historyFocus = .stress
-        featurePresentation.showHistory = true
+        HomeStressCardPresentationCoordinator.presentIfPossible(
+            policy: presentationPolicy,
+            notifier: stressNotifier,
+            presentation: featurePresentation
+        )
     }
 
     private func startSoundscape() {
