@@ -17,6 +17,55 @@ private struct PendingOrnamentPurchase: Codable {
     let balanceBefore: Int
 }
 
+private struct OrnamentInventoryPersistence {
+    let defaults: UserDefaults
+    let ownershipKey: String
+    let eligibilityKey: String
+    let pendingPurchaseKey: String
+
+    func loadOwned() -> Set<PiboOrnament.ID> {
+        loadIDs(forKey: ownershipKey)
+    }
+
+    func loadEligibility() -> Set<PiboOrnament.ID> {
+        loadIDs(forKey: eligibilityKey)
+    }
+
+    func hasSeenUnlockGuide() -> Bool {
+        defaults.bool(forKey: PiboPersistenceKeys.Defaults.boUnlockGuideSeen)
+    }
+
+    func markUnlockGuideSeen() {
+        defaults.set(true, forKey: PiboPersistenceKeys.Defaults.boUnlockGuideSeen)
+    }
+
+    private func loadIDs(forKey key: String) -> Set<PiboOrnament.ID> {
+        Set((defaults.array(forKey: key) as? [String] ?? [])
+            .compactMap(PiboOrnament.ID.init(rawValue:)))
+    }
+
+    func saveInventory(
+        owned: Set<PiboOrnament.ID>,
+        eligible: Set<PiboOrnament.ID>
+    ) {
+        defaults.set(owned.map(\.rawValue).sorted(), forKey: ownershipKey)
+        defaults.set(eligible.map(\.rawValue).sorted(), forKey: eligibilityKey)
+    }
+
+    func loadPendingPurchase() -> PendingOrnamentPurchase? {
+        guard let data = defaults.data(forKey: pendingPurchaseKey) else { return nil }
+        return try? JSONDecoder().decode(PendingOrnamentPurchase.self, from: data)
+    }
+
+    func savePendingPurchase(_ pending: PendingOrnamentPurchase) {
+        defaults.set(try? JSONEncoder().encode(pending), forKey: pendingPurchaseKey)
+    }
+
+    func clearPendingPurchase() {
+        defaults.removeObject(forKey: pendingPurchaseKey)
+    }
+}
+
 /// Local, permanent inventory. Eligibility and ownership are separate so
 /// future story/function milestones can grant the right to exchange without
 /// silently granting the item itself.
@@ -27,10 +76,7 @@ final class OrnamentUnlockStore {
     private(set) var eligible: Set<PiboOrnament.ID>
     private(set) var hasSeenUnlockGuide: Bool
 
-    @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let ownershipKey: String
-    @ObservationIgnored private let eligibilityKey: String
-    @ObservationIgnored private let pendingPurchaseKey: String
+    @ObservationIgnored private let persistence: OrnamentInventoryPersistence
     @ObservationIgnored private let debugUnlockOverride: Bool
 
     init(
@@ -40,20 +86,17 @@ final class OrnamentUnlockStore {
         pendingPurchaseKey: String = PiboPersistenceKeys.Defaults.boPendingOrnamentPurchase,
         debugUnlockOverride: Bool? = nil
     ) {
-        self.defaults = defaults
-        self.ownershipKey = ownershipKey
-        self.eligibilityKey = eligibilityKey
-        self.pendingPurchaseKey = pendingPurchaseKey
+        let persistence = OrnamentInventoryPersistence(
+            defaults: defaults,
+            ownershipKey: ownershipKey,
+            eligibilityKey: eligibilityKey,
+            pendingPurchaseKey: pendingPurchaseKey
+        )
+        self.persistence = persistence
         self.debugUnlockOverride = debugUnlockOverride ?? Self.launchArgumentUnlockOverride
-        self.hasSeenUnlockGuide = defaults.bool(forKey: PiboPersistenceKeys.Defaults.boUnlockGuideSeen)
-        self.owned = Set((defaults.array(forKey: ownershipKey) as? [String] ?? [])
-            .compactMap(PiboOrnament.ID.init(rawValue:)))
-        let persistedEligibility = Set((defaults.array(forKey: eligibilityKey) as? [String] ?? [])
-            .compactMap(PiboOrnament.ID.init(rawValue:)))
-        let initialEligibility = Set(PiboOrnament.all.compactMap { ornament in
-            PiboOrnament.coreDefinition(ornament.id).initiallyEligible ? ornament.id : nil
-        })
-        self.eligible = persistedEligibility.union(initialEligibility)
+        self.hasSeenUnlockGuide = persistence.hasSeenUnlockGuide()
+        self.owned = persistence.loadOwned()
+        self.eligible = persistence.loadEligibility().union(Self.initialEligibility)
         persistInventory()
     }
 
@@ -111,14 +154,16 @@ final class OrnamentUnlockStore {
         }
 
         let cost = PiboOrnament.coreDefinition(id).cost
-        persistPending(PendingOrnamentPurchase(id: id, cost: cost, balanceBefore: ledger.balance))
+        persistence.savePendingPurchase(
+            PendingOrnamentPurchase(id: id, cost: cost, balanceBefore: ledger.balance)
+        )
         guard ledger.spend(cost) else {
-            clearPending()
+            persistence.clearPendingPurchase()
             return .insufficientBalance
         }
         owned.insert(id)
         persistInventory()
-        clearPending()
+        persistence.clearPendingPurchase()
         LPLog.bo.notice("ornament purchased=\(id.rawValue, privacy: .public) cost=\(cost, privacy: .public)")
         return .purchased
     }
@@ -128,9 +173,7 @@ final class OrnamentUnlockStore {
     /// main actor, so the before/after balance identifies that committed debit.
     @discardableResult
     func recoverPendingPurchase(using ledger: BoLedgerStore) -> PiboOrnament.ID? {
-        guard let data = defaults.data(forKey: pendingPurchaseKey),
-              let pending = try? JSONDecoder().decode(PendingOrnamentPurchase.self, from: data)
-        else { return nil }
+        guard let pending = persistence.loadPendingPurchase() else { return nil }
         var recoveredID: PiboOrnament.ID?
         if ledger.balance <= pending.balanceBefore - pending.cost {
             owned.insert(pending.id)
@@ -138,7 +181,7 @@ final class OrnamentUnlockStore {
             recoveredID = pending.id
             LPLog.bo.notice("recovered ornament purchase=\(pending.id.rawValue, privacy: .public)")
         }
-        clearPending()
+        persistence.clearPendingPurchase()
         return recoveredID
     }
 
@@ -150,16 +193,14 @@ final class OrnamentUnlockStore {
     func markUnlockGuideSeen() {
         guard !hasSeenUnlockGuide else { return }
         hasSeenUnlockGuide = true
-        defaults.set(true, forKey: PiboPersistenceKeys.Defaults.boUnlockGuideSeen)
+        persistence.markUnlockGuideSeen()
     }
 
     func reset() {
         owned = []
-        eligible = Set(PiboOrnament.all.compactMap { ornament in
-            PiboOrnament.coreDefinition(ornament.id).initiallyEligible ? ornament.id : nil
-        })
+        eligible = Self.initialEligibility
         persistInventory()
-        clearPending()
+        persistence.clearPendingPurchase()
     }
 
     private func coreItemID(_ id: PiboCoreUnlockableItemID) -> PiboOrnament.ID? {
@@ -167,16 +208,13 @@ final class OrnamentUnlockStore {
     }
 
     private func persistInventory() {
-        defaults.set(owned.map(\.rawValue).sorted(), forKey: ownershipKey)
-        defaults.set(eligible.map(\.rawValue).sorted(), forKey: eligibilityKey)
+        persistence.saveInventory(owned: owned, eligible: eligible)
     }
 
-    private func persistPending(_ pending: PendingOrnamentPurchase) {
-        defaults.set(try? JSONEncoder().encode(pending), forKey: pendingPurchaseKey)
-    }
-
-    private func clearPending() {
-        defaults.removeObject(forKey: pendingPurchaseKey)
+    private static var initialEligibility: Set<PiboOrnament.ID> {
+        Set(PiboOrnament.all.compactMap { ornament in
+            PiboOrnament.coreDefinition(ornament.id).initiallyEligible ? ornament.id : nil
+        })
     }
 
     private static var launchArgumentUnlockOverride: Bool {
