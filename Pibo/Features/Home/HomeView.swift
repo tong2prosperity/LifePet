@@ -127,29 +127,24 @@ struct HomeView: View {
     }
 
     private var homeSpeechFacts: PiboHomeSpeechFacts {
-        PiboHomeSpeechFacts(
-            hasSteps: store.hasStepsData && store.rawSteps > 0,
-            hasSleepDuration: store.rawSleepHours > 0,
-            hasWorkoutType: store.hasWorkoutToday,
+        HomeSpeechInputResolver.facts(
+            hasStepsData: store.hasStepsData,
+            rawSteps: store.rawSteps,
+            rawSleepHours: store.rawSleepHours,
+            hasWorkoutToday: store.hasWorkoutToday,
             pendingBoCount: boLedger.state.ripeCount,
-            connectionAccepted: PiboReleaseScope.temporaryCooperationOnboarding
-                && onboarding.snapshot.connection == .accepted
+            cooperationEnabled: PiboReleaseScope.temporaryCooperationOnboarding,
+            connectionAccepted: onboarding.snapshot.connection == .accepted
         )
     }
 
     private var homeSpeechValues: [String: String] {
-        var values: [String: String] = [:]
-        if store.hasStepsData, store.rawSteps > 0 {
-            values["steps"] = store.rawSteps.formatted()
-        }
-        if store.rawSleepHours > 0 {
-            values["sleepDuration"] = String(
-                format: "%.1f %@",
-                store.rawSleepHours,
-                AppLocalization.text("小时")
-            )
-        }
-        return values
+        HomeSpeechInputResolver.values(
+            hasStepsData: store.hasStepsData,
+            rawSteps: store.rawSteps,
+            rawSleepHours: store.rawSleepHours,
+            sleepDurationUnit: AppLocalization.text("小时")
+        )
     }
 
     private var idleSpeechContext: PiboCoreHomeSpeechContext? {
