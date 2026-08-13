@@ -853,32 +853,20 @@ struct HomeView: View {
         LPHaptics.tap()
         dismissSpeech()
 
-        switch id {
-        case .hammock:
-            guard ornamentUnlocks.grants(.sleepReview) else { return }
-            if let presentation = morningSleep.latestReviewPresentation() {
-                activeSheet = .morningSleep(presentation, consumesPending: false)
-            } else {
-                activeSheet = .commonItemStatus(CommonItemStatusModel(
-                    ornamentID: .hammock,
-                    title: "睡眠回顾",
-                    status: "等待数据",
-                    message: "收到可用的睡眠记录后，可以从吊床重复查看最近一次睡眠回顾。"
-                ))
-            }
-        case .statusObserver:
-            guard ornamentUnlocks.grants(.recoveryStatus) else { return }
-            let calibration = history.recoveryCalibrationState()
-            activeSheet = .commonItemStatus(CommonItemStatusModel(
-                ornamentID: .statusObserver,
-                title: "恢复状态",
-                status: calibration == .waitingForData ? "等待数据" : "正在校准",
-                message: calibration == .waitingForData
-                    ? "状态观测仪会使用已授权的睡眠和身体记录。收到数据后开始校准。"
-                    : "正在依据已授权的原始记录建立个人基线。恢复算法确认前不会显示分数。"
-            ))
-        case .chime, .lantern:
-            break
+        let action = HomeOrnamentInteractionResolver.resolve(
+            ornamentID: id,
+            sleepReviewGranted: ornamentUnlocks.grants(.sleepReview),
+            latestSleepReview: morningSleep.latestReviewPresentation(),
+            recoveryStatusGranted: ornamentUnlocks.grants(.recoveryStatus),
+            recoveryCalibration: history.recoveryCalibrationState()
+        )
+        switch action {
+        case .none:
+            return
+        case .presentMorningSleep(let presentation):
+            activeSheet = .morningSleep(presentation, consumesPending: false)
+        case .presentStatus(let model):
+            activeSheet = .commonItemStatus(model)
         }
     }
 
