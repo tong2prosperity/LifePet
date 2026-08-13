@@ -403,9 +403,18 @@ struct HomeView: View {
 
     var body: some View {
         homeWithoutSheet
-        .sheet(item: $activeSheet, onDismiss: resumePendingHomeFlows) { destination in
-            homeSheet(destination)
-        }
+            .modifier(
+                HomeSheetModifier(
+                    destination: $activeSheet,
+                    store: store,
+                    history: history,
+                    recognizer: recognizer,
+                    morningSleep: morningSleep,
+                    onDismiss: resumePendingHomeFlows,
+                    startMealCapture: startMealCapture,
+                    confirmAchievement: confirmAchievement
+                )
+            )
     }
 
     private var shouldShowStoryRecoveryBanner: Bool {
@@ -453,35 +462,6 @@ struct HomeView: View {
     private func historyDismissed() {
         featurePresentation.historyFocus = nil
         resumePendingHomeFlows()
-    }
-
-    @ViewBuilder
-    private func homeSheet(_ destination: HomeSheetDestination) -> some View {
-        switch destination {
-        case .meal(let meal):
-            MealDetailView(meal: meal, onRecapture: startMealCapture)
-                .environment(history)
-                .environment(recognizer)
-        case .morningSleep(let presentation, let consumesPending):
-            MorningSleepCard(
-                presentation: presentation,
-                appearance: store.appearance,
-                weekly: SleepWeeklyReport.make(store: store, history: history)
-            )
-            .onAppear {
-                if consumesPending { morningSleep.markPresented(presentation) }
-            }
-        case .commonItemStatus(let model):
-            CommonItemStatusModal(
-                ornamentID: model.ornamentID,
-                title: model.title,
-                status: model.status,
-                message: model.message
-            )
-        case .achievement(let payload):
-            PiboAchievementModal(payload: payload) { confirmAchievement(payload) }
-                .interactiveDismissDisabled()
-        }
     }
 
     // MARK: Chrome
