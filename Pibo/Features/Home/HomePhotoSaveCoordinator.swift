@@ -7,6 +7,77 @@ import os
 /// and, for meal captures, waits for the camera cover before starting analysis.
 @MainActor
 enum HomePhotoSaveCoordinator {
+    struct SavedPhotoHandlers {
+        let logSaved: () -> Void
+        let clearInitialMeal: () -> Void
+        let trackSaved: () -> Void
+        let logMissingImage: () -> Void
+        let process: (UIImage) -> Void
+    }
+
+    static func handleSavedPhoto(
+        image: UIImage?,
+        subjectLabel: String?,
+        meal: MealType?,
+        clearInitialMeal: @escaping () -> Void,
+        history: HealthHistoryStore,
+        recognizer: FoodRecognitionService,
+        isCameraPresented: @escaping () -> Bool,
+        presentMeal: @escaping (MealType) -> Void
+    ) {
+        handleSavedPhoto(
+            image: image,
+            handlers: SavedPhotoHandlers(
+                logSaved: {
+                    LPLog.cutout.notice(
+                        "photo saved → post-processing (hasImage=\(image != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public) meal=\(meal?.rawValue ?? "—", privacy: .public))"
+                    )
+                },
+                clearInitialMeal: clearInitialMeal,
+                trackSaved: {
+                    Analytics.track(
+                        .photoSaved,
+                        screen: "camera",
+                        [
+                            "meal": .string(meal?.rawValue ?? "none"),
+                            "has_subject": .bool(subjectLabel != nil),
+                        ]
+                    )
+                },
+                logMissingImage: {
+                    LPLog.cutout.info(
+                        "no captured image (placeholder device) — skipping 抠图/persist"
+                    )
+                },
+                process: { image in
+                    Self.process(
+                        image: image,
+                        subjectLabel: subjectLabel,
+                        meal: meal,
+                        history: history,
+                        recognizer: recognizer,
+                        isCameraPresented: isCameraPresented,
+                        presentMeal: presentMeal
+                    )
+                }
+            )
+        )
+    }
+
+    static func handleSavedPhoto(
+        image: UIImage?,
+        handlers: SavedPhotoHandlers
+    ) {
+        handlers.logSaved()
+        handlers.clearInitialMeal()
+        handlers.trackSaved()
+        guard let image else {
+            handlers.logMissingImage()
+            return
+        }
+        handlers.process(image)
+    }
+
     @discardableResult
     static func process(
         image: UIImage,

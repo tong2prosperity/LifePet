@@ -6,6 +6,44 @@ import UIKit
 @Suite(.serialized)
 @MainActor
 struct HomePhotoSaveCoordinatorTests {
+    @Test func missingImagePreservesPreflightOrderAndSkipsProcessing() {
+        var events: [String] = []
+
+        HomePhotoSaveCoordinator.handleSavedPhoto(
+            image: nil,
+            handlers: .init(
+                logSaved: { events.append("log-saved") },
+                clearInitialMeal: { events.append("clear-meal") },
+                trackSaved: { events.append("track") },
+                logMissingImage: { events.append("log-missing") },
+                process: { _ in Issue.record("A missing image must not be processed") }
+            )
+        )
+
+        #expect(events == ["log-saved", "clear-meal", "track", "log-missing"])
+    }
+
+    @Test func capturedImagePreservesPreflightOrderAndStartsProcessingLast() {
+        var events: [String] = []
+        let image = UIImage()
+
+        HomePhotoSaveCoordinator.handleSavedPhoto(
+            image: image,
+            handlers: .init(
+                logSaved: { events.append("log-saved") },
+                clearInitialMeal: { events.append("clear-meal") },
+                trackSaved: { events.append("track") },
+                logMissingImage: { Issue.record("A captured image is not missing") },
+                process: { processed in
+                    #expect(processed === image)
+                    events.append("process")
+                }
+            )
+        )
+
+        #expect(events == ["log-saved", "clear-meal", "track", "process"])
+    }
+
     @Test func persistsCutoutForNonMealCapture() async throws {
         let fixture = try makeFixture()
         defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }

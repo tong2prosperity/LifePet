@@ -2,7 +2,6 @@ import AVFAudio
 import PiboCore
 import SwiftUI
 import UIKit
-import os
 
 /// Pibo home — a fixed portrait SpriteKit forest. The scene never pans or
 /// scrolls; SwiftUI owns the corner entries and the surrounding chrome.
@@ -760,19 +759,11 @@ struct HomeView: View {
     }
 
     private func handlePhotoSaved(_ image: UIImage?, _ subjectLabel: String?, meal: MealType? = nil) {
-        LPLog.cutout.notice("photo saved → post-processing (hasImage=\(image != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public) meal=\(meal?.rawValue ?? "—", privacy: .public))")
-        featurePresentation.cameraInitialMeal = nil
-        Analytics.track(.photoSaved, screen: "camera",
-                        ["meal": .string(meal?.rawValue ?? "none"),
-                         "has_subject": .bool(subjectLabel != nil)])
-        guard let image else {
-            LPLog.cutout.info("no captured image (placeholder device) — skipping 抠图/persist")
-            return
-        }
-        HomePhotoSaveCoordinator.process(
+        HomePhotoSaveCoordinator.handleSavedPhoto(
             image: image,
             subjectLabel: subjectLabel,
             meal: meal,
+            clearInitialMeal: { featurePresentation.cameraInitialMeal = nil },
             history: history,
             recognizer: recognizer,
             isCameraPresented: { featurePresentation.showCamera },
