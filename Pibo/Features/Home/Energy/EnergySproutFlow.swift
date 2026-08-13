@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 // MARK: - 识别到用户的活动 → 发芽 flow (Figma 74:6102)
@@ -35,6 +36,62 @@ enum SproutFlowPhase: Equatable {
     case collecting   // camera in, 毛抖动 — 新运动记录
     case sprouted     // 长出叶片 — Pibo 记下变化
     case pop          // back on the home floor — 记录已同步 card
+}
+
+/// Resolves whether a pending workout can start the Home sprout choreography
+/// and which existing renderer path it should use. Playback and phase changes
+/// stay in `HomeView`; this type only packages the decision inputs.
+enum HomeSproutFlowStartResolver {
+    enum Animation: Equatable {
+        case stageCloseup
+        case lottieCloseup(asset: String)
+        case inPlaceGrowth
+    }
+
+    struct Request: Equatable {
+        let workoutID: UUID
+        let growthStart: Double
+        let growthTarget: Double
+        let animation: Animation
+    }
+
+    static func resolve(
+        pendingWorkout: @autoclosure () -> PendingWorkout?,
+        phase: @autoclosure () -> SproutFlowPhase,
+        sheetPresented: @autoclosure () -> Bool,
+        fullScreenFeaturePresented: @autoclosure () -> Bool,
+        growthStart: @autoclosure () -> Double,
+        growthTarget: (PendingWorkout) -> Double,
+        canSprout: @autoclosure () -> Bool,
+        animationStyle: @autoclosure () -> SproutAnimationStyle
+    ) -> Request? {
+        guard let workout = pendingWorkout(),
+              phase() == .idle,
+              !sheetPresented(),
+              !fullScreenFeaturePresented()
+        else { return nil }
+
+        let start = growthStart()
+        let target = growthTarget(workout)
+        let animation: Animation
+        if canSprout() {
+            switch animationStyle() {
+            case .stagePlaceholder:
+                animation = .stageCloseup
+            case .lottie(let asset):
+                animation = .lottieCloseup(asset: asset)
+            }
+        } else {
+            animation = .inPlaceGrowth
+        }
+
+        return Request(
+            workoutID: workout.id,
+            growthStart: start,
+            growthTarget: target,
+            animation: animation
+        )
+    }
 }
 
 // MARK: - Close-up caption (Figma Frame 9397 — centered, top of the screen)

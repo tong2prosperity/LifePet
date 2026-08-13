@@ -868,41 +868,38 @@ struct HomeView: View {
         // The close-up runs on the SpriteKit stage, which `stagePaused` freezes
         // while any sheet or cover is up — starting it behind one would play the
         // whole beat where nobody can see it.
-        guard let workout = store.pendingWorkout,
-              sproutPhase == .idle,
-              activeSheet == nil,
-              !fullScreenFeaturePresented
-        else { return }
-        let growthStart = store.headSproutGrowthProgress
-        let growthTarget = store.sproutGrowthTarget(for: workout)
-        let canSprout = store.growthStage == .mystery
-            && store.currentTheme.sproutedHeadSprite != nil
-        if canSprout {
-            switch SproutAnimationStyle.current {
-            case .stagePlaceholder:
-                setSproutPhase(.collecting)
-                stageCommands.playSproutCloseup(
-                    growthFrom: growthStart,
-                    growthTo: growthTarget,
-                    onPhase: handleSproutPhase
-                )
-            case .lottie:
-                // TODO(design): full-screen Lottie player once the asset lands.
-                setSproutPhase(.collecting)
-                stageCommands.playSproutCloseup(
-                    growthFrom: growthStart,
-                    growthTo: growthTarget,
-                    onPhase: handleSproutPhase
-                )
-            }
-        } else {
-            setSproutPhase(.collecting)
-            stageCommands.playSproutGrowth(from: growthStart, to: growthTarget)
-            let workoutID = workout.id
+        guard let request = HomeSproutFlowStartResolver.resolve(
+            pendingWorkout: store.pendingWorkout,
+            phase: sproutPhase,
+            sheetPresented: activeSheet != nil,
+            fullScreenFeaturePresented: fullScreenFeaturePresented,
+            growthStart: store.headSproutGrowthProgress,
+            growthTarget: { store.sproutGrowthTarget(for: $0) },
+            canSprout: store.growthStage == .mystery
+                && store.currentTheme.sproutedHeadSprite != nil,
+            animationStyle: SproutAnimationStyle.current
+        ) else { return }
+
+        setSproutPhase(.collecting)
+        switch request.animation {
+        case .stageCloseup, .lottieCloseup:
+            // Both routes use the stage placeholder until the Lottie asset lands.
+            stageCommands.playSproutCloseup(
+                growthFrom: request.growthStart,
+                growthTo: request.growthTarget,
+                onPhase: handleSproutPhase
+            )
+        case .inPlaceGrowth:
+            stageCommands.playSproutGrowth(
+                from: request.growthStart,
+                to: request.growthTarget
+            )
             Task { @MainActor in
                 let delay = UIAccessibility.isReduceMotionEnabled ? 0.15 : 1.35
                 try? await Task.sleep(for: .seconds(delay))
-                guard store.pendingWorkout?.id == workoutID, sproutPhase == .collecting else { return }
+                guard store.pendingWorkout?.id == request.workoutID,
+                      sproutPhase == .collecting
+                else { return }
                 setSproutPhase(.pop)
             }
         }
