@@ -85,18 +85,27 @@ struct HomeView: View {
     #endif
     @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled) private var ambientSoundEnabled = true
 
-    /// Pause the 60fps stage loop while a feature covers it — the full-screen
-    /// covers plus the two sheets (设置 / 餐食详情), which on iOS occlude the stage
-    /// too (`MealDetailView` in particular can sit open a while during 卡路里 识别).
+    private var presentationPolicy: HomePresentationPolicy {
+        HomePresentationPolicy(
+            sceneIsActive: scenePhase == .active,
+            cameraPresented: showCamera,
+            gamesPresented: showGames,
+            historyPresented: showHistory,
+            walkDoodlePresented: showWalkDoodle,
+            settingsPresented: showSettings,
+            storyRecoveryPresented: showStoryRecovery,
+            sheetPresented: activeSheet != nil,
+            sheetDismissalInProgress: homeSheetDismissalInProgress,
+            sproutFlowIsIdle: sproutPhase == .idle
+        )
+    }
+
     private var stagePaused: Bool {
-        showCamera || showGames || showHistory || showWalkDoodle || showSettings
-            || showStoryRecovery
-            || activeSheet != nil
+        presentationPolicy.stagePaused
     }
 
     private var fullScreenFeaturePresented: Bool {
-        showCamera || showGames || showHistory || showWalkDoodle || showSettings
-            || showStoryRecovery
+        presentationPolicy.fullScreenFeaturePresented
     }
 
     private var boCounterFeedbackRequest: BoCounterFeedbackRequest? {
@@ -107,10 +116,7 @@ struct HomeView: View {
     }
 
     private var boCounterFeedbackEnabled: Bool {
-        scenePhase == .active
-            && !stagePaused
-            && !homeSheetDismissalInProgress
-            && sproutPhase == .idle
+        presentationPolicy.boCounterFeedbackEnabled
     }
 
     private var storySpeechStage: PiboCoreStorySpeechStage {
@@ -197,14 +203,7 @@ struct HomeView: View {
     }
 
     private var soundscapePresentation: SoundscapePresentation {
-        guard scenePhase == .active else { return .suspended }
-        if fullScreenFeaturePresented {
-            return .suspended
-        }
-        switch activeSheet {
-        case .meal, .morningSleep, .commonItemStatus, .achievement: return .suspended
-        case nil: return .active
-        }
+        presentationPolicy.soundscapePresentation
     }
 
     private var homeScene: some View {
