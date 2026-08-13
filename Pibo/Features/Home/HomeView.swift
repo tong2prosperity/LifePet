@@ -490,38 +490,16 @@ struct HomeView: View {
             .padding(.horizontal, LP.Spacing.l)
 
             #if DEBUG
-            VStack(spacing: 0) {
-                HStack(alignment: .top, spacing: 0) {
-                    ForestTuningPanel(
-                        tuning: $forestTuning,
-                        isExpanded: $tuningPanelExpanded,
-                        forcedHour: Binding(
-                            get: { store.debugForestHour },
-                            set: { store.debugForestHour = $0 }
-                        ),
-                        forcedAnimationStateID: Binding(
-                            get: { animationPresentation.forcedStateID },
-                            set: { animationPresentation.forcedStateID = $0 }
-                        ),
-                        coreAnimationStateID: animationPresentation.coreStateID,
-                        presentedAnimationStateID: semanticAnimationStateID,
-                        usesBounceCut: $debugBounceCutIntent,
-                        playsAchievementCombo: Binding(
-                            get: { debugPlaysAchievementCombo },
-                            set: {
-                                debugPlaysAchievementCombo = $0
-                                stageCommands.setPlaysAchievementCombo($0)
-                            }
-                        ),
-                        onSelectAnimationState: applyDebugAnimationState,
-                        onReplayAnimation: { stageCommands.replayAnimationIntro() }
-                    )
-                    Spacer(minLength: 0)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, LP.Spacing.l)
-            .padding(.top, 118)
+            HomeDebugControlsOverlay(
+                tuning: $forestTuning,
+                isExpanded: $tuningPanelExpanded,
+                usesBounceCut: $debugBounceCutIntent,
+                playsAchievementCombo: $debugPlaysAchievementCombo,
+                store: store,
+                animationPresentation: animationPresentation,
+                stageCommands: stageCommands,
+                onSelectAnimationState: applyDebugAnimationState
+            )
             #endif
         }
         .opacity(closeupActive ? 0 : 1)
