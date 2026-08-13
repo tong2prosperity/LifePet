@@ -421,13 +421,11 @@ struct HomeView: View {
         homeLifecycleContent
         .onChange(of: animationRefreshToken) { oldValue, newValue in
             refreshAnimationState()
-            let pendingChanged = oldValue.pendingAchievementID != newValue.pendingAchievementID
-            let notificationRequested = oldValue.notificationPresentationRequestID
-                != newValue.notificationPresentationRequestID
-            if pendingChanged {
+            let changes = newValue.achievementChanges(from: oldValue)
+            if changes.pendingAchievementChanged {
                 reconcilePresentedAchievement()
             }
-            if pendingChanged || notificationRequested {
+            if changes.shouldAttemptPresentation {
                 presentAchievementIfPossible()
             }
         }
@@ -1151,8 +1149,8 @@ struct HomeView: View {
         semanticAnimationStateID = decided
     }
 
-    private var animationRefreshToken: AnimationRefreshToken {
-        AnimationRefreshToken(
+    private var animationRefreshToken: HomeAnimationRefreshToken {
+        HomeAnimationRefreshToken(
             steps: store.rawSteps,
             sleepHours: store.rawSleepHours,
             hasWorkout: store.hasWorkoutToday,
@@ -1185,26 +1183,33 @@ struct HomeView: View {
     /// undismissable no-op because interactive dismissal is disabled.
     private func reconcilePresentedAchievement() {
         guard case .achievement(let presented) = activeSheet else { return }
-        guard let latest = store.animationExperience.pendingAchievement else {
-            activeSheet = nil
-            return
-        }
-        if latest.id != presented.id {
-            activeSheet = .achievement(latest)
-        }
+        let reconciliation = HomeAchievementPresentationPolicy.reconciliation(
+            presentedAchievement: presented,
+            pendingAchievement: store.animationExperience.pendingAchievement
+        )
+        reconciliation.apply(to: &activeSheet)
     }
 
     private func confirmAchievement(_ payload: PiboAnimationAchievementPayload) {
         #if DEBUG
-        if store.animationExperience.pendingAchievement?.id != payload.id,
-           HomeDebugLaunchOptions.current.hasAchievementArgument {
+        if HomeAchievementPresentationPolicy.shouldDismissStaleFixture(
+            presentedAchievementID: payload.id,
+            pendingAchievementID: store.animationExperience.pendingAchievement?.id,
+            fixtureEnabled: HomeDebugLaunchOptions.current.hasAchievementArgument
+        ) {
             activeSheet = nil
             return
         }
         #endif
-        guard store.animationExperience.pendingAchievement?.id == payload.id else { return }
+        guard HomeAchievementPresentationPolicy.shouldConfirm(
+            presentedAchievementID: payload.id,
+            pendingAchievementID: store.animationExperience.pendingAchievement?.id
+        ) else { return }
         _ = store.animationExperience.confirmPending()
-        if payload.kind == .pigu, store.pendingWorkout?.id == payload.id {
+        if HomeAchievementPresentationPolicy.consumesPendingWorkout(
+            presentedAchievement: payload,
+            pendingWorkoutID: store.pendingWorkout?.id
+        ) {
             store.consumePendingWorkout()
         }
         #if DEBUG
@@ -1340,16 +1345,6 @@ struct HomeView: View {
         }
     }
 #endif
-}
-
-private struct AnimationRefreshToken: Equatable {
-    let steps: Int
-    let sleepHours: Double
-    let hasWorkout: Bool
-    let rmssd: Double?
-    let historyRevision: Int
-    let pendingAchievementID: UUID?
-    let notificationPresentationRequestID: UUID?
 }
 #Preview {
     HomeView()
