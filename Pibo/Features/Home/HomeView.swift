@@ -52,24 +52,23 @@ struct HomeView: View {
     @State private var greetingText: String = ""
     @State private var dayLabelText: String = ""
     @State private var atmosphereClock = HomeAtmosphereClock()
-    @State private var semanticAnimationStateID = PiboAnimationStateMap.fallback
+    @State private var animationPresentation = HomeAnimationPresentationController()
     @State private var soundscape = AmbientSoundscapeService()
     #if DEBUG
     @State private var forestTuning: StageRenderTuning = .standard
     @State private var tuningPanelExpanded = !HomeDebugLaunchOptions.current.hidesTuningPanel
     /// 面板强制的动画态。nil = 跟随 Core。`-PiboAnimationState=` 只是把它种上，
     /// 所以启动参数与面板走的是同一条覆盖路径。
-    @State private var debugForcedAnimationStateID = HomeDebugLaunchOptions.current
-        .forcedAnimationStateID
-    /// Core 自己的判定，被面板覆盖时仍然显示出来 —— 走查时要能看出「Core 说
-    /// default，我在强制 dive」。
-    @State private var coreAnimationStateID = PiboAnimationStateMap.fallback
     @State private var debugBounceCutIntent = false
     @State private var debugPlaysAchievementCombo = false
     #else
     private let forestTuning: StageRenderTuning = .standard
     #endif
     @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled) private var ambientSoundEnabled = true
+
+    private var semanticAnimationStateID: String {
+        animationPresentation.stateID
+    }
 
     private var presentationPolicy: HomePresentationPolicy {
         HomePresentationPolicy(
@@ -528,8 +527,11 @@ struct HomeView: View {
                             get: { store.debugForestHour },
                             set: { store.debugForestHour = $0 }
                         ),
-                        forcedAnimationStateID: $debugForcedAnimationStateID,
-                        coreAnimationStateID: coreAnimationStateID,
+                        forcedAnimationStateID: Binding(
+                            get: { animationPresentation.forcedStateID },
+                            set: { animationPresentation.forcedStateID = $0 }
+                        ),
+                        coreAnimationStateID: animationPresentation.coreStateID,
                         presentedAnimationStateID: semanticAnimationStateID,
                         usesBounceCut: $debugBounceCutIntent,
                         playsAchievementCombo: Binding(
@@ -858,57 +860,18 @@ struct HomeView: View {
     /// 时紧接着发命令 —— 命令会先把渲染器的 `animationStateID` 写掉，随后那次
     /// `apply` 自然成为 no-op，不会双切。顺序与 `handlePat()` 一致。
     private func applyDebugAnimationState(_ stateID: String?) {
-        let previous = semanticAnimationStateID
-        debugForcedAnimationStateID = stateID
-        refreshAnimationState()
-        let target = semanticAnimationStateID
-        guard debugBounceCutIntent, target != previous else { return }
+        guard let target = animationPresentation.selectDebugState(
+            stateID,
+            usesBounceCut: debugBounceCutIntent,
+            store: store,
+            history: history
+        ) else { return }
         stageCommands.transitionAnimation(to: target, intent: .bounceCut)
     }
     #endif
 
     private func refreshAnimationState(now: Date = .now) {
-        let experience = store.animationExperience
-        experience.refreshExpiries(now: now)
-        let calendar = Calendar.current
-        let historyWindow = HomeAnimationInputResolver.sleepHistoryWindow(
-            at: now,
-            calendar: calendar
-        )
-        let sleepHistoryTotals = history.records(
-            from: historyWindow.start,
-            to: historyWindow.end
-        ).map(\.sleepTotal)
-        let input = HomeAnimationInputResolver.resolve(
-            at: now,
-            calendar: calendar,
-            sleepHistoryTotals: sleepHistoryTotals,
-            localHour: HomeAtmosphereClock.localHour(at: now),
-            rawSleepHours: store.rawSleepHours,
-            hasStepsData: store.hasStepsData,
-            rawSteps: store.rawSteps,
-            hasWorkoutToday: store.hasWorkoutToday,
-            angryActive: experience.angryActive(at: now),
-            rmssd: store.rmssd,
-            rmssdMeasuredAt: store.rmssdMeasuredAt,
-            rmssdInterpretationEligible: store.rmssdInterpretationEligible,
-            stressBaseline: store.stressBaseline,
-            previousStressStateID: experience.previousStressStateID,
-            heldAchievement: experience.heldAchievement
-        )
-        let resolution = HomeAnimationStateResolver.resolve(input)
-        experience.previousStressStateID = resolution.nextStressStateID
-        var decided = resolution.stateID
-        #if DEBUG
-        coreAnimationStateID = decided
-        // 覆盖必须落在这里：前台对账 / HealthKit 更新 / 整点定时都会重跑本函数，
-        // 写在别处会被下一次刷新冲掉。
-        if let forced = debugForcedAnimationStateID,
-           PiboAnimationStateMap.available.contains(forced) {
-            decided = forced
-        }
-        #endif
-        semanticAnimationStateID = decided
+        animationPresentation.refresh(store: store, history: history, now: now)
     }
 
     private var animationRefreshToken: HomeAnimationRefreshToken {
@@ -1082,7 +1045,7 @@ struct HomeView: View {
                 bounceToAnimationState: { target in
                     // Deterministic Simulator capture hook. The delay leaves
                     // one stable source frame before the exact 710 ms cut.
-                    semanticAnimationStateID = target
+                    animationPresentation.prepareDebugBounce(to: target)
                     stageCommands.transitionAnimation(to: target, intent: .bounceCut)
                 },
                 selectAnimationState: applyDebugAnimationState,
