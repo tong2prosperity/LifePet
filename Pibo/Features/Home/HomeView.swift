@@ -776,16 +776,7 @@ struct HomeView: View {
     }
 
     private var animationRefreshToken: HomeAnimationRefreshToken {
-        HomeAnimationRefreshToken(
-            steps: store.rawSteps,
-            sleepHours: store.rawSleepHours,
-            hasWorkout: store.hasWorkoutToday,
-            rmssd: store.rmssd,
-            historyRevision: history.revision,
-            pendingAchievementID: store.animationExperience.pendingAchievement?.id,
-            notificationPresentationRequestID: store.animationExperience
-                .notificationPresentationRequestID
-        )
+        HomeAnimationRefreshToken(store: store, history: history)
     }
 
     private func presentAchievementIfPossible() {
