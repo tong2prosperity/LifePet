@@ -838,29 +838,15 @@ struct HomeView: View {
             LPLog.cutout.info("no captured image (placeholder device) — skipping 抠图/persist")
             return
         }
-        let capturedAt = Date()
-        Task {
-            // Show the user the Vision-processed cut-out; send the FULL frame to the VLM.
-            let png = await Task.detached { SubjectCutout.stickerPNG(image) }.value
-            guard let png else {
-                LPLog.cutout.error("贴纸 PNG nil — FoodPhoto not persisted")
-                return
-            }
-            let photo = history.addFoodPhoto(pngData: png, capturedAt: capturedAt,
-                                             subjectLabel: subjectLabel, mealType: meal)
-            LPLog.cutout.notice("FoodPhoto persisted \(png.count / 1024, privacy: .public)KB label=\(subjectLabel ?? "—", privacy: .public) at \(LPLog.dateFormatter.string(from: capturedAt), privacy: .public)")
-
-            // Meal capture → 卡路里 识别. Pop the modal (spinner), analyze async.
-            guard let meal else { return }
-            // The camera fullScreenCover may still be animating out; presenting a
-            // sheet mid-dismissal can get silently dropped. Wait out the flag plus
-            // a short grace for the dismiss animation.
-            while showCamera { try? await Task.sleep(for: .milliseconds(80)) }
-            try? await Task.sleep(for: .milliseconds(420))
-            activeSheet = .meal(meal)
-            await recognizer.analyze(photoID: photo.id, fullImage: image,
-                                     hint: subjectLabel, meal: meal, history: history)
-        }
+        HomePhotoSaveCoordinator.process(
+            image: image,
+            subjectLabel: subjectLabel,
+            meal: meal,
+            history: history,
+            recognizer: recognizer,
+            isCameraPresented: { showCamera },
+            presentMeal: { activeSheet = .meal($0) }
+        )
     }
 
     // MARK: 地图涂鸦 (walk doodle — see Features/WalkDoodle)
