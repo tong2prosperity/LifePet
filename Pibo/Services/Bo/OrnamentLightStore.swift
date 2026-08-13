@@ -2,6 +2,54 @@ import Foundation
 import Observation
 import os
 
+private struct OrnamentLightPersistence {
+    struct State {
+        let day: Date
+        let lit: [PiboOrnament.ID: Set<Int>]
+    }
+
+    private struct Payload: Codable {
+        let day: Date
+        let lit: [String: [Int]]
+    }
+
+    private let defaults: UserDefaults
+    private var key: String { PiboPersistenceKeys.Defaults.boOrnamentLights }
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+    }
+
+    func load() -> State? {
+        guard let data = defaults.data(forKey: key),
+              let payload = try? JSONDecoder().decode(Payload.self, from: data)
+        else { return nil }
+
+        let lit = payload.lit.reduce(into: [PiboOrnament.ID: Set<Int>]()) { result, entry in
+            guard let id = PiboOrnament.ID(rawValue: entry.key),
+                  !entry.value.isEmpty
+            else { return }
+            result[id] = Set(entry.value)
+        }
+        return State(day: payload.day, lit: lit)
+    }
+
+    func save(day: Date?, lit: [PiboOrnament.ID: Set<Int>]) {
+        guard let day, !lit.isEmpty else {
+            defaults.removeObject(forKey: key)
+            return
+        }
+        let payload = Payload(
+            day: day,
+            lit: lit.reduce(into: [:]) { result, entry in
+                result[entry.key.rawValue] = entry.value.sorted()
+            }
+        )
+        guard let data = try? JSONEncoder().encode(payload) else { return }
+        defaults.set(data, forKey: key)
+    }
+}
+
 /// 物件身上被用户亲手点亮的那些灯。
 ///
 /// 和 `OrnamentUnlockStore` 分开的理由和它自己那条一样，只是方向相反：解锁是既成
@@ -22,31 +70,23 @@ final class OrnamentLightStore {
     /// 决定，所以那个数组只能追加不能重排。
     private(set) var lit: [PiboOrnament.ID: Set<Int>] = [:]
 
-    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let persistence: OrnamentLightPersistence
     @ObservationIgnored private let calendar: Calendar
     /// 当前这批灯属于哪个点灯日。`nil` = 一盏没点。
     @ObservationIgnored private var litDay: Date?
-
-    private struct Payload: Codable {
-        var day: Date
-        var lit: [String: [Int]]
-    }
 
     init(
         defaults: UserDefaults = .standard,
         calendar: Calendar = .autoupdatingCurrent,
         now: Date = Date()
     ) {
-        self.defaults = defaults
+        let persistence = OrnamentLightPersistence(defaults: defaults)
+        self.persistence = persistence
         self.calendar = calendar
 
-        if let data = defaults.data(forKey: PiboPersistenceKeys.Defaults.boOrnamentLights),
-           let payload = try? JSONDecoder().decode(Payload.self, from: data) {
-            litDay = payload.day
-            lit = payload.lit.reduce(into: [:]) { result, entry in
-                guard let id = PiboOrnament.ID(rawValue: entry.key), !entry.value.isEmpty else { return }
-                result[id] = Set(entry.value)
-            }
+        if let state = persistence.load() {
+            litDay = state.day
+            lit = state.lit
         }
         // 进程刚起来就先对一次日子。冷启动往往正是跨过了一个天亮 —— 昨晚点的灯
         // 不能因为「没人在场看着它熄」就一直亮到明天。
@@ -117,19 +157,7 @@ final class OrnamentLightStore {
     }
 
     private func persist() {
-        let key = PiboPersistenceKeys.Defaults.boOrnamentLights
-        guard let litDay, !lit.isEmpty else {
-            defaults.removeObject(forKey: key)
-            return
-        }
-        let payload = Payload(
-            day: litDay,
-            lit: lit.reduce(into: [:]) { result, entry in
-                result[entry.key.rawValue] = entry.value.sorted()
-            }
-        )
-        guard let data = try? JSONEncoder().encode(payload) else { return }
-        defaults.set(data, forKey: key)
+        persistence.save(day: litDay, lit: lit)
     }
 
     #if DEBUG
