@@ -912,16 +912,15 @@ struct HomeView: View {
         activeSheet = .morningSleep(presentation, consumesPending: true)
     }
 
-    /// Resume whatever the just-dismissed modal was covering. The sleep card
-    /// owns the wake-up moment, so it goes first; the 发芽 close-up follows once
-    /// the screen is genuinely free.
     private func resumePendingHomeFlows() {
-        homeSheetDismissalInProgress = false
-        presentAchievementIfPossible()
-        guard activeSheet == nil else { return }
-        presentMorningSleepIfPossible()
-        presentStressCardIfPossible()
-        if activeSheet == nil { announceFirstRipeBoIfNeeded() }
+        HomePendingFlowCoordinator.resume(handlers: .init(
+            clearSheetDismissal: { homeSheetDismissalInProgress = false },
+            presentAchievement: presentAchievementIfPossible,
+            sheetIsAbsent: { activeSheet == nil },
+            presentMorningSleep: presentMorningSleepIfPossible,
+            presentStressCard: presentStressCardIfPossible,
+            announceFirstRipeBo: announceFirstRipeBoIfNeeded
+        ))
     }
 
     /// 首枚 `bo` 长熟时讲一次规则，之后再不打扰。
