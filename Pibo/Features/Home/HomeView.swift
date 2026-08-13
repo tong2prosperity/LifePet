@@ -152,24 +152,11 @@ struct HomeView: View {
     }
 
     private var idleSpeechContext: PiboCoreHomeSpeechContext? {
-        switch semanticAnimationStateID {
-        case "sleep-1", "sleep-2", "angry":
-            nil
-        case "awake":
-            store.wakingSleptEnough == false ? .wakingLowSleep : .waking
-        case "weak":
-            .lowSleepAndActivity
-        case "boring":
-            .lowActivity
-        case "tired":
-            .lowSleep
-        case "dive":
-            .dive
-        case "coolhide":
-            .coolhide
-        default:
-            store.hasRealHealthData ? .idle : .missingDataPibo
-        }
+        HomeIdleSpeechContextResolver.resolve(
+            animationStateID: semanticAnimationStateID,
+            wakingSleptEnough: store.wakingSleptEnough,
+            hasRealHealthData: store.hasRealHealthData
+        )
     }
 
     // 可选全屏功能页的呈现绑定统一过一遍 `PiboReleaseScope`。收在绑定
