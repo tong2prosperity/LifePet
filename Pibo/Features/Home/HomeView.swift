@@ -647,78 +647,42 @@ struct HomeView: View {
         let now = Date()
         let hour = localHour(at: now)
         let sourceStateID = semanticAnimationStateID
-        let context = HomePatInteractionPolicy.stateContext(for: sourceStateID)
-        let enteredAngry = store.animationExperience.registerActualPat(
+        HomePatInteractionCoordinator.run(
             localHour: hour,
-            countsTowardAngry: context.countsTowardAngry,
-            now: now
-        )
-        refreshAnimationState(now: now)
-        let targetStateID = semanticAnimationStateID
-        if targetStateID != sourceStateID {
-            let intent = PiboCoreAnimationAdapter.transitionIntent(
-                fromStateID: sourceStateID,
-                toStateID: targetStateID,
-                angryEntered: enteredAngry
-            )
-            stageCommands.transitionAnimation(to: targetStateID, intent: intent)
-        }
-
-        let route = HomePatInteractionPolicy.speechRoute(
             sourceStateID: sourceStateID,
-            targetStateID: semanticAnimationStateID,
-            angryEntered: enteredAngry
+            handlers: .init(
+                registerActualPat: { localHour, countsTowardAngry in
+                    store.animationExperience.registerActualPat(
+                        localHour: localHour,
+                        countsTowardAngry: countsTowardAngry,
+                        now: now
+                    )
+                },
+                refreshAnimationState: { refreshAnimationState(now: now) },
+                currentAnimationStateID: { semanticAnimationStateID },
+                transitionAnimation: { targetStateID, intent in
+                    stageCommands.transitionAnimation(to: targetStateID, intent: intent)
+                },
+                resolvePatSpeech: { context in
+                    piboSpeech.resolvePat(
+                        storyStage: storySpeechStage,
+                        restingState: context.resting,
+                        sleepingState: context.sleeping,
+                        facts: homeSpeechFacts,
+                        neutralLegacyMode: !PiboReleaseScope.temporaryCooperationOnboarding
+                    )
+                },
+                showAnimationLine: show,
+                showResolvedSpeech: show,
+                trackReaction: { reaction in
+                    Analytics.track(
+                        .pat,
+                        screen: "home",
+                        ["reaction": .string(reaction.rawValue)]
+                    )
+                }
+            )
         )
-        switch route {
-        case .immediateAnimation(let contentID, let reaction):
-            if let line = HomeSpeechPresentationPolicy.animationPatLine(
-                contentID: contentID,
-                angry: enteredAngry
-            ) {
-                show(line)
-            }
-            Analytics.track(.pat, screen: "home", ["reaction": .string(reaction.rawValue)])
-        case .conditionalAnimation(let contentID, let presentsWhenAllowed):
-            let resolution = piboSpeech.resolvePat(
-                storyStage: storySpeechStage,
-                restingState: context.resting,
-                sleepingState: context.sleeping,
-                facts: homeSpeechFacts,
-                neutralLegacyMode: !PiboReleaseScope.temporaryCooperationOnboarding
-            )
-            let shouldPresent = presentsWhenAllowed && resolution.shouldSpeak
-            if shouldPresent, let line = HomeSpeechPresentationPolicy.animationPatLine(
-                contentID: contentID,
-                angry: enteredAngry
-            ) {
-                show(line)
-            }
-            Analytics.track(
-                .pat,
-                screen: "home",
-                ["reaction": .string(
-                    HomePatInteractionPolicy.conditionalReaction(
-                        shouldPresent: shouldPresent
-                    ).rawValue
-                )]
-            )
-        case .resolvedSpeech:
-            let resolution = piboSpeech.resolvePat(
-                storyStage: storySpeechStage,
-                restingState: context.resting,
-                sleepingState: context.sleeping,
-                facts: homeSpeechFacts,
-                neutralLegacyMode: !PiboReleaseScope.temporaryCooperationOnboarding
-            )
-            if let speech = resolution.speech { show(speech) }
-            let reaction = HomePatInteractionPolicy.resolvedSpeechReaction(
-                hasSpeech: resolution.speech != nil
-            )
-            Analytics.track(.pat, screen: "home", ["reaction": .string(reaction.rawValue)])
-        case .silent:
-            let reaction = HomePatInteractionPolicy.Reaction.silent
-            Analytics.track(.pat, screen: "home", ["reaction": .string(reaction.rawValue)])
-        }
     }
 
     /// 拖毛 released past the pull threshold. 毛熟了的时候这就是拔毛；没熟的时候
