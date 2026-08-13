@@ -727,13 +727,10 @@ struct HomeView: View {
     }
 
     private func dismissEnergyPop() {
-        LPHaptics.tap()
-        Analytics.track(.energyCollected, screen: "home",
-                        ["sprouted": .bool(store.growthStage == .sprouted)])
-        // 发芽只讲「收集到能量」。运动完成的成果表演归成果卡片，`pigu` 不在主场景
-        // 出现 —— 这里曾经接着演一遍首页剧本，等于同一件事演两次。
-        store.consumePendingWorkout()
-        sproutFlow.finishPop()
+        HomeEnergyCollectionCoordinator.dismissPop(
+            store: store,
+            flow: sproutFlow
+        )
     }
 
     // MARK: 拔毛 / 拍照
