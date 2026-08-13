@@ -51,7 +51,7 @@ struct HomeView: View {
     /// Greeting / day-label cached once (they're "drawn once per day").
     @State private var greetingText: String = ""
     @State private var dayLabelText: String = ""
-    @State private var atmosphereNow = Date()
+    @State private var atmosphereClock = HomeAtmosphereClock()
     @State private var semanticAnimationStateID = PiboAnimationStateMap.fallback
     @State private var soundscape = AmbientSoundscapeService()
     #if DEBUG
@@ -171,7 +171,7 @@ struct HomeView: View {
         let forcedHour: Double? = nil
         #endif
         return PiboStageEnvironmentResolver.resolve(
-            date: atmosphereNow,
+            date: atmosphereClock.now,
             forcedHour: forcedHour,
             weather: weather.condition
         )
@@ -251,7 +251,14 @@ struct HomeView: View {
         homeScene
         .accessibilityHidden(stagePaused)
         .task { await idleMutterLoop() }
-        .task { await atmosphereClockLoop() }
+        .task {
+            await atmosphereClock.run { now in
+                refreshAnimationState()
+                // 每分钟一次正好是「有没有跨过天亮」需要的精度。灯是否该熄
+                // 由存储自己判断，这里重复调用是廉价的。
+                ornamentLights.refresh(now: now)
+            }
+        }
         .task(id: store.animationExperience.angryUntil) {
             guard let expiry = store.animationExperience.angryUntil else { return }
             let delay = max(0, expiry.timeIntervalSinceNow)
@@ -260,11 +267,11 @@ struct HomeView: View {
             refreshAnimationState(now: expiry)
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
-            atmosphereNow = Date()
+            atmosphereClock.refresh()
             refreshAnimationState()
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
-            atmosphereNow = Date()
+            atmosphereClock.refresh()
             refreshAnimationState()
         }
         .onReceive(NotificationCenter.default.publisher(
@@ -303,7 +310,7 @@ struct HomeView: View {
         .onChange(of: stageEnvironment) { _, environment in
             soundscape.apply(
                 environment: environment,
-                date: atmosphereNow,
+                date: atmosphereClock.now,
                 petID: store.identity.currentPetId
             )
         }
@@ -311,7 +318,11 @@ struct HomeView: View {
             speakForWeather(trigger: .environmentChanged)
         }
         .onChange(of: store.identity.currentPetId) { _, petID in
-            soundscape.apply(environment: stageEnvironment, date: atmosphereNow, petID: petID)
+            soundscape.apply(
+                environment: stageEnvironment,
+                date: atmosphereClock.now,
+                petID: petID
+            )
         }
         .onChange(of: ambientSoundEnabled) { _, enabled in
             soundscape.setEnabled(enabled)
@@ -632,7 +643,7 @@ struct HomeView: View {
     private func handlePat() {
         LPHaptics.tap()
         let now = Date()
-        let hour = localHour(at: now)
+        let hour = HomeAtmosphereClock.localHour(at: now)
         let sourceStateID = semanticAnimationStateID
         HomePatInteractionCoordinator.run(
             localHour: hour,
@@ -894,21 +905,6 @@ struct HomeView: View {
         }
     }
 
-    /// Wall-clock lighting is intentionally cheap: one update per minute plus
-    /// the explicit timezone/day notifications registered on the view.
-    private func atmosphereClockLoop() async {
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(60))
-            if !Task.isCancelled {
-                atmosphereNow = Date()
-                refreshAnimationState()
-                // 每分钟一次正好是「有没有跨过天亮」需要的精度。灯是否该熄
-                // 由存储自己判断，这里重复调用是廉价的。
-                ornamentLights.refresh(now: atmosphereNow)
-            }
-        }
-    }
-
     #if DEBUG
     /// 面板选中一个状态（nil = 交还给 Core）。
     ///
@@ -941,7 +937,7 @@ struct HomeView: View {
             at: now,
             calendar: calendar,
             sleepHistoryTotals: sleepHistoryTotals,
-            localHour: localHour(at: now),
+            localHour: HomeAtmosphereClock.localHour(at: now),
             rawSleepHours: store.rawSleepHours,
             hasStepsData: store.hasStepsData,
             rawSteps: store.rawSteps,
@@ -980,13 +976,6 @@ struct HomeView: View {
             notificationPresentationRequestID: store.animationExperience
                 .notificationPresentationRequestID
         )
-    }
-
-    private func localHour(at date: Date) -> Double {
-        let values = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
-        return Double(values.hour ?? 0)
-            + Double(values.minute ?? 0) / 60
-            + Double(values.second ?? 0) / 3_600
     }
 
     private func presentAchievementIfPossible() {
@@ -1107,7 +1096,7 @@ struct HomeView: View {
         soundscape.refreshExternalAudioSuppression()
         soundscape.apply(
             environment: stageEnvironment,
-            date: atmosphereNow,
+            date: atmosphereClock.now,
             petID: store.identity.currentPetId
         )
     }
