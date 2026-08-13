@@ -1240,14 +1240,12 @@ struct HomeView: View {
     /// 只说明首次形成事实；成熟物不会过期，也不会冻结后续积累。
     private func announceFirstRipeBoIfNeeded() {
         let key = PiboPersistenceKeys.Defaults.boFirstRipeNotified
-        guard boLedger.hasRipeBo,
-              !UserDefaults.standard.bool(forKey: key),
-              scenePhase == .active,
-              !stagePaused,
-              sproutPhase == .idle,
-              speech == nil,
-              idleSpeechContext != nil
-        else { return }
+        guard presentationPolicy.shouldAnnounceFirstRipeBo(
+            hasRipeBo: boLedger.hasRipeBo,
+            wasAnnounced: UserDefaults.standard.bool(forKey: key),
+            speechIsAbsent: speech == nil,
+            idleSpeechContextAvailable: idleSpeechContext != nil
+        ) else { return }
         UserDefaults.standard.set(true, forKey: key)
 
         show(PiboSpeechLine(text: AppLocalization.narrative("home.bo.firstRipe")))

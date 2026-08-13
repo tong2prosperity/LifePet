@@ -106,4 +106,19 @@ struct HomePresentationPolicy {
             && !fullScreenFeaturePresented
             && !sheetPresented()
     }
+
+    func shouldAnnounceFirstRipeBo(
+        hasRipeBo: @autoclosure () -> Bool,
+        wasAnnounced: @autoclosure () -> Bool,
+        speechIsAbsent: @autoclosure () -> Bool,
+        idleSpeechContextAvailable: @autoclosure () -> Bool
+    ) -> Bool {
+        hasRipeBo()
+            && !wasAnnounced()
+            && sceneIsActive()
+            && !stagePaused
+            && sproutFlowIsIdle()
+            && speechIsAbsent()
+            && idleSpeechContextAvailable()
+    }
 }
