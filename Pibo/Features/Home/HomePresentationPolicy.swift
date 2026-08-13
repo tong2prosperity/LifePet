@@ -1,3 +1,5 @@
+import PiboCore
+
 struct HomePresentationPolicy {
     private let sceneIsActive: () -> Bool
     private let cameraPresented: () -> Bool
@@ -66,5 +68,42 @@ struct HomePresentationPolicy {
         guard sceneIsActive() else { return .suspended }
         guard !fullScreenFeaturePresented else { return .suspended }
         return sheetPresented() ? .suspended : .active
+    }
+
+    func pendingAchievement(
+        animationStateID: @autoclosure () -> String,
+        pendingAchievement: @autoclosure () -> PiboAnimationAchievementPayload?
+    ) -> PiboAnimationAchievementPayload? {
+        guard sceneIsActive(),
+              !sheetPresented(),
+              !fullScreenFeaturePresented,
+              PiboCoreAnimationAdapter.achievementPresentationAllowed(
+                  in: animationStateID()
+              ),
+              let pendingAchievement = pendingAchievement()
+        else { return nil }
+        return pendingAchievement
+    }
+
+    func morningSleepPresentation<Presentation>(
+        sleepReviewGranted: @autoclosure () -> Bool,
+        consumablePresentation: @autoclosure () -> Presentation?
+    ) -> Presentation? {
+        guard sceneIsActive(),
+              sleepReviewGranted(),
+              !sheetPresented(),
+              !fullScreenFeaturePresented,
+              sproutFlowIsIdle(),
+              let consumablePresentation = consumablePresentation()
+        else { return nil }
+        return consumablePresentation
+    }
+
+    func shouldPresentStressCard(
+        pendingCardOpen: @autoclosure () -> Bool
+    ) -> Bool {
+        pendingCardOpen()
+            && !fullScreenFeaturePresented
+            && !sheetPresented()
     }
 }

@@ -1172,14 +1172,10 @@ struct HomeView: View {
     }
 
     private func presentAchievementIfPossible() {
-        guard scenePhase == .active,
-              activeSheet == nil,
-              !fullScreenFeaturePresented,
-              PiboCoreAnimationAdapter.achievementPresentationAllowed(
-                  in: semanticAnimationStateID
-              ),
-              let payload = store.animationExperience.pendingAchievement
-        else { return }
+        guard let payload = presentationPolicy.pendingAchievement(
+            animationStateID: semanticAnimationStateID,
+            pendingAchievement: store.animationExperience.pendingAchievement
+        ) else { return }
         activeSheet = .achievement(payload)
     }
 
@@ -1223,16 +1219,14 @@ struct HomeView: View {
     }
 
     private func presentMorningSleepIfPossible() {
-        guard scenePhase == .active,
-              ornamentUnlocks.grants(.sleepReview),
-              activeSheet == nil,
-              !fullScreenFeaturePresented,
-              sproutPhase == .idle,
-              // Re-validated at the moment of presentation, not when it was
-              // queued: a card queued late at night must not surface as "last
-              // night" after midnight, nor consume the wrong wake-day.
-              let presentation = morningSleep.consumablePresentation()
-        else { return }
+        let presentation = presentationPolicy.morningSleepPresentation(
+            sleepReviewGranted: ornamentUnlocks.grants(.sleepReview),
+            // Re-validated at the moment of presentation, not when it was
+            // queued: a card queued late at night must not surface as "last
+            // night" after midnight, nor consume the wrong wake-day.
+            consumablePresentation: morningSleep.consumablePresentation()
+        )
+        guard let presentation else { return }
         activeSheet = .morningSleep(presentation, consumesPending: true)
     }
 
@@ -1276,8 +1270,9 @@ struct HomeView: View {
     /// flag simply stays raised and `resumePendingHomeFlows` retries from the next
     /// `onDismiss`.
     private func presentStressCardIfPossible() {
-        guard stressNotifier.pendingCardOpen else { return }
-        guard !fullScreenFeaturePresented, activeSheet == nil else { return }
+        guard presentationPolicy.shouldPresentStressCard(
+            pendingCardOpen: stressNotifier.pendingCardOpen
+        ) else { return }
         stressNotifier.pendingCardOpen = false
         historyFocus = .stress
         showHistory = true
