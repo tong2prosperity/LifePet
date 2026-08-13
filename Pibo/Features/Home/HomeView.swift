@@ -246,7 +246,19 @@ struct HomeView: View {
     private var homeTaskContent: some View {
         homeScene
         .accessibilityHidden(stagePaused)
-        .task { await idleMutterLoop() }
+        .task {
+            await HomeSpeechOpportunityCoordinator.runIdleLoop(
+                speechIsAbsent: { speechPresentation.line == nil },
+                sproutIsIdle: { sproutPhase == .idle },
+                stageIsPaused: { stagePaused },
+                context: { idleSpeechContext },
+                storyStage: { storySpeechStage },
+                facts: { homeSpeechFacts },
+                values: { homeSpeechValues },
+                speech: piboSpeech,
+                show: show
+            )
+        }
         .task {
             await atmosphereClock.run { now in
                 refreshAnimationState()
@@ -795,35 +807,14 @@ struct HomeView: View {
     }
 
     private func speakForWeather(trigger: PiboSpeechTrigger) {
-        guard !stagePaused,
-              idleSpeechContext != nil,
-              let weather = PiboSpeechWeather(rawValue: weather.condition.rawValue),
-              let line = piboSpeech.resolve(
-                cues: [.weather(weather)],
-                context: .home(trigger: trigger)
-              )
-        else { return }
-        show(line)
-    }
-
-    /// Offers an idle speech opportunity every 15–30s. The app-wide resolver
-    /// usually returns silence because it owns the daily budget and cooldown.
-    private func idleMutterLoop() async {
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(Double.random(in: 15...30)))
-            if speechPresentation.line == nil,
-               sproutPhase == .idle,
-               !stagePaused,
-               let context = idleSpeechContext,
-               let line = piboSpeech.resolveIdle(
-                context: context,
-                storyStage: storySpeechStage,
-                facts: homeSpeechFacts,
-                values: homeSpeechValues
-               ) {
-                show(line)
-            }
-        }
+        HomeSpeechOpportunityCoordinator.presentWeatherIfPossible(
+            trigger: trigger,
+            stageIsPaused: stagePaused,
+            idleSpeechContext: idleSpeechContext,
+            weather: weather.condition,
+            speech: piboSpeech,
+            show: show
+        )
     }
 
     #if DEBUG
