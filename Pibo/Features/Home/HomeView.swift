@@ -70,16 +70,11 @@ struct HomeView: View {
     @State private var soundscape = AmbientSoundscapeService()
     #if DEBUG
     @State private var forestTuning: StageRenderTuning = .standard
-    @State private var tuningPanelExpanded = !ProcessInfo.processInfo.arguments.contains("-PiboHideTuning")
+    @State private var tuningPanelExpanded = !HomeDebugLaunchOptions.current.hidesTuningPanel
     /// 面板强制的动画态。nil = 跟随 Core。`-PiboAnimationState=` 只是把它种上，
     /// 所以启动参数与面板走的是同一条覆盖路径。
-    @State private var debugForcedAnimationStateID: String? = {
-        guard let argument = ProcessInfo.processInfo.arguments.first(where: {
-            $0.hasPrefix("-PiboAnimationState=")
-        }) else { return nil }
-        let value = String(argument.dropFirst("-PiboAnimationState=".count))
-        return PiboAnimationStateMap.available.contains(value) ? value : nil
-    }()
+    @State private var debugForcedAnimationStateID = HomeDebugLaunchOptions.current
+        .forcedAnimationStateID
     /// Core 自己的判定，被面板覆盖时仍然显示出来 —— 走查时要能看出「Core 说
     /// default，我在强制 dive」。
     @State private var coreAnimationStateID = PiboAnimationStateMap.fallback
@@ -319,38 +314,32 @@ struct HomeView: View {
             speakForWeather(trigger: .entered)
             refreshAnimationState()
             #if DEBUG
-            if let hourArgument = ProcessInfo.processInfo.arguments.first(where: {
-                $0.hasPrefix("-PiboForestHour=")
-            }) {
-                let rawValue = String(hourArgument.dropFirst("-PiboForestHour=".count))
-                store.debugForestHour = rawValue == "auto" ? nil : Double(rawValue)
+            let launchOptions = HomeDebugLaunchOptions.current
+            if case .value(let hour)? = launchOptions.forestHourOverride {
+                store.debugForestHour = hour
             }
-            if ProcessInfo.processInfo.arguments.contains("-PiboSimulateMeal") {
+            if launchOptions.simulatesMeal {
                 Task { try? await Task.sleep(for: .seconds(1)); debugSimulateMeal(.lunch) }
             }
             if PiboReleaseScope.miniGames, !debugOpenedGames,
-               ProcessInfo.processInfo.arguments.contains("-PiboOpenGames") {
+               launchOptions.opensGames {
                 debugOpenedGames = true
                 Task {
                     try? await Task.sleep(for: .milliseconds(350))
                     showGames = true
                 }
             }
-            if !debugOpenedHistory, ProcessInfo.processInfo.arguments.contains("-PiboOpenHistory") {
+            if !debugOpenedHistory, launchOptions.opensHistory {
                 debugOpenedHistory = true
                 Task {
                     try? await Task.sleep(for: .milliseconds(350))
                     showHistory = true
                 }
             }
-            if ProcessInfo.processInfo.arguments.contains("-PiboShowMorningSleep") {
+            if launchOptions.showsMorningSleep {
                 morningSleep.debugPresentFixture()
             }
-            if let argument = ProcessInfo.processInfo.arguments.first(where: {
-                $0.hasPrefix("-PiboShowAchievement=")
-            }), let kind = PiboAnimationAchievementKind(
-                rawValue: String(argument.dropFirst("-PiboShowAchievement=".count))
-            ) {
+            if let kind = launchOptions.achievementKind {
                 let payload = PiboAnimationAchievementPayload(
                     id: UUID(),
                     kind: kind,
@@ -364,43 +353,30 @@ struct HomeView: View {
                     activeSheet = .achievement(payload)
                 }
             }
-            if let argument = ProcessInfo.processInfo.arguments.first(where: {
-                $0.hasPrefix("-PiboBounceTo=")
-            }) {
-                let target = String(argument.dropFirst("-PiboBounceTo=".count))
-                if PiboAnimationStateMap.available.contains(target) {
-                    Task {
-                        // Deterministic Simulator capture hook. The delay leaves
-                        // one stable source frame before the exact 710 ms cut.
-                        try? await Task.sleep(for: .seconds(2))
-                        guard !Task.isCancelled else { return }
-                        semanticAnimationStateID = target
-                        stageCommands.transitionAnimation(to: target, intent: .bounceCut)
-                    }
+            if let target = launchOptions.bounceTargetStateID {
+                Task {
+                    // Deterministic Simulator capture hook. The delay leaves
+                    // one stable source frame before the exact 710 ms cut.
+                    try? await Task.sleep(for: .seconds(2))
+                    guard !Task.isCancelled else { return }
+                    semanticAnimationStateID = target
+                    stageCommands.transitionAnimation(to: target, intent: .bounceCut)
                 }
             }
-            if let argument = ProcessInfo.processInfo.arguments.first(where: {
-                $0.hasPrefix("-PiboSelectStateAfter=")
-            }) {
-                let target = String(argument.dropFirst("-PiboSelectStateAfter=".count))
-                if PiboAnimationStateMap.available.contains(target) {
-                    Task {
-                        // 走查面板本身的抓帧钩子：模拟器合成不了点击，所以让这个
-                        // 参数走面板那条完整选择路径（而不是直接写状态变量），
-                        // 前后各截一帧就能证明「面板选中 → 舞台换态」是通的。
-                        try? await Task.sleep(for: .seconds(3))
-                        guard !Task.isCancelled else { return }
-                        applyDebugAnimationState(target)
-                    }
+            if let target = launchOptions.selectedStateIDAfterDelay {
+                Task {
+                    // 走查面板本身的抓帧钩子：模拟器合成不了点击，所以让这个
+                    // 参数走面板那条完整选择路径（而不是直接写状态变量），
+                    // 前后各截一帧就能证明「面板选中 → 舞台换态」是通的。
+                    try? await Task.sleep(for: .seconds(3))
+                    guard !Task.isCancelled else { return }
+                    applyDebugAnimationState(target)
                 }
             }
-            if let argument = ProcessInfo.processInfo.arguments.first(where: {
-                $0.hasPrefix("-PiboBoProgress=")
-            }), let value = Int(argument.dropFirst("-PiboBoProgress=".count)),
-               let milestone = BoProgressMilestone(rawValue: value) {
+            if let milestone = launchOptions.boProgressMilestone {
                 boProgressFeedback.enqueue(milestone)
             }
-            if ProcessInfo.processInfo.arguments.contains("-PiboOpenBoPanel") {
+            if launchOptions.opensBoPanel {
                 Task {
                     try? await Task.sleep(for: .milliseconds(500))
                     showBoUnlockPage = true
@@ -411,7 +387,7 @@ struct HomeView: View {
             // present-history → 原版 tab → scroll-to-压力卡 path runs. Seed first —
             // the 压力卡 renders only when a derived score exists, and a bare
             // simulator has no heartbeat series to produce one.
-            if ProcessInfo.processInfo.arguments.contains("-PiboOpenStressCard") {
+            if launchOptions.opensStressCard {
                 store.debugSeedStressIfNeeded()
                 stressNotifier.pendingCardOpen = true
             }
@@ -1370,9 +1346,7 @@ struct HomeView: View {
     private func confirmAchievement(_ payload: PiboAnimationAchievementPayload) {
         #if DEBUG
         if store.animationExperience.pendingAchievement?.id != payload.id,
-           ProcessInfo.processInfo.arguments.contains(where: {
-               $0.hasPrefix("-PiboShowAchievement=")
-           }) {
+           HomeDebugLaunchOptions.current.hasAchievementArgument {
             activeSheet = nil
             return
         }
