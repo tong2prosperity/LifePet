@@ -340,41 +340,38 @@ struct HomeView: View {
 
     private var homeStateObservationContent: some View {
         homeLifecycleContent
-        .onChange(of: animationRefreshToken) { oldValue, newValue in
-            refreshAnimationState()
-            let changes = newValue.achievementChanges(from: oldValue)
-            if changes.pendingAchievementChanged {
-                reconcilePresentedAchievement()
-            }
-            if changes.shouldAttemptPresentation {
-                presentAchievementIfPossible()
-            }
-        }
-        .onChange(of: morningSleep.pendingPresentation?.id) { _, _ in
-            presentMorningSleepIfPossible()
-        }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
-                refreshAnimationState()
-                // 后台待了一夜的常见情形：回前台先对一次点灯日，不然昨晚的灯会
-                // 因为「没人在场看着它熄」而继续亮着。
+            .modifier(stateObservationModifier)
+    }
+
+    private var stateObservationModifier: HomeStateObservationModifier {
+        HomeStateObservationModifier(
+            animationRefreshToken: animationRefreshToken,
+            morningSleepPresentationID: morningSleep.pendingPresentation?.id,
+            scenePhase: scenePhase,
+            pendingStressCardOpen: stressNotifier.pendingCardOpen,
+            hasRipeBo: boLedger.hasRipeBo,
+            animationStateID: semanticAnimationStateID,
+            sproutPhase: sproutPhase,
+            handlers: stateObservationHandlers
+        )
+    }
+
+    private var stateObservationHandlers: HomeStateObservationCoordinator.Handlers {
+        HomeStateObservationCoordinator.Handlers(
+            refreshAnimation: { refreshAnimationState() },
+            reconcileAchievement: reconcilePresentedAchievement,
+            presentAchievement: presentAchievementIfPossible,
+            refreshOrnamentLights: {
+                // A foreground return can cross dawn while nobody was present
+                // to watch yesterday's lights turn off.
                 ornamentLights.refresh()
-                presentAchievementIfPossible()
-                presentMorningSleepIfPossible()
-            }
-        }
-        .onChange(of: stressNotifier.pendingCardOpen) { _, _ in
-            presentStressCardIfPossible()
-        }
-        .onChange(of: boLedger.hasRipeBo) { _, isRipe in
-            if isRipe { announceFirstRipeBoIfNeeded() }
-        }
-        .onChange(of: semanticAnimationStateID) { _, _ in
-            if boLedger.hasRipeBo { announceFirstRipeBoIfNeeded() }
-        }
-        .onChange(of: sproutPhase) { _, phase in
-            if phase == .idle { resumePendingHomeFlows() }
-        }
+            },
+            presentMorningSleep: presentMorningSleepIfPossible,
+            presentStressCard: presentStressCardIfPossible,
+            currentHasRipeBo: { boLedger.hasRipeBo },
+            announceFirstRipeBo: announceFirstRipeBoIfNeeded,
+            resumePendingFlows: resumePendingHomeFlows
+        )
     }
 
     private var homeWithoutSheet: some View {
