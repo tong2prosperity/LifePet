@@ -510,51 +510,32 @@ struct HomeView: View {
     }
 
     private var shouldShowStoryRecoveryBanner: Bool {
-        guard PiboReleaseScope.temporaryCooperationOnboarding,
-              onboarding.needsStoryRecovery,
-              !storyRecoveryDismissed
-        else { return false }
-        #if DEBUG
-        return true
-        #else
-        let day = Calendar.current.ordinality(of: .day, in: .era, for: .now) ?? 0
-        return day.isMultiple(of: 3)
-        #endif
+        HomeStoryRecoveryPolicy.shouldShow(
+            featureEnabled: PiboReleaseScope.temporaryCooperationOnboarding,
+            needsRecovery: onboarding.needsStoryRecovery,
+            dismissed: storyRecoveryDismissed
+        ) {
+            #if DEBUG
+            return true
+            #else
+            let day = Calendar.current.ordinality(of: .day, in: .era, for: .now) ?? 0
+            return day.isMultiple(of: 3)
+            #endif
+        }
     }
 
     private var storyRecoveryBanner: some View {
-        HStack(spacing: LP.Spacing.m) {
-            Button {
+        HomeStoryRecoveryBanner(
+            messageKey: onboarding.recoveryMessageKey,
+            actionKey: onboarding.recoveryActionKey,
+            onOpen: {
                 Analytics.track(.storyRecoveryOpened, screen: "home")
                 showStoryRecovery = true
-            } label: {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(AppLocalization.narrative(onboarding.recoveryMessageKey))
-                        .lpText(LP.Typography.c1Regular)
-                        .foregroundStyle(LP.Content.primary)
-                    Text(AppLocalization.narrative(onboarding.recoveryActionKey))
-                        .lpText(LP.Typography.c1Medium)
-                        .foregroundStyle(LP.Fill.foundationAccent)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-
-            Button {
+            },
+            onDismiss: {
                 storyRecoveryDismissed = true
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(LP.Content.tertiary)
-                    .frame(width: 32, height: 32)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(AppLocalization.narrative("onboarding.close"))
-        }
-        .padding(.horizontal, LP.Spacing.m)
-        .padding(.vertical, LP.Spacing.s)
-        .background(LP.Fill.bgContainer.opacity(0.94), in: RoundedRectangle(cornerRadius: 18))
-        .lpShadow(LP.Shadow.elevation2)
+        )
     }
 
     @ViewBuilder
