@@ -882,36 +882,31 @@ struct HomeView: View {
     }
 
     private func confirmAchievement(_ payload: PiboAnimationAchievementPayload) {
-        #if DEBUG
-        if HomeAchievementPresentationPolicy.shouldDismissStaleFixture(
-            presentedAchievementID: payload.id,
-            pendingAchievementID: store.animationExperience.pendingAchievement?.id,
-            fixtureEnabled: HomeDebugLaunchOptions.current.hasAchievementArgument
-        ) {
-            activeSheet = nil
-            return
-        }
-        #endif
-        guard HomeAchievementPresentationPolicy.shouldConfirm(
-            presentedAchievementID: payload.id,
-            pendingAchievementID: store.animationExperience.pendingAchievement?.id
-        ) else { return }
-        _ = store.animationExperience.confirmPending()
-        if HomeAchievementPresentationPolicy.consumesPendingWorkout(
+        HomeAchievementConfirmationCoordinator.confirm(
             presentedAchievement: payload,
-            pendingWorkoutID: store.pendingWorkout?.id
-        ) {
-            store.consumePendingWorkout()
-        }
-        #if DEBUG
-        if debugWorkoutID == payload.id {
-            boLedger.debugApplyWorkout(durationMinutes: payload.workoutDurationMinutes ?? 24)
-            debugWorkoutID = nil
-        }
-        #endif
-        refreshAnimationState()
-        homeSheetDismissalInProgress = true
-        activeSheet = nil
+            handlers: .init(
+                currentPendingAchievementID: { store.animationExperience.pendingAchievement?.id },
+                dismissStaleFixture: { activeSheet = nil },
+                confirmPending: { _ = store.animationExperience.confirmPending() },
+                currentPendingWorkoutID: { store.pendingWorkout?.id },
+                consumePendingWorkout: { store.consumePendingWorkout() },
+                applyDebugReward: {
+                    #if DEBUG
+                    if debugWorkoutID == payload.id {
+                        boLedger.debugApplyWorkout(
+                            durationMinutes: payload.workoutDurationMinutes ?? 24
+                        )
+                        debugWorkoutID = nil
+                    }
+                    #endif
+                },
+                refreshAnimationState: { refreshAnimationState() },
+                beginSheetDismissal: {
+                    homeSheetDismissalInProgress = true
+                    activeSheet = nil
+                }
+            )
+        )
     }
 
     private func presentMorningSleepIfPossible() {
