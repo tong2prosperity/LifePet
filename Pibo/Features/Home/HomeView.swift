@@ -38,9 +38,7 @@ struct HomeView: View {
     /// the first particle frame is never spent behind the confirmation UI.
     @State private var homeSheetDismissalInProgress = false
     #if DEBUG
-    @State private var debugOpenedGames = false
-    @State private var debugOpenedHistory = false
-    @State private var debugWorkoutID: UUID?
+    @State private var debugAutomation = HomeDebugAutomationController()
     #endif
     @State private var recognizer = FoodRecognitionService()
     @State private var stageCommands = PiboStageCommandController()
@@ -740,12 +738,10 @@ struct HomeView: View {
                 consumePendingWorkout: { store.consumePendingWorkout() },
                 applyDebugReward: {
                     #if DEBUG
-                    if debugWorkoutID == payload.id {
-                        boLedger.debugApplyWorkout(
-                            durationMinutes: payload.workoutDurationMinutes ?? 24
-                        )
-                        debugWorkoutID = nil
-                    }
+                    debugAutomation.applyWorkoutRewardIfMatching(
+                        payload,
+                        ledger: boLedger
+                    )
                     #endif
                 },
                 refreshAnimationState: { refreshAnimationState() },
@@ -830,37 +826,21 @@ struct HomeView: View {
 
 #if DEBUG
     private func runDebugLaunchAutomation() {
-        HomeDebugLaunchAutomation.run(
+        debugAutomation.runLaunchAutomation(
             options: .current,
             miniGamesEnabled: PiboReleaseScope.miniGames,
-            gamesAlreadyOpened: &debugOpenedGames,
-            historyAlreadyOpened: &debugOpenedHistory,
-            handlers: .init(
-                setForestHour: { store.debugForestHour = $0 },
-                simulateLunch: { debugSimulateMeal(.lunch) },
-                openGames: { featurePresentation.showGames = true },
-                openHistory: { featurePresentation.showHistory = true },
-                showMorningSleep: { morningSleep.debugPresentFixture() },
-                presentAchievementIfAvailable: { payload in
-                    guard activeSheet == nil else { return }
-                    activeSheet = .achievement(payload)
-                },
-                bounceToAnimationState: { target in
-                    // Deterministic Simulator capture hook. The delay leaves
-                    // one stable source frame before the exact 710 ms cut.
-                    animationPresentation.prepareDebugBounce(to: target)
-                    stageCommands.transitionAnimation(to: target, intent: .bounceCut)
-                },
-                selectAnimationState: applyDebugAnimationState,
-                enqueueBoProgress: { boProgressFeedback.enqueue($0) },
-                openBoPanel: { showBoUnlockPage = true },
-                openStressCard: {
-                    // Seed first: the stress card needs a derived score, which
-                    // a bare simulator has no heartbeat series to produce.
-                    store.debugSeedStressIfNeeded()
-                    stressNotifier.pendingCardOpen = true
-                }
-            )
+            store: store,
+            presentation: featurePresentation,
+            morningSleep: morningSleep,
+            animationPresentation: animationPresentation,
+            stageCommands: stageCommands,
+            boProgressFeedback: boProgressFeedback,
+            stressNotifier: stressNotifier,
+            sheetIsAbsent: { activeSheet == nil },
+            presentSheet: { activeSheet = $0 },
+            selectAnimationState: applyDebugAnimationState,
+            photoSaved: handlePhotoSaved,
+            openBoPanel: { showBoUnlockPage = true }
         )
     }
 
@@ -868,35 +848,19 @@ struct HomeView: View {
     /// injected. Waiting for the navigation pop avoids queuing the modal behind
     /// an off-screen destination and makes the one-tap rehearsal deterministic.
     private func debugSimulateWorkout() {
-        featurePresentation.showSettings = false
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(350))
-            guard !Task.isCancelled else { return }
-            debugWorkoutID = store.debugInjectWorkout()
-        }
+        debugAutomation.simulateWorkout(
+            store: store,
+            presentation: featurePresentation
+        )
     }
 
     /// DEV: exercise the full 拍餐识别 path without a camera — render a food emoji
     /// as the "captured" frame and run it through `handlePhotoSaved`.
     private func debugSimulateMeal(_ meal: MealType) {
-        let img = Self.debugFoodImage("🍜")
-        handlePhotoSaved(img, nil, meal: meal)
-    }
-
-    private static func debugFoodImage(_ emoji: String, size: CGFloat = 512) -> UIImage {
-        let s = CGSize(width: size, height: size)
-        let fmt = UIGraphicsImageRendererFormat.default()
-        fmt.opaque = true
-        return UIGraphicsImageRenderer(size: s, format: fmt).image { ctx in
-            UIColor.white.setFill()
-            ctx.fill(CGRect(origin: .zero, size: s))
-            let str = emoji as NSString
-            let font = UIFont.systemFont(ofSize: size * 0.6)
-            let attrs: [NSAttributedString.Key: Any] = [.font: font]
-            let ts = str.size(withAttributes: attrs)
-            str.draw(at: CGPoint(x: (size - ts.width) / 2, y: (size - ts.height) / 2),
-                     withAttributes: attrs)
-        }
+        HomeDebugAutomationController.simulateMeal(
+            meal,
+            photoSaved: handlePhotoSaved
+        )
     }
 #endif
 }
