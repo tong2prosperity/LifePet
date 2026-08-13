@@ -94,13 +94,6 @@ struct HomeView: View {
         presentationPolicy.fullScreenFeaturePresented
     }
 
-    private var boCounterFeedbackRequest: BoCounterFeedbackRequest? {
-        BoCounterFeedbackRequest(
-            feedID: store.feedToken,
-            milestoneID: boProgressFeedback.pending?.id
-        )
-    }
-
     private var boCounterFeedbackEnabled: Bool {
         presentationPolicy.boCounterFeedbackEnabled
     }
@@ -564,61 +557,14 @@ struct HomeView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(alignment: .top, spacing: LP.Spacing.s) {
-            VStack(alignment: .leading, spacing: LP.Spacing.s) {
-                BoCounterView(
-                    balance: boLedger.balance,
-                    growthProgress: boLedger.growthProgress,
-                    hasRipeBo: boLedger.hasRipeBo,
-                    highlightsExchange: ornamentUnlocks.shouldHighlightUnlockGuide(
-                        balance: boLedger.balance
-                    ),
-                    feedbackRequest: boCounterFeedbackRequest,
-                    feedbackEnabled: boCounterFeedbackEnabled,
-                    feedbackCompleted: { request in
-                        if store.feedToken == request.feedID {
-                            store.feedToken = nil
-                        }
-                        if let milestoneID = request.milestoneID {
-                            boProgressFeedback.consume(id: milestoneID)
-                        }
-                    },
-                    collectAction: {
-                        dismissSpeech()
-                        return doPluck()
-                    }
-                ) {
-                    dismissSpeech()
-                    Analytics.track(.boPanelOpen, screen: "home",
-                                    ["balance": .int(boLedger.balance)])
-                    showBoUnlockPage = true
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            cornerActions
-        }
-        .padding(.top, LP.Spacing.s)
-    }
-
-    private var cornerActions: some View {
-        HomeCornerActions(
+        HomeHeader(
+            featurePresentation: featurePresentation,
+            showBoUnlockPage: $showBoUnlockPage,
             cameraEnabled: canUseDewCamera,
             walkDoodleEnabled: canUseWalkDoodle,
+            feedbackEnabled: boCounterFeedbackEnabled,
             dismissSpeech: dismissSpeech,
-            onOpenCamera: {
-                Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
-                featurePresentation.cameraInitialMeal = nil
-                featurePresentation.showCamera = true
-            },
-            onOpenWalkDoodle: {
-                featurePresentation.showWalkDoodle = true
-            },
-            onOpenSettings: {
-                Analytics.track(.settingsOpen, screen: "home")
-                featurePresentation.showSettings = true
-            }
+            collectAction: doPluck
         )
     }
 

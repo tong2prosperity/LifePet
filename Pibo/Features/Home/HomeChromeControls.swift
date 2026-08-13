@@ -1,5 +1,84 @@
 import SwiftUI
 
+/// Top-row Home chrome. It keeps the established `bo` and corner-entry wiring
+/// beside the controls that emit those actions, while Home owns presentation.
+struct HomeHeader: View {
+    @Environment(PetStateStore.self) private var store
+    @Environment(BoProgressFeedbackStore.self) private var boProgressFeedback
+    @Environment(BoLedgerStore.self) private var boLedger
+    @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
+
+    let featurePresentation: HomeFeaturePresentationState
+    @Binding var showBoUnlockPage: Bool
+    let cameraEnabled: Bool
+    let walkDoodleEnabled: Bool
+    let feedbackEnabled: Bool
+    let dismissSpeech: () -> Void
+    let collectAction: () -> Bool
+
+    private var feedbackRequest: BoCounterFeedbackRequest? {
+        BoCounterFeedbackRequest(
+            feedID: store.feedToken,
+            milestoneID: boProgressFeedback.pending?.id
+        )
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: LP.Spacing.s) {
+            VStack(alignment: .leading, spacing: LP.Spacing.s) {
+                BoCounterView(
+                    balance: boLedger.balance,
+                    growthProgress: boLedger.growthProgress,
+                    hasRipeBo: boLedger.hasRipeBo,
+                    highlightsExchange: ornamentUnlocks.shouldHighlightUnlockGuide(
+                        balance: boLedger.balance
+                    ),
+                    feedbackRequest: feedbackRequest,
+                    feedbackEnabled: feedbackEnabled,
+                    feedbackCompleted: { request in
+                        if store.feedToken == request.feedID {
+                            store.feedToken = nil
+                        }
+                        if let milestoneID = request.milestoneID {
+                            boProgressFeedback.consume(id: milestoneID)
+                        }
+                    },
+                    collectAction: {
+                        dismissSpeech()
+                        return collectAction()
+                    }
+                ) {
+                    dismissSpeech()
+                    Analytics.track(.boPanelOpen, screen: "home",
+                                    ["balance": .int(boLedger.balance)])
+                    showBoUnlockPage = true
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            HomeCornerActions(
+                cameraEnabled: cameraEnabled,
+                walkDoodleEnabled: walkDoodleEnabled,
+                dismissSpeech: dismissSpeech,
+                onOpenCamera: {
+                    Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
+                    featurePresentation.cameraInitialMeal = nil
+                    featurePresentation.showCamera = true
+                },
+                onOpenWalkDoodle: {
+                    featurePresentation.showWalkDoodle = true
+                },
+                onOpenSettings: {
+                    Analytics.track(.settingsOpen, screen: "home")
+                    featurePresentation.showSettings = true
+                }
+            )
+        }
+        .padding(.top, LP.Spacing.s)
+    }
+}
+
 struct HomeCornerActions: View {
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
