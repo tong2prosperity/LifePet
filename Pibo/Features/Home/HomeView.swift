@@ -31,18 +31,8 @@ struct HomeView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var speechPresentation = HomeSpeechPresentationController()
-    @State private var showCamera = false
-    @State private var showGames = false
-    @State private var showHistory = false
+    @State private var featurePresentation = HomeFeaturePresentationState()
     @State private var showBoUnlockPage = false
-    @State private var showSettings = false
-    @State private var showStoryRecovery = false
-    @State private var storyRecoveryDismissed = false
-    /// Card the history cover should land on. Set only by the stress-notification
-    /// deep link; the 足迹 icon opens with `nil` (top of the 足迹 tab).
-    @State private var historyFocus: HistoryFocus?
-
-    @State private var showWalkDoodle = false
     @State private var activeSheet: HomeSheetDestination?
     /// `activeSheet` becomes nil at the start of dismissal, while its pixels are
     /// still covering Home. Badge feedback waits for the sheet's `onDismiss` so
@@ -53,9 +43,6 @@ struct HomeView: View {
     @State private var debugOpenedHistory = false
     @State private var debugWorkoutID: UUID?
     #endif
-    /// A meal passed by the detail sheet's “重拍” action. Normal home entry leaves
-    /// this nil and lets the camera own purpose + meal selection.
-    @State private var cameraInitialMeal: MealType? = nil
     @State private var recognizer = FoodRecognitionService()
     @State private var stageCommands = PiboStageCommandController()
     /// 发芽 close-up trigger + phase (Figma 74:6102: workout detected → 特写
@@ -87,12 +74,12 @@ struct HomeView: View {
     private var presentationPolicy: HomePresentationPolicy {
         HomePresentationPolicy(
             sceneIsActive: scenePhase == .active,
-            cameraPresented: showCamera,
-            gamesPresented: showGames,
-            historyPresented: showHistory,
-            walkDoodlePresented: showWalkDoodle,
-            settingsPresented: showSettings,
-            storyRecoveryPresented: showStoryRecovery,
+            cameraPresented: featurePresentation.showCamera,
+            gamesPresented: featurePresentation.showGames,
+            historyPresented: featurePresentation.showHistory,
+            walkDoodlePresented: featurePresentation.showWalkDoodle,
+            settingsPresented: featurePresentation.showSettings,
+            storyRecoveryPresented: featurePresentation.showStoryRecovery,
             sheetPresented: activeSheet != nil,
             sheetDismissalInProgress: homeSheetDismissalInProgress,
             sproutFlowIsIdle: sproutPhase == .idle
@@ -158,21 +145,15 @@ struct HomeView: View {
     // 上而不是只收在按钮上，是因为按钮不是唯一入口（重拍、启动参数、以后新加的
     // 任何一处赋值都会走这里），这样"关着"就不依赖调用方记得判断。
     private var cameraPresented: Binding<Bool> {
-        Binding(
-            get: { showCamera && canUseDewCamera },
-            set: { showCamera = $0 && canUseDewCamera }
-        )
+        featurePresentation.cameraBinding(isEnabled: canUseDewCamera)
     }
 
     private var gamesPresented: Binding<Bool> {
-        Binding(get: { showGames && PiboReleaseScope.miniGames }, set: { showGames = $0 })
+        featurePresentation.gamesBinding(isEnabled: PiboReleaseScope.miniGames)
     }
 
     private var walkDoodlePresented: Binding<Bool> {
-        Binding(
-            get: { showWalkDoodle && canUseWalkDoodle },
-            set: { showWalkDoodle = $0 && canUseWalkDoodle }
-        )
+        featurePresentation.walkDoodleBinding(isEnabled: canUseWalkDoodle)
     }
 
     private var canUseDewCamera: Bool {
@@ -387,9 +368,13 @@ struct HomeView: View {
         // way out, which SwiftUI silently drops — leaving `activeSheet` non-nil
         // with nothing on screen and no way back.
         .fullScreenCover(isPresented: cameraPresented, onDismiss: resumePendingHomeFlows) {
-            PiboCameraView(initialMeal: cameraInitialMeal, onPhotoSaved: { image, label, meal in
-                handlePhotoSaved(image, label, meal: meal)
-            }).environment(store)
+            PiboCameraView(
+                initialMeal: featurePresentation.cameraInitialMeal,
+                onPhotoSaved: { image, label, meal in
+                    handlePhotoSaved(image, label, meal: meal)
+                }
+            )
+            .environment(store)
         }
         .fullScreenCover(isPresented: gamesPresented, onDismiss: resumePendingHomeFlows) {
             GameListView(
@@ -399,21 +384,24 @@ struct HomeView: View {
                 .environment(store)
                 .environment(history)
         }
-        .fullScreenCover(isPresented: $showHistory, onDismiss: historyDismissed) {
-            HistoryScreen(focus: historyFocus)
+        .fullScreenCover(
+            isPresented: featurePresentation.historyBinding,
+            onDismiss: historyDismissed
+        ) {
+            HistoryScreen(focus: featurePresentation.historyFocus)
                 .environment(store)
                 .environment(history)
         }
-        .fullScreenCover(isPresented: $showStoryRecovery) {
+        .fullScreenCover(isPresented: featurePresentation.storyRecoveryBinding) {
             HealthAuthView(mode: .storyRecovery) {
-                showStoryRecovery = false
-                storyRecoveryDismissed = true
+                featurePresentation.showStoryRecovery = false
+                featurePresentation.storyRecoveryDismissed = true
             }
         }
         .fullScreenCover(isPresented: walkDoodlePresented, onDismiss: resumePendingHomeFlows) {
             WalkDoodleView(onSaved: handleDoodleSaved)
         }
-        .navigationDestination(isPresented: $showSettings) {
+        .navigationDestination(isPresented: featurePresentation.settingsBinding) {
             settingsDestination
         }
     }
@@ -429,7 +417,7 @@ struct HomeView: View {
         HomeStoryRecoveryPolicy.shouldShow(
             featureEnabled: PiboReleaseScope.temporaryCooperationOnboarding,
             needsRecovery: onboarding.needsStoryRecovery,
-            dismissed: storyRecoveryDismissed
+            dismissed: featurePresentation.storyRecoveryDismissed
         ) {
             #if DEBUG
             return true
@@ -446,10 +434,10 @@ struct HomeView: View {
             actionKey: onboarding.recoveryActionKey,
             onOpen: {
                 Analytics.track(.storyRecoveryOpened, screen: "home")
-                showStoryRecovery = true
+                featurePresentation.showStoryRecovery = true
             },
             onDismiss: {
-                storyRecoveryDismissed = true
+                featurePresentation.storyRecoveryDismissed = true
             }
         )
     }
@@ -468,7 +456,7 @@ struct HomeView: View {
     }
 
     private func historyDismissed() {
-        historyFocus = nil
+        featurePresentation.historyFocus = nil
         resumePendingHomeFlows()
     }
 
@@ -515,7 +503,7 @@ struct HomeView: View {
                 HomeSpeechOverlay.make(line: speech) {
                     dismissSpeech()
                     Analytics.track(.historyOpen, screen: "home_speech")
-                    showHistory = true
+                    featurePresentation.showHistory = true
                 }
             }
 
@@ -610,15 +598,15 @@ struct HomeView: View {
             dismissSpeech: dismissSpeech,
             onOpenCamera: {
                 Analytics.track(.cameraOpen, screen: "home", ["meal": .string("none")])
-                cameraInitialMeal = nil
-                showCamera = true
+                featurePresentation.cameraInitialMeal = nil
+                featurePresentation.showCamera = true
             },
             onOpenWalkDoodle: {
-                showWalkDoodle = true
+                featurePresentation.showWalkDoodle = true
             },
             onOpenSettings: {
                 Analytics.track(.settingsOpen, screen: "home")
-                showSettings = true
+                featurePresentation.showSettings = true
             }
         )
     }
@@ -631,7 +619,7 @@ struct HomeView: View {
             dismissSpeech: dismissSpeech,
             onOpenHistory: {
                 Analytics.track(.historyOpen, screen: "home")
-                showHistory = true
+                featurePresentation.showHistory = true
             },
             onPluck: {
                 _ = doPluck()
@@ -823,13 +811,13 @@ struct HomeView: View {
     private func startMealCapture(_ meal: MealType) {
         guard canUseDewCamera else { return }
         Analytics.track(.cameraOpen, screen: "home", ["meal": .string(meal.rawValue)])
-        cameraInitialMeal = meal
-        showCamera = true
+        featurePresentation.cameraInitialMeal = meal
+        featurePresentation.showCamera = true
     }
 
     private func handlePhotoSaved(_ image: UIImage?, _ subjectLabel: String?, meal: MealType? = nil) {
         LPLog.cutout.notice("photo saved → post-processing (hasImage=\(image != nil, privacy: .public) label=\(subjectLabel ?? "—", privacy: .public) meal=\(meal?.rawValue ?? "—", privacy: .public))")
-        cameraInitialMeal = nil
+        featurePresentation.cameraInitialMeal = nil
         Analytics.track(.photoSaved, screen: "camera",
                         ["meal": .string(meal?.rawValue ?? "none"),
                          "has_subject": .bool(subjectLabel != nil)])
@@ -843,7 +831,7 @@ struct HomeView: View {
             meal: meal,
             history: history,
             recognizer: recognizer,
-            isCameraPresented: { showCamera },
+            isCameraPresented: { featurePresentation.showCamera },
             presentMeal: { activeSheet = .meal($0) }
         )
     }
@@ -1109,8 +1097,8 @@ struct HomeView: View {
             pendingCardOpen: stressNotifier.pendingCardOpen
         ) else { return }
         stressNotifier.pendingCardOpen = false
-        historyFocus = .stress
-        showHistory = true
+        featurePresentation.historyFocus = .stress
+        featurePresentation.showHistory = true
     }
 
     private func startSoundscape() {
@@ -1149,8 +1137,8 @@ struct HomeView: View {
             handlers: .init(
                 setForestHour: { store.debugForestHour = $0 },
                 simulateLunch: { debugSimulateMeal(.lunch) },
-                openGames: { showGames = true },
-                openHistory: { showHistory = true },
+                openGames: { featurePresentation.showGames = true },
+                openHistory: { featurePresentation.showHistory = true },
                 showMorningSleep: { morningSleep.debugPresentFixture() },
                 presentAchievementIfAvailable: { payload in
                     guard activeSheet == nil else { return }
@@ -1179,7 +1167,7 @@ struct HomeView: View {
     /// injected. Waiting for the navigation pop avoids queuing the modal behind
     /// an off-screen destination and makes the one-tap rehearsal deterministic.
     private func debugSimulateWorkout() {
-        showSettings = false
+        featurePresentation.showSettings = false
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
