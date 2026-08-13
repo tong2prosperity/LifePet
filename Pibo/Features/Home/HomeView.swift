@@ -308,83 +308,7 @@ struct HomeView: View {
             speakForWeather(trigger: .entered)
             refreshAnimationState()
             #if DEBUG
-            let launchOptions = HomeDebugLaunchOptions.current
-            if case .value(let hour)? = launchOptions.forestHourOverride {
-                store.debugForestHour = hour
-            }
-            if launchOptions.simulatesMeal {
-                Task { try? await Task.sleep(for: .seconds(1)); debugSimulateMeal(.lunch) }
-            }
-            if PiboReleaseScope.miniGames, !debugOpenedGames,
-               launchOptions.opensGames {
-                debugOpenedGames = true
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    showGames = true
-                }
-            }
-            if !debugOpenedHistory, launchOptions.opensHistory {
-                debugOpenedHistory = true
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    showHistory = true
-                }
-            }
-            if launchOptions.showsMorningSleep {
-                morningSleep.debugPresentFixture()
-            }
-            if let kind = launchOptions.achievementKind {
-                let payload = PiboAnimationAchievementPayload(
-                    id: UUID(),
-                    kind: kind,
-                    occurredAt: .now,
-                    workoutLabel: kind == .pigu ? "跑步" : nil,
-                    workoutDurationMinutes: kind == .pigu ? 30 : nil
-                )
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    guard activeSheet == nil else { return }
-                    activeSheet = .achievement(payload)
-                }
-            }
-            if let target = launchOptions.bounceTargetStateID {
-                Task {
-                    // Deterministic Simulator capture hook. The delay leaves
-                    // one stable source frame before the exact 710 ms cut.
-                    try? await Task.sleep(for: .seconds(2))
-                    guard !Task.isCancelled else { return }
-                    semanticAnimationStateID = target
-                    stageCommands.transitionAnimation(to: target, intent: .bounceCut)
-                }
-            }
-            if let target = launchOptions.selectedStateIDAfterDelay {
-                Task {
-                    // 走查面板本身的抓帧钩子：模拟器合成不了点击，所以让这个
-                    // 参数走面板那条完整选择路径（而不是直接写状态变量），
-                    // 前后各截一帧就能证明「面板选中 → 舞台换态」是通的。
-                    try? await Task.sleep(for: .seconds(3))
-                    guard !Task.isCancelled else { return }
-                    applyDebugAnimationState(target)
-                }
-            }
-            if let milestone = launchOptions.boProgressMilestone {
-                boProgressFeedback.enqueue(milestone)
-            }
-            if launchOptions.opensBoPanel {
-                Task {
-                    try? await Task.sleep(for: .milliseconds(500))
-                    showBoUnlockPage = true
-                }
-            }
-            // Rehearse the stress-notification deep link without a real push:
-            // raise the same flag the router raises, so the whole
-            // present-history → 原版 tab → scroll-to-压力卡 path runs. Seed first —
-            // the 压力卡 renders only when a derived score exists, and a bare
-            // simulator has no heartbeat series to produce one.
-            if launchOptions.opensStressCard {
-                store.debugSeedStressIfNeeded()
-                stressNotifier.pendingCardOpen = true
-            }
+            runDebugLaunchAutomation()
             #endif
             presentAchievementIfPossible()
             startSoundscape()
@@ -1296,6 +1220,41 @@ struct HomeView: View {
     }
 
 #if DEBUG
+    private func runDebugLaunchAutomation() {
+        HomeDebugLaunchAutomation.run(
+            options: .current,
+            miniGamesEnabled: PiboReleaseScope.miniGames,
+            gamesAlreadyOpened: &debugOpenedGames,
+            historyAlreadyOpened: &debugOpenedHistory,
+            handlers: .init(
+                setForestHour: { store.debugForestHour = $0 },
+                simulateLunch: { debugSimulateMeal(.lunch) },
+                openGames: { showGames = true },
+                openHistory: { showHistory = true },
+                showMorningSleep: { morningSleep.debugPresentFixture() },
+                presentAchievementIfAvailable: { payload in
+                    guard activeSheet == nil else { return }
+                    activeSheet = .achievement(payload)
+                },
+                bounceToAnimationState: { target in
+                    // Deterministic Simulator capture hook. The delay leaves
+                    // one stable source frame before the exact 710 ms cut.
+                    semanticAnimationStateID = target
+                    stageCommands.transitionAnimation(to: target, intent: .bounceCut)
+                },
+                selectAnimationState: applyDebugAnimationState,
+                enqueueBoProgress: { boProgressFeedback.enqueue($0) },
+                openBoPanel: { showBoUnlockPage = true },
+                openStressCard: {
+                    // Seed first: the stress card needs a derived score, which
+                    // a bare simulator has no heartbeat series to produce.
+                    store.debugSeedStressIfNeeded()
+                    stressNotifier.pendingCardOpen = true
+                }
+            )
+        )
+    }
+
     /// Close Settings first so Home is visible when the real workout event is
     /// injected. Waiting for the navigation pop avoids queuing the modal behind
     /// an off-screen destination and makes the one-tap rehearsal deterministic.
