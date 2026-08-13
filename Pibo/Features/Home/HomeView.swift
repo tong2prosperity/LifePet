@@ -742,13 +742,10 @@ struct HomeView: View {
         let now = Date()
         let hour = localHour(at: now)
         let sourceStateID = semanticAnimationStateID
-        let sleeping = sourceStateID == "sleep-1" || sourceStateID == "sleep-2"
-        let resting = sleeping || sourceStateID == "awake"
+        let context = HomePatInteractionPolicy.stateContext(for: sourceStateID)
         let enteredAngry = store.animationExperience.registerActualPat(
             localHour: hour,
-            countsTowardAngry: PiboCorePatAdapter.countsTowardAngry(
-                restingState: resting
-            ),
+            countsTowardAngry: context.countsTowardAngry,
             now: now
         )
         refreshAnimationState(now: now)
@@ -761,34 +758,30 @@ struct HomeView: View {
             )
             stageCommands.transitionAnimation(to: targetStateID, intent: intent)
         }
-        if let contentID = PiboCoreAnimationAdapter.patContentID(
-            stateID: semanticAnimationStateID,
+
+        let route = HomePatInteractionPolicy.speechRoute(
+            sourceStateID: sourceStateID,
+            targetStateID: semanticAnimationStateID,
             angryEntered: enteredAngry
-        ) {
-            let isSleepNotice = contentID == "animation.sleep.pat"
-            let isAwakeLine = contentID == "animation.awake.pat"
-            if enteredAngry || isSleepNotice {
-                if let line = HomeSpeechPresentationPolicy.animationPatLine(
-                    contentID: contentID,
-                    angry: enteredAngry
-                ) {
-                    show(line)
-                }
-                Analytics.track(
-                    .pat,
-                    screen: "home",
-                    ["reaction": .string(enteredAngry ? "angry" : "protected_state")]
-                )
-                return
+        )
+        switch route {
+        case .immediateAnimation(let contentID, let reaction):
+            if let line = HomeSpeechPresentationPolicy.animationPatLine(
+                contentID: contentID,
+                angry: enteredAngry
+            ) {
+                show(line)
             }
+            Analytics.track(.pat, screen: "home", ["reaction": .string(reaction.rawValue)])
+        case .conditionalAnimation(let contentID, let presentsWhenAllowed):
             let resolution = piboSpeech.resolvePat(
                 storyStage: storySpeechStage,
-                restingState: resting,
-                sleepingState: sleeping,
+                restingState: context.resting,
+                sleepingState: context.sleeping,
                 facts: homeSpeechFacts,
                 neutralLegacyMode: !PiboReleaseScope.temporaryCooperationOnboarding
             )
-            let shouldPresent = isAwakeLine && resolution.shouldSpeak
+            let shouldPresent = presentsWhenAllowed && resolution.shouldSpeak
             if shouldPresent, let line = HomeSpeechPresentationPolicy.animationPatLine(
                 contentID: contentID,
                 angry: enteredAngry
@@ -798,24 +791,29 @@ struct HomeView: View {
             Analytics.track(
                 .pat,
                 screen: "home",
-                ["reaction": .string(shouldPresent ? "protected_state" : "silent")]
+                ["reaction": .string(
+                    HomePatInteractionPolicy.conditionalReaction(
+                        shouldPresent: shouldPresent
+                    ).rawValue
+                )]
             )
-            return
+        case .resolvedSpeech:
+            let resolution = piboSpeech.resolvePat(
+                storyStage: storySpeechStage,
+                restingState: context.resting,
+                sleepingState: context.sleeping,
+                facts: homeSpeechFacts,
+                neutralLegacyMode: !PiboReleaseScope.temporaryCooperationOnboarding
+            )
+            if let speech = resolution.speech { show(speech) }
+            let reaction = HomePatInteractionPolicy.resolvedSpeechReaction(
+                hasSpeech: resolution.speech != nil
+            )
+            Analytics.track(.pat, screen: "home", ["reaction": .string(reaction.rawValue)])
+        case .silent:
+            let reaction = HomePatInteractionPolicy.Reaction.silent
+            Analytics.track(.pat, screen: "home", ["reaction": .string(reaction.rawValue)])
         }
-        guard sourceStateID != "angry", semanticAnimationStateID != "angry" else {
-            Analytics.track(.pat, screen: "home", ["reaction": .string("silent")])
-            return
-        }
-        let resolution = piboSpeech.resolvePat(
-            storyStage: storySpeechStage,
-            restingState: resting,
-            sleepingState: sleeping,
-            facts: homeSpeechFacts,
-            neutralLegacyMode: !PiboReleaseScope.temporaryCooperationOnboarding
-        )
-        if let speech = resolution.speech { show(speech) }
-        let reaction = resolution.speech == nil ? "silent" : "spoke"
-        Analytics.track(.pat, screen: "home", ["reaction": .string(reaction)])
     }
 
     /// 拖毛 released past the pull threshold. 毛熟了的时候这就是拔毛；没熟的时候
