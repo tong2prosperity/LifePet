@@ -654,37 +654,28 @@ struct HomeView: View {
     ///
     /// 也没有「点灭」的分支：灯只能点亮，天亮自己熄。
     private func handleOrnamentLightTap(_ id: PiboOrnament.ID, index: Int) {
-        guard id == .lantern,
-              ornamentUnlocks.grants(.lanternLighting),
-              let placement = PiboOrnament.ornament(.lantern)?.placement,
-              placement.lights.indices.contains(index)
-        else { return }
-        guard ornamentLights.light(id, index: index) else { return }
-        LPHaptics.tap()
-        Analytics.track(.ornamentLight, screen: "home",
-                        ["ornament": .string(id.rawValue), "index": .int(index)])
+        HomeOrnamentInteractionCoordinator.handleLightTap(
+            ornamentID: id,
+            index: index,
+            unlocks: ornamentUnlocks,
+            lights: ornamentLights
+        )
     }
 
     private func handleOrnamentTap(_ id: PiboOrnament.ID) {
-        guard activeSheet == nil, !fullScreenFeaturePresented, sproutPhase == .idle else { return }
-        LPHaptics.tap()
-        dismissSpeech()
-
-        let action = HomeOrnamentInteractionResolver.resolve(
+        HomeOrnamentInteractionCoordinator.handleTap(
             ornamentID: id,
-            sleepReviewGranted: ornamentUnlocks.grants(.sleepReview),
-            latestSleepReview: morningSleep.latestReviewPresentation(),
-            recoveryStatusGranted: ornamentUnlocks.grants(.recoveryStatus),
-            recoveryCalibration: history.recoveryCalibrationState()
+            canPresent: {
+                activeSheet == nil
+                    && !fullScreenFeaturePresented
+                    && sproutPhase == .idle
+            },
+            unlocks: ornamentUnlocks,
+            morningSleep: morningSleep,
+            history: history,
+            dismissSpeech: dismissSpeech,
+            present: { activeSheet = $0 }
         )
-        switch action {
-        case .none:
-            return
-        case .presentMorningSleep(let presentation):
-            activeSheet = .morningSleep(presentation, consumesPending: false)
-        case .presentStatus(let model):
-            activeSheet = .commonItemStatus(model)
-        }
     }
 
     // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)
