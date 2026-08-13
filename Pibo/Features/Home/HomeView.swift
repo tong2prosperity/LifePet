@@ -589,23 +589,11 @@ struct HomeView: View {
         ZStack {
             // Speech bubble floats just above Pibo's head (~30% down).
             if let speech {
-                GeometryReader { geo in
-                    let scale = max(geo.size.width / 393, geo.size.height / 852)
-                    let originY = (geo.size.height - 852 * scale) / 2
-                    let bubbleBottom = originY + 317 * scale
-
-                    VStack(spacing: 0) {
-                        Spacer(minLength: 0)
-                        PiboSpeechBubbleView(line: speech, onDetail: speech.data == nil ? nil : {
-                            dismissSpeech()
-                            Analytics.track(.historyOpen, screen: "home_speech")
-                            showHistory = true
-                        })
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
-                    }
-                    .frame(width: geo.size.width, height: max(0, bubbleBottom))
+                HomeSpeechOverlay.make(line: speech) {
+                    dismissSpeech()
+                    Analytics.track(.historyOpen, screen: "home_speech")
+                    showHistory = true
                 }
-                .allowsHitTesting(speech.data != nil)
             }
 
             VStack(spacing: 0) {
