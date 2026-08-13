@@ -311,24 +311,25 @@ struct HomeView: View {
             if boLedger.hasRipeBo { announceFirstRipeBoIfNeeded() }
         }
         .onDisappear {
-            soundscape.setPresentation(.suspended)
-            soundscape.stop()
+            HomeSoundscapeCoordinator.stop(soundscape: soundscape)
         }
         .onChange(of: stageEnvironment) { _, environment in
-            soundscape.apply(
+            HomeSoundscapeCoordinator.update(
                 environment: environment,
                 date: atmosphereClock.now,
-                petID: store.identity.currentPetId
+                petID: store.identity.currentPetId,
+                soundscape: soundscape
             )
         }
         .onChange(of: weather.condition) { _, _ in
             speakForWeather(trigger: .environmentChanged)
         }
         .onChange(of: store.identity.currentPetId) { _, petID in
-            soundscape.apply(
+            HomeSoundscapeCoordinator.update(
                 environment: stageEnvironment,
                 date: atmosphereClock.now,
-                petID: petID
+                petID: petID,
+                soundscape: soundscape
             )
         }
         .onChange(of: ambientSoundEnabled) { _, enabled in
@@ -945,13 +946,13 @@ struct HomeView: View {
     }
 
     private func startSoundscape() {
-        soundscape.setEnabled(ambientSoundEnabled)
-        soundscape.setPresentation(soundscapePresentation)
-        soundscape.refreshExternalAudioSuppression()
-        soundscape.apply(
+        HomeSoundscapeCoordinator.start(
+            enabled: ambientSoundEnabled,
+            presentation: soundscapePresentation,
             environment: stageEnvironment,
             date: atmosphereClock.now,
-            petID: store.identity.currentPetId
+            petID: store.identity.currentPetId,
+            soundscape: soundscape
         )
     }
 
