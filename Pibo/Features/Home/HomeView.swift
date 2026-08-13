@@ -975,17 +975,13 @@ struct HomeView: View {
     }
 
     private func performReset() {
-        Analytics.track(.reset, screen: "settings")
-        piboSpeech.resetHistory()
-        store.reset()
-        // 重置也要清账本和已解锁物件，否则「重置」之后左上角还挂着上一轮的余额，
-        // 森林里还挂着上一轮换来的灯。起始日重新以今天起算。
-        boLedger.reset()
-        onboarding.reset()
-        ornamentUnlocks.reset()
-        ornamentLights.reset()
-        UserDefaults.standard.removeObject(
-            forKey: PiboPersistenceKeys.Defaults.boFirstRipeNotified
+        HomeResetCoordinator.run(
+            speech: piboSpeech,
+            store: store,
+            boLedger: boLedger,
+            onboarding: onboarding,
+            ornamentUnlocks: ornamentUnlocks,
+            ornamentLights: ornamentLights
         )
     }
 
