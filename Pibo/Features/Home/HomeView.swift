@@ -853,23 +853,12 @@ struct HomeView: View {
 
     /// Walk Doodle is a saved route and authored reaction, never a `bo` source.
     private func handleDoodleSaved(_ result: WalkDoodleResult) {
-        Analytics.track(.walkDoodleSaved, screen: "walk_doodle",
-                        ["distance_m": .int(Int(result.distanceMeters)),
-                         "area_m2": .int(Int(result.areaSquareMeters)),
-                         "duration_s": .int(Int(result.duration))])
-        history.addWalkDoodle(result)
-        if let line = piboSpeech.resolve(
-            cues: [
-                .walkCompleted(
-                    distanceMeters: result.distanceMeters,
-                    duration: result.duration
-                ),
-            ],
-            context: .home(trigger: .completed)
-        ) {
-            show(line)
-        }
-        LPLog.app.notice("walk doodle saved: \(Int(result.distanceMeters), privacy: .public)m \(Int(result.areaSquareMeters), privacy: .public)m²")
+        HomeWalkDoodleSaveCoordinator.run(
+            result: result,
+            history: history,
+            speech: piboSpeech,
+            show: show
+        )
     }
 
     // MARK: Speech plumbing
