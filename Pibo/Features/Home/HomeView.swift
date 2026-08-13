@@ -888,15 +888,12 @@ struct HomeView: View {
     }
 
     private func presentMorningSleepIfPossible() {
-        let presentation = presentationPolicy.morningSleepPresentation(
+        HomeMorningSleepPresentationCoordinator.presentIfPossible(
+            policy: presentationPolicy,
             sleepReviewGranted: ornamentUnlocks.grants(.sleepReview),
-            // Re-validated at the moment of presentation, not when it was
-            // queued: a card queued late at night must not surface as "last
-            // night" after midnight, nor consume the wrong wake-day.
-            consumablePresentation: morningSleep.consumablePresentation()
+            consumablePresentation: morningSleep.consumablePresentation(),
+            destination: &activeSheet
         )
-        guard let presentation else { return }
-        activeSheet = .morningSleep(presentation, consumesPending: true)
     }
 
     private func resumePendingHomeFlows() {
