@@ -127,6 +127,29 @@ struct HomeView: View {
         )
     }
 
+    private var achievementLifecycle: HomeAchievementLifecycleAdapter {
+        HomeAchievementLifecycleAdapter(
+            store: store,
+            currentPolicy: { presentationPolicy },
+            currentAnimationStateID: { semanticAnimationStateID },
+            withSheet: { update in update(&activeSheet) },
+            dismissSheet: { activeSheet = nil },
+            applyDebugReward: { payload in
+                #if DEBUG
+                debugAutomation.applyWorkoutRewardIfMatching(
+                    payload,
+                    ledger: boLedger
+                )
+                #endif
+            },
+            refreshAnimationState: { refreshAnimationState() },
+            beginSheetDismissal: {
+                homeSheetDismissalInProgress = true
+                activeSheet = nil
+            }
+        )
+    }
+
     private var stageEnvironment: PiboStageEnvironment {
         #if DEBUG
         let forcedHour = store.debugForestHour
@@ -253,7 +276,7 @@ struct HomeView: View {
                     runDebugLaunchAutomation()
                     #endif
                 },
-                presentAchievement: presentAchievementIfPossible,
+                presentAchievement: achievementLifecycle.presentIfPossible,
                 presentMorningSleep: presentMorningSleepIfPossible,
                 presentStressCard: presentStressCardIfPossible,
                 announceFirstRipeBo: announceFirstRipeBoIfNeeded
@@ -282,8 +305,8 @@ struct HomeView: View {
     private var stateObservationHandlers: HomeStateObservationCoordinator.Handlers {
         HomeStateObservationCoordinator.Handlers(
             refreshAnimation: { refreshAnimationState() },
-            reconcileAchievement: reconcilePresentedAchievement,
-            presentAchievement: presentAchievementIfPossible,
+            reconcileAchievement: achievementLifecycle.reconcilePresentedAchievement,
+            presentAchievement: achievementLifecycle.presentIfPossible,
             refreshOrnamentLights: {
                 // A foreground return can cross dawn while nobody was present
                 // to watch yesterday's lights turn off.
@@ -330,7 +353,7 @@ struct HomeView: View {
                     morningSleep: morningSleep,
                     onDismiss: resumePendingHomeFlows,
                     startMealCapture: startMealCapture,
-                    confirmAchievement: confirmAchievement
+                    confirmAchievement: achievementLifecycle.confirm
                 )
             )
     }
@@ -501,48 +524,6 @@ struct HomeView: View {
         HomeAnimationRefreshToken(store: store, history: history)
     }
 
-    private func presentAchievementIfPossible() {
-        HomeAchievementPresentationCoordinator.presentIfPossible(
-            policy: presentationPolicy,
-            animationStateID: semanticAnimationStateID,
-            pendingAchievement: store.animationExperience.pendingAchievement,
-            destination: &activeSheet
-        )
-    }
-
-    private func reconcilePresentedAchievement() {
-        HomeAchievementPresentationCoordinator.reconcile(
-            destination: &activeSheet,
-            pendingAchievement: store.animationExperience.pendingAchievement
-        )
-    }
-
-    private func confirmAchievement(_ payload: PiboAnimationAchievementPayload) {
-        HomeAchievementConfirmationCoordinator.confirm(
-            presentedAchievement: payload,
-            handlers: .init(
-                currentPendingAchievementID: { store.animationExperience.pendingAchievement?.id },
-                dismissStaleFixture: { activeSheet = nil },
-                confirmPending: { _ = store.animationExperience.confirmPending() },
-                currentPendingWorkoutID: { store.pendingWorkout?.id },
-                consumePendingWorkout: { store.consumePendingWorkout() },
-                applyDebugReward: {
-                    #if DEBUG
-                    debugAutomation.applyWorkoutRewardIfMatching(
-                        payload,
-                        ledger: boLedger
-                    )
-                    #endif
-                },
-                refreshAnimationState: { refreshAnimationState() },
-                beginSheetDismissal: {
-                    homeSheetDismissalInProgress = true
-                    activeSheet = nil
-                }
-            )
-        )
-    }
-
     private func presentMorningSleepIfPossible() {
         HomeMorningSleepPresentationCoordinator.presentIfPossible(
             policy: presentationPolicy,
@@ -555,7 +536,7 @@ struct HomeView: View {
     private func resumePendingHomeFlows() {
         HomePendingFlowCoordinator.resume(handlers: .init(
             clearSheetDismissal: { homeSheetDismissalInProgress = false },
-            presentAchievement: presentAchievementIfPossible,
+            presentAchievement: achievementLifecycle.presentIfPossible,
             sheetIsAbsent: { activeSheet == nil },
             presentMorningSleep: presentMorningSleepIfPossible,
             presentStressCard: presentStressCardIfPossible,
