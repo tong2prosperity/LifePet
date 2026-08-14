@@ -112,6 +112,37 @@ final class HomePresentationPolicyTests: XCTestCase {
         XCTAssertEqual(soundscapeProbe.count, 0)
     }
 
+    func testPresentationAdapterReadsEveryLiveCoverFlag() {
+        let presentation = HomeFeaturePresentationState()
+        let policy = HomePresentationPolicy(
+            sceneIsActive: true,
+            presentation: presentation,
+            sheetPresented: false,
+            sheetDismissalInProgress: false,
+            sproutFlowIsIdle: true
+        )
+
+        let setPresented: [(HomeFeaturePresentationState) -> Void] = [
+            { $0.showCamera = true },
+            { $0.showGames = true },
+            { $0.showHistory = true },
+            { $0.showWalkDoodle = true },
+            { $0.showSettings = true },
+            { $0.showStoryRecovery = true },
+        ]
+        for update in setPresented {
+            update(presentation)
+            XCTAssertTrue(policy.stagePaused)
+            XCTAssertTrue(policy.fullScreenFeaturePresented)
+            presentation.showCamera = false
+            presentation.showGames = false
+            presentation.showHistory = false
+            presentation.showWalkDoodle = false
+            presentation.showSettings = false
+            presentation.showStoryRecovery = false
+        }
+    }
+
     private func stagePaused(_ occupied: [Bool] = Array(repeating: false, count: 7)) -> Bool {
         policy(occupied: occupied).stagePaused
     }

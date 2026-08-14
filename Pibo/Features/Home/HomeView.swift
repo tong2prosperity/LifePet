@@ -73,12 +73,7 @@ struct HomeView: View {
     private var presentationPolicy: HomePresentationPolicy {
         HomePresentationPolicy(
             sceneIsActive: scenePhase == .active,
-            cameraPresented: featurePresentation.showCamera,
-            gamesPresented: featurePresentation.showGames,
-            historyPresented: featurePresentation.showHistory,
-            walkDoodlePresented: featurePresentation.showWalkDoodle,
-            settingsPresented: featurePresentation.showSettings,
-            storyRecoveryPresented: featurePresentation.showStoryRecovery,
+            presentation: featurePresentation,
             sheetPresented: activeSheet != nil,
             sheetDismissalInProgress: homeSheetDismissalInProgress,
             sproutFlowIsIdle: sproutPhase == .idle

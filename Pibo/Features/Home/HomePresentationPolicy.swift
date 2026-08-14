@@ -36,6 +36,28 @@ struct HomePresentationPolicy {
         self.sproutFlowIsIdle = sproutFlowIsIdle
     }
 
+    /// Production adapter for Home's feature-presentation owner. The policy
+    /// keeps reading the observable reference so callers do not duplicate its
+    /// individual cover flags.
+    init(
+        sceneIsActive: @autoclosure @escaping () -> Bool,
+        presentation: HomeFeaturePresentationState,
+        sheetPresented: @autoclosure @escaping () -> Bool,
+        sheetDismissalInProgress: @autoclosure @escaping () -> Bool,
+        sproutFlowIsIdle: @autoclosure @escaping () -> Bool
+    ) {
+        self.sceneIsActive = sceneIsActive
+        cameraPresented = { presentation.showCamera }
+        gamesPresented = { presentation.showGames }
+        historyPresented = { presentation.showHistory }
+        walkDoodlePresented = { presentation.showWalkDoodle }
+        settingsPresented = { presentation.showSettings }
+        storyRecoveryPresented = { presentation.showStoryRecovery }
+        self.sheetPresented = sheetPresented
+        self.sheetDismissalInProgress = sheetDismissalInProgress
+        self.sproutFlowIsIdle = sproutFlowIsIdle
+    }
+
     /// Pause the 60fps stage loop while a feature covers it — the full-screen
     /// covers plus sheets, which on iOS occlude the stage too.
     var stagePaused: Bool {
