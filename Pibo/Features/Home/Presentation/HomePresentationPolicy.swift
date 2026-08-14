@@ -41,9 +41,7 @@ struct HomePresentationPolicy {
     /// individual cover flags.
     init(
         sceneIsActive: @autoclosure @escaping () -> Bool,
-        presentation: HomeFeaturePresentationState,
-        sheetPresented: @autoclosure @escaping () -> Bool,
-        sheetDismissalInProgress: @autoclosure @escaping () -> Bool,
+        presentation: HomePresentationState,
         sproutFlowIsIdle: @autoclosure @escaping () -> Bool
     ) {
         self.sceneIsActive = sceneIsActive
@@ -53,8 +51,8 @@ struct HomePresentationPolicy {
         walkDoodlePresented = { presentation.showWalkDoodle }
         settingsPresented = { presentation.showSettings }
         storyRecoveryPresented = { presentation.showStoryRecovery }
-        self.sheetPresented = sheetPresented
-        self.sheetDismissalInProgress = sheetDismissalInProgress
+        sheetPresented = { presentation.activeSheet != nil }
+        sheetDismissalInProgress = { presentation.sheetDismissalInProgress }
         self.sproutFlowIsIdle = sproutFlowIsIdle
     }
 

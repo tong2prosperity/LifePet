@@ -99,3 +99,28 @@ struct HomeTaskModifier: ViewModifier {
         )
     }
 }
+
+/// Preserves the ordered effects shared by the clock-driven tasks above.
+@MainActor
+enum HomeTaskCoordinator {
+    struct Handlers {
+        let refreshClock: () -> Void
+        let refreshAnimation: () -> Void
+        let refreshAnimationAt: (Date) -> Void
+        let refreshOrnamentLights: (Date) -> Void
+    }
+
+    static func minuteElapsed(at date: Date, handlers: Handlers) {
+        handlers.refreshAnimation()
+        handlers.refreshOrnamentLights(date)
+    }
+
+    static func systemDateChanged(handlers: Handlers) {
+        handlers.refreshClock()
+        handlers.refreshAnimation()
+    }
+
+    static func angryStateExpired(at date: Date, handlers: Handlers) {
+        handlers.refreshAnimationAt(date)
+    }
+}

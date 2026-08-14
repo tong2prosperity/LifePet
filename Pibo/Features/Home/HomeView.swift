@@ -28,13 +28,8 @@ struct HomeView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var speechPresentation = HomeSpeechPresentationController()
-    @State private var featurePresentation = HomeFeaturePresentationState()
+    @State private var presentation = HomePresentationState()
     @State private var showBoUnlockPage = false
-    @State private var activeSheet: HomeSheetDestination?
-    /// `activeSheet` becomes nil at the start of dismissal, while its pixels are
-    /// still covering Home. Badge feedback waits for the sheet's `onDismiss` so
-    /// the first particle frame is never spent behind the confirmation UI.
-    @State private var homeSheetDismissalInProgress = false
     #if DEBUG
     @State private var debugAutomation = HomeDebugAutomationController()
     #endif
@@ -65,9 +60,7 @@ struct HomeView: View {
     private var presentationPolicy: HomePresentationPolicy {
         HomePresentationPolicy(
             sceneIsActive: scenePhase == .active,
-            presentation: featurePresentation,
-            sheetPresented: activeSheet != nil,
-            sheetDismissalInProgress: homeSheetDismissalInProgress,
+            presentation: presentation,
             sproutFlowIsIdle: sproutPhase == .idle
         )
     }
@@ -93,8 +86,8 @@ struct HomeView: View {
         )
     }
 
-    private var speechInteractions: HomeSpeechInteractionAdapter {
-        HomeSpeechInteractionAdapter(
+    private var speechOpportunities: HomeSpeechOpportunities {
+        HomeSpeechOpportunities(
             presentation: speechPresentation,
             input: speechInput,
             speech: piboSpeech,
@@ -107,25 +100,25 @@ struct HomeView: View {
 
     private var featureAccess: HomeFeatureAccess {
         HomeFeatureAccess(
-            presentation: featurePresentation,
+            presentation: presentation,
             ornamentUnlocks: ornamentUnlocks
         )
     }
 
-    private var contentCapture: HomeContentCaptureAdapter {
-        HomeContentCaptureAdapter(
+    private var contentCapture: HomeContentCapture {
+        HomeContentCapture(
             currentCameraEnabled: { featureAccess.cameraEnabled },
-            presentation: featurePresentation,
+            presentation: presentation,
             history: history,
             recognizer: recognizer,
             speech: piboSpeech,
-            presentMeal: { activeSheet = .meal($0) },
-            showSpeech: speechInteractions.show
+            presentMeal: { presentation.activeSheet = .meal($0) },
+            showSpeech: speechPresentation.show
         )
     }
 
-    private var stageInteractions: HomeStageInteractionAdapter {
-        HomeStageInteractionAdapter(
+    private var stageInteractions: HomeStageInteractions {
+        HomeStageInteractions(
             store: store,
             history: history,
             animationPresentation: animationPresentation,
@@ -139,25 +132,25 @@ struct HomeView: View {
             storyStage: { speechInput.storyStage },
             speechFacts: { speechInput.facts },
             canPresentOrnament: {
-                activeSheet == nil
+                presentation.activeSheet == nil
                     && !fullScreenFeaturePresented
                     && sproutPhase == .idle
             },
-            dismissSpeech: speechInteractions.dismiss,
-            showAnimationLine: speechInteractions.show,
-            showResolvedSpeech: speechInteractions.show,
-            presentSheet: { activeSheet = $0 }
+            dismissSpeech: speechPresentation.dismiss,
+            showAnimationLine: speechPresentation.show,
+            showResolvedSpeech: speechPresentation.show,
+            presentSheet: { presentation.activeSheet = $0 }
         )
     }
 
     #if DEBUG
-    private var debugInteractions: HomeDebugInteractionAdapter {
-        HomeDebugInteractionAdapter(
+    private var debugInteractions: HomeDebugInteractions {
+        HomeDebugInteractions(
             automation: debugAutomation,
             controls: debugControls,
             store: store,
             history: history,
-            presentation: featurePresentation,
+            presentation: presentation,
             morningSleep: morningSleep,
             animationPresentation: animationPresentation,
             stageCommands: stageCommands,
@@ -165,56 +158,30 @@ struct HomeView: View {
             stressNotifier: stressNotifier,
             ledger: boLedger,
             currentMiniGamesEnabled: { featureAccess.miniGamesEnabled },
-            sheetIsAbsent: { activeSheet == nil },
-            presentSheet: { activeSheet = $0 },
+            sheetIsAbsent: { presentation.activeSheet == nil },
+            presentSheet: { presentation.activeSheet = $0 },
             photoSaved: contentCapture.handleSavedPhoto,
             openBoPanel: { showBoUnlockPage = true }
         )
     }
     #endif
 
-    private var achievementLifecycle: HomeAchievementLifecycleAdapter {
-        HomeAchievementLifecycleAdapter(
+    private var presentationFlow: HomePresentationFlow {
+        HomePresentationFlow(
+            presentation: presentation,
             store: store,
+            ornamentUnlocks: ornamentUnlocks,
+            morningSleep: morningSleep,
+            stressNotifier: stressNotifier,
             currentPolicy: { presentationPolicy },
             currentAnimationStateID: { semanticAnimationStateID },
-            withSheet: { update in update(&activeSheet) },
-            dismissSheet: { activeSheet = nil },
             applyDebugReward: { payload in
                 #if DEBUG
                 debugInteractions.applyWorkoutRewardIfMatching(payload)
                 #endif
             },
             refreshAnimationState: { refreshAnimationState() },
-            beginSheetDismissal: {
-                homeSheetDismissalInProgress = true
-                activeSheet = nil
-            }
-        )
-    }
-
-    private var pendingPresentations: HomePendingPresentationAdapter {
-        HomePendingPresentationAdapter(
-            currentPolicy: { presentationPolicy },
-            currentSleepReviewGranted: {
-                ornamentUnlocks.grants(.sleepReview)
-            },
-            currentMorningSleepPresentation: {
-                morningSleep.consumablePresentation()
-            },
-            withSheet: { update in update(&activeSheet) },
-            currentPendingStressCardOpen: { stressNotifier.pendingCardOpen },
-            stressHandlers: .init(
-                clearPendingRequest: { stressNotifier.pendingCardOpen = false },
-                focusStressCard: { featurePresentation.historyFocus = .stress },
-                presentHistory: { featurePresentation.showHistory = true }
-            ),
-            clearSheetDismissal: {
-                homeSheetDismissalInProgress = false
-            },
-            presentAchievement: achievementLifecycle.presentIfPossible,
-            sheetIsAbsent: { activeSheet == nil },
-            announceFirstRipeBo: speechInteractions.announceFirstRipeBoIfNeeded
+            announceFirstRipeBo: speechOpportunities.announceFirstRipeBoIfNeeded
         )
     }
 
@@ -266,7 +233,7 @@ struct HomeView: View {
 
             HomeStoryRecoveryOverlay(
                 onboarding: onboarding,
-                presentation: featurePresentation
+                presentation: presentation
             )
 
             HomeSproutOverlay(
@@ -277,19 +244,13 @@ struct HomeView: View {
             if showBoUnlockPage {
                 BoUnlockOverlay(stageCommands: stageCommands) {
                     showBoUnlockPage = false
-                    pendingPresentations.resumePendingFlows()
+                    presentationFlow.resumePendingFlows()
                 }
                 .transition(.opacity)
                 .zIndex(100)
             }
 
         }
-    }
-
-    private var homeTaskContent: some View {
-        homeScene
-            .accessibilityHidden(stagePaused)
-            .modifier(homeTaskModifier)
     }
 
     private var homeTaskModifier: HomeTaskModifier {
@@ -307,18 +268,13 @@ struct HomeView: View {
                 facts: { speechInput.facts },
                 values: { speechInput.values },
                 speech: piboSpeech,
-                show: speechInteractions.show
+                show: speechPresentation.show
             ),
             handlers: .init(
                 refreshAnimation: { refreshAnimationState() },
                 refreshAnimationAt: refreshAnimationState
             )
         )
-    }
-
-    private var homeLifecycleContent: some View {
-        homeTaskContent
-            .modifier(homeLifecycleModifier)
     }
 
     private var homeLifecycleModifier: HomeLifecycleModifier {
@@ -337,24 +293,19 @@ struct HomeView: View {
             soundscape: soundscape,
             currentDate: { atmosphereClock.now },
             handlers: .init(
-                speakForWeather: speechInteractions.presentWeatherIfPossible,
+                speakForWeather: speechOpportunities.presentWeatherIfPossible,
                 refreshAnimation: { refreshAnimationState() },
                 runDebugAutomation: {
                     #if DEBUG
                     debugInteractions.runLaunchAutomation()
                     #endif
                 },
-                presentAchievement: achievementLifecycle.presentIfPossible,
-                presentMorningSleep: pendingPresentations.presentMorningSleepIfPossible,
-                presentStressCard: pendingPresentations.presentStressCardIfPossible,
-                announceFirstRipeBo: speechInteractions.announceFirstRipeBoIfNeeded
+                presentAchievement: presentationFlow.presentAchievementIfPossible,
+                presentMorningSleep: presentationFlow.presentMorningSleepIfPossible,
+                presentStressCard: presentationFlow.presentStressCardIfPossible,
+                announceFirstRipeBo: speechOpportunities.announceFirstRipeBoIfNeeded
             )
         )
-    }
-
-    private var homeStateObservationContent: some View {
-        homeLifecycleContent
-            .modifier(stateObservationModifier)
     }
 
     private var stateObservationModifier: HomeStateObservationModifier {
@@ -373,55 +324,55 @@ struct HomeView: View {
     private var stateObservationHandlers: HomeStateObservationCoordinator.Handlers {
         HomeStateObservationCoordinator.Handlers(
             refreshAnimation: { refreshAnimationState() },
-            reconcileAchievement: achievementLifecycle.reconcilePresentedAchievement,
-            presentAchievement: achievementLifecycle.presentIfPossible,
+            reconcileAchievement: presentationFlow.reconcilePresentedAchievement,
+            presentAchievement: presentationFlow.presentAchievementIfPossible,
             refreshOrnamentLights: {
                 // A foreground return can cross dawn while nobody was present
                 // to watch yesterday's lights turn off.
                 ornamentLights.refresh()
             },
-            presentMorningSleep: pendingPresentations.presentMorningSleepIfPossible,
-            presentStressCard: pendingPresentations.presentStressCardIfPossible,
+            presentMorningSleep: presentationFlow.presentMorningSleepIfPossible,
+            presentStressCard: presentationFlow.presentStressCardIfPossible,
             currentHasRipeBo: { boLedger.hasRipeBo },
-            announceFirstRipeBo: speechInteractions.announceFirstRipeBoIfNeeded,
-            resumePendingFlows: pendingPresentations.resumePendingFlows
+            announceFirstRipeBo: speechOpportunities.announceFirstRipeBoIfNeeded,
+            resumePendingFlows: presentationFlow.resumePendingFlows
         )
-    }
-
-    private var homeWithoutSheet: some View {
-        homeStateObservationContent
-        .modifier(
-            HomeFeatureCoversModifier(
-                presentation: featurePresentation,
-                cameraPresented: featureAccess.cameraPresented,
-                gamesPresented: featureAccess.gamesPresented,
-                walkDoodlePresented: featureAccess.walkDoodlePresented,
-                walkDoodleEnabled: featureAccess.walkDoodleEnabled,
-                store: store,
-                history: history,
-                resumePendingFlows: pendingPresentations.resumePendingFlows,
-                historyDismissed: historyDismissed,
-                photoSaved: contentCapture.handleSavedPhoto,
-                doodleSaved: contentCapture.handleSavedDoodle
-            )
-        )
-        .navigationDestination(isPresented: featurePresentation.settingsBinding) {
-            settingsDestination
-        }
     }
 
     var body: some View {
-        homeWithoutSheet
+        homeScene
+            .accessibilityHidden(stagePaused)
+            .modifier(homeTaskModifier)
+            .modifier(homeLifecycleModifier)
+            .modifier(stateObservationModifier)
+            .modifier(
+                HomeFeatureCoversModifier(
+                    presentation: presentation,
+                    cameraPresented: featureAccess.cameraPresented,
+                    gamesPresented: featureAccess.gamesPresented,
+                    walkDoodlePresented: featureAccess.walkDoodlePresented,
+                    walkDoodleEnabled: featureAccess.walkDoodleEnabled,
+                    store: store,
+                    history: history,
+                    resumePendingFlows: presentationFlow.resumePendingFlows,
+                    historyDismissed: historyDismissed,
+                    photoSaved: contentCapture.handleSavedPhoto,
+                    doodleSaved: contentCapture.handleSavedDoodle
+                )
+            )
+            .navigationDestination(isPresented: presentation.settingsBinding) {
+                settingsDestination
+            }
             .modifier(
                 HomeSheetModifier(
-                    destination: $activeSheet,
+                    destination: presentation.sheetBinding,
                     store: store,
                     history: history,
                     recognizer: recognizer,
                     morningSleep: morningSleep,
-                    onDismiss: pendingPresentations.resumePendingFlows,
+                    onDismiss: presentationFlow.resumePendingFlows,
                     startMealCapture: contentCapture.startMealCapture,
-                    confirmAchievement: achievementLifecycle.confirm
+                    confirmAchievement: presentationFlow.confirm
                 )
             )
     }
@@ -440,8 +391,8 @@ struct HomeView: View {
     }
 
     private func historyDismissed() {
-        featurePresentation.historyFocus = nil
-        pendingPresentations.resumePendingFlows()
+        presentation.historyFocus = nil
+        presentationFlow.resumePendingFlows()
     }
 
     // MARK: Chrome
@@ -451,24 +402,24 @@ struct HomeView: View {
             // Speech bubble floats just above Pibo's head (~30% down).
             if let speech = speechPresentation.line {
                 HomeSpeechOverlay.make(line: speech) {
-                    speechInteractions.dismiss()
+                    speechPresentation.dismiss()
                     Analytics.track(.historyOpen, screen: "home_speech")
-                    featurePresentation.showHistory = true
+                    presentation.showHistory = true
                 }
             }
 
             HomePrimaryChrome(
-                featurePresentation: featurePresentation,
+                presentation: presentation,
                 showBoUnlockPage: $showBoUnlockPage,
                 cameraEnabled: featureAccess.cameraEnabled,
                 walkDoodleEnabled: featureAccess.walkDoodleEnabled,
                 feedbackEnabled: boCounterFeedbackEnabled,
                 hasRipeBo: boLedger.hasRipeBo,
-                dismissSpeech: speechInteractions.dismiss,
+                dismissSpeech: speechPresentation.dismiss,
                 collectAction: stageInteractions.collectBo,
                 onOpenHistory: {
                     Analytics.track(.historyOpen, screen: "home")
-                    featurePresentation.showHistory = true
+                    presentation.showHistory = true
                 }
             )
 
@@ -490,7 +441,7 @@ struct HomeView: View {
     private func maybeStartEnergyFlow() {
         sproutFlow.startIfPossible(
             store: store,
-            sheetPresented: activeSheet != nil,
+            sheetPresented: presentation.activeSheet != nil,
             fullScreenFeaturePresented: fullScreenFeaturePresented,
             stageCommands: stageCommands
         )

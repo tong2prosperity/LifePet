@@ -6,7 +6,7 @@ import UIKit
 /// `HomeView` and arrive through the existing bindings and callbacks.
 @MainActor
 struct HomeFeatureCoversModifier: ViewModifier {
-    let presentation: HomeFeaturePresentationState
+    let presentation: HomePresentationState
     let cameraPresented: Binding<Bool>
     let gamesPresented: Binding<Bool>
     let walkDoodlePresented: Binding<Bool>

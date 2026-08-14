@@ -18,7 +18,7 @@ final class HomeDebugAutomationController {
         options: HomeDebugLaunchOptions,
         miniGamesEnabled: @autoclosure () -> Bool,
         store: PetStateStore,
-        presentation: HomeFeaturePresentationState,
+        presentation: HomePresentationState,
         morningSleep: MorningSleepCoordinator,
         animationPresentation: HomeAnimationPresentationController,
         stageCommands: PiboStageCommandController,
@@ -70,7 +70,7 @@ final class HomeDebugAutomationController {
     /// injected. Waiting for the navigation pop keeps the rehearsal deterministic.
     func simulateWorkout(
         store: PetStateStore,
-        presentation: HomeFeaturePresentationState
+        presentation: HomePresentationState
     ) {
         presentation.showSettings = false
         Task { @MainActor in

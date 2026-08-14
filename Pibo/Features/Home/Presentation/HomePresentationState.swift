@@ -1,11 +1,12 @@
 import Observation
 import SwiftUI
 
-/// Owns Home's feature-navigation state. Product availability remains outside
-/// this type; the gated bindings preserve each existing presentation contract.
+/// Owns every presentation slot attached to Home. Product availability remains
+/// outside this type; the gated bindings preserve each existing presentation
+/// contract while sheets share one exclusive destination.
 @MainActor
 @Observable
-final class HomeFeaturePresentationState {
+final class HomePresentationState {
     var showCamera = false
     var showGames = false
     var showHistory = false
@@ -19,6 +20,11 @@ final class HomeFeaturePresentationState {
     /// A meal passed by the detail sheet's “重拍” action. Normal home entry leaves
     /// this nil and lets the camera own purpose + meal selection.
     var cameraInitialMeal: MealType?
+    var activeSheet: HomeSheetDestination?
+    /// `activeSheet` becomes nil at the start of dismissal, while its pixels are
+    /// still covering Home. Pending feedback waits for `onDismiss` before it can
+    /// claim the presentation slot.
+    var sheetDismissalInProgress = false
 
     func cameraBinding(isEnabled: Bool) -> Binding<Bool> {
         Binding(
@@ -53,6 +59,13 @@ final class HomeFeaturePresentationState {
         Binding(
             get: { self.showStoryRecovery },
             set: { self.showStoryRecovery = $0 }
+        )
+    }
+
+    var sheetBinding: Binding<HomeSheetDestination?> {
+        Binding(
+            get: { self.activeSheet },
+            set: { self.activeSheet = $0 }
         )
     }
 

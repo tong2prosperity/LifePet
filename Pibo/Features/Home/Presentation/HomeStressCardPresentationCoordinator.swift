@@ -11,7 +11,7 @@ enum HomeStressCardPresentationCoordinator {
     static func presentIfPossible(
         policy: HomePresentationPolicy,
         notifier: StressNotifier,
-        presentation: HomeFeaturePresentationState
+        presentation: HomePresentationState
     ) {
         presentIfPossible(
             policy: policy,

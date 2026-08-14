@@ -4,7 +4,7 @@ import PiboCore
 /// coordinators used by the SpriteKit stage and `bo` collection controls.
 /// Interaction policy and effect ordering remain in the focused coordinators.
 @MainActor
-struct HomeStageInteractionAdapter {
+struct HomeStageInteractions {
     let store: PetStateStore
     let history: HealthHistoryStore
     let animationPresentation: HomeAnimationPresentationController

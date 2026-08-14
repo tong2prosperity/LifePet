@@ -3,9 +3,9 @@ import Testing
 @testable import Pibo
 
 @MainActor
-struct HomeFeaturePresentationStateTests {
+struct HomePresentationStateTests {
     @Test func startsWithEveryDestinationDismissed() {
-        let state = HomeFeaturePresentationState()
+        let state = HomePresentationState()
 
         #expect(!state.showCamera)
         #expect(!state.showGames)
@@ -19,7 +19,7 @@ struct HomeFeaturePresentationStateTests {
     }
 
     @Test func cameraBindingRequiresAvailabilityInBothDirections() {
-        let state = HomeFeaturePresentationState()
+        let state = HomePresentationState()
         state.showCamera = true
 
         let disabled = state.cameraBinding(isEnabled: false)
@@ -37,7 +37,7 @@ struct HomeFeaturePresentationStateTests {
     }
 
     @Test func walkDoodleBindingKeepsTheSameAvailabilityGate() {
-        let state = HomeFeaturePresentationState()
+        let state = HomePresentationState()
         state.showWalkDoodle = true
 
         let disabled = state.walkDoodleBinding(isEnabled: false)
@@ -48,7 +48,7 @@ struct HomeFeaturePresentationStateTests {
     }
 
     @Test func gamesBindingPreservesItsUngatedSetter() {
-        let state = HomeFeaturePresentationState()
+        let state = HomePresentationState()
         let disabled = state.gamesBinding(isEnabled: false)
 
         disabled.wrappedValue = true
@@ -59,7 +59,7 @@ struct HomeFeaturePresentationStateTests {
     }
 
     @Test func directFeatureBindingsRoundTripWithoutExtraMutation() {
-        let state = HomeFeaturePresentationState()
+        let state = HomePresentationState()
         state.historyFocus = .stress
         state.storyRecoveryDismissed = true
 
@@ -75,7 +75,7 @@ struct HomeFeaturePresentationStateTests {
     }
 
     @Test func completingStoryRecoveryDismissesAndRecordsTheChoice() {
-        let state = HomeFeaturePresentationState()
+        let state = HomePresentationState()
         state.showStoryRecovery = true
 
         state.completeStoryRecovery()

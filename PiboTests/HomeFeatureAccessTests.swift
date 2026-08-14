@@ -67,7 +67,7 @@ struct HomeFeatureAccessTests {
 private final class Fixture {
     let suiteName: String
     let defaults: UserDefaults
-    let presentation = HomeFeaturePresentationState()
+    let presentation = HomePresentationState()
     let unlocks: OrnamentUnlockStore
 
     init(unlocked: Bool) throws {

@@ -3,7 +3,7 @@ import SwiftUI
 /// The persistent top and bottom controls on Home. Speech and DEBUG overlays
 /// remain sibling layers so their existing z-order stays explicit in Home.
 struct HomePrimaryChrome: View {
-    let featurePresentation: HomeFeaturePresentationState
+    let presentation: HomePresentationState
     @Binding var showBoUnlockPage: Bool
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
@@ -16,7 +16,7 @@ struct HomePrimaryChrome: View {
     var body: some View {
         VStack(spacing: 0) {
             HomeHeader(
-                featurePresentation: featurePresentation,
+                presentation: presentation,
                 showBoUnlockPage: $showBoUnlockPage,
                 cameraEnabled: cameraEnabled,
                 walkDoodleEnabled: walkDoodleEnabled,
@@ -44,7 +44,7 @@ struct HomeHeader: View {
     @Environment(BoLedgerStore.self) private var boLedger
     @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
 
-    let featurePresentation: HomeFeaturePresentationState
+    let presentation: HomePresentationState
     @Binding var showBoUnlockPage: Bool
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
@@ -100,15 +100,15 @@ struct HomeHeader: View {
                 onOpenCamera: {
                     HomeCameraPresentationCoordinator.open(
                         meal: nil,
-                        presentation: featurePresentation
+                        presentation: presentation
                     )
                 },
                 onOpenWalkDoodle: {
-                    featurePresentation.showWalkDoodle = true
+                    presentation.showWalkDoodle = true
                 },
                 onOpenSettings: {
                     Analytics.track(.settingsOpen, screen: "home")
-                    featurePresentation.showSettings = true
+                    presentation.showSettings = true
                 }
             )
         }

@@ -18,7 +18,7 @@ enum HomeStoryRecoveryPolicy {
 @MainActor
 struct HomeStoryRecoveryOverlay: View {
     let onboarding: OnboardingStateStore
-    let presentation: HomeFeaturePresentationState
+    let presentation: HomePresentationState
 
     var body: some View {
         if shouldShow {

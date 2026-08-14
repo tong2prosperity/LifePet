@@ -4,9 +4,9 @@ import UIKit
 /// coordinators. Availability, persistence order, and asynchronous presentation
 /// timing remain owned by those coordinators.
 @MainActor
-struct HomeContentCaptureAdapter {
+struct HomeContentCapture {
     let currentCameraEnabled: () -> Bool
-    let presentation: HomeFeaturePresentationState
+    let presentation: HomePresentationState
     let history: HealthHistoryStore
     let recognizer: FoodRecognitionService
     let speech: PiboSpeechService

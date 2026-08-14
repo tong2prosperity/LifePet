@@ -5,13 +5,13 @@ import SwiftUI
 /// existing presentation bindings through the same availability decisions.
 @MainActor
 struct HomeFeatureAccess {
-    let presentation: HomeFeaturePresentationState
+    let presentation: HomePresentationState
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
     let miniGamesEnabled: Bool
 
     init(
-        presentation: HomeFeaturePresentationState,
+        presentation: HomePresentationState,
         ornamentUnlocks: OrnamentUnlockStore
     ) {
         self.init(
@@ -24,7 +24,7 @@ struct HomeFeatureAccess {
     }
 
     init(
-        presentation: HomeFeaturePresentationState,
+        presentation: HomePresentationState,
         ornamentUnlocks: OrnamentUnlockStore,
         cameraReleased: Bool,
         walkDoodleReleased: Bool,

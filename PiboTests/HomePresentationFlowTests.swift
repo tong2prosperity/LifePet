@@ -1,15 +1,27 @@
+import Foundation
 import Testing
 @testable import Pibo
 
 @Suite
 @MainActor
-struct HomeAchievementLifecycleAdapterTests {
-    @Test func blockedPresentationReadsPolicyBeforeSheetAndKeepsInputsLazy() {
+struct HomePresentationFlowTests {
+    @Test func blockedAchievementPresentationKeepsInputsLazy() {
+        let suiteName = "HomePresentationFlowTests.blocked"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
         let store = PetStateStore(demoMode: true)
-        var destination: HomeSheetDestination?
+        let presentation = HomePresentationState()
         var events: [String] = []
-        let adapter = HomeAchievementLifecycleAdapter(
+        let flow = HomePresentationFlow(
+            presentation: presentation,
             store: store,
+            ornamentUnlocks: OrnamentUnlockStore(
+                defaults: defaults,
+                debugUnlockOverride: false
+            ),
+            morningSleep: MorningSleepCoordinator(defaults: defaults),
+            stressNotifier: .shared,
             currentPolicy: {
                 events.append("policy")
                 return blockedPolicy
@@ -18,20 +30,15 @@ struct HomeAchievementLifecycleAdapterTests {
                 events.append("animation")
                 return "default"
             },
-            withSheet: { update in
-                events.append("sheet")
-                update(&destination)
-            },
-            dismissSheet: { events.append("dismiss") },
             applyDebugReward: { _ in events.append("debug-reward") },
             refreshAnimationState: { events.append("refresh") },
-            beginSheetDismissal: { events.append("begin-dismissal") }
+            announceFirstRipeBo: { events.append("announce") }
         )
 
-        adapter.presentIfPossible()
+        flow.presentAchievementIfPossible()
 
-        #expect(events == ["policy", "sheet"])
-        #expect(destination == nil)
+        #expect(events == ["policy"])
+        #expect(presentation.activeSheet == nil)
     }
 
     private var blockedPolicy: HomePresentationPolicy {

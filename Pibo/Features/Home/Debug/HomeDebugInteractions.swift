@@ -5,12 +5,12 @@ import UIKit
 /// services. Debug rules, scheduling, and one-shot state remain with the
 /// existing controller and control state.
 @MainActor
-struct HomeDebugInteractionAdapter {
+struct HomeDebugInteractions {
     let automation: HomeDebugAutomationController
     let controls: HomeDebugControlsState
     let store: PetStateStore
     let history: HealthHistoryStore
-    let presentation: HomeFeaturePresentationState
+    let presentation: HomePresentationState
     let morningSleep: MorningSleepCoordinator
     let animationPresentation: HomeAnimationPresentationController
     let stageCommands: PiboStageCommandController

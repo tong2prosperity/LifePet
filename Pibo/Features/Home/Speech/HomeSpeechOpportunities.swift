@@ -1,8 +1,6 @@
-/// Connects Home's live speech inputs to the focused opportunity and
-/// presentation coordinators. Speech selection, budgets, animations, and
-/// one-shot announcement effects remain with their existing owners.
+/// Resolves the weather and first-ripe speech opportunities driven by Home.
 @MainActor
-struct HomeSpeechInteractionAdapter {
+struct HomeSpeechOpportunities {
     let presentation: HomeSpeechPresentationController
     let input: HomeSpeechInputProvider
     let speech: PiboSpeechService
@@ -11,18 +9,6 @@ struct HomeSpeechInteractionAdapter {
     let currentWeather: () -> PiboWeather
     let currentHasRipeBo: () -> Bool
 
-    func dismiss() {
-        presentation.dismiss()
-    }
-
-    func show(_ line: PiboSpeechLine) {
-        presentation.show(line)
-    }
-
-    func show(_ resolved: PiboSpeech) {
-        presentation.show(resolved)
-    }
-
     func presentWeatherIfPossible(trigger: PiboSpeechTrigger) {
         HomeSpeechOpportunityCoordinator.presentWeatherIfPossible(
             trigger: trigger,
@@ -30,7 +16,7 @@ struct HomeSpeechInteractionAdapter {
             idleSpeechContext: input.idleContext,
             weather: currentWeather(),
             speech: speech,
-            show: show
+            show: presentation.show
         )
     }
 
@@ -42,7 +28,7 @@ struct HomeSpeechInteractionAdapter {
             hasRipeBo: currentHasRipeBo(),
             speechIsAbsent: presentation.line == nil,
             idleSpeechContextAvailable: input.idleContext != nil,
-            show: show
+            show: presentation.show
         )
     }
 }

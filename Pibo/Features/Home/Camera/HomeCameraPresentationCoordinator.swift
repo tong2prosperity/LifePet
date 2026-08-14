@@ -10,7 +10,7 @@ enum HomeCameraPresentationCoordinator {
 
     static func open(
         meal: MealType?,
-        presentation: HomeFeaturePresentationState
+        presentation: HomePresentationState
     ) {
         open(
             meal: meal,
@@ -31,7 +31,7 @@ enum HomeCameraPresentationCoordinator {
     static func openIfEnabled(
         meal: MealType,
         isEnabled: Bool,
-        presentation: HomeFeaturePresentationState
+        presentation: HomePresentationState
     ) {
         guard isEnabled else { return }
         open(meal: meal, presentation: presentation)

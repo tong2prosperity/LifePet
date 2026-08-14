@@ -113,16 +113,14 @@ final class HomePresentationPolicyTests: XCTestCase {
     }
 
     func testPresentationAdapterReadsEveryLiveCoverFlag() {
-        let presentation = HomeFeaturePresentationState()
+        let presentation = HomePresentationState()
         let policy = HomePresentationPolicy(
             sceneIsActive: true,
             presentation: presentation,
-            sheetPresented: false,
-            sheetDismissalInProgress: false,
             sproutFlowIsIdle: true
         )
 
-        let setPresented: [(HomeFeaturePresentationState) -> Void] = [
+        let setPresented: [(HomePresentationState) -> Void] = [
             { $0.showCamera = true },
             { $0.showGames = true },
             { $0.showHistory = true },
