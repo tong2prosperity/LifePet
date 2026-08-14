@@ -101,6 +101,32 @@ struct HomeView: View {
         )
     }
 
+    private var stageInteractions: HomeStageInteractionAdapter {
+        HomeStageInteractionAdapter(
+            store: store,
+            history: history,
+            animationPresentation: animationPresentation,
+            stageCommands: stageCommands,
+            speech: piboSpeech,
+            ledger: boLedger,
+            onboarding: onboarding,
+            ornamentUnlocks: ornamentUnlocks,
+            ornamentLights: ornamentLights,
+            morningSleep: morningSleep,
+            storyStage: { speechInput.storyStage },
+            speechFacts: { speechInput.facts },
+            canPresentOrnament: {
+                activeSheet == nil
+                    && !fullScreenFeaturePresented
+                    && sproutPhase == .idle
+            },
+            dismissSpeech: dismissSpeech,
+            showAnimationLine: { show($0) },
+            showResolvedSpeech: { show($0) },
+            presentSheet: { activeSheet = $0 }
+        )
+    }
+
     private var stageEnvironment: PiboStageEnvironment {
         #if DEBUG
         let forcedHour = store.debugForestHour
@@ -140,12 +166,7 @@ struct HomeView: View {
                     isObscured: showBoUnlockPage
                 ),
                 commandController: stageCommands,
-                handlers: .init(
-                    pat: handlePat,
-                    hairPull: handleHairPull,
-                    ornamentLightTap: handleOrnamentLightTap,
-                    ornamentTap: handleOrnamentTap
-                )
+                handlers: stageInteractions.stageHandlers
             )
 
             chromeContent
@@ -353,7 +374,7 @@ struct HomeView: View {
                 feedbackEnabled: boCounterFeedbackEnabled,
                 hasRipeBo: boLedger.hasRipeBo,
                 dismissSpeech: dismissSpeech,
-                collectAction: doPluck,
+                collectAction: stageInteractions.collectBo,
                 onOpenHistory: {
                     Analytics.track(.historyOpen, screen: "home")
                     featurePresentation.showHistory = true
@@ -374,67 +395,6 @@ struct HomeView: View {
         .allowsHitTesting(!sproutPhase.obscuresHomeChrome)
     }
 
-    // MARK: 拍一拍
-
-    private func handlePat() {
-        HomePatInteractionCoordinator.run(
-            store: store,
-            history: history,
-            animationPresentation: animationPresentation,
-            stageCommands: stageCommands,
-            speech: piboSpeech,
-            storyStage: { speechInput.storyStage },
-            facts: { speechInput.facts },
-            neutralLegacyMode: {
-                !PiboReleaseScope.temporaryCooperationOnboarding
-            },
-            showAnimationLine: show,
-            showResolvedSpeech: show
-        )
-    }
-
-    /// 拖毛 released past the pull threshold. 毛熟了的时候这就是拔毛；没熟的时候
-    /// Pibo 只是不喜欢被扯，扭头了事。
-    private func handleHairPull() {
-        HomeHairPullCoordinator.handle(
-            ledger: boLedger,
-            stageCommands: stageCommands,
-            pluck: doPluck
-        )
-    }
-
-    /// 点亮铃兰灯的一盏铃铛。
-    ///
-    /// **不给任何回报** —— 不加 bo、不加能量、不解锁、不推进故事。决定 013 写死了
-    /// 这条边界，而「点一下灯」正是最容易被顺手挂上奖励的那种交互。这里只有一次
-    /// 触觉反馈和一条打点。
-    ///
-    /// 也没有「点灭」的分支：灯只能点亮，天亮自己熄。
-    private func handleOrnamentLightTap(_ id: PiboOrnament.ID, index: Int) {
-        HomeOrnamentInteractionCoordinator.handleLightTap(
-            ornamentID: id,
-            index: index,
-            unlocks: ornamentUnlocks,
-            lights: ornamentLights
-        )
-    }
-
-    private func handleOrnamentTap(_ id: PiboOrnament.ID) {
-        HomeOrnamentInteractionCoordinator.handleTap(
-            ornamentID: id,
-            canPresent: {
-                activeSheet == nil
-                    && !fullScreenFeaturePresented
-                    && sproutPhase == .idle
-            },
-            unlocks: ornamentUnlocks,
-            morningSleep: morningSleep,
-            history: history,
-            dismissSpeech: dismissSpeech,
-            present: { activeSheet = $0 }
-        )
-    }
-
     // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)
     private func maybeStartEnergyFlow() {
         sproutFlow.startIfPossible(
@@ -452,17 +412,7 @@ struct HomeView: View {
         )
     }
 
-    // MARK: 拔毛 / 拍照
-
-    @discardableResult
-    private func doPluck() -> Bool {
-        HomePluckCoordinator.run(
-            ledger: boLedger,
-            stageCommands: stageCommands,
-            onboarding: onboarding,
-            show: show
-        )
-    }
+    // MARK: 拍照
 
     /// Open the camera for a specific meal slot (早/中/晚) — the saved photo goes
     /// to the backend for 卡路里 recognition and its detail modal pops up.
@@ -531,7 +481,7 @@ struct HomeView: View {
     ///
     /// 走的是业务同一条路径：先写状态变量让下一次 `apply(...)` 生效；要看 Q 弹
     /// 时紧接着发命令 —— 命令会先把渲染器的 `animationStateID` 写掉，随后那次
-    /// `apply` 自然成为 no-op，不会双切。顺序与 `handlePat()` 一致。
+    /// `apply` 自然成为 no-op，不会双切。顺序与拍一拍交互一致。
     private func applyDebugAnimationState(_ stateID: String?) {
         debugControls.selectAnimationState(
             stateID,
