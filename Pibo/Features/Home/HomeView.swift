@@ -97,39 +97,12 @@ struct HomeView: View {
         presentationPolicy.boCounterFeedbackEnabled
     }
 
-    private var storySpeechStage: PiboCoreStorySpeechStage {
-        guard PiboReleaseScope.temporaryCooperationOnboarding else {
-            return .unresponded
-        }
-        return onboarding.eventProjection().speechStage
-    }
-
-    private var homeSpeechFacts: PiboHomeSpeechFacts {
-        HomeSpeechInputResolver.facts(
-            hasStepsData: store.hasStepsData,
-            rawSteps: store.rawSteps,
-            rawSleepHours: store.rawSleepHours,
-            hasWorkoutToday: store.hasWorkoutToday,
-            pendingBoCount: boLedger.state.ripeCount,
-            cooperationEnabled: PiboReleaseScope.temporaryCooperationOnboarding,
-            connectionAccepted: onboarding.snapshot.connection == .accepted
-        )
-    }
-
-    private var homeSpeechValues: [String: String] {
-        HomeSpeechInputResolver.values(
-            hasStepsData: store.hasStepsData,
-            rawSteps: store.rawSteps,
-            rawSleepHours: store.rawSleepHours,
-            sleepDurationUnit: AppLocalization.text("小时")
-        )
-    }
-
-    private var idleSpeechContext: PiboCoreHomeSpeechContext? {
-        HomeIdleSpeechContextResolver.resolve(
-            animationStateID: semanticAnimationStateID,
-            wakingSleptEnough: store.wakingSleptEnough,
-            hasRealHealthData: store.hasRealHealthData
+    private var speechInput: HomeSpeechInputProvider {
+        HomeSpeechInputProvider(
+            store: store,
+            boLedger: boLedger,
+            onboarding: onboarding,
+            animationPresentation: animationPresentation
         )
     }
 
@@ -240,10 +213,10 @@ struct HomeView: View {
                 speechIsAbsent: { speechPresentation.line == nil },
                 sproutIsIdle: { sproutPhase == .idle },
                 stageIsPaused: { stagePaused },
-                context: { idleSpeechContext },
-                storyStage: { storySpeechStage },
-                facts: { homeSpeechFacts },
-                values: { homeSpeechValues },
+                context: { speechInput.idleContext },
+                storyStage: { speechInput.storyStage },
+                facts: { speechInput.facts },
+                values: { speechInput.values },
                 speech: piboSpeech,
                 show: show
             ),
@@ -436,8 +409,8 @@ struct HomeView: View {
             animationPresentation: animationPresentation,
             stageCommands: stageCommands,
             speech: piboSpeech,
-            storyStage: { storySpeechStage },
-            facts: { homeSpeechFacts },
+            storyStage: { speechInput.storyStage },
+            facts: { speechInput.facts },
             neutralLegacyMode: {
                 !PiboReleaseScope.temporaryCooperationOnboarding
             },
@@ -572,7 +545,7 @@ struct HomeView: View {
         HomeSpeechOpportunityCoordinator.presentWeatherIfPossible(
             trigger: trigger,
             stageIsPaused: stagePaused,
-            idleSpeechContext: idleSpeechContext,
+            idleSpeechContext: speechInput.idleContext,
             weather: weather.condition,
             speech: piboSpeech,
             show: show
@@ -674,7 +647,7 @@ struct HomeView: View {
             policy: presentationPolicy,
             hasRipeBo: boLedger.hasRipeBo,
             speechIsAbsent: speechPresentation.line == nil,
-            idleSpeechContextAvailable: idleSpeechContext != nil,
+            idleSpeechContextAvailable: speechInput.idleContext != nil,
             show: show
         )
     }
