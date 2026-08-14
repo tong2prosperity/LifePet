@@ -293,49 +293,38 @@ struct HomeView: View {
 
     private var homeLifecycleContent: some View {
         homeTaskContent
-        .onAppear {
-            weather.activateForHome()
-            greetingText = store.mowanGreeting
-            dayLabelText = store.relationshipDayLabel
-            speakForWeather(trigger: .entered)
-            refreshAnimationState()
-            #if DEBUG
-            runDebugLaunchAutomation()
-            #endif
-            presentAchievementIfPossible()
-            startSoundscape()
-            presentMorningSleepIfPossible()
-            presentStressCardIfPossible()
-            if boLedger.hasRipeBo { announceFirstRipeBoIfNeeded() }
-        }
-        .onDisappear {
-            HomeSoundscapeCoordinator.stop(soundscape: soundscape)
-        }
-        .onChange(of: stageEnvironment) { _, environment in
-            HomeSoundscapeCoordinator.update(
-                environment: environment,
-                date: atmosphereClock.now,
-                petID: store.identity.currentPetId,
-                soundscape: soundscape
+            .modifier(homeLifecycleModifier)
+    }
+
+    private var homeLifecycleModifier: HomeLifecycleModifier {
+        HomeLifecycleModifier(
+            greetingText: $greetingText,
+            dayLabelText: $dayLabelText,
+            currentGreeting: { store.mowanGreeting },
+            currentDayLabel: { store.relationshipDayLabel },
+            stageEnvironment: stageEnvironment,
+            weather: weather.condition,
+            petID: store.identity.currentPetId,
+            ambientSoundEnabled: ambientSoundEnabled,
+            soundscapePresentation: soundscapePresentation,
+            currentHasRipeBo: { boLedger.hasRipeBo },
+            weatherService: weather,
+            soundscape: soundscape,
+            currentDate: { atmosphereClock.now },
+            handlers: .init(
+                speakForWeather: speakForWeather,
+                refreshAnimation: { refreshAnimationState() },
+                runDebugAutomation: {
+                    #if DEBUG
+                    runDebugLaunchAutomation()
+                    #endif
+                },
+                presentAchievement: presentAchievementIfPossible,
+                presentMorningSleep: presentMorningSleepIfPossible,
+                presentStressCard: presentStressCardIfPossible,
+                announceFirstRipeBo: announceFirstRipeBoIfNeeded
             )
-        }
-        .onChange(of: weather.condition) { _, _ in
-            speakForWeather(trigger: .environmentChanged)
-        }
-        .onChange(of: store.identity.currentPetId) { _, petID in
-            HomeSoundscapeCoordinator.update(
-                environment: stageEnvironment,
-                date: atmosphereClock.now,
-                petID: petID,
-                soundscape: soundscape
-            )
-        }
-        .onChange(of: ambientSoundEnabled) { _, enabled in
-            soundscape.setEnabled(enabled)
-        }
-        .onChange(of: soundscapePresentation) { _, presentation in
-            soundscape.setPresentation(presentation)
-        }
+        )
     }
 
     private var homeStateObservationContent: some View {
@@ -796,17 +785,6 @@ struct HomeView: View {
             policy: presentationPolicy,
             notifier: stressNotifier,
             presentation: featurePresentation
-        )
-    }
-
-    private func startSoundscape() {
-        HomeSoundscapeCoordinator.start(
-            enabled: ambientSoundEnabled,
-            presentation: soundscapePresentation,
-            environment: stageEnvironment,
-            date: atmosphereClock.now,
-            petID: store.identity.currentPetId,
-            soundscape: soundscape
         )
     }
 
