@@ -1,47 +1,6 @@
 import SwiftUI
 import os
 
-// MARK: - Raw HealthKit snapshot
-
-/// Latest known reading per metric. The PRD §3 formulas read from here.
-private struct RawMetrics {
-    var steps: Int = 0
-    var exerciseMinutes: Int = 0
-    var activeEnergy: Double = 0
-    var standMinutes: Int = 0
-    var heartRate: Double = 0
-    /// When `heartRate` was measured (sample time, not ingest). Lets the derived
-    /// stress card drop a stale HR (e.g. a workout peak lingering as the latest
-    /// sample) instead of reading it as current tension.
-    var heartRateAt: Date? = nil
-    /// Apple's SDNN. Kept because HealthKit gives it for free and the 历史 record
-    /// persists it, but **nothing derives state from it** — 心情, the 压力卡 and
-    /// the stress push all read `rmssd` below. SDNN is a different metric (total
-    /// variability, slow components included) and reads systematically higher.
-    var hrv: Double = 0
-    /// Latest RMSSD (ms) Pibo computes itself from the heartbeat series — the
-    /// 压力卡's source, distinct from `hrv` (Apple SDNN). `nil` until a real
-    /// reading lands (no simulator data).
-    var rmssd: Double? = nil
-    /// When `rmssd` was last measured — drives the "测于 N 分钟前" freshness
-    /// label on the derived stress card.
-    var rmssdAt: Date? = nil
-    /// Whether the Apple measurement had enough corrected NN evidence and an
-    /// eligible awake/resting context to affect stress interpretation.
-    var rmssdInterpretationEligible = false
-    var restingHR: Double = 0
-    var sleepTotal: TimeInterval = 0
-    var sleepDeep: TimeInterval = 0
-    var sleepREM: TimeInterval = 0
-    /// The earliest `asleep*` startDate in the latest sleep snapshot, used to
-    /// label the home-screen sleep card ("昨 23:30"). `nil` when no asleep
-    /// samples exist yet.
-    var sleepStart: Date? = nil
-    var mindfulMinutes: Int = 0
-    /// Latest blood-oxygen (SpO2) reading as a fraction 0–1.
-    var oxygen: Double = 0
-}
-
 // MARK: - Store
 
 /// Replaces the old hand-set `HomeModel`. Sources of truth, in order of
@@ -856,33 +815,17 @@ final class PetStateStore {
     @discardableResult
     private func recordSnapshot(for date: Date = Date()) -> Task<Void, Never>? {
         guard !demoMode, hasIngestedAny else { return nil }
-        let snap = currentSnapshot(for: date)
+        let snap = PetStateDailySnapshotFactory.make(
+            petId: identity.currentPetId,
+            date: date,
+            stats: stats,
+            state: state,
+            raw: raw,
+            steps: steps
+        )
         return Task { [snapshots] in
             await snapshots.write(snap)
         }
-    }
-
-    private func currentSnapshot(for date: Date) -> DailySnapshot {
-        DailySnapshot(
-            petId: identity.currentPetId,
-            date: Calendar.current.startOfDay(for: date),
-            vitality: stats.first(where: { $0.kind == .vitality })?.value ?? 0,
-            energy:   stats.first(where: { $0.kind == .energy   })?.value ?? 0,
-            mood:     stats.first(where: { $0.kind == .mood     })?.value ?? 0,
-            stateTag: state.tag,
-            steps: raw.steps,
-            exerciseMinutes: raw.exerciseMinutes,
-            activeEnergy: raw.activeEnergy,
-            standMinutes: raw.standMinutes,
-            hrv: raw.hrv,
-            restingHR: raw.restingHR,
-            sleepTotal: raw.sleepTotal,
-            sleepDeep: raw.sleepDeep,
-            sleepREM: raw.sleepREM,
-            mindfulMinutes: raw.mindfulMinutes,
-            completedStepKinds: steps.filter { $0.status == .done }.map { $0.kind.rawValue },
-            updatedAt: Date()
-        )
     }
 
     // MARK: - Widget / Live Activity bridge
