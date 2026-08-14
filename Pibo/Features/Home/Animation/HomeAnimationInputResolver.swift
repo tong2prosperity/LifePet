@@ -1,8 +1,8 @@
 import Foundation
 import PiboCore
 
-/// Maps iOS-owned time and health evidence into the existing Core-facing input.
-/// State thresholds and decisions remain in `PiboCoreAnimationAdapter`.
+/// Converts persisted, paired main-sleep sessions into Core's routine input.
+/// No state threshold is duplicated here.
 enum HomeAnimationInputResolver {
     struct SleepHistoryWindow: Equatable {
         let start: Date
@@ -15,67 +15,69 @@ enum HomeAnimationInputResolver {
     ) -> SleepHistoryWindow {
         let today = calendar.startOfDay(for: date)
         return SleepHistoryWindow(
-            start: calendar.date(byAdding: .day, value: -40, to: today) ?? today,
-            end: calendar.date(byAdding: .day, value: -1, to: today) ?? today
+            start: calendar.date(byAdding: .day, value: -13, to: today) ?? today,
+            end: today
         )
+    }
+
+    static func nights(
+        from records: [HealthDayRecord],
+        at date: Date,
+        calendar: Calendar
+    ) -> [PiboCoreSleepWeeklyNight] {
+        let today = calendar.startOfDay(for: date)
+        return records.compactMap { record in
+            guard record.sleepTotal > 0,
+                  let start = record.sleepStart,
+                  let end = record.sleepEnd,
+                  end > start
+            else { return nil }
+            let day = calendar.startOfDay(for: record.date)
+            let offset = calendar.dateComponents([.day], from: today, to: day).day ?? 0
+            return PiboCoreSleepWeeklyNight(
+                totalSeconds: record.sleepTotal,
+                deepSeconds: record.sleepDeep,
+                remSeconds: record.sleepREM,
+                awakeSeconds: record.sleepAwake,
+                bedtimeMinutes: minuteOfDay(start, calendar: calendar),
+                wakeMinutes: minuteOfDay(end, calendar: calendar),
+                dayOffset: offset
+            )
+        }
     }
 
     static func resolve(
         at date: Date,
         calendar: Calendar,
-        sleepHistoryTotals: [TimeInterval],
-        localHour: @autoclosure () -> Double,
-        rawSleepHours: @autoclosure () -> Double,
-        hasStepsData: @autoclosure () -> Bool,
-        rawSteps: @autoclosure () -> Int,
-        hasWorkoutToday: @autoclosure () -> Bool,
-        angryActive: @autoclosure () -> Bool,
-        rmssd: @autoclosure () -> Double?,
-        rmssdMeasuredAt: @autoclosure () -> Date?,
-        rmssdInterpretationEligible: @autoclosure () -> Bool,
-        stressBaseline: @autoclosure () -> StressBaseline?,
-        previousStressStateID: @autoclosure () -> String,
-        heldAchievement: @autoclosure () -> PiboAnimationAchievementKind?
+        records: [HealthDayRecord],
+        hasActivityData: Bool,
+        steps: Int,
+        lastWorkoutEndedAt: Date?
     ) -> HomeAnimationStateResolver.Input {
-        let sleepHistory = sleepHistoryTotals
-            .filter { $0 > 0 }
-            .suffix(28)
-            .map { $0 / 3_600 }
-        let sleepReference = PiboCoreAnimationAdapter.sleepReference(
-            history: Array(sleepHistory)
+        HomeAnimationStateResolver.Input(
+            decision: PiboCoreStateAdapter.decide(
+                at: date,
+                calendar: calendar,
+                hasActivityData: hasActivityData,
+                steps: steps,
+                lastWorkoutEndedAt: lastWorkoutEndedAt,
+                nights: nights(from: records, at: date, calendar: calendar)
+            ),
+            sleepDayKey: dayKey(for: date, calendar: calendar)
         )
-        let baseline = stressBaseline()
-        let stressZ = rmssd().flatMap { value in
-            baseline.map { $0.z(for: value) }
-        } ?? 0
-        let rmssdAge = rmssdMeasuredAt().map { date.timeIntervalSince($0) }
-            ?? .greatestFiniteMagnitude
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        let dayKey = Int64(
-            (components.year ?? 0) * 10_000
-                + (components.month ?? 0) * 100
-                + (components.day ?? 0)
-        )
+    }
 
-        return HomeAnimationStateResolver.Input(
-            localHour: localHour(),
-            hasSleepData: rawSleepHours() > 0,
-            sleepHours: rawSleepHours(),
-            sleepReferenceHours: sleepReference.hours,
-            hasActivityData: hasStepsData(),
-            steps: rawSteps(),
-            hasWorkoutToday: hasWorkoutToday(),
-            postPluckSleep: false,
-            sleepDayKey: dayKey,
-            angryActive: angryActive(),
-            hasEligibleRMSSD: rmssd() != nil
-                && rmssdInterpretationEligible()
-                && baseline != nil,
-            stressBaselineDays: baseline?.dayCount ?? 0,
-            stressZ: stressZ,
-            rmssdAgeSeconds: rmssdAge,
-            previousStressStateID: previousStressStateID(),
-            heldAchievement: heldAchievement()
+    private static func minuteOfDay(_ date: Date, calendar: Calendar) -> Int {
+        let values = calendar.dateComponents([.hour, .minute], from: date)
+        return (values.hour ?? 0) * 60 + (values.minute ?? 0)
+    }
+
+    private static func dayKey(for date: Date, calendar: Calendar) -> Int64 {
+        let values = calendar.dateComponents([.year, .month, .day], from: date)
+        return Int64(
+            (values.year ?? 0) * 10_000
+                + (values.month ?? 0) * 100
+                + (values.day ?? 0)
         )
     }
 }

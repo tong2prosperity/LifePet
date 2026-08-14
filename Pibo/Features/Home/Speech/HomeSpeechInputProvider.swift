@@ -41,7 +41,6 @@ struct HomeSpeechInputProvider {
     var idleContext: PiboCoreHomeSpeechContext? {
         HomeIdleSpeechContextResolver.resolve(
             animationStateID: animationPresentation.stateID,
-            wakingSleptEnough: store.wakingSleptEnough,
             hasRealHealthData: store.hasRealHealthData
         )
     }

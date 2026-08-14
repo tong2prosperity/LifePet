@@ -20,7 +20,7 @@ final class PiboCharacterRenderer {
     private weak var scene: SKScene?
     private weak var camera: SKCameraNode?
     private var theme: PiboTheme = .forest
-    private var state: PiboActivityState = .idle
+    private var state: PiboActivityState = .dataUnknown
     private var animationStateID = PiboAnimationStateMap.fallback
     private var growth: PiboGrowthStage = .mystery
     private var placement: PiboCharacterPlacement?
@@ -96,7 +96,7 @@ final class PiboCharacterRenderer {
         if vector != nil {
             if animationStateChanged {
                 vectorPlaybook?.setAmbient(resolvedAnimationStateID)
-                showZzz(visible && newState == .deepSleep)
+                showZzz(visible && newState == .sleeping)
             }
             // `pibo_context` swaps the state and its placement in the same
             // business update. Layout only after the hard cut so there is no
@@ -131,11 +131,11 @@ final class PiboCharacterRenderer {
         visible = isVisible
         rootNode.isHidden = !isVisible
         if vector != nil {
-            showZzz(isVisible && state == .deepSleep)
+            showZzz(isVisible && state == .sleeping)
             return
         }
         overheadNode.isHidden = !isVisible || theme.resolvedHead(for: growth).overhead == nil
-        showZzz(isVisible && state == .deepSleep)
+        showZzz(isVisible && state == .sleeping)
     }
 
     func applyShader(_ shader: SKShader?) {
@@ -179,6 +179,15 @@ final class PiboCharacterRenderer {
         case .bounceCut:
             vectorPlaybook?.syncAmbientState(stateID)
             vectorTransition?.bounceCut(to: stateID)
+        }
+    }
+
+    /// Plays a short interaction/achievement pose and then returns to the
+    /// current ambient state. It never mutates the ambient state ID.
+    func performEvent(stateID: String, hold: TimeInterval = 1.6) {
+        guard PiboAnimationStateMap.available.contains(stateID) else { return }
+        if let vectorPlaybook {
+            vectorPlaybook.play([.init(stateID, hold: hold)])
         }
     }
 
@@ -489,7 +498,7 @@ final class PiboCharacterRenderer {
         vectorIdle = animator
         vectorPlaybook = PiboCharacterPlaybook(transition: driver, ambientStateID: built.currentStateID)
         layoutVector()
-        showZzz(visible && state == .deepSleep)
+        showZzz(visible && state == .sleeping)
         return true
     }
 
@@ -771,18 +780,16 @@ final class PiboCharacterRenderer {
             if placement?.usesCanonicalMotion == true {
                 applyCanonicalState(animated: animated)
             } else {
-                showZzz(state == .deepSleep)
-                if state == .disturbed { playTurnAway() }
+                showZzz(state == .sleeping)
             }
             return
         }
         switch state {
-        case .deepSleep: setEyes(.closed); setBlush(0); showZzz(true); setBodyTint(0.97)
+        case .sleeping: setEyes(.closed); setBlush(0); showZzz(true); setBodyTint(0.97)
         case .waking: setEyes(.half); setBlush(0); showZzz(false); setBodyTint(1)
-        case .active: setEyes(.open); setBlush(0.7); showZzz(false); setBodyTint(1)
-        case .irritated: setEyes(.half); setBlush(0.5); showZzz(false); setBodyTint(0.96)
-        case .disturbed: setEyes(.half); setBlush(0.3); showZzz(false); setBodyTint(1); playTurnAway()
-        case .idle: setEyes(.open); setBlush(0); showZzz(false); setBodyTint(1)
+        case .energetic: setEyes(.open); setBlush(0.7); showZzz(false); setBodyTint(1)
+        case .tired: setEyes(.half); setBlush(0); showZzz(false); setBodyTint(0.97)
+        case .stable, .dataUnknown: setEyes(.open); setBlush(0); showZzz(false); setBodyTint(1)
         }
     }
 
@@ -791,16 +798,16 @@ final class PiboCharacterRenderer {
         body.removeAction(forKey: "canonicalState")
         headNode.removeAction(forKey: "canonicalState")
         headNode.removeAction(forKey: "headIdle")
-        showZzz(state == .deepSleep)
+        showZzz(state == .sleeping)
         let duration = animated ? 0.32 : 0
         switch state {
-        case .deepSleep:
+        case .sleeping:
             body.run(.group([.scaleX(to: 1.03, y: 0.96, duration: duration), .rotate(toAngle: -0.025, duration: duration)]), withKey: "canonicalState")
             runHeadReaction(.rotate(toAngle: -0.12, duration: duration))
         case .waking:
             body.run(.group([.scaleX(to: 1, y: 1, duration: duration), .rotate(toAngle: 0.025, duration: duration)]), withKey: "canonicalState")
             runHeadReaction(.rotate(toAngle: -0.04, duration: duration))
-        case .active:
+        case .energetic:
             body.run(.sequence([
                 .scaleX(to: 0.96, y: 1.06, duration: 0.12),
                 .scaleX(to: 1.02, y: 0.98, duration: 0.12),
@@ -811,12 +818,10 @@ final class PiboCharacterRenderer {
                 .rotate(toAngle: -0.08, duration: 0.14),
                 .rotate(toAngle: 0, duration: 0.18),
             ]))
-        case .irritated:
+        case .tired:
             body.run(.group([.scaleX(to: 1.01, y: 0.98, duration: duration), .rotate(toAngle: 0.045, duration: duration)]), withKey: "canonicalState")
             runHeadReaction(.rotate(toAngle: 0.13, duration: duration))
-        case .disturbed:
-            body.setScale(1); playTurnAway(); startHeadIdle()
-        case .idle:
+        case .stable, .dataUnknown:
             body.run(.group([.scaleX(to: 1, y: 1, duration: duration), .rotate(toAngle: 0, duration: duration)]), withKey: "canonicalState")
             runHeadReaction(.rotate(toAngle: 0, duration: duration))
         }
@@ -878,10 +883,10 @@ final class PiboCharacterRenderer {
         let center: CGFloat
         if canonical {
             switch state {
-            case .deepSleep: center = -0.12
+            case .sleeping: center = -0.12
             case .waking: center = -0.04
-            case .irritated: center = 0.13
-            case .active, .disturbed, .idle: center = 0
+            case .tired: center = 0.13
+            case .energetic, .stable, .dataUnknown: center = 0
             }
         } else { center = 0 }
         let amplitude: CGFloat = canonical ? 0.035 : 0.06
@@ -931,7 +936,7 @@ final class PiboCharacterRenderer {
         boProgressHost.position = anchor
         buildBoProgressParticles(color: SKColor(theme.scene.groundAccent))
         buildBoProgressLabel(milestone.message)
-        if state != .deepSleep { headRig.addImpulse(0.55) }
+        if state != .sleeping { headRig.addImpulse(0.55) }
         boProgressHost.run(.sequence([
             .wait(forDuration: 1.45),
             .run { [weak self] in self?.boProgressHost.removeAllChildren() },

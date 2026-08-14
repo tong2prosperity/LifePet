@@ -1,59 +1,38 @@
+import PiboCore
 import XCTest
 @testable import Pibo
 
 @MainActor
 final class HomeAnimationStateResolverTests: XCTestCase {
-    func testResolverPreservesAnUncoveredAmbientDecision() {
-        XCTAssertEqual(
-            HomeAnimationStateResolver.resolve(input()).stateID,
-            "default"
+    func testResolverMapsOnlyTheCoreStateToAmbientArtwork() {
+        XCTAssertEqual(resolve(.dataUnknown).stateID, "pibo-state-stable-forest-idle")
+        XCTAssertEqual(resolve(.stable).stateID, "pibo-state-stable-forest-idle")
+        XCTAssertEqual(resolve(.waking).stateID, "pibo-state-waking-hammock-idle")
+        XCTAssertEqual(resolve(.energetic).stateID, "pibo-event-activity-milestone-celebrate")
+        XCTAssertEqual(resolve(.tired).stateID, "pibo-state-tired-forest-idle")
+        XCTAssertTrue(["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"].contains(resolve(.sleeping).stateID))
+    }
+
+    func testResolutionPreservesSemanticDecision() {
+        let resolution = resolve(.tired)
+        XCTAssertEqual(resolution.state, .tired)
+        XCTAssertEqual(resolution.decision.cause, .insufficientSleep)
+    }
+
+    private func resolve(_ state: PiboActivityState) -> HomeAnimationStateResolver.Resolution {
+        let decision = PiboCoreStateAdapter.Decision(
+            state: state,
+            cause: state == .tired ? .insufficientSleep : .normalRhythm,
+            sleepStartMinute: 23 * 60 + 30,
+            wakeMinute: 7 * 60 + 30,
+            routineSource: .personalAverage,
+            routineSampleCount: 7,
+            routineRegularity: 85,
+            routineShiftMinutes: 0
         )
-    }
-
-    func testStressMemoryUsesAmbientDecisionBeforeAchievementHold() {
-        let resolution = HomeAnimationStateResolver.resolve(input(
-            stressBaselineDays: 7,
-            stressZ: -1,
-            heldAchievement: .muscle
+        return HomeAnimationStateResolver.resolve(.init(
+            decision: decision,
+            sleepDayKey: 20_260_814
         ))
-
-        XCTAssertEqual(resolution.stateID, "muscle")
-        XCTAssertEqual(resolution.nextStressStateID, "dive")
-    }
-
-    func testProtectedAngryStateRemainsAboveAchievementHold() {
-        let resolution = HomeAnimationStateResolver.resolve(input(
-            angryActive: true,
-            heldAchievement: .muscle
-        ))
-
-        XCTAssertEqual(resolution.stateID, "angry")
-        XCTAssertEqual(resolution.nextStressStateID, "default")
-    }
-
-    private func input(
-        angryActive: Bool = false,
-        stressBaselineDays: Int = 0,
-        stressZ: Double = 0,
-        heldAchievement: PiboAnimationAchievementKind? = nil
-    ) -> HomeAnimationStateResolver.Input {
-        HomeAnimationStateResolver.Input(
-            localHour: 15,
-            hasSleepData: true,
-            sleepHours: 7,
-            sleepReferenceHours: 7,
-            hasActivityData: true,
-            steps: 4_000,
-            hasWorkoutToday: false,
-            postPluckSleep: false,
-            sleepDayKey: 20_260_814,
-            angryActive: angryActive,
-            hasEligibleRMSSD: stressBaselineDays > 0,
-            stressBaselineDays: stressBaselineDays,
-            stressZ: stressZ,
-            rmssdAgeSeconds: 0,
-            previousStressStateID: "default",
-            heldAchievement: heldAchievement
-        )
     }
 }

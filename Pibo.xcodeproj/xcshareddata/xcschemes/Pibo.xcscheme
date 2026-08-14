@@ -64,6 +64,16 @@
             ReferencedContainer = "container:Pibo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+         <CommandLineArgument
+            argument = "PiboBoBalance=26"
+            isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "PiboOpenBoPanel"
+            isEnabled = "YES">
+         </CommandLineArgument>
+      </CommandLineArguments>
       <StoreKitConfigurationFileReference
          identifier = "../../../PiboStore.storekit">
       </StoreKitConfigurationFileReference>

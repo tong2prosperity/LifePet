@@ -14,7 +14,7 @@ struct CharacterLabView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var scene = CharacterLabScene(size: CGSize(width: 393, height: 852))
-    @State private var stateID = "default"
+    @State private var stateID = PiboAnimationResourceID.stable
     @State private var zoom: Double = 1
     @State private var warpProbe = true
     @State private var autoCycle = false

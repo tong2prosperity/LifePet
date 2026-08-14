@@ -11,8 +11,8 @@ struct PiboAnimationIntegrationTests {
     @Test func shippedCharacterDataCoversAllStatesZonesAndRuntimePrimitives() throws {
         let data = try PiboCharacterData.load()
         let expectedStates: Set<String> = [
-            "default", "awake", "tired", "boring", "weak", "pigu",
-            "muscle", "angry", "dive", "coolhide", "sleep-1", "sleep-2",
+            "pibo-state-stable-forest-idle", "pibo-state-waking-hammock-idle", "pibo-state-tired-forest-idle", "boring", "weak", "pibo-event-workout-celebrate",
+            "pibo-event-activity-milestone-celebrate", "angry", "dive", "coolhide", "pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b",
         ]
         #expect(Set(data.states.keys) == expectedStates)
         #expect(PiboAnimationStateMap.available == expectedStates)
@@ -22,8 +22,8 @@ struct PiboAnimationIntegrationTests {
         #expect(data.transition.crossZoneDurationMs == 90)
 
         let expectedZones: [String: Set<String>] = [
-            "ground": ["default", "tired", "pigu", "muscle", "angry"],
-            "nest": ["awake", "sleep-1", "sleep-2"],
+            "ground": ["pibo-state-stable-forest-idle", "pibo-state-tired-forest-idle", "pibo-event-workout-celebrate", "pibo-event-activity-milestone-celebrate", "angry"],
+            "nest": ["pibo-state-waking-hammock-idle", "pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"],
             "treeTraverse": ["boring"],
             "treeRest": ["weak"],
             "water": ["dive"],
@@ -55,8 +55,8 @@ struct PiboAnimationIntegrationTests {
             #expect(counts.first ?? 0 > 0)
         }
 
-        #expect(data.states["pigu"]?.idle?.intro?.duration == 0.85)
-        #expect(data.states["muscle"]?.idle?.intro?.duration == 0.9)
+        #expect(data.states["pibo-event-workout-celebrate"]?.idle?.intro?.duration == 0.85)
+        #expect(data.states["pibo-event-activity-milestone-celebrate"]?.idle?.intro?.duration == 0.9)
     }
 
     @Test func everyShippedStateExposesAPresentedSproutRootAnchor() throws {
@@ -71,10 +71,10 @@ struct PiboAnimationIntegrationTests {
 
     @Test func interruptedMorphRetargetsFromTheExactVisibleGeometry() throws {
         let data = try PiboCharacterData.load()
-        let character = try #require(PiboVectorCharacter(stateID: "default", data: data))
-        let transition = PiboStateTransition(data: data, stateID: "default")
+        let character = try #require(PiboVectorCharacter(stateID: "pibo-state-stable-forest-idle", data: data))
+        let transition = PiboStateTransition(data: data, stateID: "pibo-state-stable-forest-idle")
 
-        transition.transition(to: "pigu")
+        transition.transition(to: "pibo-event-workout-celebrate")
         transition.update(deltaTime: 0.31)
         character.setTransition(
             from: transition.fromStateID,
@@ -83,7 +83,7 @@ struct PiboAnimationIntegrationTests {
         )
         let before = try #require(character.bodyPath())
 
-        transition.transition(to: "tired")
+        transition.transition(to: "pibo-state-tired-forest-idle")
         character.setTransition(
             from: transition.fromStateID,
             to: transition.toStateID,
@@ -118,12 +118,12 @@ struct PiboAnimationIntegrationTests {
             ForestSceneManifest.piboArtboardPlacement(stateID: state, boringElapsed: elapsed)
         }
 
-        #expect(placement("default").frame == CGRect(x: 61.5, y: 356, width: 270, height: 270))
+        #expect(placement("pibo-state-stable-forest-idle").frame == CGRect(x: 61.5, y: 356, width: 270, height: 270))
         #expect(placement("weak").frame == CGRect(x: 61.5, y: 442, width: 270, height: 270))
         #expect(placement("dive").frame == CGRect(x: 61.5, y: 580, width: 270, height: 270))
         #expect(placement("coolhide").frame == CGRect(x: 190, y: 292, width: 195, height: 195))
-        #expect(placement("awake").frame == CGRect(x: 25, y: 146.8, width: 210, height: 210))
-        #expect(placement("sleep-1") == placement("sleep-2"))
+        #expect(placement("pibo-state-waking-hammock-idle").frame == CGRect(x: 25, y: 146.8, width: 210, height: 210))
+        #expect(placement("pibo-state-sleeping-hammock-idle-a") == placement("pibo-state-sleeping-hammock-idle-b"))
 
         #expect(placement("coolhide").zPosition < 6)       // grass circle
         #expect(placement("boring").zPosition < 11)       // main tree
@@ -140,26 +140,26 @@ struct PiboAnimationIntegrationTests {
         #expect(abs(placement("boring", 16).frame.minX - 61.5) < 0.001)
         #expect(abs(placement("boring", 27.999).frame.minX - 393) < 0.1)
 
-        let groundPlayer = ForestSceneManifest.piboPlayerPlacement(stateID: "default")
+        let groundPlayer = ForestSceneManifest.piboPlayerPlacement(stateID: "pibo-state-stable-forest-idle")
         #expect(groundPlayer.frame == CGRect(x: -10.5, y: 284, width: 414, height: 414))
-        #expect(groundPlayer.artboardFrame == placement("default").frame)
+        #expect(groundPlayer.artboardFrame == placement("pibo-state-stable-forest-idle").frame)
         #expect(abs(groundPlayer.bounceOrigin.x - 196.5) < 0.001)
         #expect(abs(groundPlayer.bounceOrigin.y - 524.12) < 0.001)
     }
 
     @Test func everyPlayerPlacementMatchesPiboContextOuterViewport() {
         let expected: [String: (CGRect, CGFloat)] = [
-            "default": (CGRect(x: -10.5, y: 284, width: 414, height: 414), 20),
-            "tired": (CGRect(x: -10.5, y: 284, width: 414, height: 414), 20),
-            "pigu": (CGRect(x: -10.5, y: 284, width: 414, height: 414), 20),
-            "muscle": (CGRect(x: -10.5, y: 284, width: 414, height: 414), 20),
+            "pibo-state-stable-forest-idle": (CGRect(x: -10.5, y: 284, width: 414, height: 414), 20),
+            "pibo-state-tired-forest-idle": (CGRect(x: -10.5, y: 284, width: 414, height: 414), 20),
+            "pibo-event-workout-celebrate": (CGRect(x: -10.5, y: 284, width: 414, height: 414), 20),
+            "pibo-event-activity-milestone-celebrate": (CGRect(x: -10.5, y: 284, width: 414, height: 414), 20),
             "angry": (CGRect(x: -10.5, y: 284, width: 414, height: 414), 20),
             "weak": (CGRect(x: -10.5, y: 370, width: 414, height: 414), 20),
             "dive": (CGRect(x: -10.5, y: 508, width: 414, height: 414), 11.5),
             "coolhide": (CGRect(x: 138, y: 240, width: 299, height: 299), 5.5),
-            "awake": (CGRect(x: -31, y: 90.8, width: 322, height: 322), 20),
-            "sleep-1": (CGRect(x: -31, y: 90.8, width: 322, height: 322), 20),
-            "sleep-2": (CGRect(x: -31, y: 90.8, width: 322, height: 322), 20),
+            "pibo-state-waking-hammock-idle": (CGRect(x: -31, y: 90.8, width: 322, height: 322), 20),
+            "pibo-state-sleeping-hammock-idle-a": (CGRect(x: -31, y: 90.8, width: 322, height: 322), 20),
+            "pibo-state-sleeping-hammock-idle-b": (CGRect(x: -31, y: 90.8, width: 322, height: 322), 20),
         ]
 
         for (stateID, value) in expected {
@@ -176,18 +176,18 @@ struct PiboAnimationIntegrationTests {
 
     @Test func allVisibleStateGeometryMatchesFigmaArtboardPixels() throws {
         let expected: [String: CGRect] = [
-            "default": CGRect(x: 59, y: 31, width: 182, height: 252),
+            "pibo-state-stable-forest-idle": CGRect(x: 59, y: 31, width: 182, height: 252),
             "weak": CGRect(x: 43, y: 57, width: 214, height: 185),
-            "pigu": CGRect(x: 44, y: 6, width: 212, height: 287),
-            "muscle": CGRect(x: 37, y: 9, width: 226, height: 277),
-            "tired": CGRect(x: 50, y: 39, width: 200, height: 220),
+            "pibo-event-workout-celebrate": CGRect(x: 44, y: 6, width: 212, height: 287),
+            "pibo-event-activity-milestone-celebrate": CGRect(x: 37, y: 9, width: 226, height: 277),
+            "pibo-state-tired-forest-idle": CGRect(x: 50, y: 39, width: 200, height: 220),
             "angry": CGRect(x: 42, y: 67, width: 217, height: 167),
             "dive": CGRect(x: 48, y: 82, width: 203, height: 136),
             "boring": CGRect(x: 42, y: 42, width: 216, height: 217),
             "coolhide": CGRect(x: 35, y: 15, width: 232, height: 245),
-            "sleep-1": CGRect(x: 80, y: 96, width: 129, height: 125),
-            "sleep-2": CGRect(x: 80, y: 93, width: 129, height: 119),
-            "awake": CGRect(x: 52, y: 111, width: 156, height: 164),
+            "pibo-state-sleeping-hammock-idle-a": CGRect(x: 80, y: 96, width: 129, height: 125),
+            "pibo-state-sleeping-hammock-idle-b": CGRect(x: 80, y: 93, width: 129, height: 119),
+            "pibo-state-waking-hammock-idle": CGRect(x: 52, y: 111, width: 156, height: 164),
         ]
 
         let data = try PiboCharacterData.load()
@@ -209,29 +209,26 @@ struct PiboAnimationIntegrationTests {
 
     @Test func angryEntryUsesCoreBounceIntentAndExactPlayerCut() throws {
         #expect(PiboCoreAnimationAdapter.transitionIntent(
-            fromStateID: "default",
-            toStateID: "angry",
+            stateID: "pibo-state-stable-forest-idle",
             angryEntered: true
         ) == .bounceCut)
         #expect(PiboCoreAnimationAdapter.transitionIntent(
-            fromStateID: "default",
-            toStateID: "angry",
+            stateID: "pibo-state-stable-forest-idle",
             angryEntered: false
         ) == .hardCut)
         #expect(PiboCoreAnimationAdapter.transitionIntent(
-            fromStateID: "sleep-1",
-            toStateID: "angry",
+            stateID: "pibo-state-sleeping-hammock-idle-a",
             angryEntered: true
         ) == .hardCut)
 
         let data = try PiboCharacterData.load()
-        let transition = PiboStateTransition(data: data, stateID: "default")
+        let transition = PiboStateTransition(data: data, stateID: "pibo-state-stable-forest-idle")
         transition.bounceCut(to: "angry")
-        #expect(transition.displayStateID == "default")
+        #expect(transition.displayStateID == "pibo-state-stable-forest-idle")
         #expect(transition.suppressesIdle)
 
         transition.update(deltaTime: 0.08)
-        #expect(transition.displayStateID == "default")
+        #expect(transition.displayStateID == "pibo-state-stable-forest-idle")
         #expect(transition.presentationScaleX < 1)
         #expect(transition.presentationScaleX == transition.presentationScaleY)
 
@@ -252,7 +249,7 @@ struct PiboAnimationIntegrationTests {
     }
 
     @Test func interruptedBounceCannotLeavePresentationDirty() throws {
-        let transition = PiboStateTransition(data: try PiboCharacterData.load(), stateID: "default")
+        let transition = PiboStateTransition(data: try PiboCharacterData.load(), stateID: "pibo-state-stable-forest-idle")
         transition.bounceCut(to: "angry")
         transition.update(deltaTime: 0.3)
         transition.hardCut(to: "weak")
@@ -264,7 +261,7 @@ struct PiboAnimationIntegrationTests {
 
     @Test func vectorReflectionInheritsBusinessAndLandingScaleContainers() throws {
         let character = try #require(PiboVectorCharacter(
-            stateID: "default",
+            stateID: "pibo-state-stable-forest-idle",
             data: try PiboCharacterData.load()
         ))
         #expect(character.reflectionSource.parent !== character.rootNode)
@@ -298,12 +295,12 @@ struct PiboAnimationIntegrationTests {
     @Test func bounceCutSwapsStatePlacementAndOcclusionAt190Milliseconds() throws {
         let transition = PiboStateTransition(
             data: try PiboCharacterData.load(),
-            stateID: "default"
+            stateID: "pibo-state-stable-forest-idle"
         )
         transition.bounceCut(to: "coolhide")
 
         transition.update(deltaTime: 0.189)
-        #expect(transition.displayStateID == "default")
+        #expect(transition.displayStateID == "pibo-state-stable-forest-idle")
         let before = ForestSceneManifest.piboPlayerPlacement(
             stateID: transition.displayStateID
         )
@@ -325,7 +322,7 @@ struct PiboAnimationIntegrationTests {
     @Test func boringTraversalStartsOnlyWhenBounceDestinationBecomesVisible() throws {
         let transition = PiboStateTransition(
             data: try PiboCharacterData.load(),
-            stateID: "default"
+            stateID: "pibo-state-stable-forest-idle"
         )
         transition.bounceCut(to: "boring")
 
@@ -350,12 +347,12 @@ struct PiboAnimationIntegrationTests {
 
     @Test func achievementHardCutUsesOnlyTheAuthoredIntro() throws {
         let data = try PiboCharacterData.load()
-        let character = try #require(PiboVectorCharacter(stateID: "pigu", data: data))
+        let character = try #require(PiboVectorCharacter(stateID: "pibo-event-workout-celebrate", data: data))
         #expect(abs(character.sproutNode.xScale - (1 / 3)) < 0.0001)
         #expect(abs(character.sproutNode.yScale - (1 / 3)) < 0.0001)
         #expect(character.sproutPath() != nil)
 
-        let transition = PiboStateTransition(data: data, stateID: "pigu")
+        let transition = PiboStateTransition(data: data, stateID: "pibo-event-workout-celebrate")
         transition.startAuthoredIntro()
         #expect(transition.suppressesIdle)
         #expect(transition.introScale == 1)
@@ -372,12 +369,12 @@ struct PiboAnimationIntegrationTests {
 
     @Test func ambientBusinessStateChangesAreTrueHardCuts() throws {
         let data = try PiboCharacterData.load()
-        let transition = PiboStateTransition(data: data, stateID: "default")
+        let transition = PiboStateTransition(data: data, stateID: "pibo-state-stable-forest-idle")
         var idleRestartCount = 0
         transition.onIntroFinished = { idleRestartCount += 1 }
         let playbook = PiboCharacterPlaybook(
             transition: transition,
-            ambientStateID: "default"
+            ambientStateID: "pibo-state-stable-forest-idle"
         )
 
         playbook.setAmbient("weak")
@@ -393,13 +390,13 @@ struct PiboAnimationIntegrationTests {
     @Test func playbookCanStartAndRestartFromItsTargetStateWithoutStalling() throws {
         let transition = PiboStateTransition(
             data: try PiboCharacterData.load(),
-            stateID: "pigu"
+            stateID: "pibo-event-workout-celebrate"
         )
         let playbook = PiboCharacterPlaybook(
             transition: transition,
-            ambientStateID: "pigu"
+            ambientStateID: "pibo-event-workout-celebrate"
         )
-        let beat = PiboCharacterPlaybook.Beat("pigu", hold: 0.1)
+        let beat = PiboCharacterPlaybook.Beat("pibo-event-workout-celebrate", hold: 0.1)
 
         playbook.play([beat])
         #expect(playbook.isPlaying)
@@ -411,85 +408,7 @@ struct PiboAnimationIntegrationTests {
         transition.update(deltaTime: 0.9)
         playbook.update(deltaTime: 0.1)
         #expect(!playbook.isPlaying)
-        #expect(transition.toStateID == "pigu")
-    }
-
-    @Test func sleepReferenceAndTimeMatrixCrossTheAppAdapter() {
-        #expect(PiboCoreAnimationAdapter.sleepReference(history: [6, 7, 8, 7]).hours == 7)
-        let reference = PiboCoreAnimationAdapter.sleepReference(history: [6, 7, 8, 7, 7.5])
-        #expect(reference.hasPersonalBaseline)
-        #expect(reference.validNights == 5)
-        #expect(reference.hours == 7)
-
-        #expect(state(hour: 9, sleepHours: 6.7, reference: 7) == "tired")
-        #expect(state(hour: 9, sleepHours: 7, reference: 7) == "awake")
-        #expect(state(hour: 13, sleepHours: 7, reference: 7) == "default")
-        #expect(state(hour: 14, sleepHours: 7, reference: 7, steps: 2_999) == "boring")
-        #expect(state(hour: 14, sleepHours: 6, reference: 7, steps: 2_999) == "weak")
-        #expect(["sleep-1", "sleep-2"].contains(state(hour: 22, sleepHours: 7, reference: 7)))
-    }
-
-    @Test func exactTimeDataAndToleranceBoundariesCrossTheAppAdapter() {
-        #expect(state(hour: 9, hasSleepData: false, sleepHours: 0) == "awake")
-        #expect(state(hour: 13.999, steps: 2_999) == "default")
-        #expect(state(hour: 14, steps: 2_999) == "boring")
-        #expect(state(hour: 21.999, steps: 2_999) == "boring")
-        #expect(["sleep-1", "sleep-2"].contains(state(hour: 22, steps: 2_999)))
-
-        // The accepted 4% tolerance around a seven-hour reference is 0.28h.
-        #expect(state(hour: 15, sleepHours: 6.72) == "default")
-        #expect(state(hour: 15, sleepHours: 6.719) == "tired")
-        #expect(state(hour: 15, hasActivityData: false, steps: 0) == "default")
-        #expect(state(hour: 15, hasSleepData: false, sleepHours: 0, steps: 2_999) == "boring")
-        #expect(state(hour: 15, sleepHours: 6, hasActivityData: false, steps: 0) == "tired")
-        #expect(state(hour: 15, steps: 0, hasWorkoutToday: true) == "default")
-    }
-
-    @Test func stressWindowBaselineAndPriorityBoundariesCrossTheAppAdapter() {
-        #expect(state(hour: 15, stressZ: -2, baselineDays: 6) == "default")
-        #expect(state(hour: 9.999, stressZ: -2, baselineDays: 7) == "awake")
-        #expect(state(hour: 10, stressZ: -2, baselineDays: 7) == "dive")
-        #expect(state(hour: 21.999, stressZ: 2, baselineDays: 7) == "coolhide")
-        #expect(["sleep-1", "sleep-2"].contains(
-            state(hour: 22, stressZ: -2, baselineDays: 7)
-        ))
-        #expect(state(
-            hour: 15,
-            sleepHours: 6,
-            steps: 2_999,
-            stressZ: -2,
-            baselineDays: 7
-        ) == "weak")
-        #expect(state(
-            hour: 15,
-            stressZ: -2,
-            baselineDays: 7,
-            angryActive: true
-        ) == "angry")
-    }
-
-    @Test func rmssdDirectionFreshnessAndHysteresisCrossTheAppAdapter() {
-        #expect(state(hour: 15, stressZ: -1, baselineDays: 7) == "dive")
-        #expect(state(hour: 15, stressZ: 1, baselineDays: 7) == "coolhide")
-        #expect(state(hour: 15, stressZ: -0.6, baselineDays: 7, previous: "dive") == "dive")
-        #expect(state(hour: 15, stressZ: -0.49, baselineDays: 7, previous: "dive") == "default")
-        #expect(state(hour: 15, stressZ: -2, baselineDays: 7, rmssdAge: 21_601) == "default")
-        #expect(state(hour: 15, stressZ: -2, baselineDays: 7, rmssdAge: -1) == "default")
-    }
-
-    @Test func stressHysteresisMemorySurvivesAppRelaunch() {
-        let defaults = testDefaults()
-        let experience = PiboAnimationExperienceStore(defaults: defaults)
-        experience.previousStressStateID = "dive"
-
-        let restored = PiboAnimationExperienceStore(defaults: defaults)
-        #expect(restored.previousStressStateID == "dive")
-        #expect(state(
-            hour: 15,
-            stressZ: -0.6,
-            baselineDays: 7,
-            previous: restored.previousStressStateID
-        ) == "dive")
+        #expect(transition.toStateID == "pibo-event-workout-celebrate")
     }
 
     @Test func actualPatsEnterAngryOnceWithoutExtending() {
@@ -505,7 +424,11 @@ struct PiboAnimationIntegrationTests {
 
         let sleeping = PiboAnimationExperienceStore(defaults: testDefaults())
         for offset in 0..<3 {
-            #expect(!sleeping.registerActualPat(localHour: 23, now: now.addingTimeInterval(Double(offset))))
+            #expect(!sleeping.registerActualPat(
+                localHour: 23,
+                countsTowardAngry: false,
+                now: now.addingTimeInterval(Double(offset))
+            ))
         }
         #expect(sleeping.angryUntil == nil)
 
@@ -585,7 +508,7 @@ struct PiboAnimationIntegrationTests {
         #expect(restored.pendingAchievement?.kind == .muscle)
     }
 
-    @Test func crossDayPendingAndHeldAchievementsExpire() {
+    @Test func crossDayPendingAchievementsExpireAndNeverCreateAHold() {
         let calendar = Calendar.current
         let defaults = testDefaults()
         let experience = PiboAnimationExperienceStore(defaults: defaults, calendar: calendar)
@@ -599,13 +522,11 @@ struct PiboAnimationIntegrationTests {
 
         experience.queueStepsAchievement(at: now)
         _ = experience.confirmPending(now: now)
-        #expect(experience.heldAchievement == .muscle)
         experience.refreshExpiries(now: tomorrow)
-        #expect(experience.heldAchievement == nil)
     }
 
     /// 运动完成只在成果卡片里演一次：确认之后首页不保留 `pigu`，直接回到 Core
-    /// 判定的健康状态。万步的 `muscle` 不受影响。
+    /// 判定的健康状态；万步的 `muscle` 同样只是一段事件动画。
     @Test func workoutAchievementNeverHoldsOnTheHome() {
         let calendar = Calendar.current
         let now = calendar.date(bySettingHour: 15, minute: 0, second: 0, of: Date())!
@@ -614,23 +535,11 @@ struct PiboAnimationIntegrationTests {
         experience.queueWorkout(workout(id: UUID(), endedAt: now))
         #expect(experience.pendingAchievement?.kind == .pigu)
         _ = experience.confirmPending(now: now)
-        #expect(experience.heldAchievement == nil)
 
         experience.queueStepsAchievement(at: now)
         _ = experience.confirmPending(now: now)
-        #expect(experience.heldAchievement == .muscle)
-
-        #expect(PiboAnimationAchievementKind.pigu.holdsOnHome == false)
-        #expect(PiboAnimationAchievementKind.muscle.holdsOnHome)
-        // 旧版本可能把 pigu 写进过持久化的保持槽；映射层仍要挡住。
-        #expect(PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
-            to: "tired", held: .pigu
-        ) == "tired")
-        #expect(PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
-            to: "tired", held: .muscle
-        ) == "muscle")
         // 主场景没有 pigu 的保持呼吸，因为它根本不会停在主场景。
-        #expect(PiboAnimationStateMap.holdIdle(for: "pigu") == nil)
+        #expect(PiboAnimationStateMap.holdIdle(for: "pibo-event-workout-celebrate") == nil)
     }
 
     @Test func everyNotificationTapProducesAConsumablePresentationRequest() {
@@ -648,7 +557,7 @@ struct PiboAnimationIntegrationTests {
         #expect(experience.notificationPresentationRequestID == nil)
     }
 
-    @Test func contentKeysStressMemorySleepEligibilityAndPresentationPolicy() {
+    @Test func contentKeysSleepEligibilityAndPresentationPolicy() {
         #expect(PiboCoreAnimationAdapter.achievementContentID(kind: .pigu, modal: false)
                 == "animation.workout.notification")
         #expect(PiboCoreAnimationAdapter.achievementContentID(kind: .pigu, modal: true)
@@ -657,13 +566,6 @@ struct PiboAnimationIntegrationTests {
                 == "animation.steps_10000.notification")
         #expect(PiboCoreAnimationAdapter.achievementContentID(kind: .muscle, modal: true)
                 == "animation.muscle.modal")
-
-        #expect(PiboCoreAnimationAdapter.nextStressMemoryStateID(
-            decidedStateID: "angry", previousStressStateID: "dive"
-        ) == "dive")
-        #expect(PiboCoreAnimationAdapter.nextStressMemoryStateID(
-            decidedStateID: "default", previousStressStateID: "dive"
-        ) == "default")
 
         #expect(HeartbeatSeriesReader.sleepValueMeansAsleep(
             HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue
@@ -674,17 +576,8 @@ struct PiboAnimationIntegrationTests {
         #expect(!HeartbeatSeriesReader.sleepValueMeansAsleep(
             HKCategoryValueSleepAnalysis.awake.rawValue
         ))
-        #expect(!PiboCoreAnimationAdapter.achievementPresentationAllowed(in: "sleep-1"))
-        #expect(PiboCoreAnimationAdapter.achievementPresentationAllowed(in: "default"))
-        #expect(PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
-            to: "weak", held: .muscle
-        ) == "muscle")
-        #expect(PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
-            to: "angry", held: .muscle
-        ) == "angry")
-        #expect(PiboCoreAnimationAdapter.stateIDByApplyingAchievementHold(
-            to: "sleep-2", held: .muscle
-        ) == "sleep-2")
+        #expect(!PiboCoreAnimationAdapter.achievementPresentationAllowed(in: "pibo-state-sleeping-hammock-idle-a"))
+        #expect(PiboCoreAnimationAdapter.achievementPresentationAllowed(in: "pibo-state-stable-forest-idle"))
     }
 
     @Test func achievementNotificationPublicationPreservesObservationOrder() async {
@@ -694,51 +587,18 @@ struct PiboAnimationIntegrationTests {
 
         let olderMuscle = queue.submit {
             await gate.wait()
-            await recorder.append("muscle")
+            await recorder.append("pibo-event-activity-milestone-celebrate")
             return true
         }
         let newerPigu = queue.submit {
-            await recorder.append("pigu")
+            await recorder.append("pibo-event-workout-celebrate")
             return true
         }
 
         await gate.open()
         #expect(await olderMuscle.value)
         #expect(await newerPigu.value)
-        #expect(await recorder.values() == ["muscle", "pigu"])
-    }
-
-    private func state(
-        hour: Double,
-        hasSleepData: Bool = true,
-        sleepHours: Double = 7,
-        reference: Double = 7,
-        hasActivityData: Bool = true,
-        steps: Int = 4_000,
-        hasWorkoutToday: Bool = false,
-        stressZ: Double = 0,
-        baselineDays: Int = 0,
-        rmssdAge: Double = 0,
-        previous: String = "default",
-        angryActive: Bool = false
-    ) -> String {
-        PiboCoreAnimationAdapter.completeAmbientStateID(
-            localHour: hour,
-            hasSleepData: hasSleepData,
-            sleepHours: sleepHours,
-            sleepReferenceHours: reference,
-            hasActivityData: hasActivityData,
-            steps: steps,
-            hasWorkoutToday: hasWorkoutToday,
-            postPluckSleep: false,
-            sleepDayKey: 20_260_730,
-            angryActive: angryActive,
-            hasEligibleRMSSD: baselineDays > 0,
-            stressBaselineDays: baselineDays,
-            stressZ: stressZ,
-            rmssdAgeSeconds: rmssdAge,
-            previousStressStateID: previous
-        )
+        #expect(await recorder.values() == ["pibo-event-activity-milestone-celebrate", "pibo-event-workout-celebrate"])
     }
 
     private func maximumPointDistance(_ first: CGPath, _ second: CGPath) -> CGFloat {
@@ -766,12 +626,12 @@ struct PiboAnimationIntegrationTests {
     /// instead slides the feet up and down with every breath.
     @Test func wholeBodyIdlePivotsOnTheAuthoredOrigin() throws {
         let data = try PiboCharacterData.load()
-        let part = try #require(data.states["tired"]?.idle?.resolvedParts.first)
+        let part = try #require(data.states["pibo-state-tired-forest-idle"]?.idle?.resolvedParts.first)
         #expect(part.kind == "breathe-y")
         #expect(part.origin == "150px 259px")
         #expect(part.duration == 4.2)
 
-        let character = try #require(PiboVectorCharacter(stateID: "tired", data: data))
+        let character = try #require(PiboVectorCharacter(stateID: "pibo-state-tired-forest-idle", data: data))
         let animator = PiboIdleAnimator(data: data)
         let pivot = presented(CGPoint(x: 150, y: 259), of: character)
         let crown = presented(CGPoint(x: 150, y: 60), of: character)
@@ -779,8 +639,8 @@ struct PiboAnimationIntegrationTests {
         func advance(to time: TimeInterval) {
             character.resetIdleTransforms()
             animator.apply(
-                idle: data.states["tired"]?.idle,
-                stateID: "tired",
+                idle: data.states["pibo-state-tired-forest-idle"]?.idle,
+                stateID: "pibo-state-tired-forest-idle",
                 character: character,
                 time: time,
                 amplitude: 1
@@ -802,11 +662,11 @@ struct PiboAnimationIntegrationTests {
     /// silhouette below its authored size.
     @Test func breatheOnlySwellsOutwardWhileBreatheYIsSymmetric() throws {
         let data = try PiboCharacterData.load()
-        let muscle = try #require(data.states["muscle"]?.idle?.resolvedParts.first)
+        let muscle = try #require(data.states["pibo-event-activity-milestone-celebrate"]?.idle?.resolvedParts.first)
         #expect(muscle.kind == "breathe")
         let amplitude = try #require(muscle.amplitude)
 
-        let character = try #require(PiboVectorCharacter(stateID: "muscle", data: data))
+        let character = try #require(PiboVectorCharacter(stateID: "pibo-event-activity-milestone-celebrate", data: data))
         let animator = PiboIdleAnimator(data: data)
         character.resetIdleTransforms()
         let restPivot = presented(CGPoint(x: 163, y: 285), of: character)
@@ -818,8 +678,8 @@ struct PiboAnimationIntegrationTests {
             let time = Double(step) / 48 * (muscle.duration ?? 1.8)
             character.resetIdleTransforms()
             animator.apply(
-                idle: data.states["muscle"]?.idle,
-                stateID: "muscle",
+                idle: data.states["pibo-event-activity-milestone-celebrate"]?.idle,
+                stateID: "pibo-event-activity-milestone-celebrate",
                 character: character,
                 time: time,
                 amplitude: 1
@@ -841,9 +701,9 @@ struct PiboAnimationIntegrationTests {
     /// sign sends pigu's inner hand round the outside of the shoulder.
     @Test func unipolarAndHoldRotationsStayOnOneSide() throws {
         let data = try PiboCharacterData.load()
-        let character = try #require(PiboVectorCharacter(stateID: "pigu", data: data))
+        let character = try #require(PiboVectorCharacter(stateID: "pibo-event-workout-celebrate", data: data))
         let animator = PiboIdleAnimator(data: data)
-        let hand = try #require(character.node(forSelector: "#orphan-righthand-pigu", stateID: "pigu"))
+        let hand = try #require(character.node(forSelector: "#orphan-righthand-pibo-event-workout-celebrate", stateID: "pibo-event-workout-celebrate"))
 
         var extremes: [CGFloat] = []
         for step in 0...60 {
@@ -852,8 +712,8 @@ struct PiboAnimationIntegrationTests {
             let time = Double(step) / 60 * 6
             character.resetIdleTransforms()
             animator.apply(
-                idle: data.states["pigu"]?.idle,
-                stateID: "pigu",
+                idle: data.states["pibo-event-workout-celebrate"]?.idle,
+                stateID: "pibo-event-workout-celebrate",
                 character: character,
                 time: time,
                 amplitude: 1
@@ -865,15 +725,15 @@ struct PiboAnimationIntegrationTests {
 
         // `hold` is a pose, not a wag: it parks at full deflection and lets the
         // gate fade do the lifting and lowering.
-        let muscleCharacter = try #require(PiboVectorCharacter(stateID: "muscle", data: data))
-        let leg = try #require(muscleCharacter.node(forSelector: "#orphan-rightleg-muscle", stateID: "muscle"))
+        let muscleCharacter = try #require(PiboVectorCharacter(stateID: "pibo-event-activity-milestone-celebrate", data: data))
+        let leg = try #require(muscleCharacter.node(forSelector: "#orphan-rightleg-pibo-event-activity-milestone-celebrate", stateID: "pibo-event-activity-milestone-celebrate"))
         let muscleAnimator = PiboIdleAnimator(data: data)
         var plateau: [CGFloat] = []
         for time in [0.0, 2.2, 2.6, 2.9] {
             muscleCharacter.resetIdleTransforms()
             muscleAnimator.apply(
-                idle: data.states["muscle"]?.idle,
-                stateID: "muscle",
+                idle: data.states["pibo-event-activity-milestone-celebrate"]?.idle,
+                stateID: "pibo-event-activity-milestone-celebrate",
                 character: muscleCharacter,
                 time: time,
                 amplitude: 1
@@ -891,16 +751,16 @@ struct PiboAnimationIntegrationTests {
     /// window.
     @Test func pathBulgeTraversesItsGateWindowAndRestsOutsideIt() throws {
         let data = try PiboCharacterData.load()
-        let character = try #require(PiboVectorCharacter(stateID: "pigu", data: data))
+        let character = try #require(PiboVectorCharacter(stateID: "pibo-event-workout-celebrate", data: data))
         let animator = PiboIdleAnimator(data: data)
-        let body = try #require(character.node(forSelector: "#path-body", stateID: "pigu"))
-        let base = try #require(character.basePath(forSelector: "#path-body", stateID: "pigu"))
+        let body = try #require(character.node(forSelector: "#path-body", stateID: "pibo-event-workout-celebrate"))
+        let base = try #require(character.basePath(forSelector: "#path-body", stateID: "pibo-event-workout-celebrate"))
 
         func deviation(at time: TimeInterval) -> CGFloat {
             character.resetIdleTransforms()
             animator.apply(
-                idle: data.states["pigu"]?.idle,
-                stateID: "pigu",
+                idle: data.states["pibo-event-workout-celebrate"]?.idle,
+                stateID: "pibo-event-workout-celebrate",
                 character: character,
                 time: time,
                 amplitude: 1
@@ -920,19 +780,19 @@ struct PiboAnimationIntegrationTests {
     /// 主场景保持成果姿势时只呼吸，不演连招；参数取自设计侧的 `setIdleOverride`。
     /// 只有 `muscle` 会停在主场景，所以只有它有这条呼吸。
     @Test func achievementHoldUsesTheSourceIdleOverride() throws {
-        let muscle = try #require(PiboAnimationStateMap.holdIdle(for: "muscle")?.resolvedParts.first)
+        let muscle = try #require(PiboAnimationStateMap.holdIdle(for: "pibo-event-activity-milestone-celebrate")?.resolvedParts.first)
         #expect(muscle.kind == "breathe-y")
         #expect(muscle.origin == "150px 270px")
         #expect(muscle.duration == 4.2)
         #expect(muscle.amplitude == 0.018)
 
-        #expect(PiboAnimationStateMap.holdIdle(for: "pigu") == nil)
-        #expect(PiboAnimationStateMap.holdIdle(for: "default") == nil)
+        #expect(PiboAnimationStateMap.holdIdle(for: "pibo-event-workout-celebrate") == nil)
+        #expect(PiboAnimationStateMap.holdIdle(for: "pibo-state-stable-forest-idle") == nil)
         #expect(PiboAnimationStateMap.holdIdle(for: "weak") == nil)
         // 成果卡片里仍然演完整的登场与连招，所以状态数据本身不变。
         let data = try PiboCharacterData.load()
-        #expect(data.states["pigu"]?.idle?.resolvedParts.count == 11)
-        #expect(data.states["pigu"]?.idle?.intro != nil)
+        #expect(data.states["pibo-event-workout-celebrate"]?.idle?.resolvedParts.count == 11)
+        #expect(data.states["pibo-event-workout-celebrate"]?.idle?.intro != nil)
     }
 
     private func presented(_ designPoint: CGPoint, of character: PiboVectorCharacter) -> CGPoint {

@@ -26,7 +26,7 @@ final class HomeDebugLaunchOptionsTests: XCTestCase {
         let options = HomeDebugLaunchOptions(arguments: [
             "Pibo",
             "-PiboHideTuning",
-            "-PiboAnimationState=awake",
+            "-PiboAnimationState=pibo-state-waking-hammock-idle",
             "-PiboForestHour=6.5",
             "-PiboSimulateMeal",
             "-PiboOpenGames",
@@ -41,7 +41,7 @@ final class HomeDebugLaunchOptionsTests: XCTestCase {
         ])
 
         XCTAssertTrue(options.hidesTuningPanel)
-        XCTAssertEqual(options.forcedAnimationStateID, "awake")
+        XCTAssertEqual(options.forcedAnimationStateID, "pibo-state-waking-hammock-idle")
         XCTAssertEqual(options.forestHourOverride, .value(6.5))
         XCTAssertTrue(options.simulatesMeal)
         XCTAssertTrue(options.opensGames)
@@ -87,7 +87,7 @@ final class HomeDebugLaunchOptionsTests: XCTestCase {
     func testFirstPrefixedArgumentStillWins() {
         let options = HomeDebugLaunchOptions(arguments: [
             "-PiboAnimationState=future",
-            "-PiboAnimationState=awake",
+            "-PiboAnimationState=pibo-state-waking-hammock-idle",
             "-PiboForestHour=auto",
             "-PiboForestHour=12",
         ])

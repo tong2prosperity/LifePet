@@ -8,6 +8,8 @@ import Observation
 @Observable
 final class HomeAnimationPresentationController {
     private(set) var stateID: String
+    private(set) var state: PiboActivityState = .dataUnknown
+    private(set) var decision: PiboCoreStateAdapter.Decision?
 
     #if DEBUG
     var forcedStateID: String?
@@ -28,36 +30,28 @@ final class HomeAnimationPresentationController {
         history: HealthHistoryStore,
         now: Date = .now
     ) {
-        let experience = store.animationExperience
-        experience.refreshExpiries(now: now)
+        store.animationExperience.refreshExpiries(now: now)
         let calendar = Calendar.current
         let historyWindow = HomeAnimationInputResolver.sleepHistoryWindow(
             at: now,
             calendar: calendar
         )
-        let sleepHistoryTotals = history.records(
+        let records = history.records(
             from: historyWindow.start,
             to: historyWindow.end
-        ).map(\.sleepTotal)
+        )
         let input = HomeAnimationInputResolver.resolve(
             at: now,
             calendar: calendar,
-            sleepHistoryTotals: sleepHistoryTotals,
-            localHour: HomeAtmosphereClock.localHour(at: now),
-            rawSleepHours: store.rawSleepHours,
-            hasStepsData: store.hasStepsData,
-            rawSteps: store.rawSteps,
-            hasWorkoutToday: store.hasWorkoutToday,
-            angryActive: experience.angryActive(at: now),
-            rmssd: store.rmssd,
-            rmssdMeasuredAt: store.rmssdMeasuredAt,
-            rmssdInterpretationEligible: store.rmssdInterpretationEligible,
-            stressBaseline: store.stressBaseline,
-            previousStressStateID: experience.previousStressStateID,
-            heldAchievement: experience.heldAchievement
+            records: records,
+            hasActivityData: store.hasStepsData,
+            steps: store.rawSteps,
+            lastWorkoutEndedAt: store.lastWorkoutEndedAt
         )
         let resolution = HomeAnimationStateResolver.resolve(input)
-        experience.previousStressStateID = resolution.nextStressStateID
+        state = resolution.state
+        decision = resolution.decision
+        store.publishPiboState(resolution.state)
 
         #if DEBUG
         coreStateID = resolution.stateID

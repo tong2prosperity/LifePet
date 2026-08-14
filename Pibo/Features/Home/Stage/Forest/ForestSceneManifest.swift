@@ -50,7 +50,9 @@ enum ForestSceneManifest {
         boringElapsed: TimeInterval = 0
     ) -> PiboPlayerPlacement {
         switch stateID {
-        case "sleep-1", "sleep-2", "awake":
+        case PiboAnimationResourceID.sleepingHammockA,
+             PiboAnimationResourceID.sleepingHammockB,
+             PiboAnimationResourceID.wakingHammock:
             return PiboPlayerPlacement(
                 frame: CGRect(x: -31, y: 90.8, width: 322, height: 322),
                 zPosition: 20

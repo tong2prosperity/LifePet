@@ -13,6 +13,7 @@ enum HomePatInteractionCoordinator {
             _ targetStateID: String,
             _ intent: PiboCoreAnimationAdapter.TransitionIntent
         ) -> Void
+        let performAnimationEvent: (_ stateID: String) -> Void
         let resolvePatSpeech: (
             _ context: HomePatInteractionPolicy.StateContext
         ) -> PiboHomePatResolution
@@ -59,6 +60,7 @@ enum HomePatInteractionCoordinator {
                 transitionAnimation: { targetStateID, intent in
                     stageCommands.transitionAnimation(to: targetStateID, intent: intent)
                 },
+                performAnimationEvent: stageCommands.performAnimationEvent,
                 resolvePatSpeech: { context in
                     speech.resolvePat(
                         storyStage: storyStage(),
@@ -94,10 +96,11 @@ enum HomePatInteractionCoordinator {
         handlers.refreshAnimationState()
 
         let transitionTargetStateID = handlers.currentAnimationStateID()
-        if transitionTargetStateID != sourceStateID {
+        if enteredAngry {
+            handlers.performAnimationEvent("angry")
+        } else if transitionTargetStateID != sourceStateID {
             let intent = PiboCoreAnimationAdapter.transitionIntent(
-                fromStateID: sourceStateID,
-                toStateID: transitionTargetStateID,
+                stateID: sourceStateID,
                 angryEntered: enteredAngry
             )
             handlers.transitionAnimation(transitionTargetStateID, intent)

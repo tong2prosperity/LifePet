@@ -1,5 +1,27 @@
 import Foundation
 
+/// Stable runtime IDs shared by the generated character data and both Apps.
+/// Product state names stay separate from concrete art clips.
+enum PiboAnimationResourceID {
+    static let stable = "pibo-state-stable-forest-idle"
+    static let activityMilestoneCelebrate = "pibo-event-activity-milestone-celebrate"
+    static let workoutCelebrate = "pibo-event-workout-celebrate"
+    static let sleepingHammockA = "pibo-state-sleeping-hammock-idle-a"
+    static let sleepingHammockB = "pibo-state-sleeping-hammock-idle-b"
+    static let wakingHammock = "pibo-state-waking-hammock-idle"
+    static let tired = "pibo-state-tired-forest-idle"
+
+    static let sleepingHammock: Set<String> = [sleepingHammockA, sleepingHammockB]
+    static let hammock: Set<String> = sleepingHammock.union([wakingHammock])
+
+    static func achievement(_ kind: PiboAnimationAchievementKind) -> String {
+        switch kind {
+        case .pigu: workoutCelebrate
+        case .muscle: activityMilestoneCelebrate
+        }
+    }
+}
+
 /// Which animation state Pibo wears for a given condition.
 ///
 /// Two different axes meet here. `PiboActivityState` describes a **condition**
@@ -15,12 +37,18 @@ import Foundation
 /// whose artwork has actually shipped, so a Core decision that runs ahead of the
 /// port degrades to `default` instead of rendering nothing.
 enum PiboAnimationStateMap {
-    static let fallback = "default"
+    static let fallback = PiboAnimationResourceID.stable
 
-    /// Stable semantic IDs shipped by pibo-assets 0.3.0.
+    /// Stable semantic IDs shipped by pibo-media character data 0.4.0.
     static let available: Set<String> = [
-        "default", "muscle", "pigu", "sleep-1", "sleep-2", "awake",
-        "weak", "angry", "boring", "tired", "dive", "coolhide",
+        PiboAnimationResourceID.stable,
+        PiboAnimationResourceID.activityMilestoneCelebrate,
+        PiboAnimationResourceID.workoutCelebrate,
+        PiboAnimationResourceID.sleepingHammockA,
+        PiboAnimationResourceID.sleepingHammockB,
+        PiboAnimationResourceID.wakingHammock,
+        PiboAnimationResourceID.tired,
+        "weak", "angry", "boring", "dive", "coolhide",
     ]
 
     /// The ambient pose for a condition.
@@ -31,13 +59,7 @@ enum PiboAnimationStateMap {
         sleptWell: Bool = true,
         lowEnergyDays: UInt32 = 0
     ) -> String {
-        let decided = PiboCoreAnimationAdapter.ambientStateID(
-            for: state,
-            stressZ: stressZ,
-            hasStressBaseline: hasStressBaseline,
-            sleptWell: sleptWell,
-            lowEnergyDays: lowEnergyDays
-        )
+        let decided = PiboCoreAnimationAdapter.ambientStateID(for: state)
         return available.contains(decided) ? decided : fallback
     }
 
@@ -57,7 +79,7 @@ enum PiboAnimationStateMap {
     /// numbers; decoding them keeps a single interpretation of `origin`,
     /// `amplitude` and `duration` shared with every other idle.
     static func holdIdle(for stateID: String) -> PiboCharacterData.Idle? {
-        stateID == "muscle" ? muscleHoldIdle : nil
+        stateID == PiboAnimationResourceID.activityMilestoneCelebrate ? muscleHoldIdle : nil
     }
 
     private static let muscleHoldIdle = decodeIdle(

@@ -224,7 +224,7 @@ private struct WaterLabScene: View {
 
     private func configureScene() {
         if containerSize.width > 1, containerSize.height > 1 { scene.size = containerSize }
-        scene.apply(theme: .forest, state: .idle, growth: .sprouted)
+        scene.apply(theme: .forest, state: .stable, growth: .sprouted)
         scene.setEnvironment(.daylight)
         scene.setLowPowerMode(false)
         scene.isPaused = isPaused

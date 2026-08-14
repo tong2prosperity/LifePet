@@ -11,7 +11,7 @@ struct HomeAchievementPresentationCoordinatorTests {
 
         HomeAchievementPresentationCoordinator.presentIfPossible(
             policy: policy(),
-            animationStateID: "default",
+            animationStateID: "pibo-state-stable-forest-idle",
             pendingAchievement: payload,
             destination: &destination
         )
@@ -26,7 +26,7 @@ struct HomeAchievementPresentationCoordinatorTests {
 
         HomeAchievementPresentationCoordinator.presentIfPossible(
             policy: policy(sceneIsActive: false),
-            animationStateID: probe.read("default"),
+            animationStateID: probe.read("pibo-state-stable-forest-idle"),
             pendingAchievement: probe.read(achievement(id: uuid(2))),
             destination: &destination
         )

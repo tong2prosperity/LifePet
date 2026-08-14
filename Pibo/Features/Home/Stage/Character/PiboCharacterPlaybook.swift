@@ -129,6 +129,7 @@ final class PiboCharacterPlaybook {
     }
 
     private static func isAchievement(_ stateID: String) -> Bool {
-        stateID == "pigu" || stateID == "muscle"
+        stateID == PiboAnimationResourceID.workoutCelebrate
+            || stateID == PiboAnimationResourceID.activityMilestoneCelebrate
     }
 }

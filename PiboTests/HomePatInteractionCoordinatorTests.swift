@@ -11,7 +11,7 @@ final class HomePatInteractionCoordinatorTests: XCTestCase {
 
         HomePatInteractionCoordinator.run(
             localHour: 14.5,
-            sourceStateID: "default",
+            sourceStateID: "pibo-state-stable-forest-idle",
             handlers: recorder.handlers
         )
 
@@ -19,7 +19,7 @@ final class HomePatInteractionCoordinatorTests: XCTestCase {
             recorder.events,
             [
                 "register:14.5:true", "refresh", "state:angry",
-                "transition:angry:bounceCut", "state:angry",
+                "event:angry", "state:angry",
                 "line:pibo:angry", "reaction:angry",
             ]
         )
@@ -27,18 +27,18 @@ final class HomePatInteractionCoordinatorTests: XCTestCase {
     }
 
     func testSleepingStateDoesNotTransitionOrResolveSpeech() {
-        let recorder = Recorder(currentStates: ["sleep-1", "sleep-1"])
+        let recorder = Recorder(currentStates: ["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-a"])
 
         HomePatInteractionCoordinator.run(
             localHour: 2,
-            sourceStateID: "sleep-1",
+            sourceStateID: "pibo-state-sleeping-hammock-idle-a",
             handlers: recorder.handlers
         )
 
         XCTAssertEqual(
             recorder.events,
             [
-                "register:2.0:false", "refresh", "state:sleep-1", "state:sleep-1",
+                "register:2.0:false", "refresh", "state:pibo-state-sleeping-hammock-idle-a", "state:pibo-state-sleeping-hammock-idle-a",
                 "line:system:normal", "reaction:protected_state",
             ]
         )
@@ -47,7 +47,7 @@ final class HomePatInteractionCoordinatorTests: XCTestCase {
 
     func testAwakeStateResolvesOnceAndStaysSilentWhenPolicyDeclines() {
         let recorder = Recorder(
-            currentStates: ["awake", "awake"],
+            currentStates: ["pibo-state-waking-hammock-idle", "pibo-state-waking-hammock-idle"],
             resolution: .init(
                 speech: nil,
                 shouldSpeak: false,
@@ -57,14 +57,14 @@ final class HomePatInteractionCoordinatorTests: XCTestCase {
 
         HomePatInteractionCoordinator.run(
             localHour: 8,
-            sourceStateID: "awake",
+            sourceStateID: "pibo-state-waking-hammock-idle",
             handlers: recorder.handlers
         )
 
         XCTAssertEqual(
             recorder.events,
             [
-                "register:8.0:false", "refresh", "state:awake", "state:awake",
+                "register:8.0:false", "refresh", "state:pibo-state-waking-hammock-idle", "state:pibo-state-waking-hammock-idle",
                 "resolve:false:true", "reaction:silent",
             ]
         )
@@ -73,7 +73,7 @@ final class HomePatInteractionCoordinatorTests: XCTestCase {
 
     func testAwakeStateShowsAuthoredLineWhenPolicyAllowsIt() {
         let recorder = Recorder(
-            currentStates: ["awake", "awake"],
+            currentStates: ["pibo-state-waking-hammock-idle", "pibo-state-waking-hammock-idle"],
             resolution: .init(
                 speech: nil,
                 shouldSpeak: true,
@@ -83,7 +83,7 @@ final class HomePatInteractionCoordinatorTests: XCTestCase {
 
         HomePatInteractionCoordinator.run(
             localHour: 8,
-            sourceStateID: "awake",
+            sourceStateID: "pibo-state-waking-hammock-idle",
             handlers: recorder.handlers
         )
 
@@ -104,7 +104,7 @@ final class HomePatInteractionCoordinatorTests: XCTestCase {
             cueKey: "test"
         )
         let recorder = Recorder(
-            currentStates: ["default", "default"],
+            currentStates: ["pibo-state-stable-forest-idle", "pibo-state-stable-forest-idle"],
             resolution: .init(
                 speech: speech,
                 shouldSpeak: true,
@@ -114,7 +114,7 @@ final class HomePatInteractionCoordinatorTests: XCTestCase {
 
         HomePatInteractionCoordinator.run(
             localHour: 12,
-            sourceStateID: "default",
+            sourceStateID: "pibo-state-stable-forest-idle",
             handlers: recorder.handlers
         )
 
@@ -176,6 +176,9 @@ private final class Recorder {
             },
             transitionAnimation: { [self] stateID, intent in
                 events.append("transition:\(stateID):\(intent)")
+            },
+            performAnimationEvent: { [self] stateID in
+                events.append("event:\(stateID)")
             },
             resolvePatSpeech: { [self] context in
                 resolveCount += 1

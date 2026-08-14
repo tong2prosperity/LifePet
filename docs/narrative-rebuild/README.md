@@ -1,7 +1,7 @@
 # Pibo 叙事重构工作室
 
 > 启动日期：2026-07-23  
-> 当前阶段：跨平台 MVP 架构方向已收口，正在确认 Core v0.1 数值结构与第一枚 `bo` 的时间目标。
+> 当前阶段：2026-08-13 已重新冻结极简养成核心，正在分层 MVP、餐食相机、Walk Doodle、Shadow Pibo 与共同物件能力。
 > 工作原则：旧设定可以提供素材，但不构成本轮推演的前提。
 
 这个目录记录 Pibo 新一轮叙事重构的完整过程。我们不从旧设定或具体情节开始，
@@ -47,6 +47,7 @@
 - [`26-移植pibo-server计算模型到pibo-core-Coding-Agent-Prompt.md`](26-%E7%A7%BB%E6%A4%8Dpibo-server%E8%AE%A1%E7%AE%97%E6%A8%A1%E5%9E%8B%E5%88%B0pibo-core-Coding-Agent-Prompt.md)：可直接交给 Coding Agent 的等价迁移 Prompt，包含仓库路径、模块/API 设计、golden parity、no_std/ABI、验证与发布边界。
 - [`process/2026-07-30-MVP冻结与并行推进里程碑.md`](process/2026-07-30-MVP%E5%86%BB%E7%BB%93%E4%B8%8E%E5%B9%B6%E8%A1%8C%E6%8E%A8%E8%BF%9B%E9%87%8C%E7%A8%8B%E7%A2%91.md)：OF1–OF3、MP1–MP3 的确认背景、阶段切换与可追溯入口。
 - [`process/2026-07-31-Core-v0.5完成与事件04启动.md`](process/2026-07-31-Core-v0.5%E5%AE%8C%E6%88%90%E4%B8%8E%E4%BA%8B%E4%BB%B604%E5%90%AF%E5%8A%A8.md)：Core 等价迁移完成、App 尚未接线的边界，以及事件 04 叙事工作线的启动问题。
+- [`process/2026-08-13-极简MVP与后续能力重新分层.md`](process/2026-08-13-%E6%9E%81%E7%AE%80MVP%E4%B8%8E%E5%90%8E%E7%BB%AD%E8%83%BD%E5%8A%9B%E9%87%8D%E6%96%B0%E5%88%86%E5%B1%82.md)：极简养成核心、Pibo 受苦边界重开、三项后续能力与共同物件的最新检查点。
 - [`drafts/Pibo故事基础圣经-v0.1.md`](drafts/Pibo%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E5%9C%A3%E7%BB%8F-v0.1.md)：三套竞争故事骨架、压力测试与当前建议，尚未拍板。
 - [`drafts/Pibo故事基础圣经-v0.2.md`](drafts/Pibo%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E5%9C%A3%E7%BB%8F-v0.2.md)：九项决定的合并草案、伦理边界与进入章节前的开放项审计。
 - [`process/2026-07-24-故事基础批次归纳.md`](process/2026-07-24-%E6%95%85%E4%BA%8B%E5%9F%BA%E7%A1%80%E6%89%B9%E6%AC%A1%E5%BD%92%E7%BA%B3.md)：本批回答的状态、冲突与 S11–S22 提案。

@@ -28,7 +28,7 @@ final class CharacterLabScene: SKScene {
     var showReflectionProxy = false
 
     private(set) var stateIDs: [String] = []
-    private(set) var currentStateID = "default"
+    private(set) var currentStateID = PiboAnimationResourceID.stable
 
     private var data: PiboCharacterData?
     private var character: PiboVectorCharacter?
@@ -58,8 +58,13 @@ final class CharacterLabScene: SKScene {
         self.data = data
         // 固定顺序，让自动巡演与分段选择器的下标稳定。
         let preferred = [
-            "default", "weak", "pigu", "muscle", "tired", "angry",
-            "dive", "boring", "coolhide", "sleep-1", "sleep-2", "awake",
+            PiboAnimationResourceID.stable, "weak",
+            PiboAnimationResourceID.workoutCelebrate,
+            PiboAnimationResourceID.activityMilestoneCelebrate,
+            PiboAnimationResourceID.tired, "angry", "dive", "boring", "coolhide",
+            PiboAnimationResourceID.sleepingHammockA,
+            PiboAnimationResourceID.sleepingHammockB,
+            PiboAnimationResourceID.wakingHammock,
         ]
         stateIDs = preferred.filter { data.states[$0] != nil }
 
@@ -82,7 +87,10 @@ final class CharacterLabScene: SKScene {
 
     /// 「运动完成 → 秀肌肉 → 娇羞 → 回常驻态」，产品要的那条链路。
     func playWorkoutCelebration() {
-        playbook?.play([.init("muscle", hold: 2.0), .init("pigu", hold: 2.0)])
+        playbook?.play([
+            .init(PiboAnimationResourceID.activityMilestoneCelebrate, hold: 2.0),
+            .init(PiboAnimationResourceID.workoutCelebrate, hold: 2.0),
+        ])
     }
 
     override func didChangeSize(_ oldSize: CGSize) {

@@ -5,18 +5,18 @@ import XCTest
 final class HomeIdleSpeechContextResolverTests: XCTestCase {
     func testEveryShippedAnimationStateKeepsItsIdleSpeechContext() {
         let expectations: [String: PiboCoreHomeSpeechContext?] = [
-            "default": .idle,
-            "muscle": .idle,
-            "pigu": .idle,
-            "sleep-1": nil,
-            "sleep-2": nil,
-            "awake": .waking,
-            "weak": .lowSleepAndActivity,
+            "pibo-state-stable-forest-idle": .idle,
+            "pibo-event-activity-milestone-celebrate": .idle,
+            "pibo-event-workout-celebrate": .idle,
+            "pibo-state-sleeping-hammock-idle-a": nil,
+            "pibo-state-sleeping-hammock-idle-b": nil,
+            "pibo-state-waking-hammock-idle": .waking,
+            "weak": .idle,
             "angry": nil,
-            "boring": .lowActivity,
-            "tired": .lowSleep,
-            "dive": .dive,
-            "coolhide": .coolhide,
+            "boring": .idle,
+            "pibo-state-tired-forest-idle": .lowSleep,
+            "dive": .idle,
+            "coolhide": .idle,
         ]
 
         XCTAssertEqual(Set(expectations.keys), PiboAnimationStateMap.available)
@@ -24,7 +24,6 @@ final class HomeIdleSpeechContextResolverTests: XCTestCase {
             XCTAssertEqual(
                 HomeIdleSpeechContextResolver.resolve(
                     animationStateID: stateID,
-                    wakingSleptEnough: true,
                     hasRealHealthData: true
                 ),
                 expected,
@@ -33,10 +32,8 @@ final class HomeIdleSpeechContextResolverTests: XCTestCase {
         }
     }
 
-    func testAwakeUsesLowSleepContextOnlyForExplicitlyInsufficientSleep() {
-        XCTAssertEqual(resolveAwake(wakingSleptEnough: false), .wakingLowSleep)
-        XCTAssertEqual(resolveAwake(wakingSleptEnough: true), .waking)
-        XCTAssertEqual(resolveAwake(wakingSleptEnough: nil), .waking)
+    func testAwakeUsesOneNeutralWakingContext() {
+        XCTAssertEqual(resolveAwake(), .waking)
     }
 
     func testFallbackDistinguishesRealFromMissingHealthData() {
@@ -45,24 +42,20 @@ final class HomeIdleSpeechContextResolverTests: XCTestCase {
     }
 
     func testHealthInputsRemainLazyForStatesThatDoNotNeedThem() {
-        var wakingRead = false
         var healthRead = false
 
         let context = HomeIdleSpeechContextResolver.resolve(
-            animationStateID: "sleep-1",
-            wakingSleptEnough: read(&wakingRead, value: false),
+            animationStateID: "pibo-state-sleeping-hammock-idle-a",
             hasRealHealthData: read(&healthRead, value: true)
         )
 
         XCTAssertNil(context)
-        XCTAssertFalse(wakingRead)
         XCTAssertFalse(healthRead)
     }
 
-    private func resolveAwake(wakingSleptEnough: Bool?) -> PiboCoreHomeSpeechContext? {
+    private func resolveAwake() -> PiboCoreHomeSpeechContext? {
         HomeIdleSpeechContextResolver.resolve(
-            animationStateID: "awake",
-            wakingSleptEnough: wakingSleptEnough,
+            animationStateID: "pibo-state-waking-hammock-idle",
             hasRealHealthData: false
         )
     }
@@ -70,7 +63,6 @@ final class HomeIdleSpeechContextResolverTests: XCTestCase {
     private func resolveUnknown(hasRealHealthData: Bool) -> PiboCoreHomeSpeechContext? {
         HomeIdleSpeechContextResolver.resolve(
             animationStateID: "future-state",
-            wakingSleptEnough: nil,
             hasRealHealthData: hasRealHealthData
         )
     }

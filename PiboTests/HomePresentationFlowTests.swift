@@ -28,7 +28,7 @@ struct HomePresentationFlowTests {
             },
             currentAnimationStateID: {
                 events.append("animation")
-                return "default"
+                return "pibo-state-stable-forest-idle"
             },
             applyDebugReward: { _ in events.append("debug-reward") },
             refreshAnimationState: { events.append("refresh") },

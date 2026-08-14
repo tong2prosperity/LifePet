@@ -5,7 +5,7 @@ import Testing
 struct HomeAnimationPresentationControllerTests {
     @Test func validDebugOverrideReplacesOnlyThePresentedState() {
         #expect(HomeAnimationPresentationController.presentedStateID(
-            coreStateID: "default",
+            coreStateID: "pibo-state-stable-forest-idle",
             forcedStateID: "dive"
         ) == "dive")
     }
@@ -23,12 +23,12 @@ struct HomeAnimationPresentationControllerTests {
 
     @Test func debugBounceRequiresBothIntentAndAChangedPresentedState() {
         #expect(HomeAnimationPresentationController.debugBounceTarget(
-            previousStateID: "default",
+            previousStateID: "pibo-state-stable-forest-idle",
             presentedStateID: "dive",
             usesBounceCut: true
         ) == "dive")
         #expect(HomeAnimationPresentationController.debugBounceTarget(
-            previousStateID: "default",
+            previousStateID: "pibo-state-stable-forest-idle",
             presentedStateID: "dive",
             usesBounceCut: false
         ) == nil)
@@ -41,7 +41,7 @@ struct HomeAnimationPresentationControllerTests {
 
     #if DEBUG
     @Test func capturePreparationChangesOnlyThePresentedState() {
-        let controller = HomeAnimationPresentationController(stateID: "default")
+        let controller = HomeAnimationPresentationController(stateID: "pibo-state-stable-forest-idle")
         let originalCoreState = controller.coreStateID
         let originalForcedState = controller.forcedStateID
 

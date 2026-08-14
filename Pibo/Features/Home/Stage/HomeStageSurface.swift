@@ -27,7 +27,7 @@ struct HomeStageSurface: View {
             isObscured: Bool
         ) {
             theme = store.currentTheme
-            activityState = store.activityState
+            activityState = animationPresentation.state
             animationStateID = animationPresentation.stateID
             growth = store.growthStage
             sproutGrowthProgress = store.headSproutGrowthProgress

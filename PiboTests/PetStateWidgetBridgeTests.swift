@@ -10,16 +10,16 @@ struct PetStateWidgetBridgeTests {
         let snapshot = PetStateWidgetBridge.snapshot(
             petName: "Pibo",
             dayCount: 17,
-            stateTag: PiboActivityState.active.rawValue,
-            stateLabel: PiboActivityState.active.displayName,
+            stateTag: PiboActivityState.energetic.rawValue,
+            stateLabel: PiboActivityState.energetic.displayName,
             updatedAt: updatedAt,
             pendingWorkoutTitle: "跑步完成"
         )
 
         #expect(snapshot.petName == "Pibo")
         #expect(snapshot.dayCount == 17)
-        #expect(snapshot.stateTag == PiboActivityState.active.rawValue)
-        #expect(snapshot.stateLabel == PiboActivityState.active.displayName)
+        #expect(snapshot.stateTag == PiboActivityState.energetic.rawValue)
+        #expect(snapshot.stateLabel == PiboActivityState.energetic.displayName)
         #expect(snapshot.vitality == 0)
         #expect(snapshot.energy == 0)
         #expect(snapshot.mood == 0)
@@ -34,13 +34,13 @@ struct PetStateWidgetBridgeTests {
 
         let state = PetStateWidgetBridge.pendingActivityState(
             for: workout,
-            stateTag: PiboActivityState.irritated.rawValue
+            stateTag: PiboActivityState.tired.rawValue
         )
 
         #expect(state.title == workout.titleLabel)
         #expect(state.message == "收到一条新的运动记录")
         #expect(state.vitalityGain == workout.gainVitality)
-        #expect(state.stateTag == PiboActivityState.irritated.rawValue)
+        #expect(state.stateTag == PiboActivityState.tired.rawValue)
         #expect(state.endedAt == workout.endedAt)
         #expect(!state.isComplete)
     }
@@ -58,13 +58,13 @@ struct PetStateWidgetBridgeTests {
         let state = PetStateWidgetBridge.finishedActivityState(
             for: workout,
             completed: completed,
-            stateTag: PiboActivityState.idle.rawValue
+            stateTag: PiboActivityState.stable.rawValue
         )
 
         #expect(state.title == "\(workout.titleLabel)已记录")
         #expect(state.message == message)
         #expect(state.vitalityGain == workout.gainVitality)
-        #expect(state.stateTag == PiboActivityState.idle.rawValue)
+        #expect(state.stateTag == PiboActivityState.stable.rawValue)
         #expect(state.endedAt == workout.endedAt)
         #expect(state.isComplete)
     }

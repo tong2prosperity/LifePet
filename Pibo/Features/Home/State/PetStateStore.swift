@@ -32,6 +32,13 @@ final class PetStateStore {
     /// `@Environment(PetStateStore.self)`.
     let identity: PetIdentityStore
     let animationExperience = PiboAnimationExperienceStore()
+    private(set) var piboAmbientState: PiboActivityState = .dataUnknown
+
+    func publishPiboState(_ state: PiboActivityState) {
+        guard piboAmbientState != state else { return }
+        piboAmbientState = state
+        publishWidgetSnapshot()
+    }
 
     var ownerName: String {
         get { identity.ownerName }
@@ -301,7 +308,7 @@ final class PetStateStore {
     /// no extra battery. Movement suppresses the HR term so exercise isn't read
     /// as stress. Never drives notifications (see `DerivedStress`).
     var derivedStress: DerivedStress? {
-        let moving = activityState == .active || pendingWorkout != nil
+        let moving = pendingWorkout != nil
         return DerivedStressModel.compute(
             rmssd: raw.rmssd,
             baseline: raw.rmssdInterpretationEligible ? StressBaselineStore.baseline : nil,

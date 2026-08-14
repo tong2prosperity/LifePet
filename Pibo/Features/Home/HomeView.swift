@@ -481,4 +481,10 @@ struct HomeView: View {
         .environment(MorningSleepCoordinator())
         .environment(HistoryPreviewData.store)
         .environment(WeatherDataService())
+        .environment(BoProgressFeedbackStore())
+        .environment(BoLedgerStore())
+        .environment(OrnamentUnlockStore())
+        .environment(OrnamentLightStore())
+        .environment(OnboardingStateStore())
+        .environment(StressNotifier.shared)
 }

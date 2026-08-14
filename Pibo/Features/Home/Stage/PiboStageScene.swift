@@ -32,7 +32,7 @@ final class PiboStageScene: SKScene {
 
     // — Inputs (set by the SwiftUI wrapper) —
     private(set) var theme: PiboTheme = PiboThemeCatalog.defaultTheme
-    private(set) var activityState: PiboActivityState = .idle
+    private(set) var activityState: PiboActivityState = .dataUnknown
     private(set) var animationStateID: String?
     private(set) var growth: PiboGrowthStage = .mystery
     private(set) var stageEnvironment: PiboStageEnvironment = .daylight
@@ -274,6 +274,11 @@ final class PiboStageScene: SKScene {
         animationStateID = stateID
         guard built else { return }
         character.transition(to: stateID, intent: intent)
+    }
+
+    func performAnimationEvent(_ stateID: String) {
+        guard built else { return }
+        character.performEvent(stateID: stateID)
     }
 
     func setLowPowerMode(_ enabled: Bool) {

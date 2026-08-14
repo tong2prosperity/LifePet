@@ -19,7 +19,7 @@ struct HomeSpeechInputProviderTests {
             defaults: defaults,
             persistenceKey: "test.onboarding"
         )
-        let animation = HomeAnimationPresentationController(stateID: "awake")
+        let animation = HomeAnimationPresentationController(stateID: "pibo-state-waking-hammock-idle")
         let provider = HomeSpeechInputProvider(
             store: store,
             boLedger: ledger,
@@ -50,7 +50,6 @@ struct HomeSpeechInputProviderTests {
         ))
         #expect(provider.idleContext == HomeIdleSpeechContextResolver.resolve(
             animationStateID: animation.stateID,
-            wakingSleptEnough: store.wakingSleptEnough,
             hasRealHealthData: store.hasRealHealthData
         ))
 

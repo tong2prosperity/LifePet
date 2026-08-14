@@ -3,12 +3,12 @@ import XCTest
 
 final class HomePatInteractionPolicyTests: XCTestCase {
     func testEveryShippedStateKeepsItsRestingClassification() {
-        let sleepingStates: Set<String> = ["sleep-1", "sleep-2"]
+        let sleepingStates: Set<String> = ["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"]
 
         for stateID in PiboAnimationStateMap.available {
             let context = HomePatInteractionPolicy.stateContext(for: stateID)
             let expectedSleeping = sleepingStates.contains(stateID)
-            let expectedResting = expectedSleeping || stateID == "awake"
+            let expectedResting = expectedSleeping || stateID == "pibo-state-waking-hammock-idle"
 
             XCTAssertEqual(context.sleeping, expectedSleeping, stateID)
             XCTAssertEqual(context.resting, expectedResting, stateID)
@@ -19,7 +19,7 @@ final class HomePatInteractionPolicyTests: XCTestCase {
     func testAngryEntryUsesImmediateAuthoredContentAndReaction() {
         XCTAssertEqual(
             HomePatInteractionPolicy.speechRoute(
-                sourceStateID: "default",
+                sourceStateID: "pibo-state-stable-forest-idle",
                 targetStateID: "angry",
                 angryEntered: true
             ),
@@ -31,7 +31,7 @@ final class HomePatInteractionPolicyTests: XCTestCase {
     }
 
     func testSleepingStatesUseImmediateProtectedNotice() {
-        for stateID in ["sleep-1", "sleep-2"] {
+        for stateID in ["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"] {
             XCTAssertEqual(
                 HomePatInteractionPolicy.speechRoute(
                     sourceStateID: stateID,
@@ -49,8 +49,8 @@ final class HomePatInteractionPolicyTests: XCTestCase {
     func testAwakeStateConsumesSpeechPolicyBeforeShowingAuthoredLine() {
         XCTAssertEqual(
             HomePatInteractionPolicy.speechRoute(
-                sourceStateID: "awake",
-                targetStateID: "awake",
+                sourceStateID: "pibo-state-waking-hammock-idle",
+                targetStateID: "pibo-state-waking-hammock-idle",
                 angryEntered: false
             ),
             .conditionalAnimation(
@@ -61,7 +61,7 @@ final class HomePatInteractionPolicyTests: XCTestCase {
     }
 
     func testEveryOrdinaryAndUnknownStateUsesResolvedSpeech() {
-        let specialStates: Set<String> = ["sleep-1", "sleep-2", "awake", "angry"]
+        let specialStates: Set<String> = ["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b", "pibo-state-waking-hammock-idle", "angry"]
         let ordinaryStates = PiboAnimationStateMap.available.subtracting(specialStates)
 
         for stateID in ordinaryStates.union(["future-state"]) {
@@ -80,14 +80,14 @@ final class HomePatInteractionPolicyTests: XCTestCase {
         XCTAssertEqual(
             HomePatInteractionPolicy.speechRoute(
                 sourceStateID: "angry",
-                targetStateID: "default",
+                targetStateID: "pibo-state-stable-forest-idle",
                 angryEntered: false
             ),
             .silent
         )
         XCTAssertEqual(
             HomePatInteractionPolicy.speechRoute(
-                sourceStateID: "default",
+                sourceStateID: "pibo-state-stable-forest-idle",
                 targetStateID: "angry",
                 angryEntered: false
             ),

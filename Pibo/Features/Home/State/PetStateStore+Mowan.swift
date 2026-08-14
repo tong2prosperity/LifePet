@@ -1,5 +1,6 @@
 import SwiftUI
 import os
+import PiboCore
 
 // MARK: - 魔丸态 derived model (pibo-home-features-spec.md)
 //
@@ -9,24 +10,46 @@ import os
 // raw accessors live on `PetStateStore` itself. Pat history and authored copy
 // are intentionally outside this legacy state surface.
 
-/// Pibo's activity-zone state (spec §3.1). Priority on derivation:
-/// 深眠 > 初醒 > 活跃/烦躁 > 发呆, with 被打扰 highest when triggered.
+/// Pibo's one durable ambient state. Core derives this from the learned sleep
+/// routine and direct health observations; interactions remain short events.
 enum PiboActivityState: String, CaseIterable {
-    case deepSleep   // 深眠
-    case waking      // 初醒
-    case active      // 活跃
-    case irritated   // 烦躁
-    case idle        // 发呆
-    case disturbed   // 被打扰
+    case dataUnknown
+    case sleeping
+    case waking
+    case stable
+    case energetic
+    case tired
+
+    init(core: PiboCoreState) {
+        self = switch core {
+        case .dataUnknown: .dataUnknown
+        case .sleeping: .sleeping
+        case .waking: .waking
+        case .stable: .stable
+        case .energetic: .energetic
+        case .tired: .tired
+        }
+    }
+
+    var core: PiboCoreState {
+        switch self {
+        case .dataUnknown: .dataUnknown
+        case .sleeping: .sleeping
+        case .waking: .waking
+        case .stable: .stable
+        case .energetic: .energetic
+        case .tired: .tired
+        }
+    }
 
     var displayName: String {
         switch self {
-        case .deepSleep: return AppLocalization.text("深眠")
-        case .waking:    return AppLocalization.text("初醒")
-        case .active:    return AppLocalization.text("活跃")
-        case .irritated: return AppLocalization.text("烦躁")
-        case .idle:      return AppLocalization.text("发呆")
-        case .disturbed: return AppLocalization.text("被打扰")
+        case .dataUnknown: return AppLocalization.text("等待数据")
+        case .sleeping:    return AppLocalization.text("睡眠")
+        case .waking:      return AppLocalization.text("初醒")
+        case .stable:      return AppLocalization.text("安稳")
+        case .energetic:   return AppLocalization.text("精神很好")
+        case .tired:       return AppLocalization.text("疲倦")
         }
     }
 
@@ -83,26 +106,10 @@ extension PetStateStore {
 
     // MARK: Activity state (spec §3.1)
 
-    /// Derived 6-state per spec §3.1 priority. Falls back to a time-only read
-    /// until real HealthKit data lands (so an empty device / demo doesn't read
-    /// as 烦躁).
+    /// Last Core decision published by Home's state controller. This is a
+    /// snapshot for widgets and platform presentation, never a second derivation.
     var activityState: PiboActivityState {
-        let now = Date()
-        return PiboCoreActivityAdapter.state(
-            localHour: Double(Calendar.current.component(.hour, from: now)),
-            recentPatCount: animationExperience.angryActive(at: now) ? 3 : 0,
-            postPluckSleep: false,
-            hasRealHealthData: hasRealHealthData,
-            steps: rawSteps,
-            hasWorkoutToday: hasWorkoutToday,
-            sleepHours: rawSleepHours
-        )
-    }
-
-    /// 初醒 sub-state: did the user sleep enough last night (≥7h)? `nil` when no
-    /// sleep data, so the UI can fall back to the neutral 初醒 art.
-    var wakingSleptEnough: Bool? {
-        PiboCoreActivityAdapter.wakingSleptEnough(sleepHours: rawSleepHours)
+        piboAmbientState
     }
 
 }

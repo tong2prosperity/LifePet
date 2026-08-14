@@ -1,7 +1,7 @@
 {
  "schemaVersion": 1,
  "generatedFrom": "tools/prematch/pibo.states.js",
- "assetVersion": "0.3.0",
+ "assetVersion": "0.4.0",
  "designFrame": {
   "width": 300,
   "height": 300
@@ -18,16 +18,16 @@
   "crossZoneDurationMs": 90,
   "zones": {
    "ground": [
-    "default",
-    "muscle",
-    "pigu",
+    "pibo-state-stable-forest-idle",
+    "pibo-event-activity-milestone-celebrate",
+    "pibo-event-workout-celebrate",
     "angry",
-    "tired"
+    "pibo-state-tired-forest-idle"
    ],
    "nest": [
-    "sleep-1",
-    "sleep-2",
-    "awake"
+    "pibo-state-sleeping-hammock-idle-a",
+    "pibo-state-sleeping-hammock-idle-b",
+    "pibo-state-waking-hammock-idle"
    ],
    "treeTraverse": [
     "boring"
@@ -71,7 +71,7 @@
   "boline"
  ],
  "states": {
-  "default": {
+  "pibo-state-stable-forest-idle": {
    "zone": "ground",
    "hasIntro": false,
    "introGlow": null,
@@ -287,7 +287,7 @@
      },
      {
       "kind": "blink",
-      "selectorAll": "#orphan-lefteye-default, #orphan-righteye-default",
+      "selectorAll": "#orphan-lefteye-pibo-state-stable-forest-idle, #orphan-righteye-pibo-state-stable-forest-idle",
       "period": 4.2,
       "blinkDuration": 0.16
      },
@@ -338,7 +338,7 @@
      },
      {
       "kind": "rotate-around-point",
-      "selector": "#orphan-lefthand-default",
+      "selector": "#orphan-lefthand-pibo-state-stable-forest-idle",
       "pivot": [
        118.4,
        169.7
@@ -354,7 +354,7 @@
      },
      {
       "kind": "rotate-around-point",
-      "selector": "#orphan-righthand-default",
+      "selector": "#orphan-righthand-pibo-state-stable-forest-idle",
       "pivot": [
        197.8,
        169.8
@@ -388,7 +388,7 @@
     }
    }
   },
-  "muscle": {
+  "pibo-event-activity-milestone-celebrate": {
    "zone": "ground",
    "hasIntro": true,
    "introGlow": "#FFC844",
@@ -780,7 +780,7 @@
      },
      {
       "kind": "rotate-around-point",
-      "selector": "#orphan-lefthand-muscle",
+      "selector": "#orphan-lefthand-pibo-event-activity-milestone-celebrate",
       "pivot": [
        60,
        122
@@ -797,7 +797,7 @@
      },
      {
       "kind": "rotate-around-point",
-      "selector": "#orphan-righthand-muscle",
+      "selector": "#orphan-righthand-pibo-event-activity-milestone-celebrate",
       "pivot": [
        243,
        110
@@ -814,7 +814,7 @@
      },
      {
       "kind": "path-bulge",
-      "selectorAll": "#orphan-fuji_2-Vector83-muscle, #orphan-fuji_2-Vector85-muscle, #orphan-fuji_2-Vector87-muscle, #orphan-fuji_2-Vector84-muscle, #orphan-fuji_2-Vector86-muscle, #orphan-fuji_2-Vector88-muscle, #orphan-fuji_2-Vector361-muscle",
+      "selectorAll": "#orphan-fuji_2-Vector83-pibo-event-activity-milestone-celebrate, #orphan-fuji_2-Vector85-pibo-event-activity-milestone-celebrate, #orphan-fuji_2-Vector87-pibo-event-activity-milestone-celebrate, #orphan-fuji_2-Vector84-pibo-event-activity-milestone-celebrate, #orphan-fuji_2-Vector86-pibo-event-activity-milestone-celebrate, #orphan-fuji_2-Vector88-pibo-event-activity-milestone-celebrate, #orphan-fuji_2-Vector361-pibo-event-activity-milestone-celebrate",
       "center": [
        159,
        176
@@ -831,7 +831,7 @@
      },
      {
       "kind": "rotate-around-point",
-      "selectorAll": "#orphan-rightleg-muscle, #orphan-rightlegline-muscle",
+      "selectorAll": "#orphan-rightleg-pibo-event-activity-milestone-celebrate, #orphan-rightlegline-pibo-event-activity-milestone-celebrate",
       "pivot": [
        180,
        215
@@ -892,7 +892,7 @@
      },
      {
       "kind": "pulse-scale",
-      "selectorAll": "#orphan-righteye-Ellipse17-muscle, #orphan-righteye-Ellipse18-muscle, #orphan-lefteye-Ellipse172-muscle, #orphan-lefteye-Ellipse182-muscle",
+      "selectorAll": "#orphan-righteye-Ellipse17-pibo-event-activity-milestone-celebrate, #orphan-righteye-Ellipse18-pibo-event-activity-milestone-celebrate, #orphan-lefteye-Ellipse172-pibo-event-activity-milestone-celebrate, #orphan-lefteye-Ellipse182-pibo-event-activity-milestone-celebrate",
       "amplitude": 1,
       "damp": 2.6,
       "cycles": 1.5,
@@ -923,7 +923,7 @@
     }
    }
   },
-  "pigu": {
+  "pibo-event-workout-celebrate": {
    "zone": "ground",
    "hasIntro": true,
    "introGlow": "#FFB6D0",
@@ -1256,7 +1256,7 @@
      },
      {
       "kind": "rotate-around-point",
-      "selector": "#orphan-rightleg-pigu",
+      "selector": "#orphan-rightleg-pibo-event-workout-celebrate",
       "pivot": [
        155,
        210
@@ -1272,7 +1272,7 @@
      },
      {
       "kind": "rotate-around-point",
-      "selector": "#orphan-leftleg-pigu",
+      "selector": "#orphan-leftleg-pibo-event-workout-celebrate",
       "pivot": [
        198,
        210
@@ -1289,7 +1289,7 @@
      },
      {
       "kind": "path-bulge",
-      "selectorAll": "#path-body, #orphan-pigu_3-pigu, #orphan-pigu2-pigu, #orphan-lefthand-pigu",
+      "selectorAll": "#path-body, #orphan-pibo-event-workout-celebrate_3-pibo-event-workout-celebrate, #orphan-pibo-event-workout-celebrate2-pibo-event-workout-celebrate, #orphan-lefthand-pibo-event-workout-celebrate",
       "center": [
        225,
        200
@@ -1310,7 +1310,7 @@
      },
      {
       "kind": "rotate-around-point",
-      "selector": "#orphan-righthand-pigu",
+      "selector": "#orphan-righthand-pibo-event-workout-celebrate",
       "pivot": [
        116,
        139
@@ -1327,14 +1327,14 @@
      },
      {
       "kind": "blink",
-      "selectorAll": "#orphan-righteye-pigu",
+      "selectorAll": "#orphan-righteye-pibo-event-workout-celebrate",
       "period": 6,
       "at": 0.25,
       "blinkDuration": 0.25
      },
      {
       "kind": "sparkle-fly",
-      "selector": "#orphan-wink-star-pigu",
+      "selector": "#orphan-wink-star-pibo-event-workout-celebrate",
       "gateCycle": 6,
       "gateRange": [
        0.24,
@@ -1349,7 +1349,7 @@
      },
      {
       "kind": "pulse-scale",
-      "selectorAll": "#orphan-face-pigu, #orphan-face-l-Vector376-pigu, #orphan-face-l-Vector377-pigu, #orphan-face-r-Vector378-pigu, #orphan-face-r-Vector379-pigu",
+      "selectorAll": "#orphan-face-pibo-event-workout-celebrate, #orphan-face-l-Vector376-pibo-event-workout-celebrate, #orphan-face-l-Vector377-pibo-event-workout-celebrate, #orphan-face-r-Vector378-pibo-event-workout-celebrate, #orphan-face-r-Vector379-pibo-event-workout-celebrate",
       "pivot": [
        110,
        109.5
@@ -1433,7 +1433,7 @@
     }
    }
   },
-  "sleep-1": {
+  "pibo-state-sleeping-hammock-idle-a": {
    "zone": "nest",
    "hasIntro": false,
    "introGlow": null,
@@ -1630,7 +1630,7 @@
      },
      {
       "kind": "pop-loop",
-      "selectorAll": "#orphan-sleepsign1-sleep-1, #orphan-sleepsign2-sleep-1",
+      "selectorAll": "#orphan-sleepsign1-pibo-state-sleeping-hammock-idle-a, #orphan-sleepsign2-pibo-state-sleeping-hammock-idle-a",
       "cycleDuration": 4.6,
       "visibilityFraction": 0.3,
       "fadeFraction": 0.14,
@@ -1675,7 +1675,7 @@
     }
    }
   },
-  "sleep-2": {
+  "pibo-state-sleeping-hammock-idle-b": {
    "zone": "nest",
    "hasIntro": false,
    "introGlow": null,
@@ -1842,7 +1842,7 @@
      },
      {
       "kind": "bubble-breathe",
-      "selector": "#orphan-bubble-sleep-2",
+      "selector": "#orphan-bubble-pibo-state-sleeping-hammock-idle-b",
       "duration": 5,
       "minScale": 0.72,
       "maxScale": 1.55,
@@ -1871,7 +1871,7 @@
     }
    }
   },
-  "awake": {
+  "pibo-state-waking-hammock-idle": {
    "zone": "nest",
    "hasIntro": false,
    "introGlow": null,
@@ -2068,7 +2068,7 @@
      },
      {
       "kind": "rotate-around-point",
-      "selector": "#orphan-righthand-awake",
+      "selector": "#orphan-righthand-pibo-state-waking-hammock-idle",
       "pivot": [
        87.5,
        155.7
@@ -2084,7 +2084,7 @@
      },
      {
       "kind": "rotate-around-point",
-      "selectorAll": "#orphan-lefthand-Vector361-awake, #orphan-lefthand-lefthand2-awake",
+      "selectorAll": "#orphan-lefthand-Vector361-pibo-state-waking-hammock-idle, #orphan-lefthand-lefthand2-pibo-state-waking-hammock-idle",
       "pivot": [
        166,
        200
@@ -2100,7 +2100,7 @@
      },
      {
       "kind": "wink-morph",
-      "selector": "#orphan-lefteye-awake",
+      "selector": "#orphan-lefteye-pibo-state-waking-hammock-idle",
       "openPath": "M141.415 191.4C141.415 188.915 143.43 186.9 145.915 186.9C148.4 186.9 150.415 188.915 150.415 191.4C150.415 193.885 148.4 195.9 145.915 195.9C143.43 195.9 141.415 193.885 141.415 191.4Z",
       "gateCycle": 5.2,
       "gateRange": [
@@ -2707,7 +2707,7 @@
     }
    }
   },
-  "tired": {
+  "pibo-state-tired-forest-idle": {
    "zone": "ground",
    "hasIntro": false,
    "introGlow": null,
@@ -3404,7 +3404,7 @@
    "closed": true,
    "sampleCount": 256,
    "points": {
-    "default": [
+    "pibo-state-stable-forest-idle": [
      149.58,
      83.057,
      147.313,
@@ -3918,7 +3918,7 @@
      151.855,
      83.106
     ],
-    "muscle": [
+    "pibo-event-activity-milestone-celebrate": [
      153.221,
      47.315,
      150.574,
@@ -4432,7 +4432,7 @@
      155.87,
      47.18
     ],
-    "pigu": [
+    "pibo-event-workout-celebrate": [
      143.557,
      46.202,
      140.954,
@@ -4946,7 +4946,7 @@
      146.136,
      46.682
     ],
-    "sleep-1": [
+    "pibo-state-sleeping-hammock-idle-a": [
      145.347,
      103.258,
      143.827,
@@ -5460,7 +5460,7 @@
      146.865,
      103.341
     ],
-    "sleep-2": [
+    "pibo-state-sleeping-hammock-idle-b": [
      145.72,
      94.16,
      144.18,
@@ -5974,7 +5974,7 @@
      147.264,
      94.12
     ],
-    "awake": [
+    "pibo-state-waking-hammock-idle": [
      143.877,
      112.171,
      142.334,
@@ -8030,7 +8030,7 @@
      157.073,
      59.541
     ],
-    "tired": [
+    "pibo-state-tired-forest-idle": [
      149.218,
      46.982,
      146.789,
@@ -9579,7 +9579,7 @@
    "closed": true,
    "sampleCount": 256,
    "points": {
-    "default": [
+    "pibo-state-stable-forest-idle": [
      157.787,
      67.274,
      158.214,
@@ -10093,7 +10093,7 @@
      157.383,
      66.78
     ],
-    "muscle": [
+    "pibo-event-activity-milestone-celebrate": [
      175.7,
      35.588,
      175.492,
@@ -10607,7 +10607,7 @@
      175.884,
      34.832
     ],
-    "pigu": [
+    "pibo-event-workout-celebrate": [
      128.552,
      32.588,
      128.344,
@@ -11121,7 +11121,7 @@
      128.736,
      31.832
     ],
-    "sleep-1": [
+    "pibo-state-sleeping-hammock-idle-a": [
      142.392,
      109.325,
      141.905,
@@ -11635,7 +11635,7 @@
      142.882,
      109.179
     ],
-    "sleep-2": [
+    "pibo-state-sleeping-hammock-idle-b": [
      125.543,
      102.08,
      125.161,
@@ -12149,7 +12149,7 @@
      125.925,
      101.936
     ],
-    "awake": [
+    "pibo-state-waking-hammock-idle": [
      120.78,
      249.027,
      121.123,
@@ -14205,7 +14205,7 @@
      188.165,
      57.187
     ],
-    "tired": [
+    "pibo-state-tired-forest-idle": [
      147.639,
      52.223,
      146.851,
@@ -15768,7 +15768,7 @@
     "C"
    ],
    "controls": {
-    "default": [
+    "pibo-state-stable-forest-idle": [
      135.996,
      33.75,
      137.777,
@@ -15844,7 +15844,7 @@
      153.596,
      94.094
     ],
-    "muscle": [
+    "pibo-event-activity-milestone-celebrate": [
      164.79,
      58.005,
      165.149,
@@ -15920,7 +15920,7 @@
      120.254,
      27.357
     ],
-    "pigu": [
+    "pibo-event-workout-celebrate": [
      117.642,
      55.005,
      118.001,
@@ -15996,7 +15996,7 @@
      73.106,
      24.357
     ],
-    "sleep-1": [
+    "pibo-state-sleeping-hammock-idle-a": [
      121,
      133.5,
      120.5,
@@ -16072,7 +16072,7 @@
      154.5,
      101
     ],
-    "sleep-2": [
+    "pibo-state-sleeping-hammock-idle-b": [
      95,
      112.5,
      95.333,
@@ -16148,7 +16148,7 @@
      132.5,
      96.5
     ],
-    "awake": [
+    "pibo-state-waking-hammock-idle": [
      119.578,
      272.045,
      118.078,
@@ -16452,7 +16452,7 @@
      119.047,
      50
     ],
-    "tired": [
+    "pibo-state-tired-forest-idle": [
      156.605,
      56.881,
      155.402,

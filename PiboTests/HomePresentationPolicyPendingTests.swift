@@ -10,13 +10,13 @@ final class HomePresentationPolicyPendingTests: XCTestCase {
 
         XCTAssertEqual(
             policy().pendingAchievement(
-                animationStateID: "default",
+                animationStateID: "pibo-state-stable-forest-idle",
                 pendingAchievement: payload
             ),
             payload
         )
         XCTAssertNil(policy().pendingAchievement(
-            animationStateID: "sleep-1",
+            animationStateID: "pibo-state-sleeping-hammock-idle-a",
             pendingAchievement: payload
         ))
     }
@@ -37,7 +37,7 @@ final class HomePresentationPolicyPendingTests: XCTestCase {
         )
 
         let payload = policy.pendingAchievement(
-            animationStateID: probe.read("default", named: "state"),
+            animationStateID: probe.read("pibo-state-stable-forest-idle", named: "state"),
             pendingAchievement: probe.read(achievement(), named: "pending")
         )
 

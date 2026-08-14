@@ -76,6 +76,10 @@ final class PiboStageCommandController {
         scene?.transitionAnimation(to: stateID, intent: intent)
     }
 
+    func performAnimationEvent(_ stateID: String) {
+        scene?.performAnimationEvent(stateID)
+    }
+
     func setOrnamentConstructionMode(enabled: Bool, selected: PiboOrnament.ID?) {
         ornamentConstruction = (enabled, selected)
         scene?.setOrnamentConstructionMode(enabled: enabled, selected: selected)

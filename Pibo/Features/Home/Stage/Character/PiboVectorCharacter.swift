@@ -72,7 +72,10 @@ final class PiboVectorCharacter {
     private var capturedTransitionSource: [String: [CGFloat]]?
     private var capturedTransitionTargetID: String?
 
-    init?(stateID: String = "default", data: PiboCharacterData? = PiboCharacterData.shared) {
+    init?(
+        stateID: String = PiboAnimationResourceID.stable,
+        data: PiboCharacterData? = PiboCharacterData.shared
+    ) {
         guard let data, data.states[stateID] != nil else { return nil }
         self.data = data
         currentStateID = stateID

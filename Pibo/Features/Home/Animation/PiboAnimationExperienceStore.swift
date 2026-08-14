@@ -5,12 +5,6 @@ enum PiboAnimationAchievementKind: String, Codable, Sendable {
     case pigu
     case muscle
 
-    /// 成果姿势会不会留在主场景。
-    ///
-    /// 运动完成的 `pigu` 只在成果卡片里演一次，确认后首页直接切回健康状态 ——
-    /// 那个姿势不是一种「今天的状态」，把它挂一整天会盖掉真正在变化的东西。
-    /// 万步的 `muscle` 仍然保持到 22:00。
-    var holdsOnHome: Bool { self == .muscle }
 }
 
 struct PiboAnimationAchievementPayload: Codable, Equatable, Identifiable, Sendable {
@@ -20,7 +14,7 @@ struct PiboAnimationAchievementPayload: Codable, Equatable, Identifiable, Sendab
     let workoutLabel: String?
     let workoutDurationMinutes: Int?
 
-    var stateID: String { kind.rawValue }
+    var stateID: String { PiboAnimationResourceID.achievement(kind) }
 }
 
 /// App-owned persistence and lifecycle around Core's deterministic animation
@@ -30,27 +24,19 @@ struct PiboAnimationAchievementPayload: Codable, Equatable, Identifiable, Sendab
 @Observable
 final class PiboAnimationExperienceStore {
     private(set) var pendingAchievement: PiboAnimationAchievementPayload?
-    private(set) var heldAchievement: PiboAnimationAchievementKind?
     private(set) var angryUntil: Date?
     private(set) var actualPatTimes: [Date] = []
     private(set) var notificationPresentationRequestID: UUID?
-    var previousStressStateID = "default" {
-        didSet {
-            guard previousStressStateID != oldValue else { return }
-            defaults.set(previousStressStateID, forKey: Self.previousStressStateKey)
-        }
-    }
 
     private let defaults: UserDefaults
     private let calendar: Calendar
 
     private static let pendingKey = "pibo.animation.pending-achievement.v1"
-    private static let heldKey = "pibo.animation.held-achievement.v1"
-    private static let heldUntilKey = "pibo.animation.held-until.v1"
+    private static let legacyHeldKey = "pibo.animation.held-achievement.v1"
+    private static let legacyHeldUntilKey = "pibo.animation.held-until.v1"
     private static let angryUntilKey = "pibo.animation.angry-until.v1"
     private static let patTimesKey = "pibo.animation.actual-pats.v1"
     private static let handledStepsDayKey = "pibo.animation.steps-handled-day.v1"
-    private static let previousStressStateKey = "pibo.animation.previous-stress-state.v1"
 
     init(defaults: UserDefaults = .standard, calendar: Calendar = .autoupdatingCurrent) {
         self.defaults = defaults
@@ -118,19 +104,6 @@ final class PiboAnimationExperienceStore {
         pendingAchievement = nil
         notificationPresentationRequestID = nil
         defaults.removeObject(forKey: Self.pendingKey)
-        guard payload.kind.holdsOnHome else {
-            clearHold()
-            return payload
-        }
-        heldAchievement = payload.kind
-        let start = calendar.startOfDay(for: now)
-        let holdUntil = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: start) ?? now
-        if holdUntil > now {
-            defaults.set(payload.kind.rawValue, forKey: Self.heldKey)
-            defaults.set(holdUntil.timeIntervalSince1970, forKey: Self.heldUntilKey)
-        } else {
-            clearHold()
-        }
         return payload
     }
 
@@ -149,7 +122,7 @@ final class PiboAnimationExperienceStore {
         }
         actualPatTimes.append(now)
         let shouldStart = PiboCoreAnimationAdapter.angryShouldStart(
-            localHour: localHour,
+            state: .stable,
             recentActualPatCount: actualPatTimes.count,
             angryActive: false
         )
@@ -171,18 +144,10 @@ final class PiboAnimationExperienceStore {
                 persistInteractionState()
             }
         }
-        let heldUntil = Date(timeIntervalSince1970: defaults.double(forKey: Self.heldUntilKey))
-        if heldAchievement != nil, heldUntil <= now { clearHold() }
         if let pendingAchievement, !calendar.isDate(pendingAchievement.occurredAt, inSameDayAs: now) {
             self.pendingAchievement = nil
             defaults.removeObject(forKey: Self.pendingKey)
         }
-    }
-
-    private func clearHold() {
-        heldAchievement = nil
-        defaults.removeObject(forKey: Self.heldKey)
-        defaults.removeObject(forKey: Self.heldUntilKey)
     }
 
     private func stepsAchievementHandled(on date: Date) -> Bool {
@@ -192,22 +157,13 @@ final class PiboAnimationExperienceStore {
     }
 
     private func restore(now: Date) {
-        if let restoredStress = defaults.string(forKey: Self.previousStressStateKey),
-           ["default", "dive", "coolhide"].contains(restoredStress) {
-            previousStressStateID = restoredStress
-        }
         if let data = defaults.data(forKey: Self.pendingKey),
            let value = try? JSONDecoder().decode(PiboAnimationAchievementPayload.self, from: data),
            calendar.isDate(value.occurredAt, inSameDayAs: now) {
             pendingAchievement = value
         }
-        let heldUntil = Date(timeIntervalSince1970: defaults.double(forKey: Self.heldUntilKey))
-        if heldUntil > now,
-           let raw = defaults.string(forKey: Self.heldKey),
-           let kind = PiboAnimationAchievementKind(rawValue: raw),
-           kind.holdsOnHome {
-            heldAchievement = kind
-        }
+        defaults.removeObject(forKey: Self.legacyHeldKey)
+        defaults.removeObject(forKey: Self.legacyHeldUntilKey)
         let angryDate = Date(timeIntervalSince1970: defaults.double(forKey: Self.angryUntilKey))
         let angryRemaining = angryDate.timeIntervalSince(now)
         if angryRemaining.isFinite, angryRemaining > 0,
