@@ -150,6 +150,29 @@ struct HomeView: View {
         )
     }
 
+    #if DEBUG
+    private var debugInteractions: HomeDebugInteractionAdapter {
+        HomeDebugInteractionAdapter(
+            automation: debugAutomation,
+            controls: debugControls,
+            store: store,
+            history: history,
+            presentation: featurePresentation,
+            morningSleep: morningSleep,
+            animationPresentation: animationPresentation,
+            stageCommands: stageCommands,
+            boProgressFeedback: boProgressFeedback,
+            stressNotifier: stressNotifier,
+            ledger: boLedger,
+            currentMiniGamesEnabled: { featureAccess.miniGamesEnabled },
+            sheetIsAbsent: { activeSheet == nil },
+            presentSheet: { activeSheet = $0 },
+            photoSaved: contentCapture.handleSavedPhoto,
+            openBoPanel: { showBoUnlockPage = true }
+        )
+    }
+    #endif
+
     private var achievementLifecycle: HomeAchievementLifecycleAdapter {
         HomeAchievementLifecycleAdapter(
             store: store,
@@ -159,10 +182,7 @@ struct HomeView: View {
             dismissSheet: { activeSheet = nil },
             applyDebugReward: { payload in
                 #if DEBUG
-                debugAutomation.applyWorkoutRewardIfMatching(
-                    payload,
-                    ledger: boLedger
-                )
+                debugInteractions.applyWorkoutRewardIfMatching(payload)
                 #endif
             },
             refreshAnimationState: { refreshAnimationState() },
@@ -321,7 +341,7 @@ struct HomeView: View {
                 refreshAnimation: { refreshAnimationState() },
                 runDebugAutomation: {
                     #if DEBUG
-                    runDebugLaunchAutomation()
+                    debugInteractions.runLaunchAutomation()
                     #endif
                 },
                 presentAchievement: achievementLifecycle.presentIfPossible,
@@ -411,8 +431,8 @@ struct HomeView: View {
         #if DEBUG
         SettingsView(
             onReset: performReset,
-            onSimulateMeal: debugSimulateMeal,
-            onSimulateWorkout: debugSimulateWorkout
+            onSimulateMeal: debugInteractions.simulateMeal,
+            onSimulateWorkout: debugInteractions.simulateWorkout
         )
         #else
         SettingsView()
@@ -458,7 +478,7 @@ struct HomeView: View {
                 store: store,
                 animationPresentation: animationPresentation,
                 stageCommands: stageCommands,
-                onSelectAnimationState: applyDebugAnimationState
+                onSelectAnimationState: debugInteractions.selectAnimationState
             )
             #endif
         }
@@ -483,23 +503,6 @@ struct HomeView: View {
         )
     }
 
-    #if DEBUG
-    /// 面板选中一个状态（nil = 交还给 Core）。
-    ///
-    /// 走的是业务同一条路径：先写状态变量让下一次 `apply(...)` 生效；要看 Q 弹
-    /// 时紧接着发命令 —— 命令会先把渲染器的 `animationStateID` 写掉，随后那次
-    /// `apply` 自然成为 no-op，不会双切。顺序与拍一拍交互一致。
-    private func applyDebugAnimationState(_ stateID: String?) {
-        debugControls.selectAnimationState(
-            stateID,
-            animationPresentation: animationPresentation,
-            store: store,
-            history: history,
-            stageCommands: stageCommands
-        )
-    }
-    #endif
-
     private func refreshAnimationState(now: Date = .now) {
         animationPresentation.refresh(store: store, history: history, now: now)
     }
@@ -519,45 +522,6 @@ struct HomeView: View {
         )
     }
 
-#if DEBUG
-    private func runDebugLaunchAutomation() {
-        debugAutomation.runLaunchAutomation(
-            options: .current,
-            miniGamesEnabled: featureAccess.miniGamesEnabled,
-            store: store,
-            presentation: featurePresentation,
-            morningSleep: morningSleep,
-            animationPresentation: animationPresentation,
-            stageCommands: stageCommands,
-            boProgressFeedback: boProgressFeedback,
-            stressNotifier: stressNotifier,
-            sheetIsAbsent: { activeSheet == nil },
-            presentSheet: { activeSheet = $0 },
-            selectAnimationState: applyDebugAnimationState,
-            photoSaved: contentCapture.handleSavedPhoto,
-            openBoPanel: { showBoUnlockPage = true }
-        )
-    }
-
-    /// Close Settings first so Home is visible when the real workout event is
-    /// injected. Waiting for the navigation pop avoids queuing the modal behind
-    /// an off-screen destination and makes the one-tap rehearsal deterministic.
-    private func debugSimulateWorkout() {
-        debugAutomation.simulateWorkout(
-            store: store,
-            presentation: featurePresentation
-        )
-    }
-
-    /// DEV: exercise the full 拍餐识别 path without a camera — render a food emoji
-    /// as the "captured" frame and run it through the saved-photo flow.
-    private func debugSimulateMeal(_ meal: MealType) {
-        HomeDebugAutomationController.simulateMeal(
-            meal,
-            photoSaved: contentCapture.handleSavedPhoto
-        )
-    }
-#endif
 }
 #Preview {
     HomeView()
