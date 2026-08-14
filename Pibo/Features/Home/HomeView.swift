@@ -93,6 +93,18 @@ struct HomeView: View {
         )
     }
 
+    private var speechInteractions: HomeSpeechInteractionAdapter {
+        HomeSpeechInteractionAdapter(
+            presentation: speechPresentation,
+            input: speechInput,
+            speech: piboSpeech,
+            currentPolicy: { presentationPolicy },
+            currentStageIsPaused: { stagePaused },
+            currentWeather: { weather.condition },
+            currentHasRipeBo: { boLedger.hasRipeBo }
+        )
+    }
+
     private var featureAccess: HomeFeatureAccess {
         HomeFeatureAccess(
             presentation: featurePresentation,
@@ -108,7 +120,7 @@ struct HomeView: View {
             recognizer: recognizer,
             speech: piboSpeech,
             presentMeal: { activeSheet = .meal($0) },
-            showSpeech: { show($0) }
+            showSpeech: speechInteractions.show
         )
     }
 
@@ -131,9 +143,9 @@ struct HomeView: View {
                     && !fullScreenFeaturePresented
                     && sproutPhase == .idle
             },
-            dismissSpeech: dismissSpeech,
-            showAnimationLine: { show($0) },
-            showResolvedSpeech: { show($0) },
+            dismissSpeech: speechInteractions.dismiss,
+            showAnimationLine: speechInteractions.show,
+            showResolvedSpeech: speechInteractions.show,
             presentSheet: { activeSheet = $0 }
         )
     }
@@ -250,7 +262,7 @@ struct HomeView: View {
                 facts: { speechInput.facts },
                 values: { speechInput.values },
                 speech: piboSpeech,
-                show: show
+                show: speechInteractions.show
             ),
             handlers: .init(
                 refreshAnimation: { refreshAnimationState() },
@@ -280,7 +292,7 @@ struct HomeView: View {
             soundscape: soundscape,
             currentDate: { atmosphereClock.now },
             handlers: .init(
-                speakForWeather: speakForWeather,
+                speakForWeather: speechInteractions.presentWeatherIfPossible,
                 refreshAnimation: { refreshAnimationState() },
                 runDebugAutomation: {
                     #if DEBUG
@@ -290,7 +302,7 @@ struct HomeView: View {
                 presentAchievement: achievementLifecycle.presentIfPossible,
                 presentMorningSleep: presentMorningSleepIfPossible,
                 presentStressCard: presentStressCardIfPossible,
-                announceFirstRipeBo: announceFirstRipeBoIfNeeded
+                announceFirstRipeBo: speechInteractions.announceFirstRipeBoIfNeeded
             )
         )
     }
@@ -326,7 +338,7 @@ struct HomeView: View {
             presentMorningSleep: presentMorningSleepIfPossible,
             presentStressCard: presentStressCardIfPossible,
             currentHasRipeBo: { boLedger.hasRipeBo },
-            announceFirstRipeBo: announceFirstRipeBoIfNeeded,
+            announceFirstRipeBo: speechInteractions.announceFirstRipeBoIfNeeded,
             resumePendingFlows: resumePendingHomeFlows
         )
     }
@@ -394,7 +406,7 @@ struct HomeView: View {
             // Speech bubble floats just above Pibo's head (~30% down).
             if let speech = speechPresentation.line {
                 HomeSpeechOverlay.make(line: speech) {
-                    dismissSpeech()
+                    speechInteractions.dismiss()
                     Analytics.track(.historyOpen, screen: "home_speech")
                     featurePresentation.showHistory = true
                 }
@@ -407,7 +419,7 @@ struct HomeView: View {
                 walkDoodleEnabled: featureAccess.walkDoodleEnabled,
                 feedbackEnabled: boCounterFeedbackEnabled,
                 hasRipeBo: boLedger.hasRipeBo,
-                dismissSpeech: dismissSpeech,
+                dismissSpeech: speechInteractions.dismiss,
                 collectAction: stageInteractions.collectBo,
                 onOpenHistory: {
                     Analytics.track(.historyOpen, screen: "home")
@@ -443,31 +455,6 @@ struct HomeView: View {
         HomeEnergyCollectionCoordinator.dismissPop(
             store: store,
             flow: sproutFlow
-        )
-    }
-
-    // MARK: Speech plumbing
-
-    private func dismissSpeech() {
-        speechPresentation.dismiss()
-    }
-
-    private func show(_ line: PiboSpeechLine) {
-        speechPresentation.show(line)
-    }
-
-    private func show(_ resolved: PiboSpeech) {
-        speechPresentation.show(resolved)
-    }
-
-    private func speakForWeather(trigger: PiboSpeechTrigger) {
-        HomeSpeechOpportunityCoordinator.presentWeatherIfPossible(
-            trigger: trigger,
-            stageIsPaused: stagePaused,
-            idleSpeechContext: speechInput.idleContext,
-            weather: weather.condition,
-            speech: piboSpeech,
-            show: show
         )
     }
 
@@ -512,21 +499,8 @@ struct HomeView: View {
             sheetIsAbsent: { activeSheet == nil },
             presentMorningSleep: presentMorningSleepIfPossible,
             presentStressCard: presentStressCardIfPossible,
-            announceFirstRipeBo: announceFirstRipeBoIfNeeded
+            announceFirstRipeBo: speechInteractions.announceFirstRipeBoIfNeeded
         ))
-    }
-
-    /// 首枚 `bo` 长熟时讲一次规则，之后再不打扰。
-    ///
-    /// 只说明首次形成事实；成熟物不会过期，也不会冻结后续积累。
-    private func announceFirstRipeBoIfNeeded() {
-        HomeFirstRipeBoAnnouncementCoordinator.announceIfNeeded(
-            policy: presentationPolicy,
-            hasRipeBo: boLedger.hasRipeBo,
-            speechIsAbsent: speechPresentation.line == nil,
-            idleSpeechContextAvailable: speechInput.idleContext != nil,
-            show: show
-        )
     }
 
     /// Open the history surface on the 压力卡 after a stress notification tap.
