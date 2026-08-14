@@ -148,28 +148,25 @@ struct HomeView: View {
 
     private var homeScene: some View {
         ZStack {
-            PiboStageView(
-                theme: store.currentTheme,
-                state: store.activityState,
-                animationStateID: semanticAnimationStateID,
+            HomeStageSurface(
+                input: .init(
+                    store: store,
+                    animationPresentation: animationPresentation,
+                    environment: stageEnvironment,
+                    ornamentUnlocks: ornamentUnlocks,
+                    ornamentLights: ornamentLights,
+                    tuning: forestTuning,
+                    isPaused: stagePaused,
+                    isObscured: showBoUnlockPage
+                ),
                 commandController: stageCommands,
-                growth: store.growthStage,
-                sproutGrowthProgress: store.headSproutGrowthProgress,
-                environment: stageEnvironment,
-                unlockedOrnaments: ornamentUnlocks.unlocked,
-                litOrnamentLights: ornamentLights.lit,
-                tuning: forestTuning,
-                onPat: handlePat,
-                onHairPulled: handleHairPull,
-                onOrnamentLightTapped: handleOrnamentLightTap,
-                onOrnamentTapped: handleOrnamentTap,
-                isPaused: stagePaused,
-                isObscured: showBoUnlockPage
+                handlers: .init(
+                    pat: handlePat,
+                    hairPull: handleHairPull,
+                    ornamentLightTap: handleOrnamentLightTap,
+                    ornamentTap: handleOrnamentTap
+                )
             )
-            .equatable()
-            .ignoresSafeArea()
-            .allowsHitTesting(!showBoUnlockPage)
-            .accessibilityHidden(stagePaused || showBoUnlockPage)
 
             chromeContent
                 .allowsHitTesting(!showBoUnlockPage)
