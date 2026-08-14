@@ -1,5 +1,41 @@
 import SwiftUI
 
+/// The persistent top and bottom controls on Home. Speech and DEBUG overlays
+/// remain sibling layers so their existing z-order stays explicit in Home.
+struct HomePrimaryChrome: View {
+    let featurePresentation: HomeFeaturePresentationState
+    @Binding var showBoUnlockPage: Bool
+    let cameraEnabled: Bool
+    let walkDoodleEnabled: Bool
+    let feedbackEnabled: Bool
+    let hasRipeBo: Bool
+    let dismissSpeech: () -> Void
+    let collectAction: () -> Bool
+    let onOpenHistory: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HomeHeader(
+                featurePresentation: featurePresentation,
+                showBoUnlockPage: $showBoUnlockPage,
+                cameraEnabled: cameraEnabled,
+                walkDoodleEnabled: walkDoodleEnabled,
+                feedbackEnabled: feedbackEnabled,
+                dismissSpeech: dismissSpeech,
+                collectAction: collectAction
+            )
+            Spacer()
+            HomeBottomControls(
+                hasRipeBo: hasRipeBo,
+                dismissSpeech: dismissSpeech,
+                onOpenHistory: onOpenHistory,
+                onPluck: { _ = collectAction() }
+            )
+        }
+        .padding(.horizontal, LP.Spacing.l)
+    }
+}
+
 /// Top-row Home chrome. It keeps the established `bo` and corner-entry wiring
 /// beside the controls that emit those actions, while Home owns presentation.
 struct HomeHeader: View {

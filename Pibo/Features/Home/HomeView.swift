@@ -395,12 +395,20 @@ struct HomeView: View {
                 }
             }
 
-            VStack(spacing: 0) {
-                header
-                Spacer()
-                bottomControls
-            }
-            .padding(.horizontal, LP.Spacing.l)
+            HomePrimaryChrome(
+                featurePresentation: featurePresentation,
+                showBoUnlockPage: $showBoUnlockPage,
+                cameraEnabled: canUseDewCamera,
+                walkDoodleEnabled: canUseWalkDoodle,
+                feedbackEnabled: boCounterFeedbackEnabled,
+                hasRipeBo: boLedger.hasRipeBo,
+                dismissSpeech: dismissSpeech,
+                collectAction: doPluck,
+                onOpenHistory: {
+                    Analytics.track(.historyOpen, screen: "home")
+                    featurePresentation.showHistory = true
+                }
+            )
 
             #if DEBUG
             HomeDebugControlsOverlay(
@@ -417,36 +425,6 @@ struct HomeView: View {
         }
         .opacity(sproutPhase.obscuresHomeChrome ? 0 : 1)
         .allowsHitTesting(!sproutPhase.obscuresHomeChrome)
-    }
-
-    // MARK: Header
-
-    private var header: some View {
-        HomeHeader(
-            featurePresentation: featurePresentation,
-            showBoUnlockPage: $showBoUnlockPage,
-            cameraEnabled: canUseDewCamera,
-            walkDoodleEnabled: canUseWalkDoodle,
-            feedbackEnabled: boCounterFeedbackEnabled,
-            dismissSpeech: dismissSpeech,
-            collectAction: doPluck
-        )
-    }
-
-    // MARK: Bottom controls
-
-    private var bottomControls: some View {
-        HomeBottomControls(
-            hasRipeBo: boLedger.hasRipeBo,
-            dismissSpeech: dismissSpeech,
-            onOpenHistory: {
-                Analytics.track(.historyOpen, screen: "home")
-                featurePresentation.showHistory = true
-            },
-            onPluck: {
-                _ = doPluck()
-            }
-        )
     }
 
     // MARK: 拍一拍
