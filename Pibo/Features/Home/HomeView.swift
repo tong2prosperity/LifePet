@@ -1,6 +1,5 @@
 import PiboCore
 import SwiftUI
-import UIKit
 
 /// Pibo home — a fixed portrait SpriteKit forest. The scene never pans or
 /// scrolls; SwiftUI owns the corner entries and the surrounding chrome.
@@ -98,6 +97,18 @@ struct HomeView: View {
         HomeFeatureAccess(
             presentation: featurePresentation,
             ornamentUnlocks: ornamentUnlocks
+        )
+    }
+
+    private var contentCapture: HomeContentCaptureAdapter {
+        HomeContentCaptureAdapter(
+            currentCameraEnabled: { featureAccess.cameraEnabled },
+            presentation: featurePresentation,
+            history: history,
+            recognizer: recognizer,
+            speech: piboSpeech,
+            presentMeal: { activeSheet = .meal($0) },
+            showSpeech: { show($0) }
         )
     }
 
@@ -333,8 +344,8 @@ struct HomeView: View {
                 history: history,
                 resumePendingFlows: resumePendingHomeFlows,
                 historyDismissed: historyDismissed,
-                photoSaved: handlePhotoSaved,
-                doodleSaved: handleDoodleSaved
+                photoSaved: contentCapture.handleSavedPhoto,
+                doodleSaved: contentCapture.handleSavedDoodle
             )
         )
         .navigationDestination(isPresented: featurePresentation.settingsBinding) {
@@ -352,7 +363,7 @@ struct HomeView: View {
                     recognizer: recognizer,
                     morningSleep: morningSleep,
                     onDismiss: resumePendingHomeFlows,
-                    startMealCapture: startMealCapture,
+                    startMealCapture: contentCapture.startMealCapture,
                     confirmAchievement: achievementLifecycle.confirm
                 )
             )
@@ -432,45 +443,6 @@ struct HomeView: View {
         HomeEnergyCollectionCoordinator.dismissPop(
             store: store,
             flow: sproutFlow
-        )
-    }
-
-    // MARK: 拍照
-
-    /// Open the camera for a specific meal slot (早/中/晚) — the saved photo goes
-    /// to the backend for 卡路里 recognition and its detail modal pops up.
-    /// Guarded because 重拍 is a second door into the camera; with the feature out
-    /// of 首发 range there must be no way in at all.
-    private func startMealCapture(_ meal: MealType) {
-        HomeCameraPresentationCoordinator.openIfEnabled(
-            meal: meal,
-            isEnabled: featureAccess.cameraEnabled,
-            presentation: featurePresentation
-        )
-    }
-
-    private func handlePhotoSaved(_ image: UIImage?, _ subjectLabel: String?, meal: MealType? = nil) {
-        HomePhotoSaveCoordinator.handleSavedPhoto(
-            image: image,
-            subjectLabel: subjectLabel,
-            meal: meal,
-            clearInitialMeal: { featurePresentation.cameraInitialMeal = nil },
-            history: history,
-            recognizer: recognizer,
-            isCameraPresented: { featurePresentation.showCamera },
-            presentMeal: { activeSheet = .meal($0) }
-        )
-    }
-
-    // MARK: 地图涂鸦 (walk doodle — see Features/WalkDoodle)
-
-    /// Walk Doodle is a saved route and authored reaction, never a `bo` source.
-    private func handleDoodleSaved(_ result: WalkDoodleResult) {
-        HomeWalkDoodleSaveCoordinator.run(
-            result: result,
-            history: history,
-            speech: piboSpeech,
-            show: show
         )
     }
 
@@ -599,7 +571,7 @@ struct HomeView: View {
             sheetIsAbsent: { activeSheet == nil },
             presentSheet: { activeSheet = $0 },
             selectAnimationState: applyDebugAnimationState,
-            photoSaved: handlePhotoSaved,
+            photoSaved: contentCapture.handleSavedPhoto,
             openBoPanel: { showBoUnlockPage = true }
         )
     }
@@ -615,11 +587,11 @@ struct HomeView: View {
     }
 
     /// DEV: exercise the full 拍餐识别 path without a camera — render a food emoji
-    /// as the "captured" frame and run it through `handlePhotoSaved`.
+    /// as the "captured" frame and run it through the saved-photo flow.
     private func debugSimulateMeal(_ meal: MealType) {
         HomeDebugAutomationController.simulateMeal(
             meal,
-            photoSaved: handlePhotoSaved
+            photoSaved: contentCapture.handleSavedPhoto
         )
     }
 #endif
