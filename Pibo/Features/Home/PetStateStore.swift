@@ -389,7 +389,7 @@ final class PetStateStore {
     var pendingWorkout: PendingWorkout? = nil {
         didSet {
             guard pendingWorkout != oldValue else { return }
-            persistPendingWorkout()
+            PendingWorkoutPersistence.save(pendingWorkout)
             publishWidgetSnapshot()
             if let oldValue, let pendingWorkout, oldValue.id != pendingWorkout.id {
                 finishPendingWorkoutActivity(for: oldValue, completed: false)
@@ -447,7 +447,6 @@ final class PetStateStore {
 
     private static let lastSeenDateKey = PiboPersistenceKeys.Defaults.lastSeenDate
     private static let lastDecayAtKey = PiboPersistenceKeys.Defaults.lastDecayAt
-    private static let pendingWorkoutKey = PiboPersistenceKeys.Defaults.pendingWorkout
 
     // — Internals —
     private var raw = RawMetrics()
@@ -553,7 +552,7 @@ final class PetStateStore {
         //    数据；如果只看 age cap，11:55 跑 + 00:25 开 app 这类场景会把昨
         //    天的运动算进今天。data 丢比错算好。
         // Demo mode 一律不恢复（demo 不会写入，但保险起见）。
-        if !demoMode, let restored = Self.loadPendingWorkout() {
+        if !demoMode, let restored = PendingWorkoutPersistence.load() {
             let age = Date().timeIntervalSince(restored.endedAt)
             let sameDay = Calendar.current.isDate(restored.endedAt, inSameDayAs: Date())
             if PiboCoreWorkoutAdapter.pendingWorkoutIsRestorable(
@@ -563,7 +562,7 @@ final class PetStateStore {
                 self.pendingWorkout = restored
                 LPLog.petState.notice("Restored pendingWorkout: \(restored.label, privacy: .public) \(restored.durationMin, privacy: .public)min (age \(Int(age/60), privacy: .public)min)")
             } else {
-                UserDefaults.standard.removeObject(forKey: Self.pendingWorkoutKey)
+                PendingWorkoutPersistence.clear()
                 LPLog.petState.notice("Discarded stale persisted pendingWorkout (age=\(Int(age/60), privacy: .public)min sameDay=\(sameDay, privacy: .public))")
             }
         }
@@ -1299,40 +1298,6 @@ final class PetStateStore {
         case .hiit:  return AppLocalization.text("高强度训练")
         case .yoga:  return AppLocalization.text("瑜伽")
         case .other: return AppLocalization.text("运动")
-        }
-    }
-
-    // MARK: - Pending workout persistence
-
-    /// `pendingWorkout` 的 `didSet` 会调到这里。non-nil → 编码进
-    /// UserDefaults；nil → 抹掉 key。强杀场景里至少能保住"用户没来得及确认
-    /// 的那一笔运动通知"。失败场景（极罕见）记 error 并抹掉 key，避免脏数
-    /// 据卡在那里下次还把同一个 sheet 弹出来。
-    private func persistPendingWorkout() {
-        let defaults = UserDefaults.standard
-        guard let pw = pendingWorkout else {
-            defaults.removeObject(forKey: Self.pendingWorkoutKey)
-            return
-        }
-        do {
-            let data = try JSONEncoder().encode(pw)
-            defaults.set(data, forKey: Self.pendingWorkoutKey)
-        } catch {
-            LPLog.petState.error("persistPendingWorkout encode failed: \(error.localizedDescription, privacy: .public) — clearing key")
-            defaults.removeObject(forKey: Self.pendingWorkoutKey)
-        }
-    }
-
-    private static func loadPendingWorkout() -> PendingWorkout? {
-        guard let data = UserDefaults.standard.data(forKey: pendingWorkoutKey) else {
-            return nil
-        }
-        do {
-            return try JSONDecoder().decode(PendingWorkout.self, from: data)
-        } catch {
-            LPLog.petState.error("loadPendingWorkout decode failed: \(error.localizedDescription, privacy: .public) — discarding")
-            UserDefaults.standard.removeObject(forKey: pendingWorkoutKey)
-            return nil
         }
     }
 
