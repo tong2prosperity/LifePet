@@ -5,10 +5,7 @@ import SwiftUI
 /// remains owned by `HomeView`; this view only adapts it to `ForestTuningPanel`.
 @MainActor
 struct HomeDebugControlsOverlay: View {
-    @Binding var tuning: StageRenderTuning
-    @Binding var isExpanded: Bool
-    @Binding var usesBounceCut: Bool
-    @Binding var playsAchievementCombo: Bool
+    @Bindable var controls: HomeDebugControlsState
 
     let store: PetStateStore
     let animationPresentation: HomeAnimationPresentationController
@@ -19,8 +16,8 @@ struct HomeDebugControlsOverlay: View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 0) {
                 ForestTuningPanel(
-                    tuning: $tuning,
-                    isExpanded: $isExpanded,
+                    tuning: $controls.tuning,
+                    isExpanded: $controls.isPanelExpanded,
                     forcedHour: Binding(
                         get: { store.debugForestHour },
                         set: { store.debugForestHour = $0 }
@@ -31,11 +28,11 @@ struct HomeDebugControlsOverlay: View {
                     ),
                     coreAnimationStateID: animationPresentation.coreStateID,
                     presentedAnimationStateID: animationPresentation.stateID,
-                    usesBounceCut: $usesBounceCut,
+                    usesBounceCut: $controls.usesBounceCut,
                     playsAchievementCombo: Binding(
-                        get: { playsAchievementCombo },
+                        get: { controls.playsAchievementCombo },
                         set: {
-                            playsAchievementCombo = $0
+                            controls.playsAchievementCombo = $0
                             stageCommands.setPlaysAchievementCombo($0)
                         }
                     ),

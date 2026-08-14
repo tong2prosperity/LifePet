@@ -51,14 +51,7 @@ struct HomeView: View {
     @State private var animationPresentation = HomeAnimationPresentationController()
     @State private var soundscape = AmbientSoundscapeService()
     #if DEBUG
-    @State private var forestTuning: StageRenderTuning = .standard
-    @State private var tuningPanelExpanded = !HomeDebugLaunchOptions.current.hidesTuningPanel
-    /// 面板强制的动画态。nil = 跟随 Core。`-PiboAnimationState=` 只是把它种上，
-    /// 所以启动参数与面板走的是同一条覆盖路径。
-    @State private var debugBounceCutIntent = false
-    @State private var debugPlaysAchievementCombo = false
-    #else
-    private let forestTuning: StageRenderTuning = .standard
+    @State private var debugControls = HomeDebugControlsState()
     #endif
     @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled) private var ambientSoundEnabled = true
 
@@ -123,6 +116,14 @@ struct HomeView: View {
 
     private var soundscapePresentation: SoundscapePresentation {
         presentationPolicy.soundscapePresentation
+    }
+
+    private var forestTuning: StageRenderTuning {
+        #if DEBUG
+        debugControls.tuning
+        #else
+        .standard
+        #endif
     }
 
     private var homeScene: some View {
@@ -361,10 +362,7 @@ struct HomeView: View {
 
             #if DEBUG
             HomeDebugControlsOverlay(
-                tuning: $forestTuning,
-                isExpanded: $tuningPanelExpanded,
-                usesBounceCut: $debugBounceCutIntent,
-                playsAchievementCombo: $debugPlaysAchievementCombo,
+                controls: debugControls,
                 store: store,
                 animationPresentation: animationPresentation,
                 stageCommands: stageCommands,
@@ -535,13 +533,13 @@ struct HomeView: View {
     /// 时紧接着发命令 —— 命令会先把渲染器的 `animationStateID` 写掉，随后那次
     /// `apply` 自然成为 no-op，不会双切。顺序与 `handlePat()` 一致。
     private func applyDebugAnimationState(_ stateID: String?) {
-        guard let target = animationPresentation.selectDebugState(
+        debugControls.selectAnimationState(
             stateID,
-            usesBounceCut: debugBounceCutIntent,
+            animationPresentation: animationPresentation,
             store: store,
-            history: history
-        ) else { return }
-        stageCommands.transitionAnimation(to: target, intent: .bounceCut)
+            history: history,
+            stageCommands: stageCommands
+        )
     }
     #endif
 
