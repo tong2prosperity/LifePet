@@ -134,7 +134,7 @@ final class HealthDataService {
         self.metrics = metrics
         self.morningSleepCoordinator = morningSleepCoordinator
         self.store = HKHealthStore()
-        self.workoutAnchor = Self.loadAnchor()
+        self.workoutAnchor = HealthDataPersistence.loadWorkoutAnchor()
 
         var cont: AsyncStream<HealthEvent>.Continuation!
         self.events = AsyncStream(bufferingPolicy: .unbounded) { cont = $0 }
@@ -148,7 +148,7 @@ final class HealthDataService {
         // empty `steps` array — read as "睡眠 / 运动数据丢失" by the user.
         if !HKHealthStore.isHealthDataAvailable() {
             self.authState = .unavailable
-        } else if Self.loadAuthorizedFlag() {
+        } else if HealthDataPersistence.authorizationWasGranted() {
             self.authState = .granted
             LPLog.healthKit.notice("Restored auth from UserDefaults — registering observers on init")
             startObservers()
@@ -181,7 +181,7 @@ final class HealthDataService {
                     .union(MorningSleepHealthTypes.enrichmentReadTypes)
                     .union(WellnessHealthTypes.additionalReadTypes))
             authState = .granted
-            Self.persistAuthorizedFlag(true)
+            HealthDataPersistence.setAuthorizationGranted(true)
             LPLog.healthKit.notice("Auth granted (HK doesn't disclose per-type grants — verify via query results)")
             startObservers()
             await reconcile()
@@ -689,7 +689,7 @@ final class HealthDataService {
         // catch yesterday-evening's run when the user opens the app this
         // morning, narrow enough that a longtime watch user doesn't pay for
         // a multi-thousand-sample replay. After that we persist the anchor
-        // (see `Self.loadAnchor` / `Self.persistAnchor`) so subsequent cold
+        // (see `HealthDataPersistence`) so subsequent cold
         // launches only see deltas, not another 36h replay.
         let predicate: HKSamplePredicate<HKWorkout>
         let isFirstRun = workoutAnchor == nil
@@ -708,7 +708,7 @@ final class HealthDataService {
         do {
             let result = try await descriptor.result(for: store)
             workoutAnchor = result.newAnchor
-            Self.persistAnchor(result.newAnchor)
+            HealthDataPersistence.persistWorkoutAnchor(result.newAnchor)
             if !result.addedSamples.isEmpty {
                 LPLog.workout.info("Fetched \(result.addedSamples.count, privacy: .public) workout(s)")
             }
@@ -743,63 +743,6 @@ final class HealthDataService {
             }
         } catch {
             LPLog.workout.error("postWorkouts threw: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    // MARK: - Anchor persistence
-
-    /// `HKQueryAnchor` is `NSSecureCoding`. We archive into UserDefaults so
-    /// every cold launch resumes from the last delivered sample instead of
-    /// replaying the 36h first-run window over and over.
-    private static let anchorKey = PiboPersistenceKeys.Defaults.workoutAnchor
-
-    private static func loadAnchor() -> HKQueryAnchor? {
-        guard let data = UserDefaults.standard.data(forKey: anchorKey) else {
-            LPLog.workout.debug("No persisted anchor — first launch path")
-            return nil
-        }
-        do {
-            let anchor = try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: data)
-            LPLog.workout.debug("Anchor loaded from UserDefaults")
-            return anchor
-        } catch {
-            LPLog.workout.error("Anchor unarchive failed: \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
-    }
-
-    // MARK: - Auth flag persistence
-
-    /// Mirrors "the user said yes once" across process restarts. HealthKit
-    /// has no read-side `authorizationStatus` we can trust (privacy: it
-    /// returns `.notDetermined` for read scopes regardless of what was
-    /// granted), and `RootView` only routes through `HealthAuthView` on the
-    /// first launch — so without this flag we lose the signal entirely on
-    /// the second cold launch and the home screen renders from the cold-start
-    /// `demoStats` floor. Cleared implicitly: if the user revoked permission
-    /// in Settings, snapshot queries simply return no data on next reconcile,
-    /// so we degrade visibly rather than silently — that's the right read.
-    private static let authorizedKey = PiboPersistenceKeys.Defaults.healthKitAuthorized
-
-    private static func loadAuthorizedFlag() -> Bool {
-        UserDefaults.standard.bool(forKey: authorizedKey)
-    }
-
-    private static func persistAuthorizedFlag(_ granted: Bool) {
-        UserDefaults.standard.set(granted, forKey: authorizedKey)
-    }
-
-    private static func persistAnchor(_ anchor: HKQueryAnchor?) {
-        let defaults = UserDefaults.standard
-        guard let anchor else {
-            defaults.removeObject(forKey: anchorKey)
-            return
-        }
-        do {
-            let data = try NSKeyedArchiver.archivedData(withRootObject: anchor, requiringSecureCoding: true)
-            defaults.set(data, forKey: anchorKey)
-        } catch {
-            LPLog.workout.error("Anchor archive failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
