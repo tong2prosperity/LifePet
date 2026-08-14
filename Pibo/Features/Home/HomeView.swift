@@ -207,21 +207,10 @@ struct HomeView: View {
                 presentation: featurePresentation
             )
 
-            // 发芽 close-up captions, synced to the stage phases.
-            if sproutPhase == .collecting || sproutPhase == .sprouted {
-                VStack(spacing: 0) {
-                    SproutCaptionView(text: sproutPhase == .collecting
-                                      ? "收到一条新的运动记录"
-                                      : "Pibo 记下了这次变化")
-                    Spacer()
-                }
-                .allowsHitTesting(false)
-            }
-
-            // 运动记录同步 pop — back on the home floor (Figma 70:4549).
-            if sproutPhase == .pop {
-                EnergyCollectedPop(onDismiss: dismissEnergyPop)
-            }
+            HomeSproutOverlay(
+                phase: sproutPhase,
+                onDismissPop: dismissEnergyPop
+            )
 
             if showBoUnlockPage {
                 BoUnlockOverlay(stageCommands: stageCommands) {
@@ -395,11 +384,6 @@ struct HomeView: View {
 
     // MARK: Chrome
 
-    /// Whether the 发芽 close-up owns the screen (chrome hides, captions show).
-    private var closeupActive: Bool {
-        sproutPhase == .collecting || sproutPhase == .sprouted
-    }
-
     private var chromeContent: some View {
         ZStack {
             // Speech bubble floats just above Pibo's head (~30% down).
@@ -431,8 +415,8 @@ struct HomeView: View {
             )
             #endif
         }
-        .opacity(closeupActive ? 0 : 1)
-        .allowsHitTesting(!closeupActive)
+        .opacity(sproutPhase.obscuresHomeChrome ? 0 : 1)
+        .allowsHitTesting(!sproutPhase.obscuresHomeChrome)
     }
 
     // MARK: Header
