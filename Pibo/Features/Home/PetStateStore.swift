@@ -1,11 +1,5 @@
 import SwiftUI
 import os
-#if canImport(WidgetKit)
-import WidgetKit
-#endif
-#if canImport(ActivityKit)
-import ActivityKit
-#endif
 
 // MARK: - Raw HealthKit snapshot
 
@@ -895,120 +889,29 @@ final class PetStateStore {
     // MARK: - Widget / Live Activity bridge
 
     private func publishWidgetSnapshot() {
-        let snapshot = PiboWidgetSnapshot(
+        PetStateWidgetBridge.publishSnapshot(
             petName: petName,
             dayCount: dayCount,
-            stateTag: activityState.rawValue,
-            stateLabel: activityState.displayName,
-            // Kept in the v1 payload only so installed widgets can decode the
-            // snapshot during migration; current product surfaces ignore them.
-            vitality: 0,
-            energy: 0,
-            mood: 0,
-            updatedAt: Date(),
-            pendingWorkoutTitle: pendingWorkout?.titleLabel,
-            pendingWorkoutGain: nil
+            activityState: activityState,
+            pendingWorkoutTitle: pendingWorkout?.titleLabel
         )
-
-        if !PiboWidgetSnapshotStore.save(snapshot) {
-            LPLog.petState.error("widget snapshot save failed")
-        }
-
-        #if canImport(WidgetKit)
-        WidgetCenter.shared.reloadTimelines(ofKind: PiboWidgetConstants.homeWidgetKind)
-        #endif
     }
 
-    #if canImport(ActivityKit)
     private func startOrUpdatePendingWorkoutActivity(for workout: PendingWorkout) {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            LPLog.petState.notice("Live Activity skipped — activities disabled")
-            return
-        }
-
-        let attributes = PiboFeedActivityAttributes(
+        PetStateWidgetBridge.startOrUpdatePendingWorkoutActivity(
+            for: workout,
             petName: petName,
-            workoutID: workout.id
+            activityState: activityState
         )
-        let contentState = pendingActivityState(for: workout)
-        let content = ActivityContent(
-            state: contentState,
-            staleDate: Date().addingTimeInterval(
-                PiboCoreWorkoutAdapter.pendingWorkoutMaxAgeSeconds
-            )
-        )
-
-        Task { @MainActor in
-            let activities = Activity<PiboFeedActivityAttributes>.activities
-            if let existing = activities.first(where: { $0.attributes.workoutID == workout.id }) {
-                await existing.update(content)
-                return
-            }
-
-            for activity in activities where activity.attributes.workoutID != workout.id {
-                await activity.end(nil, dismissalPolicy: .immediate)
-            }
-
-            do {
-                _ = try Activity<PiboFeedActivityAttributes>.request(
-                    attributes: attributes,
-                    content: content,
-                    pushType: nil
-                )
-                LPLog.petState.notice("Live Activity started for pending workout \(workout.id.uuidString, privacy: .public)")
-            } catch {
-                LPLog.petState.error("Live Activity request failed: \(error.localizedDescription, privacy: .public)")
-            }
-        }
     }
 
     private func finishPendingWorkoutActivity(for workout: PendingWorkout, completed: Bool) {
-        let contentState = finishedActivityState(for: workout, completed: completed)
-        let content = ActivityContent(state: contentState, staleDate: Date())
-
-        Task { @MainActor in
-            let activities = Activity<PiboFeedActivityAttributes>.activities
-                .filter { $0.attributes.workoutID == workout.id }
-            guard !activities.isEmpty else { return }
-
-            for activity in activities {
-                await activity.end(
-                    content,
-                    dismissalPolicy: completed ? .after(Date().addingTimeInterval(8)) : .immediate
-                )
-            }
-            LPLog.petState.notice("Live Activity ended for pending workout \(workout.id.uuidString, privacy: .public)")
-        }
-    }
-
-    private func pendingActivityState(for workout: PendingWorkout) -> PiboFeedActivityAttributes.ContentState {
-        PiboFeedActivityAttributes.ContentState(
-            title: workout.titleLabel,
-            message: "收到一条新的运动记录",
-            vitalityGain: workout.gainVitality,
-            stateTag: activityState.rawValue,
-            endedAt: workout.endedAt,
-            isComplete: false
+        PetStateWidgetBridge.finishPendingWorkoutActivity(
+            for: workout,
+            completed: completed,
+            activityState: activityState
         )
     }
-
-    private func finishedActivityState(
-        for workout: PendingWorkout,
-        completed: Bool
-    ) -> PiboFeedActivityAttributes.ContentState {
-        PiboFeedActivityAttributes.ContentState(
-            title: "\(workout.titleLabel)已记录",
-            message: completed ? "运动记录已同步，会用于之后的可见积累" : "运动已记录到今天的足迹",
-            vitalityGain: workout.gainVitality,
-            stateTag: activityState.rawValue,
-            endedAt: workout.endedAt,
-            isComplete: true
-        )
-    }
-    #else
-    private func startOrUpdatePendingWorkoutActivity(for workout: PendingWorkout) {}
-    private func finishPendingWorkoutActivity(for workout: PendingWorkout, completed: Bool) {}
-    #endif
 
     // MARK: - Derived stats
 
