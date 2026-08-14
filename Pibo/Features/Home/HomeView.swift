@@ -1,4 +1,3 @@
-import AVFAudio
 import PiboCore
 import SwiftUI
 import UIKit
@@ -242,9 +241,17 @@ struct HomeView: View {
 
     private var homeTaskContent: some View {
         homeScene
-        .accessibilityHidden(stagePaused)
-        .task {
-            await HomeSpeechOpportunityCoordinator.runIdleLoop(
+            .accessibilityHidden(stagePaused)
+            .modifier(homeTaskModifier)
+    }
+
+    private var homeTaskModifier: HomeTaskModifier {
+        HomeTaskModifier(
+            angryUntil: store.animationExperience.angryUntil,
+            atmosphereClock: atmosphereClock,
+            ornamentLights: ornamentLights,
+            soundscape: soundscape,
+            speechInput: .init(
                 speechIsAbsent: { speechPresentation.line == nil },
                 sproutIsIdle: { sproutPhase == .idle },
                 stageIsPaused: { stagePaused },
@@ -254,41 +261,12 @@ struct HomeView: View {
                 values: { homeSpeechValues },
                 speech: piboSpeech,
                 show: show
+            ),
+            handlers: .init(
+                refreshAnimation: { refreshAnimationState() },
+                refreshAnimationAt: refreshAnimationState
             )
-        }
-        .task {
-            await atmosphereClock.run { now in
-                refreshAnimationState()
-                // 每分钟一次正好是「有没有跨过天亮」需要的精度。灯是否该熄
-                // 由存储自己判断，这里重复调用是廉价的。
-                ornamentLights.refresh(now: now)
-            }
-        }
-        .task(id: store.animationExperience.angryUntil) {
-            guard let expiry = store.animationExperience.angryUntil else { return }
-            let delay = max(0, expiry.timeIntervalSinceNow)
-            try? await Task.sleep(for: .seconds(delay))
-            guard !Task.isCancelled else { return }
-            refreshAnimationState(now: expiry)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
-            atmosphereClock.refresh()
-            refreshAnimationState()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
-            atmosphereClock.refresh()
-            refreshAnimationState()
-        }
-        .onReceive(NotificationCenter.default.publisher(
-            for: AVAudioSession.interruptionNotification
-        )) { notification in
-            soundscape.handleInterruption(notification)
-        }
-        .onReceive(NotificationCenter.default.publisher(
-            for: AVAudioSession.silenceSecondaryAudioHintNotification
-        )) { notification in
-            soundscape.handleSecondaryAudioHint(notification)
-        }
+        )
     }
 
     private var homeLifecycleContent: some View {
