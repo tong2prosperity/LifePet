@@ -101,27 +101,11 @@ struct HomeView: View {
         )
     }
 
-    // 可选全屏功能页的呈现绑定统一过一遍 `PiboReleaseScope`。收在绑定
-    // 上而不是只收在按钮上，是因为按钮不是唯一入口（重拍、启动参数、以后新加的
-    // 任何一处赋值都会走这里），这样"关着"就不依赖调用方记得判断。
-    private var cameraPresented: Binding<Bool> {
-        featurePresentation.cameraBinding(isEnabled: canUseDewCamera)
-    }
-
-    private var gamesPresented: Binding<Bool> {
-        featurePresentation.gamesBinding(isEnabled: PiboReleaseScope.miniGames)
-    }
-
-    private var walkDoodlePresented: Binding<Bool> {
-        featurePresentation.walkDoodleBinding(isEnabled: canUseWalkDoodle)
-    }
-
-    private var canUseDewCamera: Bool {
-        PiboReleaseScope.camera && ornamentUnlocks.grants(.dewCamera)
-    }
-
-    private var canUseWalkDoodle: Bool {
-        PiboReleaseScope.walkDoodle && ornamentUnlocks.grants(.walkDoodle)
+    private var featureAccess: HomeFeatureAccess {
+        HomeFeatureAccess(
+            presentation: featurePresentation,
+            ornamentUnlocks: ornamentUnlocks
+        )
     }
 
     private var stageEnvironment: PiboStageEnvironment {
@@ -296,10 +280,10 @@ struct HomeView: View {
         .modifier(
             HomeFeatureCoversModifier(
                 presentation: featurePresentation,
-                cameraPresented: cameraPresented,
-                gamesPresented: gamesPresented,
-                walkDoodlePresented: walkDoodlePresented,
-                walkDoodleEnabled: canUseWalkDoodle,
+                cameraPresented: featureAccess.cameraPresented,
+                gamesPresented: featureAccess.gamesPresented,
+                walkDoodlePresented: featureAccess.walkDoodlePresented,
+                walkDoodleEnabled: featureAccess.walkDoodleEnabled,
                 store: store,
                 history: history,
                 resumePendingFlows: resumePendingHomeFlows,
@@ -363,8 +347,8 @@ struct HomeView: View {
             HomePrimaryChrome(
                 featurePresentation: featurePresentation,
                 showBoUnlockPage: $showBoUnlockPage,
-                cameraEnabled: canUseDewCamera,
-                walkDoodleEnabled: canUseWalkDoodle,
+                cameraEnabled: featureAccess.cameraEnabled,
+                walkDoodleEnabled: featureAccess.walkDoodleEnabled,
                 feedbackEnabled: boCounterFeedbackEnabled,
                 hasRipeBo: boLedger.hasRipeBo,
                 dismissSpeech: dismissSpeech,
@@ -489,7 +473,7 @@ struct HomeView: View {
     private func startMealCapture(_ meal: MealType) {
         HomeCameraPresentationCoordinator.openIfEnabled(
             meal: meal,
-            isEnabled: canUseDewCamera,
+            isEnabled: featureAccess.cameraEnabled,
             presentation: featurePresentation
         )
     }
@@ -675,7 +659,7 @@ struct HomeView: View {
     private func runDebugLaunchAutomation() {
         debugAutomation.runLaunchAutomation(
             options: .current,
-            miniGamesEnabled: PiboReleaseScope.miniGames,
+            miniGamesEnabled: featureAccess.miniGamesEnabled,
             store: store,
             presentation: featurePresentation,
             morningSleep: morningSleep,
