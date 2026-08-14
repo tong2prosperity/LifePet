@@ -169,7 +169,8 @@ extension HealthDataService {
                 let heartRate = w.statistics(for: heartRateType)
                 let effort = effortByWorkout[w.uuid]
                 return WorkoutValues(
-                    id: w.uuid, kind: Self.bucket(w.workoutActivityType),
+                    id: w.uuid,
+                    kind: HealthWorkoutKindMapper.kind(for: w.workoutActivityType),
                     start: w.startDate, end: w.endDate, duration: w.duration,
                     energyKcal: kcal, distanceMeters: dist,
                     averageHeartRate: heartRate?.averageQuantity()?.doubleValue(for: bpm),

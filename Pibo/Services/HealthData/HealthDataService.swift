@@ -719,7 +719,9 @@ final class HealthDataService {
                     LPLog.workout.debug("dedup skip uuid=\(workout.uuid.uuidString, privacy: .public) — already emitted this session")
                     continue
                 }
-                let kind = Self.bucket(workout.workoutActivityType)
+                let kind = HealthWorkoutKindMapper.kind(
+                    for: workout.workoutActivityType
+                )
                 // iOS 18 deprecated `HKWorkout.totalEnergyBurned` in favor of
                 // per-statistics access; pull kcal out via the activity sum.
                 let kcal = workout.statistics(for: HKQuantityType(.activeEnergyBurned))?
@@ -749,18 +751,6 @@ final class HealthDataService {
     /// Coarse bucketing for the home screen. We don't need fine-grained
     /// activity types — just enough to flip a matching "建议: 跑步" card to done.
     static func bucket(_ type: HKWorkoutActivityType) -> HealthEvent.WorkoutKind {
-        switch type {
-        case .running:                                  return .run
-        case .walking, .hiking:                         return .walk
-        case .cycling, .handCycling:                    return .cycle
-        case .swimming:                                 return .swim
-        case .highIntensityIntervalTraining,
-             .functionalStrengthTraining,
-             .traditionalStrengthTraining,
-             .crossTraining:                            return .hiit
-        case .yoga, .pilates, .flexibility,
-             .mindAndBody, .barre:                      return .yoga
-        default:                                        return .other
-        }
+        HealthWorkoutKindMapper.kind(for: type)
     }
 }
