@@ -21,7 +21,7 @@ struct HomeView: View {
     @Environment(OnboardingStateStore.self) private var onboarding
     @Environment(MorningSleepCoordinator.self) private var morningSleep
     /// Carries the "user tapped a stress push" request from the notification
-    /// router into this view (see `presentStressCardIfPossible`).
+    /// router into Home's pending-presentation adapter.
     @Environment(StressNotifier.self) private var stressNotifier
     @Environment(WeatherDataService.self) private var weather
 
@@ -173,6 +173,31 @@ struct HomeView: View {
         )
     }
 
+    private var pendingPresentations: HomePendingPresentationAdapter {
+        HomePendingPresentationAdapter(
+            currentPolicy: { presentationPolicy },
+            currentSleepReviewGranted: {
+                ornamentUnlocks.grants(.sleepReview)
+            },
+            currentMorningSleepPresentation: {
+                morningSleep.consumablePresentation()
+            },
+            withSheet: { update in update(&activeSheet) },
+            currentPendingStressCardOpen: { stressNotifier.pendingCardOpen },
+            stressHandlers: .init(
+                clearPendingRequest: { stressNotifier.pendingCardOpen = false },
+                focusStressCard: { featurePresentation.historyFocus = .stress },
+                presentHistory: { featurePresentation.showHistory = true }
+            ),
+            clearSheetDismissal: {
+                homeSheetDismissalInProgress = false
+            },
+            presentAchievement: achievementLifecycle.presentIfPossible,
+            sheetIsAbsent: { activeSheet == nil },
+            announceFirstRipeBo: speechInteractions.announceFirstRipeBoIfNeeded
+        )
+    }
+
     private var stageEnvironment: PiboStageEnvironment {
         #if DEBUG
         let forcedHour = store.debugForestHour
@@ -232,7 +257,7 @@ struct HomeView: View {
             if showBoUnlockPage {
                 BoUnlockOverlay(stageCommands: stageCommands) {
                     showBoUnlockPage = false
-                    resumePendingHomeFlows()
+                    pendingPresentations.resumePendingFlows()
                 }
                 .transition(.opacity)
                 .zIndex(100)
@@ -300,8 +325,8 @@ struct HomeView: View {
                     #endif
                 },
                 presentAchievement: achievementLifecycle.presentIfPossible,
-                presentMorningSleep: presentMorningSleepIfPossible,
-                presentStressCard: presentStressCardIfPossible,
+                presentMorningSleep: pendingPresentations.presentMorningSleepIfPossible,
+                presentStressCard: pendingPresentations.presentStressCardIfPossible,
                 announceFirstRipeBo: speechInteractions.announceFirstRipeBoIfNeeded
             )
         )
@@ -335,11 +360,11 @@ struct HomeView: View {
                 // to watch yesterday's lights turn off.
                 ornamentLights.refresh()
             },
-            presentMorningSleep: presentMorningSleepIfPossible,
-            presentStressCard: presentStressCardIfPossible,
+            presentMorningSleep: pendingPresentations.presentMorningSleepIfPossible,
+            presentStressCard: pendingPresentations.presentStressCardIfPossible,
             currentHasRipeBo: { boLedger.hasRipeBo },
             announceFirstRipeBo: speechInteractions.announceFirstRipeBoIfNeeded,
-            resumePendingFlows: resumePendingHomeFlows
+            resumePendingFlows: pendingPresentations.resumePendingFlows
         )
     }
 
@@ -354,7 +379,7 @@ struct HomeView: View {
                 walkDoodleEnabled: featureAccess.walkDoodleEnabled,
                 store: store,
                 history: history,
-                resumePendingFlows: resumePendingHomeFlows,
+                resumePendingFlows: pendingPresentations.resumePendingFlows,
                 historyDismissed: historyDismissed,
                 photoSaved: contentCapture.handleSavedPhoto,
                 doodleSaved: contentCapture.handleSavedDoodle
@@ -374,7 +399,7 @@ struct HomeView: View {
                     history: history,
                     recognizer: recognizer,
                     morningSleep: morningSleep,
-                    onDismiss: resumePendingHomeFlows,
+                    onDismiss: pendingPresentations.resumePendingFlows,
                     startMealCapture: contentCapture.startMealCapture,
                     confirmAchievement: achievementLifecycle.confirm
                 )
@@ -396,7 +421,7 @@ struct HomeView: View {
 
     private func historyDismissed() {
         featurePresentation.historyFocus = nil
-        resumePendingHomeFlows()
+        pendingPresentations.resumePendingFlows()
     }
 
     // MARK: Chrome
@@ -481,42 +506,6 @@ struct HomeView: View {
 
     private var animationRefreshToken: HomeAnimationRefreshToken {
         HomeAnimationRefreshToken(store: store, history: history)
-    }
-
-    private func presentMorningSleepIfPossible() {
-        HomeMorningSleepPresentationCoordinator.presentIfPossible(
-            policy: presentationPolicy,
-            sleepReviewGranted: ornamentUnlocks.grants(.sleepReview),
-            consumablePresentation: morningSleep.consumablePresentation(),
-            destination: &activeSheet
-        )
-    }
-
-    private func resumePendingHomeFlows() {
-        HomePendingFlowCoordinator.resume(handlers: .init(
-            clearSheetDismissal: { homeSheetDismissalInProgress = false },
-            presentAchievement: achievementLifecycle.presentIfPossible,
-            sheetIsAbsent: { activeSheet == nil },
-            presentMorningSleep: presentMorningSleepIfPossible,
-            presentStressCard: presentStressCardIfPossible,
-            announceFirstRipeBo: speechInteractions.announceFirstRipeBoIfNeeded
-        ))
-    }
-
-    /// Open the history surface on the 压力卡 after a stress notification tap.
-    ///
-    /// The request is a flag on `StressNotifier` rather than a direct present,
-    /// because the tap can land at any moment — including a cold launch before
-    /// this view exists, and while another cover is already up. Presenting over a
-    /// live modal is silently dropped by SwiftUI, so when the screen is busy the
-    /// flag simply stays raised and `resumePendingHomeFlows` retries from the next
-    /// `onDismiss`.
-    private func presentStressCardIfPossible() {
-        HomeStressCardPresentationCoordinator.presentIfPossible(
-            policy: presentationPolicy,
-            notifier: stressNotifier,
-            presentation: featurePresentation
-        )
     }
 
     private func performReset() {
