@@ -1454,62 +1454,9 @@ final class PetStateStore {
 
     // MARK: - Suggest cards (PRD §4 — 建议卡)
 
-    /// One rule that knows whether and how to suggest a given `StepKind`.
-    /// Closures capture the *type* of dependency on store state, not state
-    /// itself — they're invoked with `self` at decision time.
-    private struct SuggestionRule {
-        let kind: StepKind
-        /// Which stat this rule's gain feeds — also the priority key when we
-        /// have to pick which `n` of `m` eligible rules to surface.
-        let affects: StatKind
-        let eligible: (PetStateStore) -> Bool
-        let make: (PetStateStore) -> StepItem
-    }
-
-    /// Static rule table. Rule order is *not* the priority order at runtime —
-    /// `regenerateSuggestions` re-sorts eligible rules by lowest stat.
-    private static let suggestionRules: [SuggestionRule] = [
-        SuggestionRule(kind: .walk, affects: .vitality,
-            eligible: { s in s.raw.steps < 8000 && s.statValue(.vitality) < 85 && s.isWakingHour },
-            make: { s in
-                // Stretch goal toward 8k, capped 500…2000, rounded up to nearest 500.
-                let needed = max(500, min(2000, 8000 - s.raw.steps))
-                let deficit = ((needed + 499) / 500) * 500
-                let gain = max(2, deficit / 1000 * 4)   // PRD: 走 1000 步 +4
-                return StepItem(status: .suggest, kind: .walk, actionLabel: AppLocalization.text("再走"),
-                                titleValue: AppLocalization.format("%d 步", deficit), affects: .vitality,
-                                gain: gain, time: "", fromAutoSensor: false)
-            }),
-        SuggestionRule(kind: .run, affects: .vitality,
-            eligible: { s in s.raw.exerciseMinutes < 20 && s.statValue(.vitality) < 75 && s.isWakingHour },
-            make: { _ in
-                StepItem(status: .suggest, kind: .run, actionLabel: AppLocalization.text("去跑"),
-                         titleValue: AppLocalization.format("%d 分钟", 20), affects: .vitality,
-                         gain: 20, time: "", fromAutoSensor: false)
-            }),
-        SuggestionRule(kind: .meditate, affects: .mood,
-            eligible: { s in s.raw.mindfulMinutes < 5 && s.statValue(.mood) < 85 },
-            make: { _ in
-                StepItem(status: .suggest, kind: .meditate, actionLabel: AppLocalization.text("冥想"),
-                         titleValue: AppLocalization.format("%d 分钟", 5), affects: .mood,
-                         gain: 15, time: "", fromAutoSensor: false)
-            }),
-        SuggestionRule(kind: .breath, affects: .mood,
-            eligible: { s in s.statValue(.mood) < 65 },
-            make: { _ in
-                StepItem(status: .suggest, kind: .breath, actionLabel: AppLocalization.text("深呼吸"),
-                         titleValue: AppLocalization.format("%d 次", 3), affects: .mood,
-                         gain: 9, time: "", fromAutoSensor: false)
-            }),
-    ]
-
     private var isWakingHour: Bool {
         let h = Calendar.current.component(.hour, from: Date())
         return h >= 6 && h < 22
-    }
-
-    private func statValue(_ k: StatKind) -> Int {
-        stats.first(where: { $0.kind == k })?.value ?? 50
     }
 
     /// Reconcile suggest cards with what the rule table currently wants.
@@ -1530,20 +1477,15 @@ final class PetStateStore {
     /// most needed.
     private func regenerateSuggestions() {
         guard !demoMode, hasIngestedAny else { return }
-        let maxSuggestions = 2
-        let cooldown: TimeInterval = 2 * 60 * 60
         let now = Date()
-
-        let eligible = Self.suggestionRules.filter { rule in
-            if (quitCounts[rule.kind] ?? 0) >= 3 { return false }
-            if let last = lastInteractionAt[rule.kind],
-               now.timeIntervalSince(last) < cooldown { return false }
-            return rule.eligible(self)
-        }
-        let prioritized = eligible.sorted { lhs, rhs in
-            statValue(lhs.affects) < statValue(rhs.affects)
-        }
-        let winners = prioritized.prefix(maxSuggestions)
+        let winners = PetStateSuggestionEngine.winners(
+            raw: raw,
+            stats: stats,
+            quitCounts: quitCounts,
+            lastInteractionAt: lastInteractionAt,
+            now: now,
+            isWakingHour: { self.isWakingHour }
+        )
         let winningKinds = Set(winners.map(\.kind))
 
         // Drop suggest cards no longer wanted.
@@ -1551,8 +1493,8 @@ final class PetStateStore {
 
         // Append new suggestions (don't replace ones already shown — keeps id stable).
         let present = Set(steps.filter { $0.status == .suggest }.map(\.kind))
-        for rule in winners where !present.contains(rule.kind) {
-            steps.append(rule.make(self))
+        for candidate in winners where !present.contains(candidate.kind) {
+            steps.append(candidate.makeStep())
         }
     }
 
