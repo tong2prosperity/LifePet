@@ -202,14 +202,10 @@ struct HomeView: View {
                 .allowsHitTesting(!showBoUnlockPage)
                 .accessibilityHidden(stagePaused || showBoUnlockPage)
 
-            if shouldShowStoryRecoveryBanner {
-                VStack {
-                    storyRecoveryBanner
-                    Spacer()
-                }
-                .padding(.horizontal, LP.Spacing.l)
-                .padding(.top, 108)
-            }
+            HomeStoryRecoveryOverlay(
+                onboarding: onboarding,
+                presentation: featurePresentation
+            )
 
             // 发芽 close-up captions, synced to the stage phases.
             if sproutPhase == .collecting || sproutPhase == .sprouted {
@@ -377,35 +373,6 @@ struct HomeView: View {
                     confirmAchievement: confirmAchievement
                 )
             )
-    }
-
-    private var shouldShowStoryRecoveryBanner: Bool {
-        HomeStoryRecoveryPolicy.shouldShow(
-            featureEnabled: PiboReleaseScope.temporaryCooperationOnboarding,
-            needsRecovery: onboarding.needsStoryRecovery,
-            dismissed: featurePresentation.storyRecoveryDismissed
-        ) {
-            #if DEBUG
-            return true
-            #else
-            let day = Calendar.current.ordinality(of: .day, in: .era, for: .now) ?? 0
-            return day.isMultiple(of: 3)
-            #endif
-        }
-    }
-
-    private var storyRecoveryBanner: some View {
-        HomeStoryRecoveryBanner(
-            messageKey: onboarding.recoveryMessageKey,
-            actionKey: onboarding.recoveryActionKey,
-            onOpen: {
-                Analytics.track(.storyRecoveryOpened, screen: "home")
-                featurePresentation.showStoryRecovery = true
-            },
-            onDismiss: {
-                featurePresentation.storyRecoveryDismissed = true
-            }
-        )
     }
 
     @ViewBuilder

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 enum HomeStoryRecoveryPolicy {
@@ -9,6 +10,61 @@ enum HomeStoryRecoveryPolicy {
     ) -> Bool {
         guard featureEnabled, needsRecovery, !dismissed else { return false }
         return scheduleAllowsPresentation()
+    }
+}
+
+/// Owns the Home-only presentation policy and placement for the story recovery
+/// banner. The banner's visual component remains independently reusable.
+@MainActor
+struct HomeStoryRecoveryOverlay: View {
+    let onboarding: OnboardingStateStore
+    let presentation: HomeFeaturePresentationState
+
+    var body: some View {
+        if shouldShow {
+            VStack {
+                HomeStoryRecoveryBanner(
+                    messageKey: onboarding.recoveryMessageKey,
+                    actionKey: onboarding.recoveryActionKey,
+                    onOpen: open,
+                    onDismiss: dismiss
+                )
+                Spacer()
+            }
+            .padding(.horizontal, LP.Spacing.l)
+            .padding(.top, 108)
+        }
+    }
+
+    private var shouldShow: Bool {
+        HomeStoryRecoveryPolicy.shouldShow(
+            featureEnabled: PiboReleaseScope.temporaryCooperationOnboarding,
+            needsRecovery: onboarding.needsStoryRecovery,
+            dismissed: presentation.storyRecoveryDismissed,
+            scheduleAllowsPresentation: scheduleAllowsPresentation
+        )
+    }
+
+    private func scheduleAllowsPresentation() -> Bool {
+        #if DEBUG
+        return true
+        #else
+        let day = Calendar.current.ordinality(
+            of: .day,
+            in: .era,
+            for: .now
+        ) ?? 0
+        return day.isMultiple(of: 3)
+        #endif
+    }
+
+    private func open() {
+        Analytics.track(.storyRecoveryOpened, screen: "home")
+        presentation.showStoryRecovery = true
+    }
+
+    private func dismiss() {
+        presentation.storyRecoveryDismissed = true
     }
 }
 
