@@ -34,12 +34,10 @@ struct BoCounterView: View {
     let balance: Int
     let growthProgress: Double
     let hasRipeBo: Bool
-    let highlightsExchange: Bool
     let feedbackRequest: BoCounterFeedbackRequest?
     let feedbackEnabled: Bool
     let feedbackCompleted: (BoCounterFeedbackRequest) -> Void
     let collectAction: () -> Bool
-    let exchangeAction: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var ripePulse = false
@@ -58,7 +56,6 @@ struct BoCounterView: View {
     @State private var collecting = false
     @State private var streamProgress: CGFloat = 0
     @State private var glyphRotation: Double = 0
-    @State private var exchangePulse = false
 
     /* ─────────────────────────────────────────────────────────
      * BO BADGE FEEDBACK STORYBOARD
@@ -80,22 +77,18 @@ struct BoCounterView: View {
         balance: Int,
         growthProgress: Double,
         hasRipeBo: Bool,
-        highlightsExchange: Bool,
         feedbackRequest: BoCounterFeedbackRequest? = nil,
         feedbackEnabled: Bool = true,
         feedbackCompleted: @escaping (BoCounterFeedbackRequest) -> Void = { _ in },
-        collectAction: @escaping () -> Bool,
-        exchangeAction: @escaping () -> Void
+        collectAction: @escaping () -> Bool
     ) {
         self.balance = balance
         self.growthProgress = growthProgress
         self.hasRipeBo = hasRipeBo
-        self.highlightsExchange = highlightsExchange
         self.feedbackRequest = feedbackRequest
         self.feedbackEnabled = feedbackEnabled
         self.feedbackCompleted = feedbackCompleted
         self.collectAction = collectAction
-        self.exchangeAction = exchangeAction
         _displayedGrowthProgress = State(initialValue: Self.clamped(growthProgress))
     }
 
@@ -112,9 +105,9 @@ struct BoCounterView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .frame(width: 102, height: 48)
+            .frame(width: 116, height: 48)
             .accessibilityLabel(accessibilityText)
-            .accessibilityHint(AppLocalization.text(hasRipeBo ? "收取成熟的 bo" : "打开 bo 兑换"))
+            .accessibilityHint(AppLocalization.text(hasRipeBo ? "收取成熟的 bo" : "显示当前 bo 库存"))
 
             Text("\(balance) bo")
                 .lpText(LP.Typography.b2Medium)
@@ -123,33 +116,6 @@ struct BoCounterView: View {
                 .animation(.snappy(duration: 0.3), value: balance)
                 .offset(x: 48, y: 12)
                 .allowsHitTesting(false)
-
-            Button {
-                LPHaptics.tap()
-                exchangeAction()
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(LP.Content.invertPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(LP.Colorful.teal500, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .offset(x: 102, y: 2)
-            .scaleEffect(exchangePulse ? 1.06 : 1)
-            .shadow(
-                color: LP.Colorful.teal500.opacity(highlightsExchange ? 0.75 : 0),
-                radius: exchangePulse ? 12 : 7
-            )
-            .overlay {
-                if highlightsExchange {
-                    Circle()
-                        .stroke(LP.Content.invertPrimary.opacity(0.9), lineWidth: 2)
-                        .frame(width: exchangePulse ? 52 : 46, height: exchangePulse ? 52 : 46)
-                        .allowsHitTesting(false)
-                }
-            }
-            .accessibilityLabel(AppLocalization.text("打开 bo 兑换"))
 
             ZStack {
                 glyphImage("bo_glyph_unripe")
@@ -188,11 +154,10 @@ struct BoCounterView: View {
         // Figma keeps the capsule at 148×48 while the 68pt glyph overflows
         // upward. Top-leading alignment prevents that decorative overflow (or
         // the feedback canvas) from inflating and vertically centering the pill.
-        .frame(width: 148, height: 48, alignment: .topLeading)
+        .frame(width: 116, height: 48, alignment: .topLeading)
         .background(LP.Neutral.grey850, in: Capsule())
         .onAppear {
             syncPulse()
-            syncExchangePulse()
             startFeedbackIfPossible(feedbackRequest)
         }
         .onDisappear { cancelFeedback() }
@@ -223,7 +188,6 @@ struct BoCounterView: View {
             }
             syncPulse()
         }
-        .onChange(of: highlightsExchange) { _, _ in syncExchangePulse() }
     }
 
     private var visualGrowthProgress: Double {
@@ -264,7 +228,6 @@ struct BoCounterView: View {
     private func handlePrimaryTap() {
         guard hasRipeBo else {
             LPHaptics.tap()
-            exchangeAction()
             return
         }
         collectRipeBo()
@@ -449,16 +412,6 @@ struct BoCounterView: View {
         }
     }
 
-    private func syncExchangePulse() {
-        guard highlightsExchange, !reduceMotion else {
-            withAnimation(.easeOut(duration: 0.2)) { exchangePulse = false }
-            return
-        }
-        exchangePulse = false
-        withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-            exchangePulse = true
-        }
-    }
 }
 
 private struct BoGrowthGather: View, Animatable {
@@ -542,9 +495,9 @@ private struct BoCollectionStream: View {
 
 #Preview {
     VStack(alignment: .leading, spacing: 24) {
-        BoCounterView(balance: 0, growthProgress: 0.12, hasRipeBo: false, highlightsExchange: false, collectAction: { false }) {}
-        BoCounterView(balance: 3, growthProgress: 0.62, hasRipeBo: false, highlightsExchange: false, collectAction: { false }) {}
-        BoCounterView(balance: 7, growthProgress: 1, hasRipeBo: true, highlightsExchange: true, collectAction: { true }) {}
+        BoCounterView(balance: 0, growthProgress: 0.12, hasRipeBo: false, collectAction: { false })
+        BoCounterView(balance: 3, growthProgress: 0.62, hasRipeBo: false, collectAction: { false })
+        BoCounterView(balance: 7, growthProgress: 1, hasRipeBo: true, collectAction: { true })
     }
     .padding(40)
     .background(Color(hex: 0x9FBFA8))

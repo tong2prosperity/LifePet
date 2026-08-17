@@ -12,6 +12,7 @@ import os
 /// honestly and cannot create a synthetic meal record.
 struct PiboCameraView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     /// Called on 保存 with a real captured frame, its best-effort 识图 label, and
     /// the selected meal. Camera-less or denied devices cannot reach this callback.
     var onPhotoSaved: (UIImage?, String?, MealType?) -> Void
@@ -225,13 +226,66 @@ struct PiboCameraView: View {
             LinearGradient(colors: [Color(hex: 0x2A2A2E), Color(hex: 0x17171A)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             VStack(spacing: LP.Spacing.m) {
-                Image(systemName: "camera.fill")
-                    .font(.system(size: 30, weight: .regular))
-                Text(AppLocalization.text("相机不可用，请检查权限或设备"))
+                if camera.availability == .requestingPermission {
+                    ProgressView().tint(.white.opacity(0.72))
+                } else {
+                    Image(systemName: cameraPlaceholderIcon)
+                        .font(.system(size: 30, weight: .regular))
+                }
+                Text(AppLocalization.text(cameraPlaceholderMessage))
                     .lpText(LP.Typography.c1Regular)
+                    .multilineTextAlignment(.center)
+                if camera.availability == .permissionDenied {
+                    placeholderButton(title: "打开设置") {
+                        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                        openURL(url)
+                    }
+                } else if camera.availability == .configurationFailed
+                            || camera.availability == .captureFailed {
+                    placeholderButton(title: "重新尝试") {
+                        Task { @MainActor in
+                            camera.stop()
+                            await camera.start()
+                        }
+                    }
+                }
             }
+            .padding(.horizontal, LP.Spacing.xl)
             .foregroundStyle(.white.opacity(0.55))
         }
+    }
+
+    private var cameraPlaceholderIcon: String {
+        switch camera.availability {
+        case .permissionDenied, .restricted: "camera.fill.badge.ellipsis"
+        case .deviceUnavailable: "camera.fill"
+        case .configurationFailed, .captureFailed: "exclamationmark.camera.fill"
+        case .idle, .requestingPermission, .ready: "camera.fill"
+        }
+    }
+
+    private var cameraPlaceholderMessage: String {
+        switch camera.availability {
+        case .idle, .requestingPermission: "正在准备相机"
+        case .permissionDenied: "没有相机权限。打开设置后即可继续拍摄。"
+        case .restricted: "此设备限制了相机访问，当前无法拍摄。"
+        case .deviceUnavailable: "没有找到可用的相机。你仍可以返回森林。"
+        case .configurationFailed: "相机启动失败，请重新尝试。"
+        case .captureFailed: "这次拍摄没有完成，请重新尝试。"
+        case .ready: "相机已准备好"
+        }
+    }
+
+    private func placeholderButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(AppLocalization.text(title))
+                .lpText(LP.Typography.b4Medium)
+                .foregroundStyle(.white)
+                .padding(.horizontal, LP.Spacing.l)
+                .frame(minHeight: 44)
+                .background(Capsule().fill(.white.opacity(0.18)))
+        }
+        .buttonStyle(.plain)
     }
 
     /// Bottom bar — last-shot thumbnail · shutter · 画幅 toggle (Figma `512:1886`).

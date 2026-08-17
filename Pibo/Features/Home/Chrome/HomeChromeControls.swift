@@ -4,7 +4,6 @@ import SwiftUI
 /// remain sibling layers so their existing z-order stays explicit in Home.
 struct HomePrimaryChrome: View {
     let presentation: HomePresentationState
-    @Binding var showBoUnlockPage: Bool
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
     let feedbackEnabled: Bool
@@ -17,7 +16,6 @@ struct HomePrimaryChrome: View {
         VStack(spacing: 0) {
             HomeHeader(
                 presentation: presentation,
-                showBoUnlockPage: $showBoUnlockPage,
                 cameraEnabled: cameraEnabled,
                 walkDoodleEnabled: walkDoodleEnabled,
                 feedbackEnabled: feedbackEnabled,
@@ -42,10 +40,8 @@ struct HomeHeader: View {
     @Environment(PetStateStore.self) private var store
     @Environment(BoProgressFeedbackStore.self) private var boProgressFeedback
     @Environment(BoLedgerStore.self) private var boLedger
-    @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
 
     let presentation: HomePresentationState
-    @Binding var showBoUnlockPage: Bool
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
     let feedbackEnabled: Bool
@@ -66,9 +62,6 @@ struct HomeHeader: View {
                     balance: boLedger.balance,
                     growthProgress: boLedger.growthProgress,
                     hasRipeBo: boLedger.hasRipeBo,
-                    highlightsExchange: ornamentUnlocks.shouldHighlightUnlockGuide(
-                        balance: boLedger.balance
-                    ),
                     feedbackRequest: feedbackRequest,
                     feedbackEnabled: feedbackEnabled,
                     feedbackCompleted: { request in
@@ -83,12 +76,7 @@ struct HomeHeader: View {
                         dismissSpeech()
                         return collectAction()
                     }
-                ) {
-                    dismissSpeech()
-                    Analytics.track(.boPanelOpen, screen: "home",
-                                    ["balance": .int(boLedger.balance)])
-                    showBoUnlockPage = true
-                }
+                )
             }
 
             Spacer(minLength: 0)

@@ -115,6 +115,10 @@ protocol PiboThemeRenderer: AnyObject {
     /// 用 `bo` 换来的物件。主题自己决定怎么画、画不画得了 —— 没有落位的物件
     /// （美术还没到）应当安静跳过，而不是画一个占位方块到用户的森林里。
     func apply(unlockedOrnaments: Set<PiboOrnament.ID>)
+    func apply(
+        presentedOrnaments: Set<PiboOrnament.ID>,
+        unlockedOrnaments: Set<PiboOrnament.ID>
+    )
     /// 物件身上已经被点亮的灯。主题负责画，不负责记 —— 什么时候熄灭是
     /// `OrnamentLightStore` 的事。
     func apply(litOrnamentLights: [PiboOrnament.ID: Set<Int>])
@@ -141,6 +145,12 @@ protocol PiboThemeRenderer: AnyObject {
 extension PiboThemeRenderer {
     func didEvaluateActions() {}
     func apply(unlockedOrnaments: Set<PiboOrnament.ID>) {}
+    func apply(
+        presentedOrnaments: Set<PiboOrnament.ID>,
+        unlockedOrnaments: Set<PiboOrnament.ID>
+    ) {
+        apply(unlockedOrnaments: unlockedOrnaments)
+    }
     func apply(litOrnamentLights: [PiboOrnament.ID: Set<Int>]) {}
     func beginInteraction(at point: CGPoint, timestamp: TimeInterval) -> Bool { false }
     func moveInteraction(to point: CGPoint, timestamp: TimeInterval) {}

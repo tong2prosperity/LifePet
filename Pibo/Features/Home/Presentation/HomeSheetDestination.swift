@@ -5,6 +5,8 @@ enum HomeSheetDestination: Equatable, Identifiable {
     case morningSleep(MorningSleepPresentation, consumesPending: Bool)
     case commonItemStatus(CommonItemStatusModel)
     case achievement(PiboAnimationAchievementPayload)
+    case healthDataStatus
+    case ornamentUnlock(PiboOrnament.ID)
 
     var id: String {
         switch self {
@@ -13,6 +15,8 @@ enum HomeSheetDestination: Equatable, Identifiable {
             "morning-sleep-\(presentation.id)-\(consumesPending ? "wake" : "hammock")"
         case .commonItemStatus(let model): "common-item-status-\(model.ornamentID.rawValue)"
         case .achievement(let payload): "animation-achievement-\(payload.id)"
+        case .healthDataStatus: "health-data-status"
+        case .ornamentUnlock(let id): "ornament-unlock-\(id.rawValue)"
         }
     }
 }

@@ -9,6 +9,22 @@ import os
 /// simulator or denied device.
 @Observable
 final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
+    enum Availability: Equatable {
+        case idle
+        case requestingPermission
+        case ready
+        case permissionDenied
+        case restricted
+        case deviceUnavailable
+        case configurationFailed
+        case captureFailed
+    }
+
+    private enum SessionSetupResult: Sendable {
+        case ready
+        case deviceUnavailable
+        case configurationFailed
+    }
     /// AVFoundation owns its own synchronization; all mutations still go
     /// through `queue`, while SwiftUI reads `session` only to attach a preview.
     @ObservationIgnored nonisolated(unsafe) let session = AVCaptureSession()
@@ -19,8 +35,9 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
     @ObservationIgnored private var captureTimeout: Task<Void, Never>?
     @ObservationIgnored private var lifecycleGeneration: UInt = 0
 
+    private(set) var availability: Availability = .idle
     /// True once a usable back camera is running (false on simulator / when denied).
-    var isReady = false
+    var isReady: Bool { availability == .ready }
     /// Prevents a second shutter from replacing the first capture continuation.
     private(set) var isCapturing = false
 
@@ -30,51 +47,78 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
         guard !isReady else { return }
         lifecycleGeneration &+= 1
         let generation = lifecycleGeneration
+        availability = .requestingPermission
         let granted: Bool
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:    granted = true
         case .notDetermined: granted = await AVCaptureDevice.requestAccess(for: .video)
-        default:             granted = false
+        case .denied:
+            availability = .permissionDenied
+            return
+        case .restricted:
+            availability = .restricted
+            return
+        @unknown default:
+            availability = .configurationFailed
+            return
         }
         guard granted else {
             LPLog.camera.notice("camera access not granted")
+            availability = AVCaptureDevice.authorizationStatus(for: .video) == .restricted
+                ? .restricted
+                : .permissionDenied
             return
         }
         // A back action may happen while the system authorization sheet or
         // hardware setup is in flight. A stale request must not revive the
         // session after the viewfinder has gone away.
         guard generation == lifecycleGeneration else { return }
-        let ready = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        let setup = await withCheckedContinuation { (cont: CheckedContinuation<SessionSetupResult, Never>) in
             queue.async {
                 let configured = !self.session.inputs.isEmpty
                     && self.session.outputs.contains { $0 === self.output }
-                let ok = configured || self.buildSession()
-                if ok {
+                let result = configured ? SessionSetupResult.ready : self.buildSession()
+                if case .ready = result {
                     if !self.session.isRunning { self.session.startRunning() }
                     LPLog.camera.notice("capture session ready")
                 } else {
                     LPLog.camera.error("capture session build failed — no usable camera input")
                 }
-                cont.resume(returning: ok && self.session.isRunning)
+                let resolved: SessionSetupResult = if case .ready = result, !self.session.isRunning {
+                    .configurationFailed
+                } else {
+                    result
+                }
+                cont.resume(returning: resolved)
             }
         }
         guard generation == lifecycleGeneration else { return }
-        isReady = ready
+        switch setup {
+        case .ready: availability = .ready
+        case .deviceUnavailable: availability = .deviceUnavailable
+        case .configurationFailed: availability = .configurationFailed
+        }
     }
 
     /// Runs on `queue`. Returns whether a camera input + photo output were wired up.
-    private nonisolated func buildSession() -> Bool {
+    private nonisolated func buildSession() -> SessionSetupResult {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
         session.sessionPreset = .photo
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
-                ?? AVCaptureDevice.default(for: .video),
-              let input = try? AVCaptureDeviceInput(device: device),
-              session.canAddInput(input), session.canAddOutput(output)
-        else { return false }
+        guard let device = AVCaptureDevice.default(
+            .builtInWideAngleCamera,
+            for: .video,
+            position: .back
+        ) ?? AVCaptureDevice.default(for: .video) else {
+            return .deviceUnavailable
+        }
+        guard let input = try? AVCaptureDeviceInput(device: device),
+              session.canAddInput(input), session.canAddOutput(output) else {
+            return .configurationFailed
+        }
         session.addInput(input)
         session.addOutput(output)
-        return true
+        return .ready
     }
 
     func capturePhoto() async -> UIImage? {
@@ -104,7 +148,7 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
 
     func stop() {
         lifecycleGeneration &+= 1
-        isReady = false
+        availability = .idle
         isCapturing = false
         captureTimeout?.cancel()
         captureTimeout = nil
@@ -144,6 +188,9 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
         let continuation = pending
         pending = nil
         isCapturing = false
+        if image == nil, availability == .ready {
+            availability = .captureFailed
+        }
         continuation?.resume(returning: image)
     }
 }

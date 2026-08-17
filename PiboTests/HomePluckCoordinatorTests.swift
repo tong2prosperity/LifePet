@@ -22,7 +22,7 @@ final class HomePluckCoordinatorTests: XCTestCase {
             recorder.events,
             [
                 "event-id", "pluck:local-pluck-test", "balance",
-                "track:7:local-pluck-test", "play", "message", "cooperation",
+                "track:7:local-pluck-test", "play", "message", "cooperation", "guide",
             ]
         )
     }
@@ -38,7 +38,7 @@ final class HomePluckCoordinatorTests: XCTestCase {
             [
                 "event-id", "pluck:local-pluck-test", "balance",
                 "track:7:local-pluck-test", "play", "message", "cooperation",
-                "minted", "collected", "observe:11:4",
+                "minted", "collected", "observe:11:4", "guide",
             ]
         )
     }
@@ -89,7 +89,8 @@ private final class Recorder {
             },
             observeBoProgress: { [self] minted, collected in
                 events.append("observe:\(minted):\(collected)")
-            }
+            },
+            presentFirstItemGuideIfEligible: { [self] in events.append("guide") }
         )
     }
 }

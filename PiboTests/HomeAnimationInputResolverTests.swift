@@ -61,15 +61,16 @@ final class HomeAnimationInputResolverTests: XCTestCase {
 
     func testResolveUsesCoreDecisionWithoutASecondAnimationMachine() {
         let input = HomeAnimationInputResolver.resolve(
+            snapshot: PiboCoreStatePolicy.initialSnapshot(),
             at: Date(timeIntervalSince1970: 12 * 3_600),
             calendar: utcCalendar(),
             records: [],
             hasActivityData: true,
-            steps: 10_000,
-            lastWorkoutEndedAt: nil
+            lastWorkoutEndedAt: nil,
+            activityMilestoneReachedAt: Date(timeIntervalSince1970: 11 * 3_600)
         )
-        XCTAssertEqual(input.decision.state, .energetic)
-        XCTAssertEqual(input.sleepDayKey, 19_700_101)
+        XCTAssertEqual(input.input.decision.state, .energetic)
+        XCTAssertEqual(input.input.sleepDayKey, 19_700_101)
     }
 
     private func calendar() -> Calendar {

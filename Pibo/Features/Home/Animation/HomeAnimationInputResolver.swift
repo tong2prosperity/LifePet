@@ -47,23 +47,29 @@ enum HomeAnimationInputResolver {
     }
 
     static func resolve(
+        snapshot: PiboCoreStateSnapshot,
         at date: Date,
         calendar: Calendar,
         records: [HealthDayRecord],
         hasActivityData: Bool,
-        steps: Int,
-        lastWorkoutEndedAt: Date?
-    ) -> HomeAnimationStateResolver.Input {
-        HomeAnimationStateResolver.Input(
-            decision: PiboCoreStateAdapter.decide(
+        lastWorkoutEndedAt: Date?,
+        activityMilestoneReachedAt: Date?
+    ) -> (input: HomeAnimationStateResolver.Input, snapshot: PiboCoreStateSnapshot) {
+        let resolution = PiboCoreStateAdapter.resolve(
+                snapshot: snapshot,
                 at: date,
                 calendar: calendar,
                 hasActivityData: hasActivityData,
-                steps: steps,
                 lastWorkoutEndedAt: lastWorkoutEndedAt,
+                activityMilestoneReachedAt: activityMilestoneReachedAt,
                 nights: nights(from: records, at: date, calendar: calendar)
+        )
+        return (
+            HomeAnimationStateResolver.Input(
+                decision: resolution.decision,
+                sleepDayKey: dayKey(for: date, calendar: calendar)
             ),
-            sleepDayKey: dayKey(for: date, calendar: calendar)
+            resolution.snapshot
         )
     }
 

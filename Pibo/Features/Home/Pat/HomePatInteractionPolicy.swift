@@ -20,8 +20,10 @@ enum HomePatInteractionPolicy {
     }
 
     static func stateContext(for stateID: String) -> StateContext {
-        let sleeping = PiboAnimationResourceID.sleepingHammock.contains(stateID)
-        let resting = sleeping || stateID == PiboAnimationResourceID.wakingHammock
+        let sleeping = PiboAnimationResourceID.sleeping.contains(stateID)
+        let resting = sleeping
+            || stateID == PiboAnimationResourceID.wakingHammock
+            || stateID == PiboAnimationResourceID.wakingGroundRecovering
         return StateContext(
             sleeping: sleeping,
             resting: resting,

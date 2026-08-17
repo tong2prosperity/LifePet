@@ -11,6 +11,8 @@ final class HomeIdleSpeechContextResolverTests: XCTestCase {
             "pibo-state-sleeping-hammock-idle-a": nil,
             "pibo-state-sleeping-hammock-idle-b": nil,
             "pibo-state-waking-hammock-idle": .waking,
+            "pibo-state-sleeping-ground-idle-a": nil,
+            "pibo-state-waking-ground-behavior-recovering": .waking,
             "weak": .idle,
             "angry": nil,
             "boring": .idle,

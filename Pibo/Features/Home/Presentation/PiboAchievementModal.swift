@@ -42,7 +42,7 @@ struct PiboAchievementModal: View {
                         .lpText(LP.Typography.b3Medium)
                         .foregroundStyle(LP.Content.secondary)
                 } else {
-                    Text(AppLocalization.text("今天 10,000 步"))
+                    Text(AppLocalization.text("今天 8,000 步"))
                         .lpText(LP.Typography.b3Medium)
                         .foregroundStyle(LP.Content.secondary)
                 }

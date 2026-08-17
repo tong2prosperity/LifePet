@@ -28,7 +28,7 @@ struct HomeFeatureAccessTests {
         #expect(!unreleased.miniGamesEnabled)
     }
 
-    @Test func missingEntitlementsKeepReleasedFeaturesUnavailable() throws {
+    @Test func baseCameraStaysAvailableWithoutCommonItemEntitlements() throws {
         let fixture = try Fixture(unlocked: false)
         defer { fixture.cleanUp() }
 
@@ -38,7 +38,7 @@ struct HomeFeatureAccessTests {
             miniGamesReleased: true
         )
 
-        #expect(!access.cameraEnabled)
+        #expect(access.cameraEnabled)
         #expect(!access.walkDoodleEnabled)
         #expect(access.miniGamesEnabled)
     }

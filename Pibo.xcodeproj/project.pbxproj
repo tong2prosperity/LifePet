@@ -886,7 +886,7 @@
 			repositoryURL = "git@github.com:PiboWorld/pibo-core.git";
 			requirement = {
 				kind = exactVersion;
-				version = 0.11.0;
+				version = 0.13.3;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

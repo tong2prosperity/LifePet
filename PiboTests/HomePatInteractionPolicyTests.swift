@@ -3,12 +3,14 @@ import XCTest
 
 final class HomePatInteractionPolicyTests: XCTestCase {
     func testEveryShippedStateKeepsItsRestingClassification() {
-        let sleepingStates: Set<String> = ["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"]
+        let sleepingStates = PiboAnimationResourceID.sleeping
 
         for stateID in PiboAnimationStateMap.available {
             let context = HomePatInteractionPolicy.stateContext(for: stateID)
             let expectedSleeping = sleepingStates.contains(stateID)
-            let expectedResting = expectedSleeping || stateID == "pibo-state-waking-hammock-idle"
+            let expectedResting = expectedSleeping
+                || stateID == PiboAnimationResourceID.wakingHammock
+                || stateID == PiboAnimationResourceID.wakingGroundRecovering
 
             XCTAssertEqual(context.sleeping, expectedSleeping, stateID)
             XCTAssertEqual(context.resting, expectedResting, stateID)
@@ -31,7 +33,7 @@ final class HomePatInteractionPolicyTests: XCTestCase {
     }
 
     func testSleepingStatesUseImmediateProtectedNotice() {
-        for stateID in ["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"] {
+        for stateID in PiboAnimationResourceID.sleeping {
             XCTAssertEqual(
                 HomePatInteractionPolicy.speechRoute(
                     sourceStateID: stateID,
@@ -61,7 +63,11 @@ final class HomePatInteractionPolicyTests: XCTestCase {
     }
 
     func testEveryOrdinaryAndUnknownStateUsesResolvedSpeech() {
-        let specialStates: Set<String> = ["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b", "pibo-state-waking-hammock-idle", "angry"]
+        let specialStates = PiboAnimationResourceID.sleeping.union([
+            PiboAnimationResourceID.wakingHammock,
+            PiboAnimationResourceID.wakingGroundRecovering,
+            "angry",
+        ])
         let ordinaryStates = PiboAnimationStateMap.available.subtracting(specialStates)
 
         for stateID in ordinaryStates.union(["future-state"]) {

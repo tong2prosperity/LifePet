@@ -488,9 +488,11 @@ final class HealthHistoryStore {
 
     /// Persist a freshly captured (and cut-out) food photo. Bumps `revision`.
     @discardableResult
-    func addFoodPhoto(pngData: Data, capturedAt: Date = .now, subjectLabel: String? = nil,
+    func addFoodPhoto(pngData: Data, sourceJPEGData: Data? = nil,
+                      capturedAt: Date = .now, subjectLabel: String? = nil,
                       mealType: MealType? = nil) -> FoodPhoto {
         let photo = FoodPhoto(capturedAt: capturedAt, pngData: pngData,
+                              sourceJPEGData: sourceJPEGData,
                               subjectLabel: subjectLabel, mealType: mealType)
         context.insert(photo)
         try? context.save()

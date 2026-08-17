@@ -1,8 +1,10 @@
 import PiboCore
 import SwiftUI
 
-/// Resolves Home's release-scope and common-item gates once, then exposes the
-/// existing presentation bindings through the same availability decisions.
+/// Resolves Home's release scope and the remaining common-item gates once, then
+/// exposes presentation bindings through the same availability decisions.
+/// The base meal camera is intentionally release-gated only: it is part of the
+/// first-day experience and no longer waits for the chime entitlement.
 @MainActor
 struct HomeFeatureAccess {
     let presentation: HomePresentationState
@@ -31,7 +33,7 @@ struct HomeFeatureAccess {
         miniGamesReleased: Bool
     ) {
         self.presentation = presentation
-        cameraEnabled = cameraReleased && ornamentUnlocks.grants(.dewCamera)
+        cameraEnabled = cameraReleased
         walkDoodleEnabled = walkDoodleReleased
             && ornamentUnlocks.grants(.walkDoodle)
         miniGamesEnabled = miniGamesReleased

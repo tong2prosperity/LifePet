@@ -1,3 +1,4 @@
+import PiboCore
 import SwiftUI
 
 /// Home's complete SpriteKit bridge configuration. SwiftUI overlays remain in
@@ -8,8 +9,10 @@ struct HomeStageSurface: View {
         let activityState: PiboActivityState
         let animationStateID: String
         let growth: PiboGrowthStage
+        let boGrowthStage: PiboCoreBoGrowthStage
         let sproutGrowthProgress: Double
         let environment: PiboStageEnvironment
+        let presentedOrnaments: Set<PiboOrnament.ID>
         let unlockedOrnaments: Set<PiboOrnament.ID>
         let litOrnamentLights: [PiboOrnament.ID: Set<Int>]
         let tuning: StageRenderTuning
@@ -18,6 +21,7 @@ struct HomeStageSurface: View {
 
         init(
             store: PetStateStore,
+            boLedger: BoLedgerStore,
             animationPresentation: HomeAnimationPresentationController,
             environment: PiboStageEnvironment,
             ornamentUnlocks: OrnamentUnlockStore,
@@ -29,10 +33,17 @@ struct HomeStageSurface: View {
             theme = store.currentTheme
             activityState = animationPresentation.state
             animationStateID = animationPresentation.stateID
-            growth = store.growthStage
-            sproutGrowthProgress = store.headSproutGrowthProgress
+            // The forest head now represents the real `bo` ledger. The old
+            // workout-driven mystery/sprouted field remains only for migration.
+            growth = .sprouted
+            boGrowthStage = boLedger.growthStage
+            sproutGrowthProgress = boLedger.growthProgress
             self.environment = environment
-            unlockedOrnaments = ornamentUnlocks.unlocked
+            let unlocked = ornamentUnlocks.unlocked
+            unlockedOrnaments = unlocked
+            presentedOrnaments = ornamentUnlocks.nextLocked
+                .map { unlocked.union([$0.id]) }
+                ?? unlocked
             litOrnamentLights = ornamentLights.lit
             self.tuning = tuning
             self.isPaused = isPaused
@@ -58,8 +69,10 @@ struct HomeStageSurface: View {
             animationStateID: input.animationStateID,
             commandController: commandController,
             growth: input.growth,
+            boGrowthStage: input.boGrowthStage,
             sproutGrowthProgress: input.sproutGrowthProgress,
             environment: input.environment,
+            presentedOrnaments: input.presentedOrnaments,
             unlockedOrnaments: input.unlockedOrnaments,
             litOrnamentLights: input.litOrnamentLights,
             tuning: input.tuning,

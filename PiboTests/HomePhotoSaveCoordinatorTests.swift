@@ -48,7 +48,8 @@ struct HomePhotoSaveCoordinatorTests {
         let fixture = try makeFixture()
         defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
         let png = Data([0x89, 0x50, 0x4E, 0x47])
-        var presentedMeal: MealType?
+        var projection: HomeFoodProjection?
+        var failures = 0
 
         let task = HomePhotoSaveCoordinator.process(
             image: UIImage(),
@@ -56,25 +57,31 @@ struct HomePhotoSaveCoordinatorTests {
             meal: nil,
             history: fixture.history,
             isCameraPresented: { false },
-            presentMeal: { presentedMeal = $0 },
+            presentProjection: { projection = $0 },
+            presentFailure: { _ in failures += 1 },
             analyze: { _, _, _, _ in
                 Issue.record("Non-meal captures must not start recognition")
+                return false
             },
-            makeStickerPNG: { _ in png }
+            makeStickerPNG: { _ in png },
+            makeSourceJPEG: { _ in Data([0xFF, 0xD8, 0xFF]) }
         )
         await task.value
 
         let photo = try #require(fixture.history.foodPhotos(on: .now).first)
         #expect(photo.pngData == png)
+        #expect(photo.sourceJPEGData == Data([0xFF, 0xD8, 0xFF]))
         #expect(photo.subjectLabel == "noodles")
         #expect(photo.meal == nil)
-        #expect(presentedMeal == nil)
+        #expect(projection == nil)
+        #expect(failures == 0)
     }
 
-    @Test func failedStickerGenerationDoesNotPersistOrPresent() async throws {
+    @Test func failedStickerGenerationFallsBackToOriginalAndStillPersists() async throws {
         let fixture = try makeFixture()
         defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
-        var presentedMeal: MealType?
+        var projection: HomeFoodProjection?
+        var failures = 0
 
         let task = HomePhotoSaveCoordinator.process(
             image: UIImage(),
@@ -82,24 +89,31 @@ struct HomePhotoSaveCoordinatorTests {
             meal: .lunch,
             history: fixture.history,
             isCameraPresented: { false },
-            presentMeal: { presentedMeal = $0 },
-            analyze: { _, _, _, _ in
-                Issue.record("A failed cut-out must not start recognition")
+            presentProjection: { projection = $0 },
+            presentFailure: { failure in
+                #expect(failure == .saving)
+                failures += 1
             },
-            makeStickerPNG: { _ in nil }
+            analyze: { _, _, _, _ in true },
+            makeStickerPNG: { _ in nil },
+            makeSourceJPEG: { _ in Data([0xFF, 0xD8, 0xFF]) }
         )
         await task.value
 
-        #expect(fixture.history.foodPhotos(on: .now).isEmpty)
-        #expect(presentedMeal == nil)
+        let photo = try #require(fixture.history.foodPhotos(on: .now).first)
+        #expect(photo.pngData == Data([0xFF, 0xD8, 0xFF]))
+        #expect(photo.sourceJPEGData == photo.pngData)
+        #expect(projection?.pngData == photo.pngData)
+        #expect(failures == 0)
     }
 
-    @Test func presentsMealBeforeStartingRecognition() async throws {
+    @Test func presentsForestProjectionBeforeStartingRecognition() async throws {
         let fixture = try makeFixture()
         defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
         let png = Data([0x89, 0x50, 0x4E, 0x47])
         var events: [String] = []
         var analyzedPhotoID: UUID?
+        var presentedProjection: HomeFoodProjection?
 
         let task = HomePhotoSaveCoordinator.process(
             image: UIImage(),
@@ -107,24 +121,60 @@ struct HomePhotoSaveCoordinatorTests {
             meal: .lunch,
             history: fixture.history,
             isCameraPresented: { false },
-            presentMeal: { meal in
-                #expect(meal == .lunch)
-                events.append("present")
+            presentProjection: { projection in
+                #expect(projection.meal == .lunch)
+                presentedProjection = projection
+                events.append("project")
             },
+            presentFailure: { _ in Issue.record("Successful recognition must not fail") },
             analyze: { photoID, _, hint, meal in
                 #expect(hint == "noodles")
                 #expect(meal == .lunch)
                 analyzedPhotoID = photoID
                 events.append("analyze")
+                return true
             },
-            makeStickerPNG: { _ in png }
+            makeStickerPNG: { _ in png },
+            makeSourceJPEG: { _ in Data([0xFF, 0xD8, 0xFF]) }
         )
         await task.value
 
         let photo = try #require(fixture.history.foodPhotos(on: .now).first)
         #expect(photo.meal == .lunch)
         #expect(analyzedPhotoID == photo.id)
-        #expect(events == ["present", "analyze"])
+        #expect(presentedProjection?.id == photo.id)
+        #expect(presentedProjection?.pngData == png)
+        #expect(events == ["project", "analyze"])
+    }
+
+    @Test func failedRecognitionKeepsProjectionAndReportsTransientFailure() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        let png = Data([0x89, 0x50, 0x4E, 0x47])
+        var events: [String] = []
+
+        let task = HomePhotoSaveCoordinator.process(
+            image: UIImage(),
+            subjectLabel: "noodles",
+            meal: .dinner,
+            history: fixture.history,
+            isCameraPresented: { false },
+            presentProjection: { _ in events.append("project") },
+            presentFailure: { failure in
+                #expect(failure == .recognition)
+                events.append("fail")
+            },
+            analyze: { _, _, _, _ in
+                events.append("analyze")
+                return false
+            },
+            makeStickerPNG: { _ in png },
+            makeSourceJPEG: { _ in Data([0xFF, 0xD8, 0xFF]) }
+        )
+        await task.value
+
+        #expect(!fixture.history.foodPhotos(on: .now).isEmpty)
+        #expect(events == ["project", "analyze", "fail"])
     }
 
     private func makeFixture() throws -> (

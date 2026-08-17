@@ -49,6 +49,33 @@ final class HealthDataService {
         case denied
     }
 
+    /// User-facing health input status. Unlike `AuthState`, this records what
+    /// the App can actually read without pretending HealthKit exposes each
+    /// read-permission switch.
+    enum DataAvailability: Sendable, Equatable {
+        case unavailable
+        case needsAuthorization
+        case checking
+        case noReadableData
+        case available(lastCheckedAt: Date)
+        case temporarilyInterrupted(lastReadableAt: Date?)
+
+        var hasReliableData: Bool {
+            switch self {
+            case .available: true
+            case .temporarilyInterrupted(let lastReadableAt): lastReadableAt != nil
+            default: false
+            }
+        }
+
+        var requiresAttention: Bool {
+            switch self {
+            case .available, .checking: false
+            default: true
+            }
+        }
+    }
+
     /// HealthKit deliberately hides per-type read authorization. Onboarding
     /// therefore verifies that the three inputs needed by Pibo are actually
     /// readable instead of treating a non-throwing authorization request as
@@ -66,6 +93,7 @@ final class HealthDataService {
     // MARK: - Public state
 
     private(set) var authState: AuthState
+    private(set) var dataAvailability: DataAvailability
 
     /// Pull events off this stream from one consumer (`PetStateStore`).
     /// Buffered unbounded — events are tiny enums and we never sleep them
@@ -148,14 +176,17 @@ final class HealthDataService {
         // empty `steps` array — read as "睡眠 / 运动数据丢失" by the user.
         if !HKHealthStore.isHealthDataAvailable() {
             self.authState = .unavailable
+            self.dataAvailability = .unavailable
         } else if HealthDataPersistence.authorizationWasGranted() {
             self.authState = .granted
+            self.dataAvailability = .checking
             LPLog.healthKit.notice("Restored auth from UserDefaults — registering observers on init")
             startObservers()
             // Don't call `reconcile()` here — `PiboApp` triggers it on
             // the first scenePhase=.active right after this init returns.
         } else {
             self.authState = .unknown
+            self.dataAvailability = .needsAuthorization
         }
     }
 
@@ -167,10 +198,12 @@ final class HealthDataService {
     func requestAuthorization() async {
         guard HKHealthStore.isHealthDataAvailable() else {
             authState = .unavailable
+            dataAvailability = .unavailable
             LPLog.healthKit.notice("Auth skipped — HealthKit unavailable on this device")
             return
         }
         authState = .requesting
+        dataAvailability = .checking
         LPLog.healthKit.notice("Requesting auth for \(self.metrics.count, privacy: .public) metric types")
         do {
             // 活动环目标 (`HKActivitySummary`) 不是 `HealthMetric`，单独并入读权限集。
@@ -187,6 +220,7 @@ final class HealthDataService {
             await reconcile()
         } catch {
             authState = .denied
+            dataAvailability = .needsAuthorization
             LPLog.healthKit.error("Auth threw: \(error.localizedDescription, privacy: .public)")
         }
     }
@@ -203,9 +237,9 @@ final class HealthDataService {
         }
 
         let predicate = HKQuery.predicateForSamples(withStart: start, end: now)
-        let hasSleep = await hasRecentCategorySample(.sleepAnalysis, predicate: predicate)
-        let hasSteps = await hasRecentQuantitySample(.stepCount, predicate: predicate)
-        let hasExercise = await hasRecentQuantitySample(.appleExerciseTime, predicate: predicate)
+        let hasSleep = await recentCategorySample(.sleepAnalysis, predicate: predicate) == .found
+        let hasSteps = await recentQuantitySample(.stepCount, predicate: predicate) == .found
+        let hasExercise = await recentQuantitySample(.appleExerciseTime, predicate: predicate) == .found
         let readiness = OnboardingReadiness(
             hasSleep: hasSleep,
             hasSteps: hasSteps,
@@ -217,10 +251,16 @@ final class HealthDataService {
         return readiness
     }
 
-    private func hasRecentQuantitySample(
+    private enum RecentSampleCheck: Equatable {
+        case found
+        case empty
+        case failed
+    }
+
+    private func recentQuantitySample(
         _ id: HKQuantityTypeIdentifier,
         predicate: NSPredicate
-    ) async -> Bool {
+    ) async -> RecentSampleCheck {
         let type = HKQuantityType(id)
         let descriptor = HKSampleQueryDescriptor(
             predicates: [.quantitySample(type: type, predicate: predicate)],
@@ -228,19 +268,19 @@ final class HealthDataService {
             limit: 1
         )
         do {
-            return try await !descriptor.result(for: store).isEmpty
+            return try await descriptor.result(for: store).isEmpty ? .empty : .found
         } catch {
             LPLog.healthKit.error(
                 "Onboarding baseline query \(id.rawValue, privacy: .public) failed: \(error.localizedDescription, privacy: .public)"
             )
-            return false
+            return .failed
         }
     }
 
-    private func hasRecentCategorySample(
+    private func recentCategorySample(
         _ id: HKCategoryTypeIdentifier,
         predicate: NSPredicate
-    ) async -> Bool {
+    ) async -> RecentSampleCheck {
         let type = HKCategoryType(id)
         let descriptor = HKSampleQueryDescriptor(
             predicates: [.categorySample(type: type, predicate: predicate)],
@@ -248,12 +288,46 @@ final class HealthDataService {
             limit: 1
         )
         do {
-            return try await !descriptor.result(for: store).isEmpty
+            return try await descriptor.result(for: store).isEmpty ? .empty : .found
         } catch {
             LPLog.healthKit.error(
                 "Onboarding baseline query \(id.rawValue, privacy: .public) failed: \(error.localizedDescription, privacy: .public)"
             )
-            return false
+            return .failed
+        }
+    }
+
+    private func refreshDataAvailability(now: Date = .now) async {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            dataAvailability = .unavailable
+            return
+        }
+        guard authState == .granted else {
+            dataAvailability = .needsAuthorization
+            return
+        }
+        guard let start = Calendar.current.date(byAdding: .day, value: -30, to: now) else {
+            dataAvailability = .temporarilyInterrupted(
+                lastReadableAt: HealthDataPersistence.lastReadableDataDate()
+            )
+            return
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: now)
+        let checks = [
+            await recentCategorySample(.sleepAnalysis, predicate: predicate),
+            await recentQuantitySample(.stepCount, predicate: predicate),
+            await recentQuantitySample(.appleExerciseTime, predicate: predicate),
+        ]
+        if checks.contains(.found) {
+            HealthDataPersistence.setLastReadableDataDate(now)
+            dataAvailability = .available(lastCheckedAt: now)
+        } else if checks.contains(.failed) {
+            dataAvailability = .temporarilyInterrupted(
+                lastReadableAt: HealthDataPersistence.lastReadableDataDate()
+            )
+        } else {
+            dataAvailability = .noReadableData
         }
     }
 
@@ -262,7 +336,7 @@ final class HealthDataService {
     func reconcile() async {
         LPLog.healthKit.debug("Reconcile begin (\(self.metrics.count, privacy: .public) metrics)")
         // Achievement ordering is a product contract: if this reconciliation
-        // discovers both a 10k crossing and one or more workouts, the workout
+        // discovers both an 8k crossing and one or more workouts, the workout
         // (pigu) wins. Set iteration is intentionally unordered, so impose a
         // stable order with steps before workout and keep workout last.
         let orderedMetrics = metrics.sorted {
@@ -271,6 +345,7 @@ final class HealthDataService {
         for metric in orderedMetrics {
             await refresh(metric)
         }
+        await refreshDataAvailability()
         LPLog.healthKit.debug("Reconcile end")
     }
 
@@ -316,6 +391,7 @@ final class HealthDataService {
                 } else {
                     await self?.refresh(metric)
                 }
+                await self?.refreshDataAvailability()
                 // Tell HK we've handled this wake-up — required to avoid
                 // delivery throttling.
                 completionHandler()

@@ -62,6 +62,21 @@ struct BoLedgerTests {
         Calendar.current.date(byAdding: .day, value: offsetDays, to: anchor) ?? anchor
     }
 
+    @Test func growthStageComesFromCoreLedgerState() throws {
+        let today = Calendar.current.startOfDay(for: .now)
+        let (ledger, defaults, suite) = try makeLedger(startedOn: today)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        ledger.debugSet(ripe: 0, progress: 0)
+        #expect(ledger.growthStage == .dormant)
+        ledger.debugSet(ripe: 0, progress: 0.25)
+        #expect(ledger.growthStage == .sprouting)
+        ledger.debugSet(ripe: 0, progress: 0.5)
+        #expect(ledger.growthStage == .forming)
+        ledger.debugSet(ripe: 1, progress: 0)
+        #expect(ledger.growthStage == .ripe)
+    }
+
     @Test func noConsentPreservesAssetsButMintsNothing() throws {
         let today = Calendar.current.startOfDay(for: .now)
         let (ledger, defaults, suite) = try makeLedger(startedOn: today, hasConsent: false)

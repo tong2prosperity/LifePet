@@ -5,12 +5,12 @@ enum HomeIdleSpeechContextResolver {
         animationStateID: String,
         hasRealHealthData: @autoclosure () -> Bool
     ) -> PiboCoreHomeSpeechContext? {
-        switch animationStateID {
-        case PiboAnimationResourceID.sleepingHammockA,
-             PiboAnimationResourceID.sleepingHammockB,
-             "angry":
+        if PiboAnimationResourceID.sleeping.contains(animationStateID) { return nil }
+        return switch animationStateID {
+        case "angry":
             nil
-        case PiboAnimationResourceID.wakingHammock:
+        case PiboAnimationResourceID.wakingHammock,
+             PiboAnimationResourceID.wakingGroundRecovering:
             .waking
         case PiboAnimationResourceID.tired:
             .lowSleep

@@ -31,6 +31,7 @@ enum HomePatInteractionCoordinator {
         storyStage: @escaping () -> PiboCoreStorySpeechStage,
         facts: @escaping () -> PiboHomeSpeechFacts,
         neutralLegacyMode: @escaping () -> Bool,
+        hasReliableHealthData: Bool? = nil,
         showAnimationLine: @escaping (PiboSpeechLine) -> Void,
         showResolvedSpeech: @escaping (PiboSpeech) -> Void
     ) {
@@ -53,6 +54,7 @@ enum HomePatInteractionCoordinator {
                     animationPresentation.refresh(
                         store: store,
                         history: history,
+                        hasReliableHealthData: hasReliableHealthData,
                         now: now
                     )
                 },

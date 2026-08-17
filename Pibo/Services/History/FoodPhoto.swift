@@ -17,6 +17,9 @@ final class FoodPhoto {
     /// Cut-out PNG (transparent background). Large enough to warrant external
     /// blob storage rather than inlining into the row.
     @Attribute(.externalStorage) var pngData: Data
+    /// Original camera frame for retrying recognition without forcing a
+    /// recapture. Optional keeps existing SwiftData rows lightweight-migratable.
+    @Attribute(.externalStorage) var sourceJPEGData: Data? = nil
     /// 识图 result — best-effort display name of the photo's main subject
     /// (`SubjectClassifier`, on-device). Nil when classification found nothing
     /// or for photos saved before the field existed.
@@ -39,12 +42,14 @@ final class FoodPhoto {
     var updatedAt: Date
 
     init(id: UUID = UUID(), capturedAt: Date, pngData: Data,
+         sourceJPEGData: Data? = nil,
          subjectLabel: String? = nil, mealType: MealType? = nil,
          updatedAt: Date = .now) {
         self.id = id
         self.day = Calendar.current.startOfDay(for: capturedAt)
         self.capturedAt = capturedAt
         self.pngData = pngData
+        self.sourceJPEGData = sourceJPEGData
         self.subjectLabel = subjectLabel
         self.mealTypeRaw = mealType?.rawValue
         self.updatedAt = updatedAt

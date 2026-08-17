@@ -26,9 +26,17 @@ enum HomeOrnamentInteractionCoordinator {
         dismissSpeech: @escaping () -> Void,
         present: @escaping (HomeSheetDestination) -> Void
     ) {
+        guard canPresent() else { return }
+        if !unlocks.isUnlocked(ornamentID) {
+            guard unlocks.nextLocked?.id == ornamentID else { return }
+            LPHaptics.tap()
+            dismissSpeech()
+            present(.ornamentUnlock(ornamentID))
+            return
+        }
         handleTap(
             ornamentID: ornamentID,
-            canPresent: canPresent,
+            canPresent: { true },
             sleepReviewGranted: { unlocks.grants(.sleepReview) },
             latestSleepReview: { morningSleep.latestReviewPresentation() },
             recoveryStatusGranted: { unlocks.grants(.recoveryStatus) },

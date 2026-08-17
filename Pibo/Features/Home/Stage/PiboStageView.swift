@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import PiboCore
 import SwiftUI
 import SpriteKit
 import UIKit
@@ -24,11 +25,14 @@ struct PiboStageView: View, Equatable {
     let commandController: PiboStageCommandController
     /// 魔丸 head growth (「?」卷芽 ⇄ 发芽带叶) — drives which head sprite shows.
     var growth: PiboGrowthStage = .sprouted
+    var boGrowthStage: PiboCoreBoGrowthStage = .dormant
     /// Continuous, persisted extension of the sprouted six-bone mesh.
     var sproutGrowthProgress: Double = 1
     /// Theme-neutral local time and weather input.
     var environment: PiboStageEnvironment = .daylight
-    /// 用 `bo` 换来、已经解锁的物件。空集 = 只有原始森林。
+    /// 已拥有的物件加上 Core 顺序中的下一个目标。后者直接以灰态留在森林。
+    var presentedOrnaments: Set<PiboOrnament.ID> = []
+    /// 用 `bo` 换来、已经解锁的物件。空集 = 只有原始森林和一个灰态目标。
     var unlockedOrnaments: Set<PiboOrnament.ID> = []
     /// 物件身上被亲手点亮的灯。没有自动夜光 —— 空 = 一盏不亮。
     var litOrnamentLights: [PiboOrnament.ID: Set<Int>] = [:]
@@ -108,7 +112,8 @@ struct PiboStageView: View, Equatable {
                 scene.setSproutGrowthProgress(value)
             }
             .onChange(of: environment) { _, value in scene.setEnvironment(value) }
-            .onChange(of: unlockedOrnaments) { _, value in scene.setUnlockedOrnaments(value) }
+            .onChange(of: presentedOrnaments) { _, _ in applyOrnaments() }
+            .onChange(of: unlockedOrnaments) { _, _ in applyOrnaments() }
             .onChange(of: litOrnamentLights) { _, value in scene.setLitOrnamentLights(value) }
             .onChange(of: tuning) { _, value in scene.setTuning(value) }
             .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
@@ -125,11 +130,22 @@ struct PiboStageView: View, Equatable {
     }
 
     /// SpriteKit nodes do not become reliable VoiceOver controls through the
-    /// SwiftUI bridge. Mirror only the unlocked interactive common items here;
-    /// locked entries therefore remain absent semantically as well as visually.
+    /// SwiftUI bridge. Mirror Pibo, the single grey target, and owned items.
     @ViewBuilder
     private var commonItemAccessibilityControls: some View {
         VStack {
+            Button(PiboCoreAnimationAdapter.accessibilityLabel(for: state)) {
+                onPat()
+            }
+            .accessibilityValue(boGrowthAccessibilityValue)
+            if let nextLocked = PiboOrnament.ordered.first(where: {
+                presentedOrnaments.contains($0.id) && !unlockedOrnaments.contains($0.id)
+            }) {
+                Button(AppLocalization.format("%@，未唤醒", nextLocked.localizedName)) {
+                    onOrnamentTapped(nextLocked.id)
+                }
+                .accessibilityHint(AppLocalization.text("查看功能和唤醒所需的 bo"))
+            }
             if unlockedOrnaments.contains(.hammock) {
                 Button(AppLocalization.text("打开睡眠回顾")) {
                     onOrnamentTapped(.hammock)
@@ -170,9 +186,25 @@ struct PiboStageView: View, Equatable {
         applySceneState()
         scene.setSproutGrowthProgress(sproutGrowthProgress)
         scene.setEnvironment(environment)
-        scene.setUnlockedOrnaments(unlockedOrnaments)
+        applyOrnaments()
         scene.setLitOrnamentLights(litOrnamentLights)
         scene.setTuning(tuning)
+    }
+
+    private func applyOrnaments() {
+        scene.setOrnaments(
+            presented: presentedOrnaments,
+            unlocked: unlockedOrnaments
+        )
+    }
+
+    private var boGrowthAccessibilityValue: String {
+        switch boGrowthStage {
+        case .dormant: AppLocalization.text("bo 尚未开始生长")
+        case .sprouting: AppLocalization.text("bo 正在发芽")
+        case .forming: AppLocalization.text("bo 正在成形")
+        case .ripe: AppLocalization.text("bo 已经成熟")
+        }
     }
 
     private func applySceneState() {
@@ -189,8 +221,10 @@ struct PiboStageView: View, Equatable {
             && lhs.state == rhs.state
             && lhs.animationStateID == rhs.animationStateID
             && lhs.growth == rhs.growth
+            && lhs.boGrowthStage == rhs.boGrowthStage
             && lhs.sproutGrowthProgress == rhs.sproutGrowthProgress
             && lhs.environment == rhs.environment
+            && lhs.presentedOrnaments == rhs.presentedOrnaments
             && lhs.unlockedOrnaments == rhs.unlockedOrnaments
             && lhs.litOrnamentLights == rhs.litOrnamentLights
             && lhs.tuning == rhs.tuning

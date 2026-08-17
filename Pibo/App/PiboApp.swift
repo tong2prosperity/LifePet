@@ -265,7 +265,10 @@ struct PiboApp: App {
                     await WorkoutCompletionNotifier.shared.start()
                     morningSleep.setAppActive(scenePhase == .active)
                     if scenePhase == .active, health.authState == .granted {
-                        await health.refreshMorningSleep()
+                        // Establish both the initial state inputs and the
+                        // user-facing availability classification. Later
+                        // foregrounds run the same reconciliation below.
+                        await health.reconcile()
                     }
                     morningSleep.presentLatestIfEligible()
                     // The enrichment prompt is a system modal; asking for it

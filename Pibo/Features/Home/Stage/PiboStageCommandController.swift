@@ -69,6 +69,14 @@ final class PiboStageCommandController {
         scene?.playTurnAway()
     }
 
+    func playContextualAction(_ action: PiboCoreAnimationAdapter.ContextualAction) {
+        scene?.playContextualAction(action)
+    }
+
+    func cancelContextualAction() {
+        scene?.cancelContextualAction()
+    }
+
     func transitionAnimation(
         to stateID: String,
         intent: PiboCoreAnimationAdapter.TransitionIntent

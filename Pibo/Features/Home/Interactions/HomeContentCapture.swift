@@ -10,8 +10,8 @@ struct HomeContentCapture {
     let history: HealthHistoryStore
     let recognizer: FoodRecognitionService
     let speech: PiboSpeechService
-    let presentMeal: (MealType) -> Void
     let showSpeech: (PiboSpeech) -> Void
+    let showLine: (PiboSpeechLine) -> Void
 
     func startMealCapture(_ meal: MealType) {
         HomeCameraPresentationCoordinator.openIfEnabled(
@@ -34,7 +34,19 @@ struct HomeContentCapture {
             history: history,
             recognizer: recognizer,
             isCameraPresented: { presentation.showCamera },
-            presentMeal: presentMeal
+            presentProjection: { projection in
+                presentation.foodProjection = projection
+                showLine(PiboSpeechLine(text: AppLocalization.text("我看看。")))
+            },
+            presentFailure: { failure in
+                let message = switch failure {
+                case .saving:
+                    AppLocalization.text("这次没有保存下来，请再试一次。")
+                case .recognition:
+                    AppLocalization.text("没有识别成功，照片仍然留在足迹里。")
+                }
+                presentation.showNotice(message)
+            }
         )
     }
 

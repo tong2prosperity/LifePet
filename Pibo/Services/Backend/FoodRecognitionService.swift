@@ -59,7 +59,7 @@ final class FoodRecognitionService {
     /// given meal and persist the analysis onto the photo. Best-effort: on any
     /// failure the photo keeps its cut-out + label and the modal offers 重拍.
     func analyze(photoID: UUID, fullImage: UIImage, hint: String?, meal: MealType,
-                 history: HealthHistoryStore) async {
+                 history: HealthHistoryStore) async -> Bool {
         analyzing.insert(photoID)
         defer { analyzing.remove(photoID) }
 
@@ -68,7 +68,7 @@ final class FoodRecognitionService {
         let encoded = await Task.detached { fullImage.jpegForUpload() }.value
         guard let jpeg = encoded else {
             LPLog.food.error("food recognize abort — jpeg encode failed")
-            return
+            return false
         }
         let req = FoodRecognizeRequest(
             imageBase64: jpeg.base64EncodedString(),
@@ -92,12 +92,31 @@ final class FoodRecognitionService {
             Analytics.track(.mealRecognized, screen: "meal",
                             ["meal": .string(meal.rawValue), "ok": true,
                              "kcal": .int(resp.totalCalories), "duration_s": .int(Int(ms))])
+            return true
         } catch {
             LPLog.food.error("food recognize failed: \(String(describing: error), privacy: .public)")
             let ms = (ContinuousClock().now - started).components.seconds
             Analytics.track(.mealRecognized, screen: "meal",
                             ["meal": .string(meal.rawValue), "ok": false, "duration_s": .int(Int(ms))])
+            return false
         }
+    }
+
+    /// Retry an existing record with its original frame. Older rows that predate
+    /// source persistence fall back to their displayed image.
+    func retry(photo: FoodPhoto, meal: MealType, history: HealthHistoryStore) async -> Bool {
+        let data = photo.sourceJPEGData ?? photo.pngData
+        guard let image = UIImage(data: data) else {
+            LPLog.food.error("food recognize retry abort — stored image decode failed")
+            return false
+        }
+        return await analyze(
+            photoID: photo.id,
+            fullImage: image,
+            hint: photo.subjectLabel,
+            meal: meal,
+            history: history
+        )
     }
 }
 

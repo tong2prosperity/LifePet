@@ -320,6 +320,82 @@ final class PiboCharacterRenderer {
         ]), withKey: "squash")
     }
 
+    func playContextualAction(_ action: PiboCoreAnimationAdapter.ContextualAction) {
+        cancelContextualAction()
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled
+        let short = reduceMotion ? 0.01 : 0.12
+        let medium = reduceMotion ? 0.01 : 0.20
+        let actor = rootNode
+        let sequence: SKAction
+        switch action {
+        case .checkConnection:
+            sequence = .sequence([
+                .rotate(byAngle: 0.08, duration: short),
+                .rotate(byAngle: -0.16, duration: medium),
+                .rotate(byAngle: 0.08, duration: short),
+            ])
+        case .letSleep:
+            sequence = .sequence([
+                .scaleX(to: 1.015, y: 0.985, duration: medium),
+                .wait(forDuration: reduceMotion ? 0.01 : 0.32),
+                .scaleX(to: 1, y: 1, duration: medium),
+            ])
+        case .morningGreeting:
+            sequence = .sequence([
+                .scaleX(to: 0.96, y: 1.08, duration: medium),
+                .rotate(byAngle: 0.06, duration: short),
+                .rotate(byAngle: -0.06, duration: short),
+                .scaleX(to: 1, y: 1, duration: medium),
+            ])
+        case .checkIn:
+            playBodyTap()
+            return
+        case .play:
+            let hop = reduceMotion ? CGFloat(2) : max(10, bodyHeight * 0.08)
+            let side = reduceMotion ? CGFloat(2) : max(12, bodyWidth * 0.12)
+            sequence = .sequence([
+                .group([
+                    .moveBy(x: -side, y: hop, duration: medium),
+                    .rotate(byAngle: 0.08, duration: medium),
+                ]),
+                .group([
+                    .moveBy(x: side * 2, y: 0, duration: medium),
+                    .rotate(byAngle: -0.16, duration: medium),
+                ]),
+                .group([
+                    .moveBy(x: -side, y: -hop, duration: medium),
+                    .rotate(byAngle: 0.08, duration: medium),
+                ]),
+            ])
+        case .rest:
+            let settle = reduceMotion ? CGFloat(1) : max(6, bodyHeight * 0.045)
+            sequence = .sequence([
+                .group([
+                    .moveBy(x: 0, y: -settle, duration: medium),
+                    .scaleX(to: 1.025, y: 0.94, duration: medium),
+                ]),
+                .wait(forDuration: reduceMotion ? 0.01 : 0.46),
+                .group([
+                    .moveBy(x: 0, y: settle, duration: medium),
+                    .scaleX(to: 1, y: 1, duration: medium),
+                ]),
+            ])
+        }
+        actor.run(sequence, withKey: "contextualAction")
+    }
+
+    func cancelContextualAction() {
+        rootNode.removeAction(forKey: "contextualAction")
+        rootNode.zRotation = 0
+        rootNode.xScale = 1
+        rootNode.yScale = 1
+        if vector == nil {
+            layout()
+        } else {
+            rootNode.position = .zero
+        }
+    }
+
     func playEnergyGain() {
         if headRig.isEnabled {
             headRig.addImpulse(1.7)
@@ -787,9 +863,9 @@ final class PiboCharacterRenderer {
         switch state {
         case .sleeping: setEyes(.closed); setBlush(0); showZzz(true); setBodyTint(0.97)
         case .waking: setEyes(.half); setBlush(0); showZzz(false); setBodyTint(1)
-        case .energetic: setEyes(.open); setBlush(0.7); showZzz(false); setBodyTint(1)
+        case .energetic, .stable, .dataUnknown:
+            setEyes(.open); setBlush(0); showZzz(false); setBodyTint(1)
         case .tired: setEyes(.half); setBlush(0); showZzz(false); setBodyTint(0.97)
-        case .stable, .dataUnknown: setEyes(.open); setBlush(0); showZzz(false); setBodyTint(1)
         }
     }
 
@@ -807,23 +883,12 @@ final class PiboCharacterRenderer {
         case .waking:
             body.run(.group([.scaleX(to: 1, y: 1, duration: duration), .rotate(toAngle: 0.025, duration: duration)]), withKey: "canonicalState")
             runHeadReaction(.rotate(toAngle: -0.04, duration: duration))
-        case .energetic:
-            body.run(.sequence([
-                .scaleX(to: 0.96, y: 1.06, duration: 0.12),
-                .scaleX(to: 1.02, y: 0.98, duration: 0.12),
-                .scaleX(to: 1, y: 1, duration: 0.16),
-            ]), withKey: "canonicalState")
-            runHeadReaction(.sequence([
-                .rotate(toAngle: 0.10, duration: 0.12),
-                .rotate(toAngle: -0.08, duration: 0.14),
-                .rotate(toAngle: 0, duration: 0.18),
-            ]))
+        case .energetic, .stable, .dataUnknown:
+            body.run(.group([.scaleX(to: 1, y: 1, duration: duration), .rotate(toAngle: 0, duration: duration)]), withKey: "canonicalState")
+            runHeadReaction(.rotate(toAngle: 0, duration: duration))
         case .tired:
             body.run(.group([.scaleX(to: 1.01, y: 0.98, duration: duration), .rotate(toAngle: 0.045, duration: duration)]), withKey: "canonicalState")
             runHeadReaction(.rotate(toAngle: 0.13, duration: duration))
-        case .stable, .dataUnknown:
-            body.run(.group([.scaleX(to: 1, y: 1, duration: duration), .rotate(toAngle: 0, duration: duration)]), withKey: "canonicalState")
-            runHeadReaction(.rotate(toAngle: 0, duration: duration))
         }
     }
 

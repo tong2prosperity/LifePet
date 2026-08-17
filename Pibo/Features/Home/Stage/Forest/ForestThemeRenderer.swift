@@ -29,11 +29,16 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     private var morningLightNode: SKSpriteNode?
     private var duskLightNode: SKSpriteNode?
     private var materialShaders: [ForestLightingGroup: SKShader] = [:]
+    /// Locked ornaments need their own shader. `ForestMaterial.fsh` deliberately
+    /// ignores SpriteKit's `colorBlendFactor`, so tinting the sprite alone does
+    /// not produce a reliable grey state on device.
+    private var lockedOrnamentShaders: [ForestLightingGroup: SKShader] = [:]
     private var fireflyEmitter: SKEmitterNode?
 
     /// 用 `bo` 换来的物件。它们是长期状态，不随环境或帧变化 —— 所以用一份集合 +
     /// 定向增删，而不是每次都重扫清单。
     private var unlockedOrnaments: Set<PiboOrnament.ID> = []
+    private var presentedOrnaments: Set<PiboOrnament.ID> = []
     private var ornamentNodes: [PiboOrnament.ID: SKSpriteNode] = [:]
     private var constructionModeEnabled = false
     private var constructionSelection: PiboOrnament.ID?
@@ -122,10 +127,19 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     }
 
     func apply(unlockedOrnaments ids: Set<PiboOrnament.ID>) {
-        guard ids != unlockedOrnaments else { return }
-        unlockedOrnaments = ids
+        apply(presentedOrnaments: ids, unlockedOrnaments: ids)
+    }
+
+    func apply(
+        presentedOrnaments: Set<PiboOrnament.ID>,
+        unlockedOrnaments: Set<PiboOrnament.ID>
+    ) {
+        guard presentedOrnaments != self.presentedOrnaments
+                || unlockedOrnaments != self.unlockedOrnaments else { return }
+        self.presentedOrnaments = presentedOrnaments
+        self.unlockedOrnaments = unlockedOrnaments
         // 定向增删，不走 `rebuild()` —— 那会连水面 shader、反射代理和全部枝叶一起
-        // 重建，为了挂一盏灯把整片森林闪一下。
+        // 重建，为了挂一件物品把整片森林闪一下。
         syncOrnaments()
     }
 
@@ -518,7 +532,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
 
         // 先收集再删。直接在遍历字典的同时改它，靠的是 Swift 的写时复制语义 ——
         // 能跑，但读的人得先想明白这一点才敢确认它是对的。
-        for id in ornamentNodes.keys.filter({ !unlockedOrnaments.contains($0) }) {
+        for id in ornamentNodes.keys.filter({ !presentedOrnaments.contains($0) }) {
             ornamentNodes.removeValue(forKey: id)?.removeFromParent()
             // 发光层也得摘掉。只把引用置 nil 会把节点孤儿化在场景里：
             // `refreshOrnamentLights` 再也看不见它，于是它冻在最后一次的 alpha 上，
@@ -530,7 +544,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         }
 
         for ornament in PiboOrnament.ordered {
-            guard unlockedOrnaments.contains(ornament.id),
+            guard presentedOrnaments.contains(ornament.id),
                   ornamentNodes[ornament.id] == nil,
                   // 没有落位 = 美术还没到（或者像椰壳那样本来就是底图的一部分）。
                   // 安静跳过，不要往用户的森林里放占位方块。
@@ -546,14 +560,26 @@ final class ForestThemeRenderer: PiboThemeRenderer {
             )
             let sprite = forestSprite(for: definition, mapper: mapper)
             sprite.shader = materialShader(for: placement.lightingGroup)
-            sprite.alpha = revealPending.contains(ornament.id) ? 0 : 1
+            sprite.alpha = 1
             context.layers.background.addChild(sprite)
             ornamentNodes[ornament.id] = sprite
             // 刻意**不**写进 `layerNodes` —— 那是清单图层的索引（反射代理按名字从里面
             // 取源节点）。把物件混进去既没人用，删除时又不会被清掉，只会留下一个指向
             // 已脱离场景的节点的悬挂引用。
 
-            if !placement.lights.isEmpty {
+        }
+
+        for ornament in PiboOrnament.ordered where presentedOrnaments.contains(ornament.id) {
+            guard let node = ornamentNodes[ornament.id], let placement = ornament.placement else { continue }
+            let isUnlocked = unlockedOrnaments.contains(ornament.id)
+            node.alpha = revealPending.contains(ornament.id) ? 0 : (isUnlocked ? 1 : 0.52)
+            node.shader = isUnlocked
+                ? materialShader(for: placement.lightingGroup)
+                : lockedOrnamentShader(for: placement.lightingGroup)
+            node.color = .white
+            node.colorBlendFactor = 0
+
+            if isUnlocked, !placement.lights.isEmpty, ornamentLights[ornament.id] == nil {
                 ornamentLights[ornament.id] = placement.lights.enumerated().map { index, light in
                     makeOrnamentLight(
                         index: index,
@@ -562,6 +588,11 @@ final class ForestThemeRenderer: PiboThemeRenderer {
                         mapper: mapper,
                         parent: context.layers.background
                     )
+                }
+            } else if !isUnlocked {
+                for light in ornamentLights.removeValue(forKey: ornament.id) ?? [] {
+                    light.halo.removeFromParent()
+                    light.core.removeFromParent()
                 }
             }
         }
@@ -762,7 +793,8 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         // 灯先判，确保铃兰仍是逐盏点亮。只有能力本身挂在物件上的两件东西
         // 才把整张森林素材作为入口；风铃通过独立的相机 / Walk Doodle 入口发现，
         // 铃兰则只保留点灯。
-        let tappable: Set<PiboOrnament.ID> = [.hammock, .statusObserver]
+        let tappable = presentedOrnaments.subtracting(unlockedOrnaments)
+            .union([.hammock, .statusObserver])
         let hit = ornamentNodes
             .filter { tappable.contains($0.key) && !$0.value.isHidden && $0.value.alpha > 0.01 }
             .filter { _, node in
@@ -792,6 +824,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         duskLightNode = nil
         fireflyEmitter = nil
         materialShaders.removeAll(keepingCapacity: true)
+        lockedOrnamentShaders.removeAll(keepingCapacity: true)
     }
 
     private func cancelInteraction() {
@@ -887,6 +920,19 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         return shader
     }
 
+    private func lockedOrnamentShader(for group: ForestLightingGroup) -> SKShader? {
+        guard group != .water, group != .emissive else { return nil }
+        if let shader = lockedOrnamentShaders[group] { return shader }
+        let shader = SKShader(fileNamed: "ForestMaterial.fsh")
+        shader.addUniform(SKUniform(name: "u_darkness", float: 0))
+        shader.addUniform(SKUniform(name: "u_tint", vectorFloat3: vector_float3(1, 1, 1)))
+        shader.addUniform(SKUniform(name: "u_tint_amount", float: 0))
+        shader.addUniform(SKUniform(name: "u_saturation", float: 0))
+        shader.addUniform(SKUniform(name: "u_lift", float: 0))
+        lockedOrnamentShaders[group] = shader
+        return shader
+    }
+
     private var waterFlowSpeed: Float {
         #if DEBUG
         if let waterDebugTuning { return Float(waterDebugTuning.speed) }
@@ -929,6 +975,14 @@ final class ForestThemeRenderer: PiboThemeRenderer {
             shader.uniformNamed("u_tint_amount")?.floatValue = Float(profile.tintAmount)
             shader.uniformNamed("u_saturation")?.floatValue = Float(profile.saturation)
             shader.uniformNamed("u_lift")?.floatValue = Float(profile.lift)
+
+            if let lockedShader = lockedOrnamentShader(for: group) {
+                lockedShader.uniformNamed("u_darkness")?.floatValue = Float(profile.darkness)
+                lockedShader.uniformNamed("u_tint")?.vectorFloat3Value = vector_float3(1, 1, 1)
+                lockedShader.uniformNamed("u_tint_amount")?.floatValue = 0
+                lockedShader.uniformNamed("u_saturation")?.floatValue = 0
+                lockedShader.uniformNamed("u_lift")?.floatValue = Float(profile.lift)
+            }
         }
 
         let far = environment.lighting.far

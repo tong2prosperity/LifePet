@@ -9,6 +9,7 @@ struct HomeStageInteractions {
     let history: HealthHistoryStore
     let animationPresentation: HomeAnimationPresentationController
     let stageCommands: PiboStageCommandController
+    let contextualActions: HomeContextualActionCoordinator
     let speech: PiboSpeechService
     let ledger: BoLedgerStore
     let onboarding: OnboardingStateStore
@@ -17,6 +18,7 @@ struct HomeStageInteractions {
     let morningSleep: MorningSleepCoordinator
     let storyStage: () -> PiboCoreStorySpeechStage
     let speechFacts: () -> PiboHomeSpeechFacts
+    let hasReliableHealthData: () -> Bool
     let canPresentOrnament: () -> Bool
     let dismissSpeech: () -> Void
     let showAnimationLine: (PiboSpeechLine) -> Void
@@ -42,20 +44,41 @@ struct HomeStageInteractions {
     }
 
     private func handlePat() {
-        HomePatInteractionCoordinator.run(
-            store: store,
-            history: history,
-            animationPresentation: animationPresentation,
-            stageCommands: stageCommands,
-            speech: speech,
-            storyStage: storyStage,
-            facts: speechFacts,
-            neutralLegacyMode: {
-                !PiboReleaseScope.temporaryCooperationOnboarding
-            },
-            showAnimationLine: showAnimationLine,
-            showResolvedSpeech: showResolvedSpeech
+        let state = animationPresentation.state
+        let action = PiboCoreAnimationAdapter.contextualAction(for: state)
+        guard action != .checkIn else {
+            stageCommands.playContextualAction(action)
+            HomePatInteractionCoordinator.run(
+                store: store,
+                history: history,
+                animationPresentation: animationPresentation,
+                stageCommands: stageCommands,
+                speech: speech,
+                storyStage: storyStage,
+                facts: speechFacts,
+                neutralLegacyMode: {
+                    !PiboReleaseScope.temporaryCooperationOnboarding
+                },
+                hasReliableHealthData: hasReliableHealthData(),
+                showAnimationLine: showAnimationLine,
+                showResolvedSpeech: showResolvedSpeech
+            )
+            return
+        }
+        guard contextualActions.begin(
+            action: action,
+            state: state,
+            stageCommands: stageCommands
+        ) else { return }
+        LPHaptics.tap()
+        Analytics.track(
+            .pat,
+            screen: "home",
+            ["reaction": .string(action.rawValue)]
         )
+        if action == .checkConnection {
+            presentSheet(.healthDataStatus)
+        }
     }
 
     private func handleHairPull() {

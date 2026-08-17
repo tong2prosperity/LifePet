@@ -15,13 +15,15 @@ enum HomePluckCoordinator {
         let lifetimeMinted: () -> Int
         let lifetimeCollected: () -> Int
         let observeBoProgress: (_ lifetimeMinted: Int, _ lifetimeCollected: Int) -> Void
+        let presentFirstItemGuideIfEligible: () -> Void
     }
 
     static func run(
         ledger: BoLedgerStore,
         stageCommands: PiboStageCommandController,
         onboarding: OnboardingStateStore,
-        show: @escaping (PiboSpeechLine) -> Void
+        show: @escaping (PiboSpeechLine) -> Void,
+        presentFirstItemGuideIfEligible: @escaping () -> Void = {}
     ) -> Bool {
         run(handlers: .init(
             makeEventID: { "local-pluck-\(UUID().uuidString)" },
@@ -46,7 +48,8 @@ enum HomePluckCoordinator {
                     lifetimeMinted: lifetimeMinted,
                     lifetimeCollected: lifetimeCollected
                 )
-            }
+            },
+            presentFirstItemGuideIfEligible: presentFirstItemGuideIfEligible
         ))
     }
 
@@ -64,6 +67,7 @@ enum HomePluckCoordinator {
             let lifetimeCollected = handlers.lifetimeCollected()
             handlers.observeBoProgress(lifetimeMinted, lifetimeCollected)
         }
+        handlers.presentFirstItemGuideIfEligible()
         return true
     }
 }

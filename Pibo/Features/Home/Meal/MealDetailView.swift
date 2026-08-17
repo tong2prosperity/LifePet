@@ -14,6 +14,7 @@ struct MealDetailView: View {
     @Environment(HealthHistoryStore.self) private var history
     @Environment(FoodRecognitionService.self) private var recognizer
     @Environment(\.dismiss) private var dismiss
+    @State private var retryFailed = false
 
     /// Latest photo for this meal today (re-queried on every history write).
     private var photo: FoodPhoto? {
@@ -101,7 +102,7 @@ struct MealDetailView: View {
         } else {
             // Failed, or interrupted by a relaunch (no analysis, nothing in
             // flight) — either way, offer a recapture rather than a blank.
-            failedState
+            failedState(photo)
         }
         recaptureButton
     }
@@ -118,14 +119,35 @@ struct MealDetailView: View {
         .padding(.vertical, LP.Spacing.xl)
     }
 
-    private var failedState: some View {
+    private func failedState(_ photo: FoodPhoto) -> some View {
         VStack(spacing: LP.Spacing.s) {
-            Text(AppLocalization.text("哼…这张 Pibo 没数清楚"))
+            Text(AppLocalization.text("这张照片还没有估算结果"))
                 .lpText(LP.Typography.b2Medium)
                 .foregroundStyle(LP.Content.secondary)
-            Text(AppLocalization.text("换个角度再拍一张试试"))
+            Text(AppLocalization.text(retryFailed ? "重新估算仍未完成，可以稍后再试。" : "可以使用保存的原图重新估算，不必重拍。"))
                 .lpText(LP.Typography.b4Regular)
                 .foregroundStyle(LP.Content.tertiary)
+                .multilineTextAlignment(.center)
+
+            Button {
+                retryFailed = false
+                Task { @MainActor in
+                    let succeeded = await recognizer.retry(
+                        photo: photo,
+                        meal: meal,
+                        history: history
+                    )
+                    retryFailed = !succeeded
+                }
+            } label: {
+                Label(AppLocalization.text("重新估算这张照片"), systemImage: "arrow.clockwise")
+                    .lpText(LP.Typography.b3Medium)
+                    .foregroundStyle(LP.Fill.foundationOnAccent)
+                    .padding(.horizontal, LP.Spacing.l)
+                    .frame(minHeight: 44)
+                    .background(Capsule().fill(LP.Fill.foundationAccent))
+            }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, LP.Spacing.l)

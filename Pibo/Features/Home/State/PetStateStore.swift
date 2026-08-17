@@ -378,6 +378,9 @@ final class PetStateStore {
     /// reconciliation pass replays any sample within the last 36h, so the
     /// "刚刚运动" window naturally re-establishes itself if it's still active.
     private(set) var lastWorkoutEndedAt: Date? = nil
+    /// Observation time of the latest live 8,000-step crossing. The durable
+    /// lifecycle snapshot persists the resulting state across launches.
+    private(set) var lastActivityMilestoneReachedAt: Date? = nil
 
     // — Mode —
     /// `true` → ignore HealthKit events; keep demo defaults. Bound to a
@@ -651,6 +654,7 @@ final class PetStateStore {
         demoMode = false
         lastDelta = nil
         lastWorkoutEndedAt = nil
+        lastActivityMilestoneReachedAt = nil
         toast = nil
         speechCursor = 0
         if let pendingWorkout {
@@ -668,6 +672,7 @@ final class PetStateStore {
         UserDefaults.standard.removeObject(forKey: Self.appearanceKey)
         selectedThemeID = PiboThemeCatalog.defaultTheme.id
         PiboThemeSelectionPersistence.reset()
+        PiboStateLifecyclePersistence.reset()
         #if DEBUG
         debugForestHour = nil
         UserDefaults.standard.removeObject(forKey: Self.debugForestHourKey)
@@ -768,6 +773,7 @@ final class PetStateStore {
         quitCounts = [:]
         lastInteractionAt = [:]
         lastWorkoutEndedAt = nil
+        lastActivityMilestoneReachedAt = nil
         steps = []
         lastDelta = nil
         toast = nil
@@ -981,8 +987,9 @@ final class PetStateStore {
             hasStepsData = true
             if hadStepsData,
                PiboCoreAnimationAdapter.stepsCrossed(previous: previous, current: n) {
+                lastActivityMilestoneReachedAt = Date()
                 if animationExperience.queueStepsAchievement() {
-                    // A later 10k achievement is allowed to replace a pending
+                    // A later 8k achievement is allowed to replace a pending
                     // workout's pigu presentation, but it must not replace the
                     // workout fact itself. The old sprout flow no longer drains
                     // `pendingWorkout`, and confirming a muscle Modal has a

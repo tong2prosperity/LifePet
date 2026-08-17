@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PiboCore
 
 /// Owns the animation state presented by Home after Core resolution and the
 /// optional Debug-only override. Thresholds and deterministic selection remain
@@ -10,6 +11,8 @@ final class HomeAnimationPresentationController {
     private(set) var stateID: String
     private(set) var state: PiboActivityState = .dataUnknown
     private(set) var decision: PiboCoreStateAdapter.Decision?
+    private var lifecycleSnapshot: PiboCoreStateSnapshot
+    private var hasHammock = false
 
     #if DEBUG
     var forcedStateID: String?
@@ -19,6 +22,7 @@ final class HomeAnimationPresentationController {
     init(stateID: String? = nil) {
         let resolvedStateID = stateID ?? PiboAnimationStateMap.fallback
         self.stateID = resolvedStateID
+        lifecycleSnapshot = PiboStateLifecyclePersistence.load()
         #if DEBUG
         forcedStateID = HomeDebugLaunchOptions.current.forcedAnimationStateID
         coreStateID = resolvedStateID
@@ -28,8 +32,11 @@ final class HomeAnimationPresentationController {
     func refresh(
         store: PetStateStore,
         history: HealthHistoryStore,
+        hasHammock: Bool? = nil,
+        hasReliableHealthData: Bool? = nil,
         now: Date = .now
     ) {
+        if let hasHammock { self.hasHammock = hasHammock }
         store.animationExperience.refreshExpiries(now: now)
         let calendar = Calendar.current
         let historyWindow = HomeAnimationInputResolver.sleepHistoryWindow(
@@ -40,28 +47,43 @@ final class HomeAnimationPresentationController {
             from: historyWindow.start,
             to: historyWindow.end
         )
-        let input = HomeAnimationInputResolver.resolve(
+        let resolved = HomeAnimationInputResolver.resolve(
+            snapshot: lifecycleSnapshot,
             at: now,
             calendar: calendar,
             records: records,
-            hasActivityData: store.hasStepsData,
-            steps: store.rawSteps,
-            lastWorkoutEndedAt: store.lastWorkoutEndedAt
+            hasActivityData: hasReliableHealthData ?? store.hasRealHealthData,
+            lastWorkoutEndedAt: store.lastWorkoutEndedAt,
+            activityMilestoneReachedAt: store.lastActivityMilestoneReachedAt
         )
-        let resolution = HomeAnimationStateResolver.resolve(input)
+        lifecycleSnapshot = resolved.snapshot
+        PiboStateLifecyclePersistence.save(lifecycleSnapshot)
+        let resolution = HomeAnimationStateResolver.resolve(resolved.input)
         state = resolution.state
         decision = resolution.decision
         store.publishPiboState(resolution.state)
+        let presentedStateID = PiboAnimationStateMap.presentedAmbientStateID(
+            semanticStateID: resolution.stateID,
+            state: resolution.state,
+            hasHammock: self.hasHammock,
+            needsWakingRecovery: resolution.decision.pendingState == .tired
+                && resolution.decision.pendingCause == .insufficientSleep
+        )
 
         #if DEBUG
-        coreStateID = resolution.stateID
+        coreStateID = presentedStateID
         stateID = Self.presentedStateID(
-            coreStateID: resolution.stateID,
+            coreStateID: presentedStateID,
             forcedStateID: forcedStateID
         )
         #else
-        stateID = resolution.stateID
+        stateID = presentedStateID
         #endif
+    }
+
+    func resetLifecycle() {
+        lifecycleSnapshot = PiboCoreStatePolicy.initialSnapshot()
+        PiboStateLifecyclePersistence.reset()
     }
 
     static func presentedStateID(

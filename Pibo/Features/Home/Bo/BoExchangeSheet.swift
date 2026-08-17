@@ -26,7 +26,20 @@ struct BoUnlockOverlay: View {
     @State private var pendingUnlockConfirmation: PiboOrnament.ID?
     @AccessibilityFocusState private var headingFocused: Bool
 
-    private var ornaments: [PiboOrnament] { PiboOrnament.ordered }
+    /// The first-version forest presents one concrete next goal instead of a
+    /// store-like catalogue. Once everything is awake, keep the last owned item
+    /// inspectable rather than exposing an empty overlay.
+    private var ornaments: [PiboOrnament] {
+        if let selectedID = flow.selectedID,
+           let selected = PiboOrnament.ornament(selectedID) {
+            return [selected]
+        }
+        if let next = unlocks.nextLocked { return [next] }
+        if let lastOwned = PiboOrnament.ordered.last(where: { unlocks.isUnlocked($0.id) }) {
+            return [lastOwned]
+        }
+        return PiboOrnament.ordered.first.map { [$0] } ?? []
+    }
     private var selectedID: PiboOrnament.ID {
         flow.selectedID ?? unlocks.nextLocked?.id ?? ornaments.last!.id
     }
@@ -107,7 +120,7 @@ struct BoUnlockOverlay: View {
             ) {
                 if let id = pendingUnlockConfirmation,
                    let ornament = PiboOrnament.ornament(id) {
-                    Button(AppLocalization.format("%d bo 解锁", ornament.cost)) {
+                    Button(AppLocalization.format("唤醒%@ · %d bo", ornament.localizedName, ornament.cost)) {
                         pendingUnlockConfirmation = nil
                         commit(id, input: "tap_confirmation")
                     }
@@ -126,7 +139,7 @@ struct BoUnlockOverlay: View {
 
     private var header: some View {
         ZStack {
-            Text(AppLocalization.text("共同物件"))
+            Text(AppLocalization.text("下一件共同物件"))
                 .lpText(LP.Typography.b1Medium)
                 .foregroundStyle(LP.Content.primary)
                 .accessibilityAddTraits(.isHeader)
@@ -153,10 +166,10 @@ struct BoUnlockOverlay: View {
     private var balanceHeader: some View {
         HStack(spacing: LP.Spacing.m) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(AppLocalization.text("可投入"))
+                Text(AppLocalization.text("可以唤醒"))
                     .lpText(LP.Typography.b4Medium)
                     .foregroundStyle(LP.Content.tertiary)
-                Text(AppLocalization.text("这些物件会留在共同空间里"))
+                Text(AppLocalization.text("投入 bo 后，它会留在森林里"))
                     .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(LP.Content.secondary)
             }
@@ -188,12 +201,6 @@ struct BoUnlockOverlay: View {
                 ForEach(ornaments) { ornament in
                     ornamentRow(ornament)
                 }
-                Text(AppLocalization.text("共同空间还会继续留下新的位置。"))
-                    .lpText(LP.Typography.b4Regular)
-                    .foregroundStyle(LP.Content.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 42)
-                    .padding(.vertical, LP.Spacing.l)
             }
             .padding(.horizontal, LP.Spacing.xl)
             .padding(.bottom, LP.Spacing.xl)
@@ -308,7 +315,7 @@ struct BoUnlockOverlay: View {
             }
 
             VStack(alignment: .leading, spacing: LP.Spacing.s) {
-                Text(AppLocalization.text("解锁后获得"))
+                Text(AppLocalization.text("唤醒后 Pibo 会"))
                     .lpText(LP.Typography.b4Medium)
                     .foregroundStyle(LP.Content.accent)
 
@@ -424,7 +431,7 @@ struct BoUnlockOverlay: View {
                 .lpText(LP.Typography.uiH5)
                 .foregroundStyle(LP.Content.primary)
                 .accessibilityAddTraits(.isHeader)
-            Text(AppLocalization.format("需要 %d bo", ornament.cost))
+            Text(AppLocalization.format("需要 %d bo · 当前 %d bo", ornament.cost, ledger.balance))
                 .lpText(LP.Typography.b1Medium)
                 .foregroundStyle(LP.Content.accent)
                 .monospacedDigit()
@@ -459,7 +466,7 @@ struct BoUnlockOverlay: View {
                 PiboBoGlyph()
                     .frame(width: 17, height: 24)
                     .accessibilityHidden(true)
-                Text(AppLocalization.text("正在建立物件"))
+                Text(AppLocalization.text("正在唤醒物件"))
                     .lpText(LP.Typography.b1Medium)
                     .foregroundStyle(LP.Content.accent)
                 Spacer(minLength: 0)
@@ -475,7 +482,7 @@ struct BoUnlockOverlay: View {
                     .strokeBorder(LP.Fill.foundationAccent.opacity(0.42), lineWidth: 1)
             )
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(AppLocalization.format("正在建立%@", ornament.localizedName))
+            .accessibilityLabel(AppLocalization.format("正在唤醒%@", ornament.localizedName))
         } else if flow.phase == .success(ornament.id) {
             Button {
                 returnToForest(ornament)
@@ -494,7 +501,7 @@ struct BoUnlockOverlay: View {
             Button {
                 pendingUnlockConfirmation = ornament.id
             } label: {
-                Text(AppLocalization.format("%d bo 解锁", ornament.cost))
+                Text(AppLocalization.format("唤醒%@", ornament.localizedName))
                     .lpText(LP.Typography.b1Medium)
                     .foregroundStyle(LP.Fill.foundationOnAccent)
                     .frame(maxWidth: .infinity, minHeight: 52)
@@ -613,7 +620,7 @@ struct BoUnlockOverlay: View {
         case .prerequisiteMissing:
             reportFailure(id, reason: "prerequisite_missing", text: footerUnavailableText(ornament))
         case .unavailable:
-            reportFailure(id, reason: "unavailable", text: AppLocalization.text("这件物件还没有开放。"))
+            reportFailure(id, reason: "unavailable", text: AppLocalization.text("这件物件还不能唤醒。"))
         }
     }
 
@@ -670,7 +677,7 @@ struct BoUnlockOverlay: View {
         sound.playCompletion(for: id)
         LPHaptics.success()
         AccessibilityNotification.Announcement(
-            AppLocalization.format("%@已解锁", ornament.localizedName)
+            AppLocalization.format("%@已唤醒", ornament.localizedName)
         ).post()
     }
 
@@ -696,8 +703,8 @@ struct BoUnlockOverlay: View {
 
     private func capability(for id: PiboOrnament.ID) -> String {
         switch id {
-        case .hammock: AppLocalization.text("睡眠回顾与睡醒通知")
-        case .chime: AppLocalization.text("露珠相机与 Walk Doodle")
+        case .hammock: AppLocalization.text("Pibo 可以在这里睡觉和休息")
+        case .chime: AppLocalization.text("Walk Doodle")
         case .statusObserver: AppLocalization.text("查看恢复状态")
         case .lantern: AppLocalization.text("魔法点灯")
         }
@@ -707,12 +714,12 @@ struct BoUnlockOverlay: View {
         switch id {
         case .hammock:
             [
+                AppLocalization.text("Pibo 睡觉或疲惫时可以使用吊床"),
                 AppLocalization.text("睡眠回顾：在 App 内查看最近一次睡眠"),
                 AppLocalization.text("睡醒通知：每天睡醒后提醒你查看"),
             ]
         case .chime:
             [
-                AppLocalization.text("露珠相机：拍下地球食物，估算热量并保存到足迹"),
                 AppLocalization.text("Walk Doodle：记录步行路线，把移动过程留成地图上的线条"),
             ]
         case .statusObserver:
@@ -727,7 +734,7 @@ struct BoUnlockOverlay: View {
         case .hammock:
             AppLocalization.text("需要已授权的睡眠记录。拒绝通知权限仍可在 App 内查看睡眠回顾。")
         case .chime:
-            AppLocalization.text("相机与精确定位权限会在分别使用两项能力时请求。")
+            AppLocalization.text("精确定位权限只会在开始 Walk Doodle 时请求。")
         case .statusObserver:
             AppLocalization.text("只使用已授权的原始健康记录。数据不足时等待或校准，不生成恢复分数。")
         case .lantern:
@@ -736,39 +743,39 @@ struct BoUnlockOverlay: View {
     }
 
     private func itemStatusText(_ ornament: PiboOrnament) -> String {
-        if isMaterializing(ornament.id) { return AppLocalization.text("正在建立") }
-        if unlocks.isUnlocked(ornament.id) { return AppLocalization.text("已留在森林") }
-        if unlocks.nextLocked?.id == ornament.id { return AppLocalization.text("当前可以准备的物件") }
+        if isMaterializing(ornament.id) { return AppLocalization.text("正在唤醒") }
+        if unlocks.isUnlocked(ornament.id) { return AppLocalization.text("已经唤醒") }
+        if unlocks.nextLocked?.id == ornament.id { return AppLocalization.text("当前可以唤醒") }
         return AppLocalization.text("需要先完成前面的物件")
     }
 
     private func footerUnavailableText(_ ornament: PiboOrnament) -> String {
         switch unlocks.state(ornament.id, balance: ledger.balance) {
         case .owned:
-            AppLocalization.text("已在森林")
+            AppLocalization.text("已经唤醒")
         case .unavailable:
-            AppLocalization.text("尚未开放")
+            AppLocalization.text("还不能唤醒")
         case .eligible:
             if let prerequisiteID = PiboOrnament.coreDefinition(ornament.id).prerequisiteID,
                let prerequisite = PiboOrnament.ordered.first(where: { $0.id.coreID == prerequisiteID }),
                !unlocks.isUnlocked(prerequisite.id) {
-                AppLocalization.format("先解锁「%@」", prerequisite.localizedName)
+                AppLocalization.format("先唤醒「%@」", prerequisite.localizedName)
             } else {
                 AppLocalization.format("还差 %d bo", max(0, ornament.cost - ledger.balance))
             }
         case .purchasable:
-            AppLocalization.format("%d bo 解锁", ornament.cost)
+            AppLocalization.format("唤醒%@", ornament.localizedName)
         }
     }
 
     private func progressAccessibilityLabel(_ ornament: PiboOrnament) -> String {
         if unlocks.isUnlocked(ornament.id) {
-            return AppLocalization.format("%@，已拥有", ornament.localizedName)
+            return AppLocalization.format("%@，已经唤醒", ornament.localizedName)
         }
         if unlocks.nextLocked?.id == ornament.id {
             return AppLocalization.format("%@，当前目标", ornament.localizedName)
         }
-        return AppLocalization.format("%@，未来物件", ornament.localizedName)
+        return AppLocalization.format("%@，之后可以唤醒", ornament.localizedName)
     }
 
     private func itemStateName(_ ornament: PiboOrnament) -> String {
@@ -789,9 +796,9 @@ struct BoUnlockOverlay: View {
     private var unlockConfirmationTitle: String {
         guard let id = pendingUnlockConfirmation,
               let ornament = PiboOrnament.ornament(id) else {
-            return AppLocalization.text("确认解锁")
+            return AppLocalization.text("确认唤醒")
         }
-        return AppLocalization.format("使用 %d bo 解锁「%@」？", ornament.cost, ornament.localizedName)
+        return AppLocalization.format("使用 %d bo 唤醒「%@」？", ornament.cost, ornament.localizedName)
     }
 }
 

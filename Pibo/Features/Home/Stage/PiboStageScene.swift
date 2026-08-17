@@ -68,6 +68,7 @@ final class PiboStageScene: SKScene {
     /// 用 `bo` 换来的物件。存在 scene 上而不是只转发给渲染器，是因为主题切换和
     /// 重建之后要能重新交代一遍。
     private var unlockedOrnaments: Set<PiboOrnament.ID> = []
+    private var presentedOrnaments: Set<PiboOrnament.ID> = []
     /// 同上：物件身上已点亮的灯，重建之后也要重新交代。
     private var litOrnamentLights: [PiboOrnament.ID: Set<Int>] = [:]
     private lazy var weatherController = PiboWeatherEffectController(
@@ -94,7 +95,10 @@ final class PiboStageScene: SKScene {
         layoutAll()
         themeRenderer?.apply(environment: stageEnvironment)
         themeRenderer?.apply(renderPolicy: themeRenderPolicy)
-        themeRenderer?.apply(unlockedOrnaments: unlockedOrnaments)
+        themeRenderer?.apply(
+            presentedOrnaments: presentedOrnaments,
+            unlockedOrnaments: unlockedOrnaments
+        )
         themeRenderer?.apply(litOrnamentLights: litOrnamentLights)
         if stageEnvironment.rainIntensity > 0 { applyWeather() }
     }
@@ -147,6 +151,7 @@ final class PiboStageScene: SKScene {
         activityState = newState
         animationStateID = newAnimationStateID
         growth = newGrowth
+        if stateChanged { character.cancelContextualAction() }
         if themeChanged { backgroundColor = SKColor(newTheme.scene.skyBottom) }
         guard built else { return }
         // A theme may switch between art and procedural Pibo, so rebuild the body
@@ -166,7 +171,10 @@ final class PiboStageScene: SKScene {
             layoutAll()
             themeRenderer?.apply(environment: stageEnvironment)
             themeRenderer?.apply(renderPolicy: themeRenderPolicy)
-            themeRenderer?.apply(unlockedOrnaments: unlockedOrnaments)
+            themeRenderer?.apply(
+                presentedOrnaments: presentedOrnaments,
+                unlockedOrnaments: unlockedOrnaments
+            )
             themeRenderer?.apply(litOrnamentLights: litOrnamentLights)
             if stageEnvironment.rainIntensity > 0 { applyWeather() }
         } else if growthChanged {
@@ -201,11 +209,18 @@ final class PiboStageScene: SKScene {
         if rainChanged || newEnvironment.rainIntensity > 0 { applyWeather() }
     }
 
-    func setUnlockedOrnaments(_ ids: Set<PiboOrnament.ID>) {
-        guard ids != unlockedOrnaments else { return }
-        unlockedOrnaments = ids
+    func setOrnaments(
+        presented: Set<PiboOrnament.ID>,
+        unlocked: Set<PiboOrnament.ID>
+    ) {
+        guard presented != presentedOrnaments || unlocked != unlockedOrnaments else { return }
+        presentedOrnaments = presented
+        unlockedOrnaments = unlocked
         guard built else { return }
-        themeRenderer?.apply(unlockedOrnaments: ids)
+        themeRenderer?.apply(
+            presentedOrnaments: presented,
+            unlockedOrnaments: unlocked
+        )
     }
 
     func setLitOrnamentLights(_ lights: [PiboOrnament.ID: Set<Int>]) {
@@ -392,6 +407,16 @@ final class PiboStageScene: SKScene {
         character.playTurnAway()
     }
 
+    func playContextualAction(_ action: PiboCoreAnimationAdapter.ContextualAction) {
+        guard built else { return }
+        character.playContextualAction(action)
+    }
+
+    func cancelContextualAction() {
+        guard built else { return }
+        character.cancelContextualAction()
+    }
+
     /// 拔毛 — the sprout takes an impulse as the bo is taken off it.
     func playPluck() {
         guard built else { return }
@@ -533,7 +558,6 @@ final class PiboStageScene: SKScene {
     /// Only Pibo itself handles stage touches. Feature entries live in SwiftUI.
     private func handleTap(at p: CGPoint) {
         if character.hitRegion(at: p, in: self) == .body {
-            character.playBodyTap()
             onPat?()
             return
         }
@@ -587,7 +611,10 @@ final class PiboStageScene: SKScene {
         layoutAll()
         themeRenderer?.apply(environment: stageEnvironment)
         themeRenderer?.apply(renderPolicy: themeRenderPolicy)
-        themeRenderer?.apply(unlockedOrnaments: unlockedOrnaments)
+        themeRenderer?.apply(
+            presentedOrnaments: presentedOrnaments,
+            unlockedOrnaments: unlockedOrnaments
+        )
         themeRenderer?.apply(litOrnamentLights: litOrnamentLights)
         if stageEnvironment.rainIntensity > 0 { applyWeather() }
         applyTuning(visibilityChanged: true)

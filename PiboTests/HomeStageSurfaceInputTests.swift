@@ -20,8 +20,13 @@ struct HomeStageSurfaceInputTests {
             debugUnlockOverride: true
         )
         let lights = OrnamentLightStore(defaults: defaults)
+        let ledger = BoLedgerStore(
+            defaults: defaults,
+            persistenceKey: "test.bo-ledger"
+        )
         let input = HomeStageSurface.Input(
             store: store,
+            boLedger: ledger,
             animationPresentation: animation,
             environment: environment,
             ornamentUnlocks: unlocks,
@@ -34,9 +39,11 @@ struct HomeStageSurfaceInputTests {
         #expect(input.theme == store.currentTheme)
         #expect(input.activityState == store.activityState)
         #expect(input.animationStateID == animation.stateID)
-        #expect(input.growth == store.growthStage)
-        #expect(input.sproutGrowthProgress == store.headSproutGrowthProgress)
+        #expect(input.growth == .sprouted)
+        #expect(input.boGrowthStage == ledger.growthStage)
+        #expect(input.sproutGrowthProgress == ledger.growthProgress)
         #expect(input.environment == environment)
+        #expect(input.presentedOrnaments == unlocks.unlocked.union([.hammock]))
         #expect(input.unlockedOrnaments == unlocks.unlocked)
         #expect(input.litOrnamentLights == lights.lit)
         #expect(input.tuning == .standard)

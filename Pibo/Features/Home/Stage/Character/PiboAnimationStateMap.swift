@@ -9,9 +9,14 @@ enum PiboAnimationResourceID {
     static let sleepingHammockA = "pibo-state-sleeping-hammock-idle-a"
     static let sleepingHammockB = "pibo-state-sleeping-hammock-idle-b"
     static let wakingHammock = "pibo-state-waking-hammock-idle"
+    static let sleepingGroundA = "pibo-state-sleeping-ground-idle-a"
+    static let wakingGround = "pibo-state-waking-ground-idle"
+    static let wakingGroundRecovering = "pibo-state-waking-ground-behavior-recovering"
     static let tired = "pibo-state-tired-forest-idle"
 
     static let sleepingHammock: Set<String> = [sleepingHammockA, sleepingHammockB]
+    static let sleepingGround: Set<String> = [sleepingGroundA]
+    static let sleeping = sleepingHammock.union(sleepingGround)
     static let hammock: Set<String> = sleepingHammock.union([wakingHammock])
 
     static func achievement(_ kind: PiboAnimationAchievementKind) -> String {
@@ -39,7 +44,7 @@ enum PiboAnimationResourceID {
 enum PiboAnimationStateMap {
     static let fallback = PiboAnimationResourceID.stable
 
-    /// Stable semantic IDs shipped by pibo-media character data 0.4.0.
+    /// Stable semantic IDs and reviewed key poses shipped by pibo-media 0.5.0.
     static let available: Set<String> = [
         PiboAnimationResourceID.stable,
         PiboAnimationResourceID.activityMilestoneCelebrate,
@@ -47,9 +52,33 @@ enum PiboAnimationStateMap {
         PiboAnimationResourceID.sleepingHammockA,
         PiboAnimationResourceID.sleepingHammockB,
         PiboAnimationResourceID.wakingHammock,
+        PiboAnimationResourceID.sleepingGroundA,
+        PiboAnimationResourceID.wakingGroundRecovering,
         PiboAnimationResourceID.tired,
         "weak", "angry", "boring", "dive", "coolhide",
     ]
+
+    /// Resource availability never mutates the semantic Core state. Ground
+    /// sleep and the recovery-specific ground waking behavior ship; generic
+    /// ground waking still falls back until its base clip is approved.
+    static func presentedAmbientStateID(
+        semanticStateID: String,
+        state: PiboActivityState,
+        hasHammock: Bool,
+        needsWakingRecovery: Bool = false
+    ) -> String {
+        guard !hasHammock else { return semanticStateID }
+        if state == .waking, needsWakingRecovery {
+            return PiboAnimationResourceID.wakingGroundRecovering
+        }
+        let groundID: String? = switch state {
+        case .sleeping: PiboAnimationResourceID.sleepingGroundA
+        case .waking: PiboAnimationResourceID.wakingGround
+        default: nil
+        }
+        guard let groundID else { return semanticStateID }
+        return available.contains(groundID) ? groundID : fallback
+    }
 
     /// The ambient pose for a condition.
     static func ambientStateID(

@@ -46,6 +46,10 @@ struct HomeSheetModifier: ViewModifier {
         case .achievement(let payload):
             PiboAchievementModal(payload: payload) { confirmAchievement(payload) }
                 .interactiveDismissDisabled()
+        case .ornamentUnlock(let id):
+            OrnamentAwakeningSheet(ornamentID: id)
+        case .healthDataStatus:
+            HealthDataStatusSheet()
         }
     }
 }

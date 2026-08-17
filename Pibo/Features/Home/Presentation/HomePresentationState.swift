@@ -21,10 +21,24 @@ final class HomePresentationState {
     /// this nil and lets the camera own purpose + meal selection.
     var cameraInitialMeal: MealType?
     var activeSheet: HomeSheetDestination?
+    var foodProjection: HomeFoodProjection?
+    var transientNotice: String?
     /// `activeSheet` becomes nil at the start of dismissal, while its pixels are
     /// still covering Home. Pending feedback waits for `onDismiss` before it can
     /// claim the presentation slot.
     var sheetDismissalInProgress = false
+
+    @ObservationIgnored private var noticeTask: Task<Void, Never>?
+
+    func showNotice(_ text: String) {
+        noticeTask?.cancel()
+        transientNotice = text
+        noticeTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled, self?.transientNotice == text else { return }
+            self?.transientNotice = nil
+        }
+    }
 
     func cameraBinding(isEnabled: Bool) -> Binding<Bool> {
         Binding(

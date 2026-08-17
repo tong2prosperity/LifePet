@@ -13,6 +13,7 @@ struct PiboAnimationIntegrationTests {
         let expectedStates: Set<String> = [
             "pibo-state-stable-forest-idle", "pibo-state-waking-hammock-idle", "pibo-state-tired-forest-idle", "boring", "weak", "pibo-event-workout-celebrate",
             "pibo-event-activity-milestone-celebrate", "angry", "dive", "coolhide", "pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b",
+            "pibo-state-sleeping-ground-idle-a", "pibo-state-waking-ground-behavior-recovering",
         ]
         #expect(Set(data.states.keys) == expectedStates)
         #expect(PiboAnimationStateMap.available == expectedStates)
@@ -22,7 +23,14 @@ struct PiboAnimationIntegrationTests {
         #expect(data.transition.crossZoneDurationMs == 90)
 
         let expectedZones: [String: Set<String>] = [
-            "ground": ["pibo-state-stable-forest-idle", "pibo-state-tired-forest-idle", "pibo-event-workout-celebrate", "pibo-event-activity-milestone-celebrate", "angry"],
+            "ground": [
+                "pibo-state-stable-forest-idle", "pibo-state-tired-forest-idle",
+                "pibo-event-workout-celebrate", "pibo-event-activity-milestone-celebrate", "angry",
+            ],
+            "groundRest": [
+                "pibo-state-sleeping-ground-idle-a",
+                "pibo-state-waking-ground-behavior-recovering",
+            ],
             "nest": ["pibo-state-waking-hammock-idle", "pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"],
             "treeTraverse": ["boring"],
             "treeRest": ["weak"],
@@ -57,6 +65,36 @@ struct PiboAnimationIntegrationTests {
 
         #expect(data.states["pibo-event-workout-celebrate"]?.idle?.intro?.duration == 0.85)
         #expect(data.states["pibo-event-activity-milestone-celebrate"]?.idle?.intro?.duration == 0.9)
+    }
+
+    @Test func groundSleepAndRecoveringWakeUseReviewedRuntimeChoreography() throws {
+        let data = try PiboCharacterData.load()
+
+        let groundSleep = try #require(
+            data.states[PiboAnimationResourceID.sleepingGroundA]?.idle
+        )
+        let sleepPart = try #require(groundSleep.resolvedParts.first)
+        #expect(groundSleep.resolvedParts.count == 1)
+        #expect(sleepPart.kind == "breathe-y")
+        #expect(sleepPart.duration == 4.8)
+        #expect(sleepPart.amplitude == 0.018)
+        #expect(sleepPart.origin == "156px 241px")
+
+        let recovering = try #require(
+            data.states[PiboAnimationResourceID.wakingGroundRecovering]?.idle
+        )
+        #expect(recovering.resolvedParts.map(\.kind) == [
+            "sigh-sequence", "blink", "rotate-around-point", "rotate-around-point",
+        ])
+        let sigh = recovering.resolvedParts[0]
+        let duration = (sigh.swellDuration ?? 0)
+            + (sigh.flattenDuration ?? 0)
+            + (sigh.recoverDuration ?? 0)
+            + (sigh.pauseDuration ?? 0)
+        #expect(abs(duration - 7.2) < 0.0001)
+        #expect(recovering.resolvedParts[1].period == 7.2)
+        #expect(recovering.resolvedParts[2].gateCycle == 7.2)
+        #expect(recovering.resolvedParts[3].gateCycle == 7.2)
     }
 
     @Test func everyShippedStateExposesAPresentedSproutRootAnchor() throws {
@@ -563,7 +601,7 @@ struct PiboAnimationIntegrationTests {
         #expect(PiboCoreAnimationAdapter.achievementContentID(kind: .pigu, modal: true)
                 == "animation.pigu.modal")
         #expect(PiboCoreAnimationAdapter.achievementContentID(kind: .muscle, modal: false)
-                == "animation.steps_10000.notification")
+                == "animation.steps_8000.notification")
         #expect(PiboCoreAnimationAdapter.achievementContentID(kind: .muscle, modal: true)
                 == "animation.muscle.modal")
 

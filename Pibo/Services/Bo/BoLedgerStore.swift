@@ -81,6 +81,13 @@ final class BoLedgerStore {
     var lifetimeMinted: Int { state.lifetimeMinted }
     var lifetimeCollected: Int { state.lifetimeCollected }
 
+    var growthStage: PiboCoreBoGrowthStage {
+        PiboCoreBoEconomy.growthStage(
+            energyPool: state.energyPool,
+            ripeCount: state.ripeCount
+        )
+    }
+
     var growthProgress: Double {
         if state.ripeCount > 0 { return 1 }
         let perBo = PiboCoreBoEconomy.energyPerBo

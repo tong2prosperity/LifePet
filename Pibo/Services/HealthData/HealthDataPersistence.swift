@@ -12,6 +12,7 @@ import os
 enum HealthDataPersistence {
     private static let workoutAnchorKey = PiboPersistenceKeys.Defaults.workoutAnchor
     private static let authorizedKey = PiboPersistenceKeys.Defaults.healthKitAuthorized
+    private static let lastReadableDataKey = "pibo.health.last-readable-data.v1"
 
     static func loadWorkoutAnchor(
         defaults: UserDefaults = .standard
@@ -67,5 +68,21 @@ enum HealthDataPersistence {
         defaults: UserDefaults = .standard
     ) {
         defaults.set(granted, forKey: authorizedKey)
+    }
+
+    static func lastReadableDataDate(
+        defaults: UserDefaults = .standard
+    ) -> Date? {
+        guard defaults.object(forKey: lastReadableDataKey) != nil else { return nil }
+        let value = defaults.double(forKey: lastReadableDataKey)
+        guard value.isFinite, value > 0 else { return nil }
+        return Date(timeIntervalSince1970: value)
+    }
+
+    static func setLastReadableDataDate(
+        _ date: Date,
+        defaults: UserDefaults = .standard
+    ) {
+        defaults.set(date.timeIntervalSince1970, forKey: lastReadableDataKey)
     }
 }

@@ -17,6 +17,7 @@ struct HomeView: View {
     @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
     @Environment(OrnamentLightStore.self) private var ornamentLights
     @Environment(HealthHistoryStore.self) private var history
+    @Environment(HealthDataService.self) private var health
     @Environment(PiboSpeechService.self) private var piboSpeech
     @Environment(OnboardingStateStore.self) private var onboarding
     @Environment(MorningSleepCoordinator.self) private var morningSleep
@@ -29,12 +30,12 @@ struct HomeView: View {
 
     @State private var speechPresentation = HomeSpeechPresentationController()
     @State private var presentation = HomePresentationState()
-    @State private var showBoUnlockPage = false
     #if DEBUG
     @State private var debugAutomation = HomeDebugAutomationController()
     #endif
     @State private var recognizer = FoodRecognitionService()
     @State private var stageCommands = PiboStageCommandController()
+    @State private var contextualActions = HomeContextualActionCoordinator()
     /// 发芽 close-up trigger + phase (Figma 74:6102: workout detected → 特写
     /// pibo头顶动画 → 运动记录同步 pop). See `EnergySproutFlow.swift`.
     @State private var sproutFlow = HomeSproutFlowController()
@@ -112,8 +113,8 @@ struct HomeView: View {
             history: history,
             recognizer: recognizer,
             speech: piboSpeech,
-            presentMeal: { presentation.activeSheet = .meal($0) },
-            showSpeech: speechPresentation.show
+            showSpeech: speechPresentation.show,
+            showLine: speechPresentation.show
         )
     }
 
@@ -123,6 +124,7 @@ struct HomeView: View {
             history: history,
             animationPresentation: animationPresentation,
             stageCommands: stageCommands,
+            contextualActions: contextualActions,
             speech: piboSpeech,
             ledger: boLedger,
             onboarding: onboarding,
@@ -131,10 +133,12 @@ struct HomeView: View {
             morningSleep: morningSleep,
             storyStage: { speechInput.storyStage },
             speechFacts: { speechInput.facts },
+            hasReliableHealthData: { health.dataAvailability.hasReliableData },
             canPresentOrnament: {
                 presentation.activeSheet == nil
                     && !fullScreenFeaturePresented
                     && sproutPhase == .idle
+                    && presentation.foodProjection == nil
             },
             dismissSpeech: speechPresentation.dismiss,
             showAnimationLine: speechPresentation.show,
@@ -161,7 +165,11 @@ struct HomeView: View {
             sheetIsAbsent: { presentation.activeSheet == nil },
             presentSheet: { presentation.activeSheet = $0 },
             photoSaved: contentCapture.handleSavedPhoto,
-            openBoPanel: { showBoUnlockPage = true }
+            openBoPanel: {
+                if let id = ornamentUnlocks.nextLocked?.id {
+                    presentation.activeSheet = .ornamentUnlock(id)
+                }
+            }
         )
     }
     #endif
@@ -215,21 +223,21 @@ struct HomeView: View {
             HomeStageSurface(
                 input: .init(
                     store: store,
+                    boLedger: boLedger,
                     animationPresentation: animationPresentation,
                     environment: stageEnvironment,
                     ornamentUnlocks: ornamentUnlocks,
                     ornamentLights: ornamentLights,
                     tuning: forestTuning,
                     isPaused: stagePaused,
-                    isObscured: showBoUnlockPage
+                    isObscured: false
                 ),
                 commandController: stageCommands,
                 handlers: stageInteractions.stageHandlers
             )
 
             chromeContent
-                .allowsHitTesting(!showBoUnlockPage)
-                .accessibilityHidden(stagePaused || showBoUnlockPage)
+                .accessibilityHidden(stagePaused)
 
             HomeStoryRecoveryOverlay(
                 onboarding: onboarding,
@@ -241,13 +249,56 @@ struct HomeView: View {
                 onDismissPop: dismissEnergyPop
             )
 
-            if showBoUnlockPage {
-                BoUnlockOverlay(stageCommands: stageCommands) {
-                    showBoUnlockPage = false
-                    presentationFlow.resumePendingFlows()
-                }
+            if let projection = presentation.foodProjection {
+                HomeFoodProjectionOverlay(
+                    projection: projection,
+                    openDetail: {
+                        presentation.foodProjection = nil
+                        presentation.activeSheet = .meal(projection.meal)
+                    },
+                    dismiss: {
+                        guard presentation.foodProjection?.id == projection.id else { return }
+                        presentation.foodProjection = nil
+                    }
+                )
+                .zIndex(30)
                 .transition(.opacity)
-                .zIndex(100)
+            }
+
+            if let notice = presentation.transientNotice {
+                VStack {
+                    HomeTransientNotice(text: notice)
+                        .padding(.horizontal, LP.Spacing.l)
+                        .padding(.top, 136)
+                    Spacer()
+                }
+                .allowsHitTesting(false)
+                .zIndex(40)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            if health.dataAvailability.requiresAttention,
+               health.dataAvailability.hasReliableData {
+                VStack {
+                    Button {
+                        presentation.activeSheet = .healthDataStatus
+                    } label: {
+                        Label(
+                            AppLocalization.text("健康数据同步暂时中断"),
+                            systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
+                        )
+                        .lpText(LP.Typography.b4Medium)
+                        .foregroundStyle(LP.Content.primary)
+                        .padding(.horizontal, LP.Spacing.m)
+                        .frame(minHeight: 44)
+                        .background(Capsule().fill(LP.Fill.bgContainer.opacity(0.94)))
+                        .overlay(Capsule().strokeBorder(LP.Border.secondary, lineWidth: LP.BorderWidth.hair))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 76)
+                    Spacer()
+                }
+                .zIndex(25)
             }
 
         }
@@ -342,6 +393,15 @@ struct HomeView: View {
     var body: some View {
         homeScene
             .accessibilityHidden(stagePaused)
+            .onChange(of: animationPresentation.state) { _, state in
+                contextualActions.cancelIfStateChanged(
+                    to: state,
+                    stageCommands: stageCommands
+                )
+            }
+            .onChange(of: health.dataAvailability) { _, _ in
+                refreshAnimationState()
+            }
             .modifier(homeTaskModifier)
             .modifier(homeLifecycleModifier)
             .modifier(stateObservationModifier)
@@ -410,7 +470,6 @@ struct HomeView: View {
 
             HomePrimaryChrome(
                 presentation: presentation,
-                showBoUnlockPage: $showBoUnlockPage,
                 cameraEnabled: featureAccess.cameraEnabled,
                 walkDoodleEnabled: featureAccess.walkDoodleEnabled,
                 feedbackEnabled: boCounterFeedbackEnabled,
@@ -455,7 +514,13 @@ struct HomeView: View {
     }
 
     private func refreshAnimationState(now: Date = .now) {
-        animationPresentation.refresh(store: store, history: history, now: now)
+        animationPresentation.refresh(
+            store: store,
+            history: history,
+            hasHammock: ornamentUnlocks.isUnlocked(.hammock),
+            hasReliableHealthData: health.dataAvailability.hasReliableData,
+            now: now
+        )
     }
 
     private var animationRefreshToken: HomeAnimationRefreshToken {
@@ -471,6 +536,8 @@ struct HomeView: View {
             ornamentUnlocks: ornamentUnlocks,
             ornamentLights: ornamentLights
         )
+        animationPresentation.resetLifecycle()
+        refreshAnimationState()
     }
 
 }
@@ -487,4 +554,5 @@ struct HomeView: View {
         .environment(OrnamentLightStore())
         .environment(OnboardingStateStore())
         .environment(StressNotifier.shared)
+        .environment(HealthDataService(metrics: []))
 }

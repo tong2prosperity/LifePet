@@ -145,8 +145,8 @@ final class WorkoutCompletionNotifier {
         let content = UNMutableNotificationContent()
         content.title = "Pibo"
         if PiboCoreAnimationAdapter.achievementContentID(kind: .muscle, modal: false)
-            == "animation.steps_10000.notification" {
-            content.body = AppLocalization.text("今天走到 10,000 步了。我注意到了。")
+            == "animation.steps_8000.notification" {
+            content.body = AppLocalization.text("今天走到 8,000 步了。我注意到了。")
         }
         content.sound = .default
         content.categoryIdentifier = AppNotificationCategory.achievement
