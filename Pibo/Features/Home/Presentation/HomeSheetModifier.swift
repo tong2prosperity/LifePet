@@ -23,6 +23,8 @@ struct HomeSheetModifier: ViewModifier {
     @ViewBuilder
     private func sheetContent(_ destination: HomeSheetDestination) -> some View {
         switch destination {
+        case .mealCaptureSelection:
+            MealCaptureSelectionSheet(onSelect: startMealCapture)
         case .meal(let meal):
             MealDetailView(meal: meal, onRecapture: startMealCapture)
                 .environment(history)

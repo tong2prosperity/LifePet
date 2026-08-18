@@ -36,8 +36,14 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
     @ObservationIgnored private var lifecycleGeneration: UInt = 0
 
     private(set) var availability: Availability = .idle
-    /// True once a usable back camera is running (false on simulator / when denied).
-    var isReady: Bool { availability == .ready }
+    /// The capture session remains alive after a single shutter failure. Keeping
+    /// that live context lets the next shutter act as the retry instead of
+    /// replacing the preview with an unrelated error screen.
+    var hasLivePreview: Bool {
+        availability == .ready || availability == .captureFailed
+    }
+    /// Backwards-compatible capture readiness used by existing callers.
+    var isReady: Bool { hasLivePreview }
     /// Prevents a second shutter from replacing the first capture continuation.
     private(set) var isCapturing = false
 
@@ -126,6 +132,8 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
             LPLog.camera.info("capturePhoto skipped — session not ready")
             return nil
         }
+        // Clear the previous attempt's inline error while this retry is running.
+        availability = .ready
         isCapturing = true
         LPLog.camera.debug("capturePhoto requested")
         let settings = AVCapturePhotoSettings()

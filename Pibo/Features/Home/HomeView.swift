@@ -70,6 +70,17 @@ struct HomeView: View {
         presentationPolicy.stagePaused
     }
 
+    /// Full-screen features can detach the SpriteKit view. Native Moss sheets
+    /// deliberately keep one low-cadence forest frame mounted so the spatial
+    /// context remains visible through their translucent background.
+    private var stageRenderingPaused: Bool {
+        presentationPolicy.fullScreenFeaturePresented
+    }
+
+    private var stageObscured: Bool {
+        presentation.activeSheet != nil
+    }
+
     private var fullScreenFeaturePresented: Bool {
         presentationPolicy.fullScreenFeaturePresented
     }
@@ -229,8 +240,8 @@ struct HomeView: View {
                     ornamentUnlocks: ornamentUnlocks,
                     ornamentLights: ornamentLights,
                     tuning: forestTuning,
-                    isPaused: stagePaused,
-                    isObscured: false
+                    isPaused: stageRenderingPaused,
+                    isObscured: stageObscured
                 ),
                 commandController: stageCommands,
                 handlers: stageInteractions.stageHandlers
@@ -249,16 +260,20 @@ struct HomeView: View {
                 onDismissPop: dismissEnergyPop
             )
 
+            if presentation.activeSheet != nil {
+                PiboMoss.Color.forestVeil
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .zIndex(80)
+            }
+
             if let projection = presentation.foodProjection {
                 HomeFoodProjectionOverlay(
                     projection: projection,
+                    status: foodProjectionStatus(projection),
                     openDetail: {
                         presentation.foodProjection = nil
                         presentation.activeSheet = .meal(projection.meal)
-                    },
-                    dismiss: {
-                        guard presentation.foodProjection?.id == projection.id else { return }
-                        presentation.foodProjection = nil
                     }
                 )
                 .zIndex(30)
@@ -280,21 +295,13 @@ struct HomeView: View {
             if health.dataAvailability.requiresAttention,
                health.dataAvailability.hasReliableData {
                 VStack {
-                    Button {
-                        presentation.activeSheet = .healthDataStatus
-                    } label: {
-                        Label(
-                            AppLocalization.text("健康数据同步暂时中断"),
-                            systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
-                        )
-                        .lpText(LP.Typography.b4Medium)
-                        .foregroundStyle(LP.Content.primary)
-                        .padding(.horizontal, LP.Spacing.m)
-                        .frame(minHeight: 44)
-                        .background(Capsule().fill(LP.Fill.bgContainer.opacity(0.94)))
-                        .overlay(Capsule().strokeBorder(LP.Border.secondary, lineWidth: LP.BorderWidth.hair))
-                    }
-                    .buttonStyle(.plain)
+                    PiboMossInlineNotice(
+                        title: AppLocalization.text("健康数据暂时中断"),
+                        detail: AppLocalization.text("正在显示上次可信状态"),
+                        actionTitle: AppLocalization.text("查看"),
+                        action: { presentation.activeSheet = .healthDataStatus }
+                    )
+                    .padding(.horizontal, LP.Spacing.l)
                     .padding(.top, 76)
                     Spacer()
                 }
@@ -430,8 +437,19 @@ struct HomeView: View {
                     history: history,
                     recognizer: recognizer,
                     morningSleep: morningSleep,
-                    onDismiss: presentationFlow.resumePendingFlows,
-                    startMealCapture: contentCapture.startMealCapture,
+                    onDismiss: {
+                        if !presentation.presentQueuedCameraIfNeeded() {
+                            presentationFlow.resumePendingFlows()
+                        }
+                    },
+                    startMealCapture: { meal in
+                        Analytics.track(
+                            .cameraOpen,
+                            screen: "meal_sheet",
+                            ["meal": .string(meal.rawValue)]
+                        )
+                        presentation.queueCameraAfterSheet(meal)
+                    },
                     confirmAchievement: presentationFlow.confirm
                 )
             )
@@ -521,6 +539,15 @@ struct HomeView: View {
             hasReliableHealthData: health.dataAvailability.hasReliableData,
             now: now
         )
+    }
+
+    private func foodProjectionStatus(_ projection: HomeFoodProjection) -> HomeFoodProjectionStatus {
+        _ = history.revision
+        guard let photo = history.foodPhoto(on: .now, mealType: projection.meal) else {
+            return .retry
+        }
+        if recognizer.isAnalyzing(photo.id) { return .analyzing }
+        return photo.analysis == nil ? .retry : .ready
     }
 
     private var animationRefreshToken: HomeAnimationRefreshToken {

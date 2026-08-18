@@ -12,87 +12,82 @@ struct HomeFoodProjection: Identifiable, Equatable {
     let subjectLabel: String?
 }
 
+enum HomeFoodProjectionStatus: Equatable {
+    case analyzing
+    case ready
+    case retry
+
+    var detail: String {
+        switch self {
+        case .analyzing: "照片已保存，正在后台估算"
+        case .ready: "估算已经准备好"
+        case .retry: "照片已保留，可以重试估算"
+        }
+    }
+}
+
 struct HomeFoodProjectionOverlay: View {
     let projection: HomeFoodProjection
+    let status: HomeFoodProjectionStatus
     let openDetail: () -> Void
-    let dismiss: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isVisible = false
 
     var body: some View {
-        GeometryReader { proxy in
-            VStack(spacing: LP.Spacing.s) {
-                Spacer()
-                    .frame(height: proxy.size.height * 0.51)
+        VStack {
+            Spacer()
 
-                HStack {
-                    Spacer(minLength: proxy.size.width * 0.52)
-
-                    ZStack {
-                        Circle()
-                            .fill(LP.Fill.foundationAccent.opacity(0.10))
-                            .frame(width: 116, height: 116)
-                        Circle()
-                            .strokeBorder(LP.Fill.foundationAccent.opacity(0.30), lineWidth: 1)
-                            .frame(width: 102, height: 102)
-
-                        if let image = UIImage(data: projection.pngData) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFit()
-                                .padding(14)
-                                .frame(width: 108, height: 108)
-                                .accessibilityHidden(true)
-                        }
+            Button {
+                LPHaptics.tap()
+                openDetail()
+            } label: {
+                HStack(spacing: LP.Spacing.m) {
+                    if let image = UIImage(data: projection.pngData) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 52, height: 52)
+                            .clipShape(RoundedRectangle(cornerRadius: PiboMoss.Radius.control))
+                            .accessibilityHidden(true)
                     }
 
-                    Spacer(minLength: LP.Spacing.l)
+                    VStack(alignment: .leading, spacing: LP.Spacing.xs) {
+                        Text(AppLocalization.format(
+                            "已放进今天的%@",
+                            AppLocalization.text(projection.meal.title)
+                        ))
+                        .lpText(LP.Typography.b3Medium)
+                        .foregroundStyle(PiboMoss.Color.forestInk)
+
+                        Text(AppLocalization.text(status.detail))
+                            .lpText(LP.Typography.c1Regular)
+                            .foregroundStyle(PiboMoss.Color.secondaryInk)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text(AppLocalization.text("查看估算"))
+                        .lpText(LP.Typography.c1Medium)
+                        .foregroundStyle(PiboMoss.Color.foundationTeal)
                 }
-
-                HStack(spacing: LP.Spacing.s) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(AppLocalization.text("已放进今天的足迹"))
-                            .lpText(LP.Typography.b3Medium)
-                            .foregroundStyle(LP.Content.primary)
-                        Text(AppLocalization.text("热量识别会在后台继续"))
-                            .lpText(LP.Typography.b4Regular)
-                            .foregroundStyle(LP.Content.tertiary)
-                    }
-
-                    Spacer(minLength: LP.Spacing.s)
-
-                    Button {
-                        LPHaptics.tap()
-                        openDetail()
-                    } label: {
-                        Text(AppLocalization.text("查看估算"))
-                            .lpText(LP.Typography.b4Medium)
-                            .foregroundStyle(LP.Fill.foundationOnAccent)
-                            .padding(.horizontal, LP.Spacing.m)
-                            .frame(minHeight: 36)
-                            .background(Capsule().fill(LP.Fill.foundationAccent))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.leading, LP.Spacing.m)
-                .padding(.trailing, LP.Spacing.s)
-                .padding(.vertical, LP.Spacing.s)
-                .frame(maxWidth: 330)
+                .padding(LP.Spacing.m)
+                .frame(maxWidth: .infinity, minHeight: 76)
                 .background(
-                    RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                        .fill(LP.Fill.bgContainer.opacity(0.94))
+                    RoundedRectangle(cornerRadius: PiboMoss.Radius.media, style: .continuous)
+                        .fill(PiboMoss.Color.sheetMoss.opacity(0.96))
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                        .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair)
+                    RoundedRectangle(cornerRadius: PiboMoss.Radius.media, style: .continuous)
+                        .strokeBorder(PiboMoss.Color.hairline.opacity(0.72), lineWidth: 1)
                 }
-                .lpShadow(LP.Shadow.elevation2)
+                .shadow(color: Color(hex: 0x17342B, alpha: 0.22), radius: 10, y: 4)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .buttonStyle(.plain)
+            .padding(.horizontal, LP.Spacing.l)
+            .padding(.bottom, 108)
         }
         .opacity(isVisible ? 1 : 0)
-        .scaleEffect(isVisible ? 1 : 0.92, anchor: .center)
+        .offset(y: isVisible ? 0 : 12)
         .onAppear {
             if reduceMotion {
                 isVisible = true
@@ -101,11 +96,6 @@ struct HomeFoodProjectionOverlay: View {
                     isVisible = true
                 }
             }
-        }
-        .task(id: projection.id) {
-            try? await Task.sleep(for: .seconds(7))
-            guard !Task.isCancelled else { return }
-            dismiss()
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(

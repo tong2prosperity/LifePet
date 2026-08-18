@@ -16,6 +16,7 @@ struct HomePresentationStateTests {
         #expect(!state.showWalkDoodle)
         #expect(state.historyFocus == nil)
         #expect(state.cameraInitialMeal == nil)
+        #expect(state.queuedCameraMeal == nil)
     }
 
     @Test func cameraBindingRequiresAvailabilityInBothDirections() {
@@ -82,5 +83,22 @@ struct HomePresentationStateTests {
 
         #expect(!state.showStoryRecovery)
         #expect(state.storyRecoveryDismissed)
+    }
+
+    @Test func queuedCameraWaitsForSheetDismissalAndIsConsumedOnce() {
+        let state = HomePresentationState()
+        state.activeSheet = .mealCaptureSelection
+
+        state.queueCameraAfterSheet(.lunch)
+
+        #expect(state.activeSheet == nil)
+        #expect(state.queuedCameraMeal == .lunch)
+        #expect(!state.showCamera)
+
+        #expect(state.presentQueuedCameraIfNeeded())
+        #expect(state.cameraInitialMeal == .lunch)
+        #expect(state.showCamera)
+        #expect(state.queuedCameraMeal == nil)
+        #expect(!state.presentQueuedCameraIfNeeded())
     }
 }

@@ -86,10 +86,12 @@ struct HomeHeader: View {
                 walkDoodleEnabled: walkDoodleEnabled,
                 dismissSpeech: dismissSpeech,
                 onOpenCamera: {
-                    HomeCameraPresentationCoordinator.open(
-                        meal: nil,
-                        presentation: presentation
+                    Analytics.track(
+                        .cameraOpen,
+                        screen: "home",
+                        ["meal": .string("none")]
                     )
+                    presentation.activeSheet = .mealCaptureSelection
                 },
                 onOpenWalkDoodle: {
                     presentation.showWalkDoodle = true
@@ -149,22 +151,37 @@ struct HomeCornerActions: View {
         size: CGFloat = 44,
         action: @escaping () -> Void
     ) -> some View {
-        Button {
+        let isCamera = systemImage == "camera.fill"
+        return Button {
             LPHaptics.tap()
             dismissSpeech()
             action()
         } label: {
             Image(systemName: systemImage)
                 .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(LP.Content.secondary)
+                .foregroundStyle(isCamera
+                                 ? PiboMoss.Color.foundationTeal
+                                 : LP.Content.secondary)
                 .frame(width: size, height: size)
                 .background(
                     RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
-                        .fill(LP.Fill.bgContainer.opacity(0.90))
+                        .fill(isCamera
+                              ? PiboMoss.Color.sheetMoss.opacity(0.94)
+                              : LP.Fill.bgContainer.opacity(0.90))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
-                        .strokeBorder(.white.opacity(0.55), lineWidth: LP.BorderWidth.hair)
+                        .strokeBorder(
+                            isCamera
+                                ? PiboMoss.Color.hairline.opacity(0.72)
+                                : .white.opacity(0.55),
+                            lineWidth: LP.BorderWidth.hair
+                        )
+                )
+                .shadow(
+                    color: isCamera ? Color(hex: 0x17342B, alpha: 0.18) : .clear,
+                    radius: isCamera ? 8 : 0,
+                    y: isCamera ? 3 : 0
                 )
                 .lpShadow(LP.Shadow.elevation1)
                 .rotationEffect(.degrees(rotation))

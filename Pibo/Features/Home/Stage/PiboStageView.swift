@@ -30,9 +30,9 @@ struct PiboStageView: View, Equatable {
     var sproutGrowthProgress: Double = 1
     /// Theme-neutral local time and weather input.
     var environment: PiboStageEnvironment = .daylight
-    /// 已拥有的物件加上 Core 顺序中的下一个目标。后者直接以灰态留在森林。
+    /// 森林中的全部共同物件。未拥有的物件由渲染器直接显示为灰态。
     var presentedOrnaments: Set<PiboOrnament.ID> = []
-    /// 用 `bo` 换来、已经解锁的物件。空集 = 只有原始森林和一个灰态目标。
+    /// 用 `bo` 换来、已经解锁的物件。空集 = 全部共同物件保持灰态。
     var unlockedOrnaments: Set<PiboOrnament.ID> = []
     /// 物件身上被亲手点亮的灯。没有自动夜光 —— 空 = 一盏不亮。
     var litOrnamentLights: [PiboOrnament.ID: Set<Int>] = [:]
@@ -51,9 +51,9 @@ struct PiboStageView: View, Equatable {
     /// `SKView`'s display-link/render callbacks while a full-screen cover keeps
     /// the underlying SwiftUI hierarchy alive.
     var isPaused: Bool = false
-    /// The unlock page intentionally leaves the forest mounted for placement
-    /// preview and shared-space return. Its opaque content does not need a 60Hz
-    /// background, so keep continuity at the lower ambient cadence.
+    /// Moss sheets intentionally leave the forest mounted for spatial
+    /// continuity. Their background does not need a 60Hz render loop, so keep
+    /// the scene alive at the lower ambient cadence.
     var isObscured: Bool = false
 
     // `StateObject` defers the heavyweight scene allocation until SwiftUI
@@ -130,7 +130,7 @@ struct PiboStageView: View, Equatable {
     }
 
     /// SpriteKit nodes do not become reliable VoiceOver controls through the
-    /// SwiftUI bridge. Mirror Pibo, the single grey target, and owned items.
+    /// SwiftUI bridge. Mirror Pibo, every grey common object, and owned items.
     @ViewBuilder
     private var commonItemAccessibilityControls: some View {
         VStack {
@@ -138,11 +138,11 @@ struct PiboStageView: View, Equatable {
                 onPat()
             }
             .accessibilityValue(boGrowthAccessibilityValue)
-            if let nextLocked = PiboOrnament.ordered.first(where: {
+            ForEach(PiboOrnament.ordered.filter {
                 presentedOrnaments.contains($0.id) && !unlockedOrnaments.contains($0.id)
-            }) {
-                Button(AppLocalization.format("%@，未唤醒", nextLocked.localizedName)) {
-                    onOrnamentTapped(nextLocked.id)
+            }) { ornament in
+                Button(AppLocalization.format("%@，未唤醒", ornament.localizedName)) {
+                    onOrnamentTapped(ornament.id)
                 }
                 .accessibilityHint(AppLocalization.text("查看功能和唤醒所需的 bo"))
             }

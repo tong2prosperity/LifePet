@@ -9760,6 +9760,1205 @@
         }
       }
     },
+    "%@记录已保存，热量识别正在后台继续" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ saved. Calorie estimation will continue in the background."
+          }
+        }
+      }
+    },
+    "把一次步行留成 Walk Doodle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep a walk as a Walk Doodle"
+          }
+        }
+      }
+    },
+    "把整份餐食放进框内" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit the whole meal inside the frame"
+          }
+        }
+      }
+    },
+    "保存调整" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save changes"
+          }
+        }
+      }
+    },
+    "查看" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View"
+          }
+        }
+      }
+    },
+    "查看估算" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View estimate"
+          }
+        }
+      }
+    },
+    "查看由真实健康记录校准的恢复状态" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View recovery status calibrated from real health records"
+          }
+        }
+      }
+    },
+    "从相册选择" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose from Photos"
+          }
+        }
+      }
+    },
+    "从相册选择餐食照片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a meal photo from Photos"
+          }
+        }
+      }
+    },
+    "打开设置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
+          }
+        }
+      }
+    },
+    "蛋白质" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protein"
+          }
+        }
+      }
+    },
+    "当前建议" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggested now"
+          }
+        }
+      }
+    },
+    "当前仍显示上次可信状态。恢复后会自动更新。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The last trusted state is still displayed. It will update automatically after recovery."
+          }
+        }
+      }
+    },
+    "当前时段建议" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggested for this time"
+          }
+        }
+      }
+    },
+    "当前时段建议%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is suggested for this time"
+          }
+        }
+      }
+    },
+    "当前状态会保留，不会因为缺少数据影响 bo。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current state is preserved. Missing data will not affect bo."
+          }
+        }
+      }
+    },
+    "调整份量" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjust portions"
+          }
+        }
+      }
+    },
+    "份量" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portion"
+          }
+        }
+      }
+    },
+    "共同物件 · 未唤醒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shared object · Dormant"
+          }
+        }
+      }
+    },
+    "估算已经准备好" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimate ready"
+          }
+        }
+      }
+    },
+    "还没有获得访问权限" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access has not been allowed"
+          }
+        }
+      }
+    },
+    "还没有相机权限" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera access has not been allowed"
+          }
+        }
+      }
+    },
+    "还没有这一餐的照片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No photo for this meal yet"
+          }
+        }
+      }
+    },
+    "还需要 %d bo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d more bo needed"
+          }
+        }
+      }
+    },
+    "还需要 %d bo · 当前 %d bo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d more bo needed · %d available"
+          }
+        }
+      }
+    },
+    "画幅比例 4 比 3" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4 by 3 aspect ratio"
+          }
+        }
+      }
+    },
+    "唤醒%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Awaken %@"
+          }
+        }
+      }
+    },
+    "恢复状态：依据已授权的原始记录等待数据或校准" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovery status: wait for data or calibrate from authorized raw records"
+          }
+        }
+      }
+    },
+    "记录%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log %@"
+          }
+        }
+      }
+    },
+    "加餐" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snack"
+          }
+        }
+      }
+    },
+    "健康数据" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health Data"
+          }
+        }
+      }
+    },
+    "健康数据已经恢复" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health data restored"
+          }
+        }
+      }
+    },
+    "健康数据暂时中断" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health data temporarily interrupted"
+          }
+        }
+      }
+    },
+    "结果根据照片估算，份量可以调整。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Results are estimated from the photo. Portions can be adjusted."
+          }
+        }
+      }
+    },
+    "精确定位权限只会在使用 Walk Doodle 时请求。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Precise location is requested only when using Walk Doodle."
+          }
+        }
+      }
+    },
+    "没有数据不会被当成低健康，也不会影响 bo。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing data will not be treated as poor health or affect bo."
+          }
+        }
+      }
+    },
+    "你仍然可以从相册选择，稍后再尝试相机。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can choose from Photos now and try the camera again later."
+          }
+        }
+      }
+    },
+    "你仍然可以从相册选择一张餐食照片。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can still choose a meal photo from Photos."
+          }
+        }
+      }
+    },
+    "拍摄餐食" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photograph meal"
+          }
+        }
+      }
+    },
+    "拍摄这一餐" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photograph this meal"
+          }
+        }
+      }
+    },
+    "前往设置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Settings"
+          }
+        }
+      }
+    },
+    "前往设置允许相机访问后，可以继续拍摄餐食。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow camera access in Settings to continue photographing meals."
+          }
+        }
+      }
+    },
+    "亲手点亮森林里的铃兰灯" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Light the lily-of-the-valley lamps in the forest"
+          }
+        }
+      }
+    },
+    "热量" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calories"
+          }
+        }
+      }
+    },
+    "上次成功读取 · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last successful read · %@"
+          }
+        }
+      }
+    },
+    "稍后" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        }
+      }
+    },
+    "识别到的食物" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognized foods"
+          }
+        }
+      }
+    },
+    "收到可用的睡眠记录后会自动更新；没有记录不会影响 bo。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This updates automatically when readable sleep records arrive. Missing records do not affect bo."
+          }
+        }
+      }
+    },
+    "收下长好的毛" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collect the grown bo"
+          }
+        }
+      }
+    },
+    "授权后，Pibo 会根据真实睡眠与活动改变状态。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After authorization, Pibo changes state based on real sleep and activity."
+          }
+        }
+      }
+    },
+    "数据不足时会继续等待，不会生成恢复分数，也不会影响 bo。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When data is insufficient, this keeps waiting without generating a recovery score or affecting bo."
+          }
+        }
+      }
+    },
+    "碳水" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbs"
+          }
+        }
+      }
+    },
+    "同步暂时中断" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync temporarily interrupted"
+          }
+        }
+      }
+    },
+    "同时开放" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also unlocked"
+          }
+        }
+      }
+    },
+    "晚餐" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dinner"
+          }
+        }
+      }
+    },
+    "我看见了%@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I can see %@."
+          }
+        }
+      }
+    },
+    "午餐" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lunch"
+          }
+        }
+      }
+    },
+    "物件不可用" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Object unavailable"
+          }
+        }
+      }
+    },
+    "先唤醒%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Awaken %@ first"
+          }
+        }
+      }
+    },
+    "相机不可用" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera unavailable"
+          }
+        }
+      }
+    },
+    "相机不可用，请从相册选择" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera unavailable. Choose from Photos."
+          }
+        }
+      }
+    },
+    "相机暂时没有准备好" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera is not ready yet"
+          }
+        }
+      }
+    },
+    "新行为" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New behavior"
+          }
+        }
+      }
+    },
+    "需要 %d bo · 当前 %d bo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d bo needed · %d available"
+          }
+        }
+      }
+    },
+    "需要先唤醒%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Awaken %@ first"
+          }
+        }
+      }
+    },
+    "需要先唤醒前一件共同物件。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Awaken the previous shared object first."
+          }
+        }
+      }
+    },
+    "已保存的餐食" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved meal"
+          }
+        }
+      }
+    },
+    "已保存的照片与餐食" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved photo and meal"
+          }
+        }
+      }
+    },
+    "已放进今天的%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added to today's %@"
+          }
+        }
+      }
+    },
+    "已经唤醒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Awakened"
+          }
+        }
+      }
+    },
+    "已经在森林中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Already in the forest"
+          }
+        }
+      }
+    },
+    "已经重新读取到记录，Pibo 会自动回到由真实数据决定的状态。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Records are readable again. Pibo will automatically return to the state determined by real data."
+          }
+        }
+      }
+    },
+    "用这张照片重试" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry with this photo"
+          }
+        }
+      }
+    },
+    "约" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About"
+          }
+        }
+      }
+    },
+    "约 %d kcal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About %d kcal"
+          }
+        }
+      }
+    },
+    "允许访问健康数据" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow Health Data Access"
+          }
+        }
+      }
+    },
+    "暂时不能唤醒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cannot awaken yet"
+          }
+        }
+      }
+    },
+    "暂时没有可读取的记录" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No readable records yet"
+          }
+        }
+      }
+    },
+    "早餐" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Breakfast"
+          }
+        }
+      }
+    },
+    "照片估算值" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo estimate"
+          }
+        }
+      }
+    },
+    "照片已保存，稍后可以继续识别估算。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photo is saved. You can continue the estimate later."
+          }
+        }
+      }
+    },
+    "照片已保存，正在后台估算" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo saved. Estimating in the background."
+          }
+        }
+      }
+    },
+    "照片已保留，可以重试估算" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo retained. You can retry the estimate."
+          }
+        }
+      }
+    },
+    "照片已经保存，稍后可以再来看。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photo is saved. You can come back later."
+          }
+        }
+      }
+    },
+    "照片已经保留，你可以直接用这张照片重试。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photo is retained. You can retry with it directly."
+          }
+        }
+      }
+    },
+    "这次没有算出来" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The estimate could not be completed"
+          }
+        }
+      }
+    },
+    "这次拍摄没有完成，请保持当前取景并重试。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photo was not captured. Keep the current framing and try again."
+          }
+        }
+      }
+    },
+    "这件物件暂时还不能唤醒。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This object cannot be awakened yet."
+          }
+        }
+      }
+    },
+    "这台设备无法提供健康数据" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health data is unavailable on this device"
+          }
+        }
+      }
+    },
+    "这台设备限制了相机访问" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera access is restricted on this device"
+          }
+        }
+      }
+    },
+    "这台设备暂时没有可用相机" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No camera is currently available on this device"
+          }
+        }
+      }
+    },
+    "这张照片属于哪一餐？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which meal is this photo for?"
+          }
+        }
+      }
+    },
+    "正在保存照片" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving photo"
+          }
+        }
+      }
+    },
+    "正在估算" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimating"
+          }
+        }
+      }
+    },
+    "正在估算，不用留在这里" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimating. You do not need to stay here."
+          }
+        }
+      }
+    },
+    "正在检查" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking"
+          }
+        }
+      }
+    },
+    "正在检查健康数据" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking health data"
+          }
+        }
+      }
+    },
+    "正在确认最近是否有可读取的睡眠、步数或锻炼记录。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking for recent readable sleep, step, or workout records."
+          }
+        }
+      }
+    },
+    "正在显示上次可信状态" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing the last trusted state"
+          }
+        }
+      }
+    },
+    "脂肪" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fat"
+          }
+        }
+      }
+    },
+    "只使用已授权的原始健康记录；数据不足时不会生成恢复分数。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only authorized raw health records are used. No recovery score is generated when data is insufficient."
+          }
+        }
+      }
+    },
+    "中断期间不会把缺失数据解释成低健康，也不会影响 bo。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing data will not be treated as poor health or affect bo while syncing is interrupted."
+          }
+        }
+      }
+    },
+    "重新估算仍未完成，照片已经保留。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The estimate still could not be completed. The photo has been retained."
+          }
+        }
+      }
+    },
+    "重新检查" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check again"
+          }
+        }
+      }
+    },
+    "重新拍摄" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retake photo"
+          }
+        }
+      }
+    },
+    "bo 数量不足，成熟后再回来。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are not enough bo yet. Return after more have matured."
+          }
+        }
+      }
+    },
+    "HealthKit 不会说明具体关闭了哪个读取开关。请检查权限，或等待设备同步第一条记录。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HealthKit does not reveal which read permission is disabled. Check permissions, or wait for the device to sync its first record."
+          }
+        }
+      }
+    },
+    "Pibo 会保持安全状态，等待以后可以读取的数据。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pibo will stay in a safe state while waiting for readable data."
+          }
+        }
+      }
+    },
+    "Walk Doodle：记录一次步行，把路线留成地图上的线条" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Walk Doodle: record a walk and keep its route as a line on the map"
+          }
+        }
+      }
+    },
     "鱼" : {
       "extractionState" : "manual",
       "localizations" : {

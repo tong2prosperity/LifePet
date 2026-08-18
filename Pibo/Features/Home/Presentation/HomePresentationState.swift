@@ -20,6 +20,9 @@ final class HomePresentationState {
     /// A meal passed by the detail sheet's “重拍” action. Normal home entry leaves
     /// this nil and lets the camera own purpose + meal selection.
     var cameraInitialMeal: MealType?
+    /// A camera request made from inside a sheet. It is consumed only after the
+    /// sheet dismissal finishes so SwiftUI never has to overlap two presenters.
+    var queuedCameraMeal: MealType?
     var activeSheet: HomeSheetDestination?
     var foodProjection: HomeFoodProjection?
     var transientNotice: String?
@@ -86,5 +89,19 @@ final class HomePresentationState {
     func completeStoryRecovery() {
         showStoryRecovery = false
         storyRecoveryDismissed = true
+    }
+
+    func queueCameraAfterSheet(_ meal: MealType) {
+        queuedCameraMeal = meal
+        activeSheet = nil
+    }
+
+    @discardableResult
+    func presentQueuedCameraIfNeeded() -> Bool {
+        guard let meal = queuedCameraMeal else { return false }
+        queuedCameraMeal = nil
+        cameraInitialMeal = meal
+        showCamera = true
+        return true
     }
 }

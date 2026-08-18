@@ -43,7 +43,7 @@ struct HomeStageSurfaceInputTests {
         #expect(input.boGrowthStage == ledger.growthStage)
         #expect(input.sproutGrowthProgress == ledger.growthProgress)
         #expect(input.environment == environment)
-        #expect(input.presentedOrnaments == unlocks.unlocked.union([.hammock]))
+        #expect(input.presentedOrnaments == Set(PiboOrnament.ID.allCases))
         #expect(input.unlockedOrnaments == unlocks.unlocked)
         #expect(input.litOrnamentLights == lights.lit)
         #expect(input.tuning == .standard)

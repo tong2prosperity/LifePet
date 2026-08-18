@@ -28,7 +28,6 @@ enum HomeOrnamentInteractionCoordinator {
     ) {
         guard canPresent() else { return }
         if !unlocks.isUnlocked(ornamentID) {
-            guard unlocks.nextLocked?.id == ornamentID else { return }
             LPHaptics.tap()
             dismissSpeech()
             present(.ornamentUnlock(ornamentID))
