@@ -57,6 +57,24 @@
 - SpriteKit 中的 Pibo、灰态目标和已拥有物件均提供 SwiftUI VoiceOver 镜像入口；
 - 相机继续是首页右上角悬浮按钮，不制作森林物理装置。
 
+### 7. HarmonyOS 食物相机完整闭环（2026-08-24）
+
+- 拍照先作为草稿提交后台；只有 `is_food == true` 才算拍摄成功并写入正式历史。非食物不投影、
+  不说话、不留历史；网络或模型失败保留同一张草稿供原图重试或重拍；
+- 后台一次返回食物存在置信度、热量／营养估算和经过约束的 `pibo_observation`；缺失或不安全文案
+  统一回退为“我先记下它的样子。”；
+- 真食物通过本地分割生成带 7px 白边的透明贴纸，分割不可用时使用带白框原图；贴纸、识别结果和
+  原图重试路径在一次历史写入中落盘；
+- `observe_food` 先在 `pibo_design/observe-food-lab` 以左右镜像与 Reduce Motion 三种情形验证，
+  再按同一 6080ms 时间轴接入 HarmonyOS。六个主状态共用一套 5vp 以内的观察侧移与回正，
+  只按吊床构图切换贴纸侧边，不新增状态专用素材；
+- 发布版历史页已恢复餐食记录卡，沿用现有 LP 卡片并加入早餐／午餐／晚餐协调色；点击按准确
+  `photoId` 打开对应热量与营养详情，不再按餐次误取最新一张；
+- `pibo-server c8ced72`、`pibo_design d5856e3`、`HarmonyPibo fffc023 / 9e2b6c5`
+  已分别提交；HarmonyOS `entry + wearable` Debug HAP 和全部本地检查通过。当前没有连接中的
+  HarmonyOS 设备，原生端真机视觉与真实相机／分割质量仍需发布前验收；
+- TODO（iOS）：仅登记同一门控、贴纸投影、观察动作和精确历史详情，不在 HarmonyOS 优先阶段实现。
+
 ## 二、共享 Core 发布与双端接入
 
 `/Users/trevorlink/Project/PiboWorld/pibo-core` 已发布 `0.13.3`：
