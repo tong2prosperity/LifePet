@@ -11,9 +11,8 @@ import UIKit
 // Data in: a `PiboTheme` (scene backdrop + head item), a `PiboGrowthStage`
 // (魔丸 「?」卷芽 ⇄ 发芽带叶), and a `PiboActivityState` (drives Pibo's
 // face/posture). Touches are region-routed: a tap on the body calls `onPat`,
-// a drag on the head 毛 bends it and fires `onHairPulled` on release — the
-// SwiftUI layer decides how Pibo reacts (the spec's caps live in
-// `PetStateStore.pat()`; the pull is 拔毛 when the window is open). Two 场景内
+// a drag on the head sprout bends it and fires `onSproutTouched` on release —
+// the SwiftUI layer may open the next common-item investment when `bo` is ripe.
 // No camera pan / 横向逛场景 — the stage is a single fixed portrait world.
 //
 // Node tree (z back→front): backdrop(sky → ground) → 场景 icons → pibo(shadow,
@@ -38,10 +37,9 @@ final class PiboStageScene: SKScene {
     private(set) var stageEnvironment: PiboStageEnvironment = .daylight
     /// Fired on a tap that lands on Pibo's body (拍一拍).
     var onPat: (() -> Void)?
-    /// Fired when the head 毛 is dragged past the pull threshold and released —
-    /// the 拔毛 gesture. The scene plays the local snap-back; the SwiftUI layer
-    /// decides what the pull *means* (collect the seed / an annoyed turn-away).
-    var onHairPulled: (() -> Void)? {
+    /// Fired after a tap or drag on the sprout settles. The gesture never
+    /// detaches artwork; a ripe `bo` remains visible until directly invested.
+    var onSproutTouched: (() -> Void)? {
         didSet { configureCharacterCallbacks() }
     }
     /// Direct manipulation asks the SwiftUI bridge for the display's maximum
@@ -347,10 +345,15 @@ final class PiboStageScene: SKScene {
         character.playEnergyGain()
     }
 
+    func playSproutTouch() {
+        guard built else { return }
+        character.playSproutTouch()
+    }
+
     @discardableResult
-    func playBoProgressFeedback(_ milestone: BoProgressMilestone) -> Bool {
+    func playBoProgressFeedback(_ presentation: BoProgressPresentation) -> Bool {
         guard built else { return false }
-        return character.playBoProgressFeedback(milestone)
+        return character.playBoProgressFeedback(presentation)
     }
 
     func setSproutGrowthProgress(_ progress: Double) {
@@ -662,7 +665,7 @@ final class PiboStageScene: SKScene {
     }
 
     private func configureCharacterCallbacks() {
-        character.onHairPulled = { [weak self] in self?.onHairPulled?() }
+        character.onSproutTouched = { [weak self] in self?.onSproutTouched?() }
     }
 
     private func applyTuning(visibilityChanged: Bool) {

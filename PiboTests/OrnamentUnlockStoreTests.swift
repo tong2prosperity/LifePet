@@ -81,6 +81,18 @@ struct OrnamentUnlockStoreTests {
         #expect(ledger.balance == 0)
     }
 
+    @Test func aRipeBoCanWakeTheFirstObjectDirectly() throws {
+        let (inventory, ledger, defaults, suite) = try fixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        ledger.debugSet(ripe: 1)
+
+        #expect(ledger.balance == 0)
+        #expect(ledger.availableBo == 1)
+        #expect(inventory.purchase(.hammock, using: ledger) == .purchased)
+        #expect(ledger.state.ripeCount == 0)
+        #expect(inventory.owned == [.hammock])
+    }
+
     @Test func debugOverrideIsEffectiveButNeverPersisted() throws {
         let (inventory, _, defaults, suite) = try fixture(debug: true)
         defer { defaults.removePersistentDomain(forName: suite) }

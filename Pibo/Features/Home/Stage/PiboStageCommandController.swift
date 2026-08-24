@@ -9,7 +9,7 @@ import SwiftUI
 @Observable
 final class PiboStageCommandController {
     @ObservationIgnored private weak var scene: PiboStageScene?
-    @ObservationIgnored private var pendingBoProgress: BoProgressMilestone?
+    @ObservationIgnored private var pendingBoProgress: BoProgressPresentation?
     @ObservationIgnored private var ornamentConstruction: (enabled: Bool, selected: PiboOrnament.ID?) = (false, nil)
     @ObservationIgnored private var ornamentPreview: PiboOrnament.ID?
     @ObservationIgnored private var pendingOrnamentReveal: PiboOrnament.ID?
@@ -45,16 +45,22 @@ final class PiboStageCommandController {
         scene?.playEnergyGain()
     }
 
+    func playSproutTouch() {
+        scene?.playSproutTouch()
+    }
+
     /// Returns true once the request is accepted by the stage boundary. If the
-    /// SpriteKit scene is temporarily detached, keep only the latest milestone
+    /// SpriteKit scene is temporarily detached, keep only the latest presentation
     /// until Home attaches it again.
     @discardableResult
-    func playBoProgressFeedback(_ milestone: BoProgressMilestone) -> Bool {
+    func playBoProgressFeedback(_ presentation: BoProgressPresentation) -> Bool {
         guard let scene else {
-            pendingBoProgress = max(pendingBoProgress ?? milestone, milestone)
+            if pendingBoProgress.map({ presentation.milestone >= $0.milestone }) ?? true {
+                pendingBoProgress = presentation
+            }
             return true
         }
-        return scene.playBoProgressFeedback(milestone)
+        return scene.playBoProgressFeedback(presentation)
     }
 
     func playSproutGrowth(from start: Double, to target: Double) {

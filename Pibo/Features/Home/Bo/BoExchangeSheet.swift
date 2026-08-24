@@ -178,7 +178,7 @@ struct BoUnlockOverlay: View {
                 PiboBoGlyph()
                     .frame(width: 24, height: 34)
                     .accessibilityHidden(true)
-                Text(AppLocalization.format("%d bo", ledger.balance))
+                Text(AppLocalization.format("%d bo", ledger.availableBo))
                     .lpText(LP.Typography.b1Medium)
                     .foregroundStyle(LP.Content.accent)
                     .contentTransition(.numericText())
@@ -189,7 +189,7 @@ struct BoUnlockOverlay: View {
             .background(Capsule().fill(LP.Fill.bgContainer.opacity(0.94)))
             .overlay(Capsule().strokeBorder(LP.Border.secondary, lineWidth: LP.BorderWidth.hair))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(AppLocalization.format("当前有 %d bo", ledger.balance))
+            .accessibilityLabel(AppLocalization.format("当前可投入 %d bo", ledger.availableBo))
         }
         .padding(.horizontal, LP.Spacing.xl)
         .padding(.bottom, LP.Spacing.l)
@@ -431,7 +431,7 @@ struct BoUnlockOverlay: View {
                 .lpText(LP.Typography.uiH5)
                 .foregroundStyle(LP.Content.primary)
                 .accessibilityAddTraits(.isHeader)
-            Text(AppLocalization.format("需要 %d bo · 当前 %d bo", ornament.cost, ledger.balance))
+            Text(AppLocalization.format("需要 %d bo · 当前可投入 %d bo", ornament.cost, ledger.availableBo))
                 .lpText(LP.Typography.b1Medium)
                 .foregroundStyle(LP.Content.accent)
                 .monospacedDigit()
@@ -497,7 +497,7 @@ struct BoUnlockOverlay: View {
                     )
             }
             .buttonStyle(.plain)
-        } else if unlocks.state(ornament.id, balance: ledger.balance) == .purchasable {
+        } else if unlocks.state(ornament.id, balance: ledger.availableBo) == .purchasable {
             Button {
                 pendingUnlockConfirmation = ornament.id
             } label: {
@@ -609,7 +609,7 @@ struct BoUnlockOverlay: View {
             Analytics.track(.boUnlock, screen: "bo_unlock", [
                 "ornament": .string(id.rawValue),
                 "cost": .int(ornament.cost),
-                "remaining_balance": .int(ledger.balance),
+                "remaining_balance": .int(ledger.availableBo),
                 "input": .string(input),
             ])
         case .alreadyOwned:
@@ -750,7 +750,7 @@ struct BoUnlockOverlay: View {
     }
 
     private func footerUnavailableText(_ ornament: PiboOrnament) -> String {
-        switch unlocks.state(ornament.id, balance: ledger.balance) {
+        switch unlocks.state(ornament.id, balance: ledger.availableBo) {
         case .owned:
             AppLocalization.text("已经唤醒")
         case .unavailable:
@@ -761,7 +761,7 @@ struct BoUnlockOverlay: View {
                !unlocks.isUnlocked(prerequisite.id) {
                 AppLocalization.format("先唤醒「%@」", prerequisite.localizedName)
             } else {
-                AppLocalization.format("还差 %d bo", max(0, ornament.cost - ledger.balance))
+                AppLocalization.format("还差 %d bo", max(0, ornament.cost - ledger.availableBo))
             }
         case .purchasable:
             AppLocalization.format("唤醒%@", ornament.localizedName)

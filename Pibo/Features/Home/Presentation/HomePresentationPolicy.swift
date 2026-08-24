@@ -77,7 +77,7 @@ struct HomePresentationPolicy {
             || storyRecoveryPresented()
     }
 
-    var boCounterFeedbackEnabled: Bool {
+    var boProgressFeedbackEnabled: Bool {
         sceneIsActive()
             && !stagePaused
             && !sheetDismissalInProgress()

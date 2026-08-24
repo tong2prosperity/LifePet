@@ -103,6 +103,7 @@ final class MorningSleepCoordinator {
     private static let legacySummaryKey = "pibo.sleep.morning.latest.v1"
     private static let baselineKey = "pibo.sleep.morning.baseline.v1"
     private static let lastPresentedKey = "pibo.sleep.morning.lastPresented.v2"
+    private static let lastEnergyPresentedKey = "pibo.sleep.morning.lastEnergyPresented.v1"
     private static let lastScheduledKey = "pibo.sleep.morning.lastScheduled.v2"
     private static let legacyLastPresentedKey = "pibo.sleep.morning.lastPresented.v1"
     private static let legacyLastScheduledKey = "pibo.sleep.morning.lastScheduled.v1"
@@ -337,6 +338,24 @@ final class MorningSleepCoordinator {
             summary: summary,
             isSettled: summary.readiness(now: now, userIsInteracting: false) == .final,
             isCatchUp: summary.isCatchUp(now: now)
+        )
+    }
+
+    /// The health-to-Pibo causal scene is independent of the hammock's
+    /// detailed sleep review. It exposes one factual duration, never gated
+    /// analysis, and is consumed at most once per local wake-day.
+    func energyFeedbackCandidate(now: Date = .now) -> MorningSleepSummary? {
+        guard let summary = latestSummary,
+              Calendar.current.isDate(summary.wakeDay, inSameDayAs: now),
+              defaults.string(forKey: Self.lastEnergyPresentedKey) != summary.wakeDayKey
+        else { return nil }
+        return summary
+    }
+
+    func markEnergyPresented(_ summary: MorningSleepSummary) {
+        defaults.set(summary.wakeDayKey, forKey: Self.lastEnergyPresentedKey)
+        LPLog.bo.notice(
+            "sleep energy feedback presented wakeDay=\(summary.wakeDayKey, privacy: .public)"
         )
     }
 

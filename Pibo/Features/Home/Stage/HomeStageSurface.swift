@@ -54,7 +54,7 @@ struct HomeStageSurface: View {
 
     struct Handlers {
         let pat: () -> Void
-        let hairPull: () -> Void
+        let sproutTouch: () -> Void
         let ornamentLightTap: (PiboOrnament.ID, Int) -> Void
         let ornamentTap: (PiboOrnament.ID) -> Void
     }
@@ -78,7 +78,7 @@ struct HomeStageSurface: View {
             litOrnamentLights: input.litOrnamentLights,
             tuning: input.tuning,
             onPat: handlers.pat,
-            onHairPulled: handlers.hairPull,
+            onSproutTouched: handlers.sproutTouch,
             onOrnamentLightTapped: handlers.ornamentLightTap,
             onOrnamentTapped: handlers.ornamentTap,
             isPaused: input.isPaused,

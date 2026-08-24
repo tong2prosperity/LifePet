@@ -4,10 +4,12 @@ import PiboCore
 import os
 
 enum BoProgressMilestone: Int, Codable, CaseIterable, Comparable, Sendable {
+    case none = 0
     case quarter = 25
     case half = 50
     case threeQuarters = 75
     case nearMint = 90
+    case minted = 100
 
     static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 
@@ -17,21 +19,44 @@ enum BoProgressMilestone: Int, Codable, CaseIterable, Comparable, Sendable {
         case .half: self = .half
         case .threeQuarters: self = .threeQuarters
         case .nearMint: self = .nearMint
-        case .none, .minted: return nil
+        case .minted: self = .minted
+        case .none: self = .none
         }
     }
 
     var message: String {
-        if self == .nearMint {
-            return AppLocalization.text("bo 快形成了 · 90%")
+        switch self {
+        case .minted: AppLocalization.text("一枚 bo 成熟了")
+        case .nearMint: AppLocalization.text("bo 快形成了")
+        case .none, .quarter, .half, .threeQuarters:
+            AppLocalization.text("bo 又长了一点")
         }
-        return AppLocalization.format("bo 正在形成 · %d%%", rawValue)
     }
 }
 
 struct PendingBoProgressFeedback: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let milestone: BoProgressMilestone
+    let previousEnergyPool: Double
+    let newEnergyPool: Double
+    let mintedCount: Int
+
+    var isPresentable: Bool {
+        previousEnergyPool.isFinite
+            && newEnergyPool.isFinite
+            && mintedCount >= 0
+            && (mintedCount > 0 || newEnergyPool > previousEnergyPool)
+    }
+}
+
+struct BoProgressPresentation: Equatable, Sendable {
+    let milestone: BoProgressMilestone
+    let message: String
+    let fact: String
+    let previousProgress: Double
+    let currentProgress: Double
+    let previousMature: Bool
+    let mature: Bool
 }
 
 /// Durable presentation queue for one bo progress acknowledgement.
@@ -54,13 +79,19 @@ final class BoProgressFeedbackStore {
         self.defaults = defaults
         self.persistenceKey = persistenceKey
         if let data = defaults.data(forKey: persistenceKey),
-           let decoded = try? JSONDecoder().decode(PendingBoProgressFeedback.self, from: data) {
+           let decoded = try? JSONDecoder().decode(PendingBoProgressFeedback.self, from: data),
+           decoded.isPresentable {
             pending = decoded
+        } else if defaults.object(forKey: persistenceKey) != nil {
+            // Milestone-only requests from the old counter UI have no causal
+            // energy span and cannot be reconstructed truthfully.
+            defaults.removeObject(forKey: persistenceKey)
         }
     }
 
     /// Records one already-committed ledger change. Core selects the single
-    /// highest crossed boundary; a mint cancels any fractional reminder.
+    /// highest crossed boundary. Every positive committed change is retained,
+    /// including a mint or growth too small to cross a named boundary.
     @discardableResult
     func recordLedgerUpdate(
         previousEnergyPool: Double,
@@ -72,17 +103,36 @@ final class BoProgressFeedbackStore {
             newEnergyPool: newEnergyPool,
             mintedCount: mintedCount
         )
-        if event == .minted {
-            clear()
-        } else if let milestone = BoProgressMilestone(event) {
-            enqueue(milestone)
+        if mintedCount > 0 || newEnergyPool > previousEnergyPool {
+            enqueue(
+                BoProgressMilestone(event) ?? .none,
+                previousEnergyPool: previousEnergyPool,
+                newEnergyPool: newEnergyPool,
+                mintedCount: mintedCount
+            )
         }
         return event
     }
 
-    func enqueue(_ milestone: BoProgressMilestone) {
+    func enqueue(
+        _ milestone: BoProgressMilestone,
+        previousEnergyPool: Double,
+        newEnergyPool: Double,
+        mintedCount: Int
+    ) {
+        guard previousEnergyPool.isFinite,
+              newEnergyPool.isFinite,
+              mintedCount >= 0,
+              mintedCount > 0 || newEnergyPool > previousEnergyPool
+        else { return }
         let resolved = max(pending?.milestone ?? milestone, milestone)
-        pending = PendingBoProgressFeedback(id: UUID(), milestone: resolved)
+        pending = PendingBoProgressFeedback(
+            id: UUID(),
+            milestone: resolved,
+            previousEnergyPool: pending?.previousEnergyPool ?? previousEnergyPool,
+            newEnergyPool: newEnergyPool,
+            mintedCount: (pending?.mintedCount ?? 0) + mintedCount
+        )
         persist()
         LPLog.bo.notice("progress feedback queued milestone=\(resolved.rawValue, privacy: .public)")
     }

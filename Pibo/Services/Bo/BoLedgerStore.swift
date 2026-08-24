@@ -77,6 +77,15 @@ final class BoLedgerStore {
     }
 
     var balance: Int { state.balance }
+    /// Every formed `bo` is immediately usable. `balance` remains only as a
+    /// migration bucket for assets collected by builds that still had a pluck
+    /// inventory; new product flows never require that intermediate step.
+    var availableBo: Int {
+        PiboCoreBoEconomy.availableBo(
+            ripeCount: state.ripeCount,
+            storedCount: state.balance
+        )
+    }
     var hasRipeBo: Bool { state.ripeCount > 0 }
     var lifetimeMinted: Int { state.lifetimeMinted }
     var lifetimeCollected: Int { state.lifetimeCollected }
@@ -213,11 +222,20 @@ final class BoLedgerStore {
 
     @discardableResult
     func spend(_ cost: Int) -> Bool {
-        guard cost > 0, state.balance >= cost else { return false }
-        state.balance -= cost
-        state.spentTotal += cost
+        guard cost > 0 else { return false }
+        let result = PiboCoreBoEconomy.applyInvestment(
+            ripeCount: state.ripeCount,
+            storedCount: state.balance,
+            cost: cost
+        )
+        guard result.succeeded else { return false }
+        state.ripeCount = result.newRipeCount
+        state.balance = result.newStoredCount
+        state.spentTotal += result.spentCount
         persist()
-        LPLog.bo.notice("spent=\(cost, privacy: .public) → balance=\(self.state.balance, privacy: .public)")
+        LPLog.bo.notice(
+            "invested=\(result.spentCount, privacy: .public) → available=\(self.availableBo, privacy: .public)"
+        )
         return true
     }
 

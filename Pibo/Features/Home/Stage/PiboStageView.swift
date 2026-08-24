@@ -40,8 +40,8 @@ struct PiboStageView: View, Equatable {
     /// DEBUG exposes them in a collapsible overlay.
     var tuning: StageRenderTuning = .standard
     var onPat: () -> Void = {}
-    /// Fired when the head 毛 is dragged past the pull threshold (the 拔毛 gesture).
-    var onHairPulled: () -> Void = {}
+    /// Fired when the head sprout is released after a tap or gentle drag.
+    var onSproutTouched: () -> Void = {}
     /// Fired when a tap lights one of an ornament's lamps (铃兰灯的一盏铃铛).
     var onOrnamentLightTapped: (PiboOrnament.ID, Int) -> Void = { _, _ in }
     /// Fired when a tappable common item in the forest is selected.
@@ -138,6 +138,11 @@ struct PiboStageView: View, Equatable {
                 onPat()
             }
             .accessibilityValue(boGrowthAccessibilityValue)
+            Button(AppLocalization.text("查看 bo")) {
+                onSproutTouched()
+            }
+            .accessibilityValue(boGrowthAccessibilityValue)
+            .accessibilityHint(AppLocalization.text("成熟后可投入共同物件"))
             ForEach(PiboOrnament.ordered.filter {
                 presentedOrnaments.contains($0.id) && !unlockedOrnaments.contains($0.id)
             }) { ornament in
@@ -174,7 +179,7 @@ struct PiboStageView: View, Equatable {
         renderController.refreshLowPowerMode()
         scene.setLowPowerMode(renderController.lowPowerModeEnabled)
         scene.onPat = onPat
-        scene.onHairPulled = onHairPulled
+        scene.onSproutTouched = onSproutTouched
         scene.onOrnamentLightTapped = onOrnamentLightTapped
         scene.onOrnamentTapped = onOrnamentTapped
         scene.onDirectManipulationChanged = { [weak renderController] active in

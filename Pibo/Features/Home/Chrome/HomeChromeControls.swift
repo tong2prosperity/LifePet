@@ -6,10 +6,7 @@ struct HomePrimaryChrome: View {
     let presentation: HomePresentationState
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
-    let feedbackEnabled: Bool
-    let hasRipeBo: Bool
     let dismissSpeech: () -> Void
-    let collectAction: () -> Bool
     let onOpenHistory: () -> Void
 
     var body: some View {
@@ -18,67 +15,28 @@ struct HomePrimaryChrome: View {
                 presentation: presentation,
                 cameraEnabled: cameraEnabled,
                 walkDoodleEnabled: walkDoodleEnabled,
-                feedbackEnabled: feedbackEnabled,
-                dismissSpeech: dismissSpeech,
-                collectAction: collectAction
+                dismissSpeech: dismissSpeech
             )
             Spacer()
             HomeBottomControls(
-                hasRipeBo: hasRipeBo,
                 dismissSpeech: dismissSpeech,
-                onOpenHistory: onOpenHistory,
-                onPluck: { _ = collectAction() }
+                onOpenHistory: onOpenHistory
             )
         }
         .padding(.horizontal, LP.Spacing.l)
     }
 }
 
-/// Top-row Home chrome. It keeps the established `bo` and corner-entry wiring
-/// beside the controls that emit those actions, while Home owns presentation.
+/// Top-row Home chrome. `bo` stays embodied in Pibo's head sprout; there is no
+/// separate currency counter or inventory window competing with the forest.
 struct HomeHeader: View {
-    @Environment(PetStateStore.self) private var store
-    @Environment(BoProgressFeedbackStore.self) private var boProgressFeedback
-    @Environment(BoLedgerStore.self) private var boLedger
-
     let presentation: HomePresentationState
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
-    let feedbackEnabled: Bool
     let dismissSpeech: () -> Void
-    let collectAction: () -> Bool
-
-    private var feedbackRequest: BoCounterFeedbackRequest? {
-        BoCounterFeedbackRequest(
-            feedID: store.feedToken,
-            milestoneID: boProgressFeedback.pending?.id
-        )
-    }
 
     var body: some View {
         HStack(alignment: .top, spacing: LP.Spacing.s) {
-            VStack(alignment: .leading, spacing: LP.Spacing.s) {
-                BoCounterView(
-                    balance: boLedger.balance,
-                    growthProgress: boLedger.growthProgress,
-                    hasRipeBo: boLedger.hasRipeBo,
-                    feedbackRequest: feedbackRequest,
-                    feedbackEnabled: feedbackEnabled,
-                    feedbackCompleted: { request in
-                        if store.feedToken == request.feedID {
-                            store.feedToken = nil
-                        }
-                        if let milestoneID = request.milestoneID {
-                            boProgressFeedback.consume(id: milestoneID)
-                        }
-                    },
-                    collectAction: {
-                        dismissSpeech()
-                        return collectAction()
-                    }
-                )
-            }
-
             Spacer(minLength: 0)
 
             HomeCornerActions(
@@ -192,20 +150,13 @@ struct HomeCornerActions: View {
 }
 
 struct HomeBottomControls: View {
-    let hasRipeBo: Bool
     let dismissSpeech: () -> Void
     let onOpenHistory: () -> Void
-    let onPluck: () -> Void
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            if hasRipeBo {
-                pluckButton
-            }
-            HStack {
-                Spacer(minLength: 0)
-                historyButton
-            }
+        HStack {
+            Spacer(minLength: 0)
+            historyButton
         }
         .padding(.bottom, LP.Spacing.l)
     }
@@ -233,23 +184,4 @@ struct HomeBottomControls: View {
         .accessibilityLabel(AppLocalization.text("足迹"))
     }
 
-    private var pluckButton: some View {
-        Button {
-            LPHaptics.tap()
-            dismissSpeech()
-            onPluck()
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "leaf.fill").font(.system(size: 12))
-                Text(AppLocalization.text("收下长好的毛"))
-                    .lpText(LP.Typography.b3Medium)
-            }
-            .foregroundStyle(LP.Fill.foundationOnAccent)
-            .padding(.horizontal, LP.Spacing.l)
-            .padding(.vertical, LP.Spacing.s)
-            .background(Capsule().fill(LP.Fill.foundationAccent))
-            .lpShadow(LP.Shadow.elevation2)
-        }
-        .buttonStyle(.plain)
-    }
 }

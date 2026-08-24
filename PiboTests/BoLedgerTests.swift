@@ -295,6 +295,20 @@ struct BoLedgerTests {
         #expect(ledger.lifetimeCollected == lifetime)
     }
 
+    @Test func investmentUsesRipeBoWithoutAPluckInventoryStep() throws {
+        let today = Calendar.current.startOfDay(for: .now)
+        let (ledger, defaults, suite) = try makeLedger(startedOn: today)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        ledger.debugSet(balance: 1, ripe: 2)
+
+        #expect(ledger.availableBo == 3)
+        #expect(ledger.spend(2))
+        #expect(ledger.state.ripeCount == 0)
+        #expect(ledger.balance == 1)
+        #expect(ledger.availableBo == 1)
+        #expect(ledger.state.spentTotal == 2)
+    }
+
     @Test func legacySnapshotPreservesAssetsAndBuildsLifetimeFloors() throws {
         let today = Calendar.current.startOfDay(for: .now)
         let suite = "BoLedgerLegacy.\(UUID().uuidString)"

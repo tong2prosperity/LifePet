@@ -85,10 +85,6 @@ struct HomeView: View {
         presentationPolicy.fullScreenFeaturePresented
     }
 
-    private var boCounterFeedbackEnabled: Bool {
-        presentationPolicy.boCounterFeedbackEnabled
-    }
-
     private var speechInput: HomeSpeechInputProvider {
         HomeSpeechInputProvider(
             store: store,
@@ -96,6 +92,17 @@ struct HomeView: View {
             onboarding: onboarding,
             animationPresentation: animationPresentation
         )
+    }
+
+    private var boProgressReconcileToken: String {
+        [
+            boProgressFeedback.pending?.id.uuidString ?? "-",
+            presentationPolicy.boProgressFeedbackEnabled ? "ready" : "blocked",
+            morningSleep.latestSummary?.wakeDayKey ?? "-",
+            store.animationExperience.pendingAchievement?.id.uuidString ?? "-",
+            store.pendingWorkout?.id.uuidString ?? "-",
+            presentation.foodProjection?.id.uuidString ?? "-",
+        ].joined(separator: "|")
     }
 
     private var speechOpportunities: HomeSpeechOpportunities {
@@ -418,6 +425,12 @@ struct HomeView: View {
             .onChange(of: health.dataAvailability) { _, _ in
                 refreshAnimationState()
             }
+            .onChange(of: boProgressReconcileToken) { _, _ in
+                presentBoProgressFeedbackIfPossible()
+            }
+            .onAppear {
+                presentBoProgressFeedbackIfPossible()
+            }
             .modifier(homeTaskModifier)
             .modifier(homeLifecycleModifier)
             .modifier(stateObservationModifier)
@@ -482,6 +495,59 @@ struct HomeView: View {
         presentationFlow.resumePendingFlows()
     }
 
+    private func presentBoProgressFeedbackIfPossible() {
+        guard presentationPolicy.boProgressFeedbackEnabled,
+              store.animationExperience.pendingAchievement == nil,
+              store.pendingWorkout == nil,
+              presentation.foodProjection == nil,
+              let pending = boProgressFeedback.pending
+        else { return }
+
+        let energyPerBo = PiboCoreBoEconomy.energyPerBo
+        guard energyPerBo > 0 else { return }
+        let sleep = morningSleep.energyFeedbackCandidate()
+        let previousMature = boLedger.state.ripeCount > pending.mintedCount
+        let message: String
+        if previousMature {
+            message = pending.mintedCount > 0
+                ? AppLocalization.text("又一枚 bo 成熟了")
+                : AppLocalization.text("下一枚 bo 又长了一点")
+        } else {
+            message = pending.milestone.message
+        }
+        let presentation = BoProgressPresentation(
+            milestone: pending.milestone,
+            message: message,
+            fact: sleep.map { "昨晚睡了 \(sleepDurationText($0.total))" } ?? "",
+            previousProgress: previousMature
+                ? 1
+                : min(1, max(0, pending.previousEnergyPool / energyPerBo)),
+            currentProgress: boLedger.hasRipeBo
+                ? 1
+                : min(1, max(0, pending.newEnergyPool / energyPerBo)),
+            previousMature: previousMature,
+            mature: boLedger.hasRipeBo
+        )
+        guard stageCommands.playBoProgressFeedback(presentation) else { return }
+        boProgressFeedback.consume(id: pending.id)
+        if let sleep {
+            morningSleep.markEnergyPresented(sleep)
+            if let queued = morningSleep.pendingPresentation,
+               queued.summary.wakeDayKey == sleep.wakeDayKey {
+                morningSleep.markPresented(queued)
+            }
+        }
+    }
+
+    private func sleepDurationText(_ duration: TimeInterval) -> String {
+        let totalMinutes = max(0, Int((duration / 60).rounded()))
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours == 0 { return AppLocalization.format("%d 分钟", minutes) }
+        if minutes == 0 { return AppLocalization.format("%d 小时", hours) }
+        return AppLocalization.format("%d 小时 %d 分", hours, minutes)
+    }
+
     // MARK: Chrome
 
     private var chromeContent: some View {
@@ -499,10 +565,7 @@ struct HomeView: View {
                 presentation: presentation,
                 cameraEnabled: featureAccess.cameraEnabled,
                 walkDoodleEnabled: featureAccess.walkDoodleEnabled,
-                feedbackEnabled: boCounterFeedbackEnabled,
-                hasRipeBo: boLedger.hasRipeBo,
                 dismissSpeech: speechPresentation.dismiss,
-                collectAction: stageInteractions.collectBo,
                 onOpenHistory: {
                     Analytics.track(.historyOpen, screen: "home")
                     presentation.showHistory = true

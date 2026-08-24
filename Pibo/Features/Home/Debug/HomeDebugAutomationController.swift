@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import PiboCore
 import UIKit
 
 /// Owns Home's developer-automation lifetime and adapts concrete app services
@@ -54,7 +55,19 @@ final class HomeDebugAutomationController {
                     stageCommands.transitionAnimation(to: target, intent: .bounceCut)
                 },
                 selectAnimationState: selectAnimationState,
-                enqueueBoProgress: { boProgressFeedback.enqueue($0) },
+                enqueueBoProgress: { milestone in
+                    let perBo = PiboCoreBoEconomy.energyPerBo
+                    let previous = perBo * Double(max(0, milestone.rawValue - 10)) / 100
+                    let current = milestone == .minted
+                        ? perBo * 0.08
+                        : perBo * Double(milestone.rawValue) / 100
+                    boProgressFeedback.enqueue(
+                        milestone,
+                        previousEnergyPool: previous,
+                        newEnergyPool: current,
+                        mintedCount: milestone == .minted ? 1 : 0
+                    )
+                },
                 openBoPanel: openBoPanel,
                 openStressCard: {
                     // Seed first: the stress card needs a derived score, which

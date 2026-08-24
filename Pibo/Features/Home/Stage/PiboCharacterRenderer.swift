@@ -16,7 +16,7 @@ final class PiboCharacterRenderer {
     let overheadNode = SKSpriteNode()
     let effectsNode = SKNode()
 
-    var onHairPulled: () -> Void = {}
+    var onSproutTouched: () -> Void = {}
     private weak var scene: SKScene?
     private weak var camera: SKCameraNode?
     private var theme: PiboTheme = .forest
@@ -35,7 +35,7 @@ final class PiboCharacterRenderer {
     private var vectorRigInverted: Bool?
     private var boringElapsed: TimeInterval = 0
     private let boProgressHost = SKNode()
-    private var pendingBoProgress: BoProgressMilestone?
+    private var pendingBoProgress: BoProgressPresentation?
     private let usesVector = PiboVectorCharacterFlag.isEnabled
 
     private var bodyNode: SKShapeNode?
@@ -269,8 +269,8 @@ final class PiboCharacterRenderer {
                     x: rootNode.position.x + headNode.position.x,
                     y: rootNode.position.y + headNode.position.y
                 ), count: 10)
-                onHairPulled()
             }
+            if !cancelled { onSproutTouched() }
             return
         }
         let releaseAngle = headNode.zRotation
@@ -299,7 +299,20 @@ final class PiboCharacterRenderer {
             settle,
             .run { [weak self] in self?.startHeadIdle() },
         ]), withKey: "hairSettle")
-        if pulled { onHairPulled() }
+        if !cancelled { onSproutTouched() }
+    }
+
+    func playSproutTouch() {
+        if headRig.isEnabled {
+            headRig.addImpulse(0.42)
+            return
+        }
+        headNode.removeAction(forKey: "sproutTouch")
+        headNode.run(.sequence([
+            .rotate(byAngle: 0.07, duration: 0.09),
+            .rotate(byAngle: -0.12, duration: 0.14),
+            .rotate(toAngle: 0, duration: 0.18),
+        ]), withKey: "sproutTouch")
     }
 
     func playBodyTap() {
@@ -421,11 +434,13 @@ final class PiboCharacterRenderer {
         )
     }
 
-    /// Accepts one coalesced milestone. Transitioning characters wait until the
+    /// Accepts one coalesced causal presentation. Transitioning characters wait until the
     /// destination pose settles; an off-camera anchor is deliberately ignored.
     @discardableResult
-    func playBoProgressFeedback(_ milestone: BoProgressMilestone) -> Bool {
-        pendingBoProgress = max(pendingBoProgress ?? milestone, milestone)
+    func playBoProgressFeedback(_ presentation: BoProgressPresentation) -> Bool {
+        if pendingBoProgress.map({ presentation.milestone >= $0.milestone }) ?? true {
+            pendingBoProgress = presentation
+        }
         attemptBoProgressFeedback()
         return true
     }
@@ -989,7 +1004,7 @@ final class PiboCharacterRenderer {
     }
 
     private func attemptBoProgressFeedback() {
-        guard let milestone = pendingBoProgress else { return }
+        guard let presentation = pendingBoProgress else { return }
         guard !isCloseupActive, vectorTransition?.isRunning != true else { return }
         pendingBoProgress = nil
         guard visible, let anchor = sproutAnchorInScene(), isVisibleInCamera(anchor) else {
@@ -999,14 +1014,57 @@ final class PiboCharacterRenderer {
         boProgressHost.removeAllActions()
         boProgressHost.removeAllChildren()
         boProgressHost.position = anchor
-        buildBoProgressParticles(color: SKColor(theme.scene.groundAccent))
-        buildBoProgressLabel(milestone.message)
-        if state != .sleeping { headRig.addImpulse(0.55) }
+
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled
+        let previous = CGFloat(min(1, max(0, presentation.previousProgress)))
+        let current = CGFloat(min(1, max(0, presentation.currentProgress)))
+        headRig.setGrowthProgress(previous)
+
+        if !presentation.fact.isEmpty {
+            buildBoProgressLabel(
+                presentation.fact,
+                y: 116,
+                startDelay: reduceMotion ? 0 : 0.30,
+                visibleDuration: reduceMotion ? 0.22 : 4.05
+            )
+        }
+        if !reduceMotion {
+            buildBoProgressParticles(
+                color: SKColor(theme.scene.groundAccent),
+                source: presentation.fact.isEmpty ? nil : CGPoint(x: 0, y: 104),
+                startDelay: 1.10
+            )
+        }
         boProgressHost.run(.sequence([
-            .wait(forDuration: 1.45),
+            .wait(forDuration: reduceMotion ? 0.08 : 2.40),
+            .run { [weak self] in
+                guard let self, self.state != .sleeping else { return }
+                self.headRig.addImpulse(reduceMotion ? 0.22 : 0.55)
+            },
+            .wait(forDuration: reduceMotion ? 0.08 : 1.00),
+            .run { [weak self] in
+                guard let self else { return }
+                self.headRig.animateGrowth(
+                    from: previous,
+                    to: current,
+                    duration: reduceMotion ? 0.12 : 1.05
+                )
+                self.sproutGrowthProgress = current
+            },
+        ]), withKey: "boProgressCausality")
+        buildBoProgressLabel(
+            presentation.message,
+            y: 42,
+            startDelay: reduceMotion ? 0.24 : 4.60,
+            visibleDuration: reduceMotion ? 0.18 : 0.40
+        )
+        boProgressHost.run(.sequence([
+            .wait(forDuration: reduceMotion ? 0.42 : 5.20),
             .run { [weak self] in self?.boProgressHost.removeAllChildren() },
         ]), withKey: "boProgressLifetime")
-        LPLog.bo.notice("progress feedback played milestone=\(milestone.rawValue, privacy: .public)")
+        LPLog.bo.notice(
+            "progress feedback played milestone=\(presentation.milestone.rawValue, privacy: .public)"
+        )
     }
 
     private func sproutAnchorInScene() -> CGPoint? {
@@ -1031,7 +1089,11 @@ final class PiboCharacterRenderer {
         return visibleRect.contains(point)
     }
 
-    private func buildBoProgressParticles(color: SKColor) {
+    private func buildBoProgressParticles(
+        color: SKColor,
+        source: CGPoint? = nil,
+        startDelay: TimeInterval = 0
+    ) {
         for index in 0..<10 {
             let angle = CGFloat(index) / 10 * 2 * .pi + CGFloat.random(in: -0.18...0.18)
             let radius = CGFloat.random(in: 34...62)
@@ -1039,7 +1101,12 @@ final class PiboCharacterRenderer {
             particle.fillColor = color
             particle.strokeColor = .white.withAlphaComponent(0.72)
             particle.lineWidth = 0.8
-            particle.position = CGPoint(x: cos(angle) * radius, y: sin(angle) * radius)
+            particle.position = source.map {
+                CGPoint(
+                    x: $0.x + CGFloat(index - 5) * 6 + CGFloat.random(in: -3...3),
+                    y: $0.y + CGFloat(abs(index - 5)) * 1.5
+                )
+            } ?? CGPoint(x: cos(angle) * radius, y: sin(angle) * radius)
             particle.alpha = 0
             boProgressHost.addChild(particle)
 
@@ -1047,7 +1114,7 @@ final class PiboCharacterRenderer {
             let arrive = SKAction.move(to: .zero, duration: 0.58)
             arrive.timingMode = .easeOut
             particle.run(.sequence([
-                .wait(forDuration: delay),
+                .wait(forDuration: startDelay + delay),
                 .group([.fadeIn(withDuration: 0.12), arrive]),
                 .group([.scale(to: 0.2, duration: 0.16), .fadeOut(withDuration: 0.16)]),
                 .removeFromParent(),
@@ -1068,9 +1135,14 @@ final class PiboCharacterRenderer {
         ]))
     }
 
-    private func buildBoProgressLabel(_ text: String) {
+    private func buildBoProgressLabel(
+        _ text: String,
+        y: CGFloat,
+        startDelay: TimeInterval,
+        visibleDuration: TimeInterval
+    ) {
         let container = SKNode()
-        container.position = CGPoint(x: 0, y: 42)
+        container.position = CGPoint(x: 0, y: y)
         container.alpha = 0
 
         let label = SKLabelNode(fontNamed: "PingFangSC-Medium")
@@ -1093,8 +1165,9 @@ final class PiboCharacterRenderer {
         let rise = SKAction.moveBy(x: 0, y: 5, duration: 0.20)
         rise.timingMode = .easeOut
         container.run(.sequence([
+            .wait(forDuration: startDelay),
             .group([.fadeIn(withDuration: 0.16), rise]),
-            .wait(forDuration: 0.82),
+            .wait(forDuration: visibleDuration),
             .group([.fadeOut(withDuration: 0.20), .moveBy(x: 0, y: 3, duration: 0.20)]),
             .removeFromParent(),
         ]))

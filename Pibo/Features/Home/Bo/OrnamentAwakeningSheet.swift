@@ -152,7 +152,7 @@ struct OrnamentAwakeningSheet: View {
     }
 
     private func canAwaken(_ ornament: PiboOrnament) -> Bool {
-        unlocks.state(ornament.id, balance: ledger.balance) == .purchasable
+        unlocks.state(ornament.id, balance: ledger.availableBo) == .purchasable
     }
 
     private func costLine(for ornament: PiboOrnament) -> String {
@@ -163,18 +163,18 @@ struct OrnamentAwakeningSheet: View {
            !unlocks.isUnlocked(prerequisite.id) {
             return AppLocalization.format("需要先唤醒%@", prerequisite.localizedName)
         }
-        let missing = max(0, ornament.cost - ledger.balance)
+        let missing = max(0, ornament.cost - ledger.availableBo)
         if missing > 0 {
             return AppLocalization.format(
                 "还需要 %d bo · 当前 %d bo",
                 missing,
-                ledger.balance
+                ledger.availableBo
             )
         }
         return AppLocalization.format(
             "需要 %d bo · 当前 %d bo",
             ornament.cost,
-            ledger.balance
+            ledger.availableBo
         )
     }
 
@@ -184,7 +184,7 @@ struct OrnamentAwakeningSheet: View {
            !unlocks.isUnlocked(prerequisite.id) {
             return AppLocalization.format("先唤醒%@", prerequisite.localizedName)
         }
-        let missing = max(0, ornament.cost - ledger.balance)
+        let missing = max(0, ornament.cost - ledger.availableBo)
         if missing > 0 { return AppLocalization.format("还需要 %d bo", missing) }
         return AppLocalization.text("暂时不能唤醒")
     }
@@ -201,7 +201,7 @@ struct OrnamentAwakeningSheet: View {
         guard let ornament, canAwaken(ornament) else { return }
         Analytics.track(.boUnlockAttempt, screen: "home_ornament", [
             "item": .string(ornament.id.rawValue),
-            "balance": .int(ledger.balance),
+            "balance": .int(ledger.availableBo),
         ])
         switch unlocks.purchase(ornament.id, using: ledger) {
         case .purchased:
@@ -209,7 +209,7 @@ struct OrnamentAwakeningSheet: View {
             LPHaptics.success()
             Analytics.track(.boUnlock, screen: "home_ornament", [
                 "item": .string(ornament.id.rawValue),
-                "balance": .int(ledger.balance),
+                "balance": .int(ledger.availableBo),
             ])
             dismiss()
         case .insufficientBalance:

@@ -34,12 +34,12 @@ final class HomePresentationPolicyTests: XCTestCase {
     }
 
     func testBoCounterFeedbackRequiresAnActiveUnoccupiedSettledHome() {
-        XCTAssertTrue(policy().boCounterFeedbackEnabled)
-        XCTAssertFalse(policy(sceneIsActive: false).boCounterFeedbackEnabled)
+        XCTAssertTrue(policy().boProgressFeedbackEnabled)
+        XCTAssertFalse(policy(sceneIsActive: false).boProgressFeedbackEnabled)
         XCTAssertFalse(policy(occupied: [true, false, false, false, false, false, false])
-            .boCounterFeedbackEnabled)
-        XCTAssertFalse(policy(sheetDismissalInProgress: true).boCounterFeedbackEnabled)
-        XCTAssertFalse(policy(sproutFlowIsIdle: false).boCounterFeedbackEnabled)
+            .boProgressFeedbackEnabled)
+        XCTAssertFalse(policy(sheetDismissalInProgress: true).boProgressFeedbackEnabled)
+        XCTAssertFalse(policy(sproutFlowIsIdle: false).boProgressFeedbackEnabled)
     }
 
     func testSoundscapeIsActiveOnlyForAnActiveUncoveredHome() {
@@ -93,7 +93,7 @@ final class HomePresentationPolicyTests: XCTestCase {
             sheetDismissalInProgress: feedbackProbe.read(false),
             sproutFlowIsIdle: feedbackProbe.read(true)
         )
-        XCTAssertFalse(feedbackPolicy.boCounterFeedbackEnabled)
+        XCTAssertFalse(feedbackPolicy.boProgressFeedbackEnabled)
         XCTAssertEqual(feedbackProbe.count, 0)
 
         let soundscapePolicy = HomePresentationPolicy(

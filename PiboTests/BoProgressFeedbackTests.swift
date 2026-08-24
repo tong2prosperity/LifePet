@@ -6,19 +6,6 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct BoProgressFeedbackTests {
-    @Test func badgeRequestCoalescesFeedAndMilestoneIntoOnePass() throws {
-        let feedID = UUID()
-        let milestoneID = UUID()
-        let request = try #require(BoCounterFeedbackRequest(
-            feedID: feedID,
-            milestoneID: milestoneID
-        ))
-
-        #expect(request.id == milestoneID)
-        #expect(request.sourceIDs == Set([feedID, milestoneID]))
-        #expect(BoCounterFeedbackRequest(feedID: nil, milestoneID: nil) == nil)
-    }
-
     @Test func ledgerUpdatesUseCoreAndCoalesceToTheHighestMilestone() throws {
         let suite = "BoProgressFeedbackTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -31,6 +18,8 @@ struct BoProgressFeedbackTests {
             mintedCount: 0
         ) == .threeQuarters)
         #expect(store.pending?.milestone == .threeQuarters)
+        #expect(store.pending?.previousEnergyPool == 10)
+        #expect(store.pending?.newEnergyPool == 20)
 
         #expect(store.recordLedgerUpdate(
             previousEnergyPool: 0,
@@ -48,13 +37,36 @@ struct BoProgressFeedbackTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = BoProgressFeedbackStore(defaults: defaults)
-        store.enqueue(.nearMint)
+        store.enqueue(
+            .nearMint,
+            previousEnergyPool: 60,
+            newEnergyPool: 90,
+            mintedCount: 0
+        )
 
         #expect(store.recordLedgerUpdate(
             previousEnergyPool: 70,
             newEnergyPool: 5,
             mintedCount: 1
         ) == .minted)
-        #expect(store.pending == nil)
+        #expect(store.pending?.milestone == .minted)
+        #expect(store.pending?.previousEnergyPool == 60)
+        #expect(store.pending?.newEnergyPool == 5)
+        #expect(store.pending?.mintedCount == 1)
+    }
+
+    @Test func growthBelowANamedBoundaryStillQueuesCausalFeedback() throws {
+        let suite = "BoProgressFeedbackSmallGrowthTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = BoProgressFeedbackStore(defaults: defaults)
+
+        #expect(store.recordLedgerUpdate(
+            previousEnergyPool: 5,
+            newEnergyPool: 9,
+            mintedCount: 0
+        ) == .none)
+        #expect(store.pending?.milestone == .none)
+        #expect(store.pending?.isPresentable == true)
     }
 }

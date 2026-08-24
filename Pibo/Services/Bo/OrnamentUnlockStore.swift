@@ -14,6 +14,8 @@ enum OrnamentPurchaseResult: Equatable {
 private struct PendingOrnamentPurchase: Codable {
     let id: PiboOrnament.ID
     let cost: Int
+    /// Kept under the legacy coding key so an interrupted purchase from an
+    /// older build can still be recovered. It now means total usable `bo`.
     let balanceBefore: Int
 }
 
@@ -144,7 +146,7 @@ final class OrnamentUnlockStore {
     }
 
     func purchase(_ id: PiboOrnament.ID, using ledger: BoLedgerStore) -> OrnamentPurchaseResult {
-        switch state(id, balance: ledger.balance) {
+        switch state(id, balance: ledger.availableBo) {
         case .owned: return .alreadyOwned
         case .unavailable: return .unavailable
         case .eligible:
@@ -155,7 +157,7 @@ final class OrnamentUnlockStore {
 
         let cost = PiboOrnament.coreDefinition(id).cost
         persistence.savePendingPurchase(
-            PendingOrnamentPurchase(id: id, cost: cost, balanceBefore: ledger.balance)
+            PendingOrnamentPurchase(id: id, cost: cost, balanceBefore: ledger.availableBo)
         )
         guard ledger.spend(cost) else {
             persistence.clearPendingPurchase()
@@ -170,12 +172,12 @@ final class OrnamentUnlockStore {
 
     /// Completes the only crash window: ledger persisted its debit but inventory
     /// did not yet persist ownership. No other item purchase can overlap on the
-    /// main actor, so the before/after balance identifies that committed debit.
+    /// main actor, so the before/after available count identifies that debit.
     @discardableResult
     func recoverPendingPurchase(using ledger: BoLedgerStore) -> PiboOrnament.ID? {
         guard let pending = persistence.loadPendingPurchase() else { return nil }
         var recoveredID: PiboOrnament.ID?
-        if ledger.balance <= pending.balanceBefore - pending.cost {
+        if ledger.availableBo <= pending.balanceBefore - pending.cost {
             owned.insert(pending.id)
             persistInventory()
             recoveredID = pending.id

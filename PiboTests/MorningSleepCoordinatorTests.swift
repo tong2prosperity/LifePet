@@ -154,6 +154,23 @@ struct MorningSleepCoordinatorTests {
         #expect(notifications.pending.isEmpty)
     }
 
+    @Test func sleepEnergyReceiptIsIndependentAndOncePerWakeDay() async throws {
+        let notifications = FakeNotificationCenter()
+        let (coordinator, _) = makeCoordinator(notifications: notifications)
+        coordinator.setAppActive(true)
+        let summary = nightSummary(end: .now)
+
+        await coordinator.receive(summary)
+        let candidate = try #require(coordinator.energyFeedbackCandidate())
+        #expect(candidate.wakeDayKey == summary.wakeDayKey)
+
+        coordinator.markEnergyPresented(candidate)
+        #expect(coordinator.energyFeedbackCandidate() == nil)
+        // Detailed review remains a separately gated/repeatable capability;
+        // the causal fact receipt does not delete the archived night.
+        #expect(coordinator.latestReviewPresentation()?.summary == summary)
+    }
+
     @Test func aDaySleeperIsServedAtTheirOwnWakeUp() async {
         let notifications = FakeNotificationCenter()
         let (coordinator, _) = makeCoordinator(notifications: notifications)

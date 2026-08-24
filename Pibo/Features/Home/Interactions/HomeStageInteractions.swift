@@ -1,7 +1,7 @@
 import PiboCore
 
 /// Adapts Home's live services and presentation state to the interaction
-/// coordinators used by the SpriteKit stage and `bo` collection controls.
+/// coordinators used by the SpriteKit stage and direct `bo` investment flow.
 /// Interaction policy and effect ordering remain in the focused coordinators.
 @MainActor
 struct HomeStageInteractions {
@@ -28,18 +28,9 @@ struct HomeStageInteractions {
     var stageHandlers: HomeStageSurface.Handlers {
         HomeStageSurface.Handlers(
             pat: handlePat,
-            hairPull: handleHairPull,
+            sproutTouch: handleSproutTouch,
             ornamentLightTap: handleOrnamentLightTap,
             ornamentTap: handleOrnamentTap
-        )
-    }
-
-    func collectBo() -> Bool {
-        HomePluckCoordinator.run(
-            ledger: ledger,
-            stageCommands: stageCommands,
-            onboarding: onboarding,
-            show: showAnimationLine
         )
     }
 
@@ -61,13 +52,15 @@ struct HomeStageInteractions {
         )
     }
 
-    private func handleHairPull() {
-        // A ripe pull collects; an unripe pull only plays the turn-away response.
-        HomeHairPullCoordinator.handle(
-            ledger: ledger,
-            stageCommands: stageCommands,
-            pluck: collectBo
-        )
+    private func handleSproutTouch() {
+        stageCommands.playSproutTouch()
+        guard ledger.hasRipeBo,
+              canPresentOrnament(),
+              let next = ornamentUnlocks.nextLocked
+        else { return }
+        dismissSpeech()
+        LPHaptics.tap()
+        presentSheet(.ornamentUnlock(next.id))
     }
 
     private func handleOrnamentLightTap(_ id: PiboOrnament.ID, index: Int) {
