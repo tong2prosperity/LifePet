@@ -10,7 +10,7 @@ import UIKit
 //
 // Data in: a `PiboTheme` (scene backdrop + head item), a `PiboGrowthStage`
 // (魔丸 「?」卷芽 ⇄ 发芽带叶), and a `PiboActivityState` (drives Pibo's
-// face/posture). Touches are region-routed: a tap on the body calls `onPat`,
+// face/posture). Touches are region-routed: a double tap on the body calls `onPat`,
 // a drag on the head sprout bends it and fires `onSproutTouched` on release —
 // the SwiftUI layer may open the next common-item investment when `bo` is ripe.
 // No camera pan / 横向逛场景 — the stage is a single fixed portrait world.
@@ -35,7 +35,7 @@ final class PiboStageScene: SKScene {
     private(set) var animationStateID: String?
     private(set) var growth: PiboGrowthStage = .mystery
     private(set) var stageEnvironment: PiboStageEnvironment = .daylight
-    /// Fired on a tap that lands on Pibo's body (拍一拍).
+    /// Fired on a double tap that lands on Pibo's body (拍一拍).
     var onPat: (() -> Void)?
     /// Fired after a tap or drag on the sprout settles. The gesture never
     /// detaches artwork; a ripe `bo` remains visible until directly invested.
@@ -456,8 +456,8 @@ final class PiboStageScene: SKScene {
 
     // — 拖毛 drag state —
     private var hairTouch: UITouch?
-    // — tap candidate (non-毛) — a began→ended on roughly the same point is a tap
-    // that routes to 拍一拍; a small movement tolerance absorbs jitter.
+    // — tap candidate (non-毛) — a began→ended on roughly the same point is a tap.
+    // Body taps require the system's second tap; other stage objects remain single-tap.
     private var tapTouch: UITouch?
     private var tapOrigin: CGPoint = .zero
     /// Beyond this move a touch is a drag/scroll, not a tap.
@@ -533,7 +533,7 @@ final class PiboStageScene: SKScene {
         }
         guard let t = tapTouch, touches.contains(t) else { return }
         tapTouch = nil
-        handleTap(at: t.location(in: self))
+        handleTap(at: t.location(in: self), tapCount: t.tapCount)
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -585,13 +585,15 @@ final class PiboStageScene: SKScene {
     // MARK: Tap routing
 
     /// Only Pibo itself handles stage touches. Feature entries live in SwiftUI.
-    private func handleTap(at p: CGPoint) {
+    private func handleTap(at p: CGPoint, tapCount: Int) {
         if shadow.contains(p, in: self) {
             onShadowTapped?()
             return
         }
         if character.hitRegion(at: p, in: self) == .body {
-            onPat?()
+            if HomePatGesturePolicy.accepts(tapCount: tapCount) {
+                onPat?()
+            }
             return
         }
         // Pibo 先判、主题后判，顺序是有意的。铃兰灯的左侧铃铛落在 Pibo 身体范围
