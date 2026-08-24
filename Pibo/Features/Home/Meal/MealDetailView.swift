@@ -512,6 +512,11 @@ struct MealDetailView: View {
     }
 
     private func piboObservation(_ analysis: FoodAnalysis) -> String {
+        if let observation = analysis.piboObservation?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ), !observation.isEmpty {
+            return observation
+        }
         let names = analysis.items.prefix(3).map(\.name).filter { !$0.isEmpty }
         let subject = names.isEmpty ? analysis.dishName : names.joined(separator: "、")
         return AppLocalization.format("我看见了%@。", subject)

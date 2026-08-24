@@ -129,6 +129,29 @@ final class PiboVectorCharacter {
         presentationNode.yScale = y
     }
 
+    /// A deliberately small look-toward gesture for the verified food sticker.
+    /// It rotates the authored presentation container around Pibo's standing
+    /// anchor, so every state keeps its own silhouette and resource set.
+    func playFoodObservation(onRight: Bool, reduceMotion: Bool) {
+        cancelFoodObservation()
+        guard !reduceMotion else { return }
+        let angle: CGFloat = onRight ? -0.045 : 0.045
+        presentationNode.run(
+            .sequence([
+                .wait(forDuration: 0.32),
+                .rotate(toAngle: angle, duration: 0.42, shortestUnitArc: true),
+                .wait(forDuration: 4.18),
+                .rotate(toAngle: 0, duration: 0.32, shortestUnitArc: true),
+            ]),
+            withKey: "foodObservation"
+        )
+    }
+
+    func cancelFoodObservation() {
+        presentationNode.removeAction(forKey: "foodObservation")
+        presentationNode.zRotation = 0
+    }
+
     private func applyPulseAnchor() {
         let anchor = data.settlePulse.anchor
         let ax = anchor.count > 0 ? CGFloat(anchor[0]) : 0.5

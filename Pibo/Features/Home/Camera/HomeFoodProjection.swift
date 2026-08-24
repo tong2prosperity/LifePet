@@ -9,101 +9,122 @@ struct HomeFoodProjection: Identifiable, Equatable {
     let id: UUID
     let pngData: Data
     let meal: MealType
-    let subjectLabel: String?
+    let dishName: String
+    let observation: String
+    let isCutout: Bool
 }
 
-enum HomeFoodProjectionStatus: Equatable {
-    case analyzing
-    case ready
-    case retry
-
-    var detail: String {
-        switch self {
-        case .analyzing: "照片已保存，正在后台估算"
-        case .ready: "估算已经准备好"
-        case .retry: "照片已保留，可以重试估算"
-        }
-    }
-}
-
+/// Approved 6.08-second `observe_food` performance. The verified sticker is a
+/// temporary object in the forest, not another result panel: it appears beside
+/// Pibo, Pibo leans toward it, says the server-authored observation, and both
+/// return to the ambient scene. The durable calorie record remains in 足迹.
 struct HomeFoodProjectionOverlay: View {
     let projection: HomeFoodProjection
-    let status: HomeFoodProjectionStatus
-    let openDetail: () -> Void
+    let state: PiboActivityState
+    let onObserve: (_ onRight: Bool) -> Void
+    let onComplete: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isVisible = false
+    @State private var stickerOpacity: Double = 0
+    @State private var stickerScale: CGFloat = 0.94
+    @State private var stickerOffsetY: CGFloat = 8
+    @State private var bubbleOpacity: Double = 0
+
+    private var onRight: Bool { state == .sleeping || state == .waking }
 
     var body: some View {
-        VStack {
-            Spacer()
-
-            Button {
-                LPHaptics.tap()
-                openDetail()
-            } label: {
-                HStack(spacing: LP.Spacing.m) {
-                    if let image = UIImage(data: projection.pngData) {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 52, height: 52)
-                            .clipShape(RoundedRectangle(cornerRadius: PiboMoss.Radius.control))
-                            .accessibilityHidden(true)
-                    }
-
-                    VStack(alignment: .leading, spacing: LP.Spacing.xs) {
-                        Text(AppLocalization.format(
-                            "已放进今天的%@",
-                            AppLocalization.text(projection.meal.title)
-                        ))
-                        .lpText(LP.Typography.b3Medium)
-                        .foregroundStyle(PiboMoss.Color.forestInk)
-
-                        Text(AppLocalization.text(status.detail))
-                            .lpText(LP.Typography.c1Regular)
-                            .foregroundStyle(PiboMoss.Color.secondaryInk)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Text(AppLocalization.text("查看估算"))
-                        .lpText(LP.Typography.c1Medium)
-                        .foregroundStyle(PiboMoss.Color.foundationTeal)
+        GeometryReader { geometry in
+            ZStack(alignment: .topLeading) {
+                if let image = UIImage(data: projection.pngData) {
+                    sticker(image, in: geometry.size)
                 }
-                .padding(LP.Spacing.m)
-                .frame(maxWidth: .infinity, minHeight: 76)
-                .background(
-                    RoundedRectangle(cornerRadius: PiboMoss.Radius.media, style: .continuous)
-                        .fill(PiboMoss.Color.sheetMoss.opacity(0.96))
+
+                HomeSpeechOverlay.make(
+                    line: PiboSpeechLine(text: projection.observation),
+                    onDetail: {}
                 )
-                .overlay {
-                    RoundedRectangle(cornerRadius: PiboMoss.Radius.media, style: .continuous)
-                        .strokeBorder(PiboMoss.Color.hairline.opacity(0.72), lineWidth: 1)
-                }
-                .shadow(color: Color(hex: 0x17342B, alpha: 0.22), radius: 10, y: 4)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, LP.Spacing.l)
-            .padding(.bottom, 108)
-        }
-        .opacity(isVisible ? 1 : 0)
-        .offset(y: isVisible ? 0 : 12)
-        .onAppear {
-            if reduceMotion {
-                isVisible = true
-            } else {
-                withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
-                    isVisible = true
-                }
+                .opacity(bubbleOpacity)
+                .accessibilityHidden(bubbleOpacity < 0.5)
             }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(
-            AppLocalization.format(
-                "%@记录已保存，热量识别正在后台继续",
-                projection.subjectLabel ?? projection.meal.title
-            )
+        .allowsHitTesting(false)
+        .task(id: projection.id) {
+            await perform()
+        }
+    }
+
+    private func sticker(_ image: UIImage, in size: CGSize) -> some View {
+        let scale = max(size.width / 393, size.height / 852)
+        let stickerSize = min(126, max(104, 116 * size.width / 393))
+        let margin = max(22, 28 * size.width / 393)
+        let designY: CGFloat = switch state {
+        case .sleeping, .waking: 338
+        case .tired: 464
+        default: 392
+        }
+        let centerX = onRight
+            ? size.width - margin - stickerSize / 2
+            : margin + stickerSize / 2
+        let topY = min(
+            size.height - stickerSize - 112,
+            max(210, designY * scale)
         )
+        return Group {
+            if projection.isCutout {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .clipShape(RoundedRectangle(cornerRadius: PiboMoss.Radius.media))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: PiboMoss.Radius.media)
+                            .strokeBorder(Color.white.opacity(0.97), lineWidth: 5)
+                    }
+                    .background(PiboMoss.Color.raisedNeutral)
+            }
+        }
+        .frame(width: stickerSize, height: stickerSize)
+        .position(x: centerX, y: topY + stickerSize / 2)
+        .offset(y: stickerOffsetY)
+        .scaleEffect(stickerScale)
+        .opacity(stickerOpacity)
+        .shadow(color: Color(hex: 0x17342B, alpha: 0.16), radius: 10, y: 5)
+        .accessibilityLabel(
+            AppLocalization.format("Pibo 正在观察%@", projection.dishName)
+        )
+    }
+
+    private func perform() async {
+        stickerScale = reduceMotion ? 1 : 0.94
+        stickerOffsetY = reduceMotion ? 0 : 8
+        if reduceMotion {
+            stickerOpacity = 1
+        } else {
+            withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.26)) {
+                stickerOpacity = 1
+                stickerScale = 1
+                stickerOffsetY = 0
+            }
+        }
+        onObserve(onRight)
+        do {
+            try await Task.sleep(for: .milliseconds(760))
+            withAnimation(.easeOut(duration: 0.18)) { bubbleOpacity = 1 }
+            try await Task.sleep(for: .milliseconds(3_900))
+            withAnimation(.easeIn(duration: 0.14)) { bubbleOpacity = 0 }
+            try await Task.sleep(for: .milliseconds(1_180))
+            withAnimation(.easeIn(duration: reduceMotion ? 0 : 0.18)) {
+                stickerOpacity = 0
+                if !reduceMotion { stickerOffsetY = -6 }
+            }
+            try await Task.sleep(for: .milliseconds(240))
+            onComplete()
+        } catch {
+            return
+        }
     }
 }
 

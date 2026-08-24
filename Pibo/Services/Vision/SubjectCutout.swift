@@ -13,15 +13,26 @@ import os
 /// (`Task.detached`) — Vision + CoreImage are thread-safe here and a full-res
 /// mask pass is too heavy for the main thread.
 enum SubjectCutout {
+    struct Sticker: Equatable, Sendable {
+        let pngData: Data
+        let isCutout: Bool
+    }
 
     /// Lift the dominant subject onto a transparent background. Returns the
     /// original image unchanged when no subject is found or Vision fails — the
     /// flow never blocks on a perfect cut.
     nonisolated static func cutout(_ image: UIImage) -> UIImage {
+        liftedSubject(image) ?? image
+    }
+
+    /// Returns nil when Vision cannot isolate a foreground subject. Keeping
+    /// that distinction lets the caller render an honest framed-photo fallback
+    /// instead of pretending a rectangular original is a transparent cutout.
+    nonisolated private static func liftedSubject(_ image: UIImage) -> UIImage? {
         let start = ContinuousClock().now
         guard let cg = image.cgImage else {
-            LPLog.cutout.error("抠图 abort — image has no cgImage; returning original")
-            return image
+            LPLog.cutout.error("抠图 abort — image has no cgImage")
+            return nil
         }
         LPLog.cutout.debug("抠图 start \(cg.width, privacy: .public)×\(cg.height, privacy: .public)")
         let handler = VNImageRequestHandler(cgImage: cg, orientation: cgOrientation(image.imageOrientation))
@@ -32,7 +43,7 @@ enum SubjectCutout {
                 // Common, not a failure — a photo with no clear subject just
                 // keeps its full frame (the sticker degrades to a framed photo).
                 LPLog.cutout.info("抠图 no foreground subject — returning original (\(LPLog.elapsedMs(since: start), format: .fixed(precision: 1), privacy: .public)ms)")
-                return image
+                return nil
             }
             let masked = try result.generateMaskedImage(
                 ofInstances: result.allInstances,
@@ -42,13 +53,13 @@ enum SubjectCutout {
             let ctx = CIContext()
             guard let out = ctx.createCGImage(ci, from: ci.extent) else {
                 LPLog.cutout.error("抠图 CIContext.createCGImage failed — returning original")
-                return image
+                return nil
             }
             LPLog.cutout.debug("抠图 ok instances=\(result.allInstances.count, privacy: .public) extent=\(Int(ci.extent.width), privacy: .public)×\(Int(ci.extent.height), privacy: .public) (\(LPLog.elapsedMs(since: start), format: .fixed(precision: 1), privacy: .public)ms)")
             return UIImage(cgImage: out)
         } catch {
             LPLog.cutout.error("抠图 mask request failed: \(error.localizedDescription, privacy: .public) — returning original")
-            return image
+            return nil
         }
     }
 
@@ -62,19 +73,28 @@ enum SubjectCutout {
 
     /// The full 今日记录 treatment: cutout → downscale → 镶嵌白色贴纸边框 → PNG.
     /// Border width scales with the final image so every record reads the same.
-    nonisolated static func stickerPNG(_ image: UIImage, maxDimension: CGFloat = 1024) -> Data? {
+    nonisolated static func sticker(
+        _ image: UIImage,
+        maxDimension: CGFloat = 560
+    ) -> Sticker? {
         let start = ContinuousClock().now
         LPLog.cutout.debug("贴纸生成 start in=\(Int(image.size.width), privacy: .public)×\(Int(image.size.height), privacy: .public)@\(Double(image.scale), format: .fixed(precision: 1), privacy: .public)x maxDim=\(Int(maxDimension), privacy: .public)")
-        let lifted = cutout(image)
+        guard let lifted = liftedSubject(image) else { return nil }
         let scaled = downscale(lifted, maxDimension: maxDimension)
-        let border = max(8, min(scaled.size.width, scaled.size.height) * 0.035)
+        // Shared visual contract with HarmonyOS: a restrained seven-pixel
+        // white die-cut edge after the subject has been normalized to 560 px.
+        let border: CGFloat = 7
         let sticker = stickerize(scaled, border: border)
         guard let png = sticker.pngData() else {
             LPLog.cutout.error("贴纸生成 pngData() returned nil — nothing to persist")
             return nil
         }
         LPLog.cutout.info("贴纸生成 ok border=\(Int(border), privacy: .public)pt out=\(Int(sticker.size.width), privacy: .public)×\(Int(sticker.size.height), privacy: .public) png=\(png.count / 1024, privacy: .public)KB (\(LPLog.elapsedMs(since: start), format: .fixed(precision: 1), privacy: .public)ms total)")
-        return png
+        return Sticker(pngData: png, isCutout: true)
+    }
+
+    nonisolated static func stickerPNG(_ image: UIImage, maxDimension: CGFloat = 560) -> Data? {
+        sticker(image, maxDimension: maxDimension)?.pngData
     }
 
     /// 镶嵌边框 — draw a white sticker outline hugging the subject's silhouette

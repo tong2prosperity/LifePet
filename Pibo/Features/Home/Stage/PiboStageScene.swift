@@ -420,6 +420,16 @@ final class PiboStageScene: SKScene {
         character.cancelContextualAction()
     }
 
+    func playFoodObservation(onRight: Bool) {
+        guard built else { return }
+        character.playFoodObservation(onRight: onRight)
+    }
+
+    func cancelFoodObservation() {
+        guard built else { return }
+        character.cancelFoodObservation()
+    }
+
     /// 拔毛 — the sprout takes an impulse as the bo is taken off it.
     func playPluck() {
         guard built else { return }

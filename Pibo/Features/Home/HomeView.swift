@@ -134,8 +134,7 @@ struct HomeView: View {
             walkDoodleProgress: walkDoodleProgress,
             recognizer: recognizer,
             speech: piboSpeech,
-            showSpeech: speechPresentation.show,
-            showLine: speechPresentation.show
+            showSpeech: speechPresentation.show
         )
     }
 
@@ -280,10 +279,17 @@ struct HomeView: View {
             if let projection = presentation.foodProjection {
                 HomeFoodProjectionOverlay(
                     projection: projection,
-                    status: foodProjectionStatus(projection),
-                    openDetail: {
+                    state: animationPresentation.state,
+                    onObserve: { onRight in
+                        speechPresentation.dismiss()
+                        stageCommands.cancelContextualAction()
+                        stageCommands.playFoodObservation(onRight: onRight)
+                    },
+                    onComplete: {
+                        guard presentation.foodProjection?.id == projection.id else { return }
+                        stageCommands.cancelFoodObservation()
                         presentation.foodProjection = nil
-                        presentation.activeSheet = .meal(projection.meal)
+                        presentBoProgressFeedbackIfPossible()
                     }
                 )
                 .zIndex(30)
@@ -424,6 +430,9 @@ struct HomeView: View {
             .onDisappear {
                 piboSpeech.leaveHome()
                 speechPresentation.dismiss()
+                stageCommands.cancelFoodObservation()
+                presentation.foodProjection = nil
+                presentation.pendingFoodProjection = nil
             }
             .onChange(of: health.dataAvailability) { _, _ in
                 refreshAnimationState()
@@ -447,9 +456,10 @@ struct HomeView: View {
                     walkDoodleRouteEchoEnabled: featureAccess.walkDoodleRouteEchoEnabled,
                     store: store,
                     history: history,
+                    cameraDismissed: contentCapture.cameraDismissed,
                     resumePendingFlows: presentationFlow.resumePendingFlows,
                     historyDismissed: historyDismissed,
-                    photoSaved: contentCapture.handleSavedPhoto,
+                    photoSaved: contentCapture.savePhoto,
                     doodleSaved: contentCapture.handleSavedDoodle
                 )
             )
@@ -615,15 +625,6 @@ struct HomeView: View {
             hasReliableHealthData: health.dataAvailability.hasReliableData,
             now: now
         )
-    }
-
-    private func foodProjectionStatus(_ projection: HomeFoodProjection) -> HomeFoodProjectionStatus {
-        _ = history.revision
-        guard let photo = history.foodPhoto(on: .now, mealType: projection.meal) else {
-            return .retry
-        }
-        if recognizer.isAnalyzing(photo.id) { return .analyzing }
-        return photo.analysis == nil ? .retry : .ready
     }
 
     private var animationRefreshToken: HomeAnimationRefreshToken {

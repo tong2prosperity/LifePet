@@ -14,9 +14,10 @@ struct HomeFeatureCoversModifier: ViewModifier {
     let walkDoodleRouteEchoEnabled: Bool
     let store: PetStateStore
     let history: HealthHistoryStore
+    let cameraDismissed: () -> Void
     let resumePendingFlows: () -> Void
     let historyDismissed: () -> Void
-    let photoSaved: (UIImage?, String?, MealType?) -> Void
+    let photoSaved: (UIImage?, String?, MealType?) async -> HomePhotoSaveCoordinator.Outcome
     let doodleSaved: (WalkDoodleCompletionResult) -> Void
 
     func body(content: Content) -> some View {
@@ -26,7 +27,10 @@ struct HomeFeatureCoversModifier: ViewModifier {
             // race the outgoing modal and make SwiftUI drop the next one.
             .fullScreenCover(
                 isPresented: cameraPresented,
-                onDismiss: resumePendingFlows
+                onDismiss: {
+                    cameraDismissed()
+                    resumePendingFlows()
+                }
             ) {
                 PiboCameraView(
                     initialMeal: presentation.cameraInitialMeal,

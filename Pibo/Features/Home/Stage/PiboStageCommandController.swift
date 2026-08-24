@@ -83,6 +83,14 @@ final class PiboStageCommandController {
         scene?.cancelContextualAction()
     }
 
+    func playFoodObservation(onRight: Bool) {
+        scene?.playFoodObservation(onRight: onRight)
+    }
+
+    func cancelFoodObservation() {
+        scene?.cancelFoodObservation()
+    }
+
     func transitionAnimation(
         to stateID: String,
         intent: PiboCoreAnimationAdapter.TransitionIntent

@@ -5,26 +5,36 @@ import UIKit
 import os
 
 /// Full-screen meal camera. Meal selection happens in a forest-backed
-/// Half-sheet before this view is presented. A successful shutter or gallery
-/// selection saves immediately and returns to Home; recognition continues in
-/// the background and is opened later from the retained meal entry.
+/// Half-sheet before this view is presented. The view stays in its capture
+/// context until the backend confirms that food is present; only then does it
+/// dismiss to the forest observation and write formal history.
 struct PiboCameraView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    var onPhotoSaved: (UIImage?, String?, MealType?) -> Void
+    var onPhotoSaved: (
+        UIImage?,
+        String?,
+        MealType?
+    ) async -> HomePhotoSaveCoordinator.Outcome
 
     @State private var camera = CameraController()
     @State private var lastThumb: UIImage?
     @State private var galleryItem: PhotosPickerItem?
     @State private var flash = false
     @State private var isSaving = false
+    @State private var gateMessage: String?
+    @State private var saveTask: Task<Void, Never>?
     private let meal: MealType
 
     init(
         initialMeal: MealType? = nil,
-        onPhotoSaved: @escaping (UIImage?, String?, MealType?) -> Void = { _, _, _ in }
+        onPhotoSaved: @escaping (
+            UIImage?,
+            String?,
+            MealType?
+        ) async -> HomePhotoSaveCoordinator.Outcome = { _, _, _ in .saved }
     ) {
         self.meal = initialMeal ?? Self.suggestedMeal()
         self.onPhotoSaved = onPhotoSaved
@@ -49,6 +59,11 @@ struct PiboCameraView: View {
 
                     if camera.availability == .captureFailed {
                         captureFailureNotice
+                            .padding(.top, LP.Spacing.m)
+                    }
+
+                    if let gateMessage {
+                        gateNotice(gateMessage)
                             .padding(.top, LP.Spacing.m)
                     }
 
@@ -89,7 +104,10 @@ struct PiboCameraView: View {
             guard let item else { return }
             loadGalleryItem(item)
         }
-        .onDisappear { camera.stop() }
+        .onDisappear {
+            saveTask?.cancel()
+            camera.stop()
+        }
         .preferredColorScheme(.dark)
     }
 
@@ -166,6 +184,18 @@ struct PiboCameraView: View {
         .frame(minHeight: 40)
         .background(Capsule().fill(Color.black.opacity(0.54)))
         .padding(.horizontal, LP.Spacing.xl)
+    }
+
+    private func gateNotice(_ message: String) -> some View {
+        Label(AppLocalization.text(message), systemImage: "viewfinder.circle")
+            .lpText(LP.Typography.c1Medium)
+            .foregroundStyle(PiboMoss.Color.onDarkPrimary)
+            .multilineTextAlignment(.leading)
+            .padding(.horizontal, LP.Spacing.m)
+            .frame(minHeight: 44)
+            .background(Capsule().fill(Color.black.opacity(0.62)))
+            .padding(.horizontal, LP.Spacing.xl)
+            .accessibilityAddTraits(.isStaticText)
     }
 
     private var unavailablePanel: some View {
@@ -337,9 +367,17 @@ struct PiboCameraView: View {
     private var savingOverlay: some View {
         VStack(spacing: LP.Spacing.m) {
             ProgressView().tint(.white)
-            Text(AppLocalization.text("正在保存照片"))
+            Text(AppLocalization.text("正在确认照片里有餐食"))
                 .lpText(LP.Typography.b4Medium)
                 .foregroundStyle(PiboMoss.Color.onDarkPrimary)
+            Button(AppLocalization.text("取消识别")) {
+                saveTask?.cancel()
+                saveTask = nil
+                isSaving = false
+            }
+            .buttonStyle(.plain)
+            .lpText(LP.Typography.c1Medium)
+            .foregroundStyle(PiboMoss.Color.onDarkSecondary)
         }
         .padding(LP.Spacing.xl)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: PiboMoss.Radius.media))
@@ -348,31 +386,37 @@ struct PiboCameraView: View {
 
     private func shutter() {
         guard camera.hasLivePreview, !camera.isCapturing, !isSaving else { return }
+        gateMessage = nil
         LPHaptics.tap()
         LPLog.camera.notice("meal shutter tapped (aspect=4:3)")
         if !reduceMotion {
             withAnimation(.linear(duration: 0.06)) { flash = true }
         }
-        Task {
+        saveTask?.cancel()
+        saveTask = Task {
+            defer { saveTask = nil }
             let image = await camera.capturePhoto()
             if !reduceMotion {
                 withAnimation(.easeOut(duration: 0.16)) { flash = false }
             }
-            guard let image else { return }
+            guard let image, !Task.isCancelled else { return }
             await saveAndExit(image)
         }
     }
 
     private func loadGalleryItem(_ item: PhotosPickerItem) {
         guard !isSaving else { return }
+        gateMessage = nil
         isSaving = true
-        Task {
+        saveTask?.cancel()
+        saveTask = Task {
+            defer { saveTask = nil }
             defer {
                 galleryItem = nil
                 if !Task.isCancelled { isSaving = false }
             }
             guard let data = try? await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data) else {
+                  let image = UIImage(data: data), !Task.isCancelled else {
                 return
             }
             await saveAndExit(image)
@@ -381,10 +425,21 @@ struct PiboCameraView: View {
 
     private func saveAndExit(_ image: UIImage) async {
         isSaving = true
-        await Task.detached { PiboPhotoStore.saveLatest(image) }.value
-        lastThumb = image
-        onPhotoSaved(image, nil, meal)
-        dismiss()
+        let outcome = await onPhotoSaved(image, nil, meal)
+        guard !Task.isCancelled else { return }
+        switch outcome {
+        case .saved:
+            await Task.detached { PiboPhotoStore.saveLatest(image) }.value
+            lastThumb = image
+            LPHaptics.success()
+            dismiss()
+        case .notFood:
+            gateMessage = AppLocalization.text("照片里没有识别到餐食，请调整取景后重拍。")
+            isSaving = false
+        case .failed:
+            gateMessage = AppLocalization.text("餐食识别没有完成，请检查网络后重试。")
+            isSaving = false
+        }
     }
 
     private func openSettings() {

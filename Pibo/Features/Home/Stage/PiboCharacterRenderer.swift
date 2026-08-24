@@ -409,6 +409,32 @@ final class PiboCharacterRenderer {
         }
     }
 
+    func playFoodObservation(onRight: Bool) {
+        cancelFoodObservation()
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled
+        if let vector {
+            vector.playFoodObservation(onRight: onRight, reduceMotion: reduceMotion)
+            return
+        }
+        guard !reduceMotion else { return }
+        let angle: CGFloat = onRight ? -0.045 : 0.045
+        rootNode.run(
+            .sequence([
+                .wait(forDuration: 0.32),
+                .rotate(toAngle: angle, duration: 0.42, shortestUnitArc: true),
+                .wait(forDuration: 4.18),
+                .rotate(toAngle: 0, duration: 0.32, shortestUnitArc: true),
+            ]),
+            withKey: "foodObservation"
+        )
+    }
+
+    func cancelFoodObservation() {
+        vector?.cancelFoodObservation()
+        rootNode.removeAction(forKey: "foodObservation")
+        rootNode.zRotation = 0
+    }
+
     func playEnergyGain() {
         if headRig.isEnabled {
             headRig.addImpulse(1.7)

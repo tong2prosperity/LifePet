@@ -24,6 +24,10 @@ final class HomePresentationState {
     /// sheet dismissal finishes so SwiftUI never has to overlap two presenters.
     var queuedCameraMeal: MealType?
     var activeSheet: HomeSheetDestination?
+    /// A verified meal can finish while the full-screen camera still covers the
+    /// forest. Keep it prepared until camera dismissal so the 6.08 s performance
+    /// never elapses invisibly behind the cover.
+    var pendingFoodProjection: HomeFoodProjection?
     var foodProjection: HomeFoodProjection?
     var transientNotice: String?
     /// `activeSheet` becomes nil at the start of dismissal, while its pixels are
@@ -103,5 +107,19 @@ final class HomePresentationState {
         cameraInitialMeal = meal
         showCamera = true
         return true
+    }
+
+    func prepareFoodProjection(_ projection: HomeFoodProjection) {
+        if showCamera {
+            pendingFoodProjection = projection
+        } else {
+            foodProjection = projection
+        }
+    }
+
+    func presentPreparedFoodProjection() {
+        guard let projection = pendingFoodProjection else { return }
+        pendingFoodProjection = nil
+        foodProjection = projection
     }
 }
