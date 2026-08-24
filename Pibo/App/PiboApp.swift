@@ -49,6 +49,10 @@ struct PiboApp: App {
     @State private var economy: EconomyService
     /// Bridges the HealthKit history into `EconomyService.sync` (today's samples).
     @State private var coordinator: EconomySyncCoordinator
+    @State private var shadow: ShadowService
+    @State private var shadowStore: ShadowFriendStore
+    @State private var shadowLightStore: ShadowFriendLightStore
+    @State private var shadowSync: ShadowSyncCoordinator
     /// StoreKit 2 会员订阅 (Pibo 会员 monthly/yearly) + server registration.
     @State private var membership: MembershipService
     /// WeatherKit + coarse foreground location, cached across launches.
@@ -168,9 +172,22 @@ struct PiboApp: App {
 
         let a = AuthService()
         let e = EconomyService()
+        let shadowService = ShadowService()
+        let shadowFriendStore = ShadowFriendStore()
+        let shadowLight = ShadowFriendLightStore()
+        let shadowCoordinator = ShadowSyncCoordinator(
+            auth: a,
+            service: shadowService,
+            store: shadowFriendStore,
+            lightStore: shadowLight
+        )
         _auth = State(initialValue: a)
         _economy = State(initialValue: e)
         _coordinator = State(initialValue: EconomySyncCoordinator(auth: a, economy: e, history: hist))
+        _shadow = State(initialValue: shadowService)
+        _shadowStore = State(initialValue: shadowFriendStore)
+        _shadowLightStore = State(initialValue: shadowLight)
+        _shadowSync = State(initialValue: shadowCoordinator)
         _membership = State(initialValue: MembershipService())
         _weather = State(initialValue: WeatherDataService())
     }
@@ -263,6 +280,10 @@ struct PiboApp: App {
                 .environment(auth)
                 .environment(economy)
                 .environment(coordinator)
+                .environment(shadow)
+                .environment(shadowStore)
+                .environment(shadowLightStore)
+                .environment(shadowSync)
                 .environment(membership)
                 .environment(weather)
                 .environment(StressNotifier.shared)
@@ -270,6 +291,9 @@ struct PiboApp: App {
                 .modelContainer(modelContainer)
                 .preferredColorScheme(.light)   // LP palette is light-only paper
                 .task {
+                    shadowSync.initialize()
+                    _ = await auth.restoreSession()
+                    shadowSync.setAppActive(scenePhase == .active)
                     // Lifetime StoreKit transaction listener + entitlement hydrate.
                     membership.start()
                     weather.start()
@@ -336,6 +360,7 @@ struct PiboApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     LPLog.app.debug("scenePhase → \(String(describing: phase), privacy: .public)")
                     morningSleep.setAppActive(phase == .active)
+                    shadowSync.setAppActive(phase == .active)
                     // 打点: session boundaries (the SDK itself also flushes +
                     // persists its queue on backgrounding).
                     if phase == .active { Analytics.track(.appForeground) }
@@ -378,6 +403,12 @@ struct PiboApp: App {
                         } else {
                             morningSleep.presentLatestIfEligible()
                         }
+                    }
+                }
+                .onOpenURL { url in
+                    guard shadow.handleInviteURL(url) else { return }
+                    if auth.phase == .loggedIn {
+                        Task { _ = await shadow.previewInvitation() }
                     }
                 }
                 // 历史被写过之后再算一次。前台的增量刷新（今日小时步数、

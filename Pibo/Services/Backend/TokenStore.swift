@@ -14,19 +14,23 @@ struct TokenStore: Sendable {
     private let service = "fun.tiebao.co.Pibo.auth"
     private let accessKey = "access_token"
     private let refreshKey = "refresh_token"
+    private let userIDKey = "user_id"
 
     var accessToken: String? { read(accessKey) }
     var refreshToken: String? { read(refreshKey) }
+    var userId: String? { read(userIDKey) }
     var isLoggedIn: Bool { accessToken != nil && refreshToken != nil }
 
-    func save(access: String, refresh: String) {
+    func save(access: String, refresh: String, userId: String? = nil) {
         write(accessKey, access)
         write(refreshKey, refresh)
+        if let userId, !userId.isEmpty { write(userIDKey, userId) }
     }
 
     func clear() {
         delete(accessKey)
         delete(refreshKey)
+        delete(userIDKey)
     }
 
     // MARK: - Keychain primitives

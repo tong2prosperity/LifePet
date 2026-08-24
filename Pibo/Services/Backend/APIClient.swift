@@ -29,8 +29,18 @@ actor APIClient {
 
     // MARK: - Verbs
 
-    func get<T: Decodable>(_ path: String, authed: Bool) async throws -> T {
-        let data = try await requestData(path: path, method: "GET", bodyData: nil, authed: authed)
+    func get<T: Decodable>(
+        _ path: String,
+        authed: Bool,
+        timeout: TimeInterval? = nil
+    ) async throws -> T {
+        let data = try await requestData(
+            path: path,
+            method: "GET",
+            bodyData: nil,
+            authed: authed,
+            timeout: timeout
+        )
         return try decode(data)
     }
 
@@ -46,6 +56,16 @@ actor APIClient {
     func postNoContent<B: Encodable>(_ path: String, body: B, authed: Bool) async throws {
         let bodyData = try encode(body)
         _ = try await requestData(path: path, method: "POST", bodyData: bodyData, authed: authed)
+    }
+
+    func put<B: Encodable, T: Decodable>(_ path: String, body: B, authed: Bool) async throws -> T {
+        let bodyData = try encode(body)
+        let data = try await requestData(path: path, method: "PUT", bodyData: bodyData, authed: authed)
+        return try decode(data)
+    }
+
+    func deleteNoContent(_ path: String, authed: Bool) async throws {
+        _ = try await requestData(path: path, method: "DELETE", bodyData: nil, authed: authed)
     }
 
     /// Drops the local token pair (logout / unrecoverable 401).

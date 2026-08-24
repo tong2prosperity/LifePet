@@ -23,11 +23,39 @@ final class AuthService {
 
     private let api: APIClient
     private let tokens: TokenStore
+    @ObservationIgnored var onSessionChanged: ((String?) -> Void)?
 
     init(api: APIClient = .shared, tokens: TokenStore = .shared) {
         self.api = api
         self.tokens = tokens
         self.phase = tokens.isLoggedIn ? .loggedIn : .loggedOut
+        self.userId = tokens.userId
+    }
+
+    /// Restores the account identity after a cold launch. Tokens are opaque;
+    /// `/auth/me` is authoritative, while the cached id keeps account-scoped
+    /// Shadow state available during a temporary transport outage.
+    @discardableResult
+    func restoreSession() async -> Bool {
+        guard tokens.isLoggedIn else {
+            publishLoggedOut()
+            return false
+        }
+        let cachedUserID = tokens.userId
+        if let cachedUserID { publishLoggedIn(cachedUserID) }
+        do {
+            let user: AuthUserInfo = try await api.get("/auth/me", authed: true)
+            if let access = tokens.accessToken, let refresh = tokens.refreshToken {
+                tokens.save(access: access, refresh: refresh, userId: user.userId)
+            }
+            publishLoggedIn(user.userId)
+            Analytics.setUser(user.userId)
+            return true
+        } catch {
+            if tokens.isLoggedIn, cachedUserID != nil { return true }
+            publishLoggedOut()
+            return false
+        }
     }
 
     /// Step 1 — request an SMS code. On success the UI advances to code entry.
@@ -57,9 +85,12 @@ final class AuthService {
             let result: AuthResult = try await api.post("/auth/code-login/complete",
                                                         body: CodeLoginCompleteRequest(phoneNumber: phone, code: code),
                                                         authed: false)
-            tokens.save(access: result.tokens.accessToken, refresh: result.tokens.refreshToken)
-            userId = result.user.userId
-            phase = .loggedIn
+            tokens.save(
+                access: result.tokens.accessToken,
+                refresh: result.tokens.refreshToken,
+                userId: result.user.userId
+            )
+            publishLoggedIn(result.user.userId)
             LPLog.auth.notice("logged in as \(result.user.userId, privacy: .public)")
             Analytics.setUser(result.user.userId)
             Analytics.track(.login)
@@ -75,8 +106,7 @@ final class AuthService {
     func logout() async {
         try? await api.postNoContent("/auth/logout", body: EmptyBody(), authed: true)
         await api.clearTokens()
-        userId = nil
-        phase = .loggedOut
+        publishLoggedOut()
         Analytics.track(.logout)
         Analytics.setUser(nil)
     }
@@ -85,6 +115,18 @@ final class AuthService {
     func resetToPhoneEntry() {
         phase = .loggedOut
         lastError = nil
+    }
+
+    private func publishLoggedIn(_ userID: String) {
+        userId = userID
+        phase = .loggedIn
+        onSessionChanged?(userID)
+    }
+
+    private func publishLoggedOut() {
+        userId = nil
+        phase = .loggedOut
+        onSessionChanged?(nil)
     }
 }
 

@@ -24,6 +24,10 @@ final class HomeAnimationPresentationController {
         lifecycleSnapshot.wakeStartedAt.map(Date.init(timeIntervalSince1970:))
     }
 
+    var stateOccurredAt: Date? {
+        lifecycleSnapshot.eventAt.map(Date.init(timeIntervalSince1970:))
+    }
+
     #if DEBUG
     var forcedStateID: String?
     private(set) var coreStateID: String

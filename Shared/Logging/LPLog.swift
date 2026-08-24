@@ -91,6 +91,7 @@ nonisolated enum LPLog {
     static let economySync  = Logger(subsystem: subsystem, category: "Backend.EconomySync")
     /// 拍照识别卡路里 — the backend Kimi VLM round-trip for meal photos.
     static let food         = Logger(subsystem: subsystem, category: "Backend.Food")
+    static let shadow       = Logger(subsystem: subsystem, category: "Backend.Shadow")
 
     // MARK: - StoreKit
 
