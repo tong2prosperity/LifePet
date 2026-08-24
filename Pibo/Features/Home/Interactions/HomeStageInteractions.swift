@@ -30,7 +30,8 @@ struct HomeStageInteractions {
             pat: handlePat,
             sproutTouch: handleSproutTouch,
             ornamentLightTap: handleOrnamentLightTap,
-            ornamentTap: handleOrnamentTap
+            ornamentTap: handleOrnamentTap,
+            shadowTap: { presentSheet(.shadow(manifest: false)) }
         )
     }
 

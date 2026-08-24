@@ -36,6 +36,7 @@ struct PiboStageView: View, Equatable {
     var unlockedOrnaments: Set<PiboOrnament.ID> = []
     /// 物件身上被亲手点亮的灯。没有自动夜光 —— 空 = 一盏不亮。
     var litOrnamentLights: [PiboOrnament.ID: Set<Int>] = [:]
+    var shadowPresentation: ShadowPiboStagePresentation = .hidden
     /// Fine-grained renderer controls. Release Home keeps the standard values;
     /// DEBUG exposes them in a collapsible overlay.
     var tuning: StageRenderTuning = .standard
@@ -46,6 +47,7 @@ struct PiboStageView: View, Equatable {
     var onOrnamentLightTapped: (PiboOrnament.ID, Int) -> Void = { _, _ in }
     /// Fired when a tappable common item in the forest is selected.
     var onOrnamentTapped: (PiboOrnament.ID) -> Void = { _ in }
+    var onShadowTapped: () -> Void = {}
     /// Suspend the stage when an opaque feature covers Home. The `SpriteView`
     /// itself is detached below; `isPaused` alone does not reliably stop
     /// `SKView`'s display-link/render callbacks while a full-screen cover keeps
@@ -115,6 +117,7 @@ struct PiboStageView: View, Equatable {
             .onChange(of: presentedOrnaments) { _, _ in applyOrnaments() }
             .onChange(of: unlockedOrnaments) { _, _ in applyOrnaments() }
             .onChange(of: litOrnamentLights) { _, value in scene.setLitOrnamentLights(value) }
+            .onChange(of: shadowPresentation) { _, value in scene.setShadowPresentation(value) }
             .onChange(of: tuning) { _, value in scene.setTuning(value) }
             .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
                 renderController.refreshLowPowerMode()
@@ -170,6 +173,10 @@ struct PiboStageView: View, Equatable {
                     .disabled(litOrnamentLights[.lantern]?.contains(index) == true)
                 }
             }
+            if shadowPresentation.isVisible {
+                Button("\(shadowPresentation.friendName)的 Pibo") { onShadowTapped() }
+                    .accessibilityValue(shadowPresentation.statusText)
+            }
         }
     }
 
@@ -182,6 +189,7 @@ struct PiboStageView: View, Equatable {
         scene.onSproutTouched = onSproutTouched
         scene.onOrnamentLightTapped = onOrnamentLightTapped
         scene.onOrnamentTapped = onOrnamentTapped
+        scene.onShadowTapped = onShadowTapped
         scene.onDirectManipulationChanged = { [weak renderController] active in
             renderController?.setDirectManipulation(
                 active: active,
@@ -193,6 +201,7 @@ struct PiboStageView: View, Equatable {
         scene.setEnvironment(environment)
         applyOrnaments()
         scene.setLitOrnamentLights(litOrnamentLights)
+        scene.setShadowPresentation(shadowPresentation)
         scene.setTuning(tuning)
     }
 
@@ -232,6 +241,7 @@ struct PiboStageView: View, Equatable {
             && lhs.presentedOrnaments == rhs.presentedOrnaments
             && lhs.unlockedOrnaments == rhs.unlockedOrnaments
             && lhs.litOrnamentLights == rhs.litOrnamentLights
+            && lhs.shadowPresentation == rhs.shadowPresentation
             && lhs.tuning == rhs.tuning
             && lhs.isPaused == rhs.isPaused
             && lhs.isObscured == rhs.isObscured

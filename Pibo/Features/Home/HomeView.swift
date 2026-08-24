@@ -26,8 +26,14 @@ struct HomeView: View {
     /// router into Home's pending-presentation adapter.
     @Environment(StressNotifier.self) private var stressNotifier
     @Environment(WeatherDataService.self) private var weather
+    @Environment(AuthService.self) private var auth
+    @Environment(ShadowService.self) private var shadowService
+    @Environment(ShadowFriendStore.self) private var shadowFriendStore
+    @Environment(ShadowFriendLightStore.self) private var shadowLightStore
+    @Environment(ShadowSyncCoordinator.self) private var shadowSync
 
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var speechPresentation = HomeSpeechPresentationController()
     @State private var presentation = HomePresentationState()
@@ -46,6 +52,13 @@ struct HomeView: View {
     @State private var atmosphereClock = HomeAtmosphereClock()
     @State private var animationPresentation = HomeAnimationPresentationController()
     @State private var soundscape = AmbientSoundscapeService()
+    @State private var shadowManifestSequence = 0
+    @State private var shadowLightReceiptSequence = 0
+    @State private var shadowManifestPendingRelationshipID = ""
+    @State private var shadowPreviewCredential = ""
+    @State private var shadowLightBanner: String?
+    @State private var shadowManifestTask: Task<Void, Never>?
+    @State private var shadowLightBannerTask: Task<Void, Never>?
     #if DEBUG
     @State private var debugControls = HomeDebugControlsState()
     #endif
@@ -230,6 +243,79 @@ struct HomeView: View {
         presentationPolicy.soundscapePresentation
     }
 
+    private var shadowSnapshotDraft: ShadowSnapshotDraft? {
+        ShadowSnapshotValues.makeDraft(
+            ownerName: store.ownerName,
+            state: animationPresentation.state,
+            decision: animationPresentation.decision,
+            animationStateID: animationPresentation.stateID,
+            occurredAt: animationPresentation.stateOccurredAt,
+            hasHammock: ornamentUnlocks.isUnlocked(.hammock)
+        )
+    }
+
+    private var shadowStagePresentation: ShadowPiboStagePresentation {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-PiboShadowPreview") {
+            return ShadowPiboStagePresentation(
+                isVisible: true,
+                stateID: animationPresentation.stateID,
+                friendName: "小岚",
+                statusText: "当前状态：状态平稳；刚刚更新",
+                manifestSequence: max(1, shadowManifestSequence),
+                lightReceiptSequence: shadowLightReceiptSequence
+            )
+        }
+        #endif
+        guard auth.phase == .loggedIn,
+              shadowFriendStore.hideOnHome == false,
+              let view = shadowService.view,
+              view.state.isActive,
+              let friend = view.friend,
+              let snapshot = friend.snapshot else { return .hidden }
+        let sentence = ShadowFriendPresentationValues.stateSentence(snapshot.publicStateId)
+        return ShadowPiboStagePresentation(
+            isVisible: true,
+            stateID: ShadowSnapshotValues.renderableStateID(
+                snapshot.visualVariantKey,
+                publicStateID: snapshot.publicStateId
+            ),
+            friendName: friend.displayName,
+            statusText: "当前状态：\(sentence)；\(ShadowFriendPresentationValues.relativeUpdate(snapshot))",
+            manifestSequence: shadowManifestSequence,
+            lightReceiptSequence: shadowLightReceiptSequence
+        )
+    }
+
+    private var shadowEntryState: ShadowFriendHomeEntryState {
+        if !shadowService.incomingCredential.isEmpty || shadowService.incoming != nil
+            || shadowService.view?.endedEvent != nil { return .attention }
+        guard let view = shadowService.view else { return .empty }
+        if view.state == .inviteOutgoing { return .attention }
+        return view.state.isActive ? .connected : .empty
+    }
+
+    private var shadowAutomationToken: String {
+        let snapshot = shadowService.view?.friend?.snapshot
+        return [
+            String(describing: auth.phase),
+            shadowService.incomingCredential,
+            shadowService.incoming?.invitationId ?? "-",
+            shadowService.view?.relationshipId ?? "-",
+            shadowService.view?.state.rawValue ?? "-",
+            String(shadowService.view?.cursor ?? -1),
+            String(snapshot?.snapshotRevision ?? -1),
+            shadowService.view?.endedEvent?.id ?? "-",
+            String(shadowFriendStore.revision),
+            String(shadowLightStore.revision),
+            presentation.activeSheet?.id ?? "-",
+            fullScreenFeaturePresented ? "covered" : "clear",
+            sproutPhase == .idle ? "idle" : "sprout",
+            presentation.foodProjection == nil ? "no-food" : "food",
+            speechPresentation.line == nil ? "no-speech" : "speech",
+        ].joined(separator: "|")
+    }
+
     private var forestTuning: StageRenderTuning {
         #if DEBUG
         debugControls.tuning
@@ -250,7 +336,8 @@ struct HomeView: View {
                     ornamentLights: ornamentLights,
                     tuning: forestTuning,
                     isPaused: stageRenderingPaused,
-                    isObscured: stageObscured
+                    isObscured: stageObscured,
+                    shadowPresentation: shadowStagePresentation
                 ),
                 commandController: stageCommands,
                 handlers: stageInteractions.stageHandlers
@@ -322,6 +409,18 @@ struct HomeView: View {
                     Spacer()
                 }
                 .zIndex(25)
+            }
+
+            if let shadowLightBanner {
+                VStack {
+                    ShadowFriendLightBanner(text: shadowLightBanner)
+                        .padding(.top, 118)
+                    Spacer()
+                }
+                .padding(.horizontal, LP.Spacing.l)
+                .allowsHitTesting(false)
+                .zIndex(45)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
 
         }
@@ -427,12 +526,23 @@ struct HomeView: View {
                 )
                 speechPresentation.dismiss()
             }
+            .onChange(of: shadowSnapshotDraft?.signature) { _, _ in
+                shadowSync.setSnapshotDraft(shadowSnapshotDraft)
+            }
+            .onChange(of: shadowAutomationToken) { _, _ in
+                reconcileShadowFriendFlow()
+            }
             .onDisappear {
                 piboSpeech.leaveHome()
                 speechPresentation.dismiss()
                 stageCommands.cancelFoodObservation()
                 presentation.foodProjection = nil
                 presentation.pendingFoodProjection = nil
+                shadowManifestTask?.cancel()
+                shadowManifestTask = nil
+                shadowLightBannerTask?.cancel()
+                shadowLightBannerTask = nil
+                shadowLightBanner = nil
             }
             .onChange(of: health.dataAvailability) { _, _ in
                 refreshAnimationState()
@@ -442,6 +552,8 @@ struct HomeView: View {
             }
             .onAppear {
                 presentBoProgressFeedbackIfPossible()
+                shadowSync.setSnapshotDraft(shadowSnapshotDraft)
+                reconcileShadowFriendFlow()
             }
             .modifier(homeTaskModifier)
             .modifier(homeLifecycleModifier)
@@ -586,6 +698,11 @@ struct HomeView: View {
                 }
             )
 
+            ShadowFriendHomeEntry(state: shadowEntryState) {
+                speechPresentation.dismiss()
+                presentation.activeSheet = .shadow(manifest: false)
+            }
+
             #if DEBUG
             HomeDebugControlsOverlay(
                 controls: debugControls,
@@ -627,6 +744,73 @@ struct HomeView: View {
         )
     }
 
+    private func reconcileShadowFriendFlow() {
+        guard scenePhase == .active else { return }
+        shadowSync.setSnapshotDraft(shadowSnapshotDraft)
+
+        if auth.phase == .loggedIn,
+           !shadowService.incomingCredential.isEmpty,
+           shadowService.incoming == nil,
+           shadowPreviewCredential != shadowService.incomingCredential {
+            shadowPreviewCredential = shadowService.incomingCredential
+            Task {
+                _ = await shadowService.previewInvitation()
+                reconcileShadowFriendFlow()
+            }
+            return
+        }
+
+        guard presentation.activeSheet == nil,
+              !fullScreenFeaturePresented,
+              sproutPhase == .idle,
+              presentation.foodProjection == nil,
+              speechPresentation.line == nil else { return }
+
+        if shadowService.incoming != nil {
+            presentation.activeSheet = .shadow(manifest: false)
+            return
+        }
+        if shadowService.view?.endedEvent != nil {
+            presentation.activeSheet = .shadow(manifest: false)
+            return
+        }
+        if let view = shadowService.view,
+           let relationshipID = view.relationshipId,
+           view.friend?.snapshot != nil,
+           shadowFriendStore.needsManifestTeaching(view),
+           shadowManifestPendingRelationshipID != relationshipID {
+            shadowManifestPendingRelationshipID = relationshipID
+            shadowManifestSequence += 1
+            shadowManifestTask?.cancel()
+            shadowManifestTask = Task {
+                if !reduceMotion { try? await Task.sleep(for: .milliseconds(950)) }
+                guard !Task.isCancelled,
+                      presentation.activeSheet == nil,
+                      !fullScreenFeaturePresented,
+                      sproutPhase == .idle,
+                      presentation.foodProjection == nil,
+                      speechPresentation.line == nil,
+                      shadowService.view?.relationshipId == relationshipID else { return }
+                presentation.activeSheet = .shadow(manifest: true)
+            }
+            return
+        }
+        guard let light = shadowLightStore.presentable() else { return }
+        shadowLightStore.consume(id: light.id)
+        shadowLightReceiptSequence += 1
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+            shadowLightBanner = light.message
+        }
+        shadowLightBannerTask?.cancel()
+        shadowLightBannerTask = Task {
+            try? await Task.sleep(for: .milliseconds(2300))
+            guard !Task.isCancelled, shadowLightBanner == light.message else { return }
+            withAnimation(reduceMotion ? nil : .easeIn(duration: 0.25)) {
+                shadowLightBanner = nil
+            }
+        }
+    }
+
     private var animationRefreshToken: HomeAnimationRefreshToken {
         HomeAnimationRefreshToken(store: store, history: history)
     }
@@ -661,4 +845,14 @@ struct HomeView: View {
         .environment(OnboardingStateStore())
         .environment(StressNotifier.shared)
         .environment(HealthDataService(metrics: []))
+        .environment(AuthService())
+        .environment(ShadowService())
+        .environment(ShadowFriendStore())
+        .environment(ShadowFriendLightStore())
+        .environment(ShadowSyncCoordinator(
+            auth: AuthService(),
+            service: ShadowService(),
+            store: ShadowFriendStore(),
+            lightStore: ShadowFriendLightStore()
+        ))
 }

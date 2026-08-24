@@ -12,6 +12,21 @@ import UIKit
 /// have no face at all, so five-organ elements cannot correspond across states.
 @MainActor
 final class PiboVectorCharacter {
+    struct ProjectionStyle: Equatable {
+        let bodyColor: UIColor
+        let handColor: UIColor
+        let outlineColor: UIColor
+        let outlineDesignWidth: CGFloat
+        let paperGrain: CGFloat
+
+        static let friendShadow = ProjectionStyle(
+            bodyColor: UIColor(red: 229 / 255, green: 229 / 255, blue: 245 / 255, alpha: 1),
+            handColor: UIColor(red: 136 / 255, green: 210 / 255, blue: 198 / 255, alpha: 1),
+            outlineColor: UIColor(red: 35 / 255, green: 190 / 255, blue: 148 / 255, alpha: 1),
+            outlineDesignWidth: 5,
+            paperGrain: 0.09
+        )
+    }
     /// Container for the settle pulse. The pulse must not touch path data, so it
     /// rides a node above the geometry (SPEC §5).
     let rootNode = SKNode()
@@ -59,6 +74,8 @@ final class PiboVectorCharacter {
     }
 
     private let data: PiboCharacterData
+    private let projectionStyle: ProjectionStyle?
+    private let projectionGrainShader: SKShader?
     private var elementNodes: [String: ElementNode] = [:]
     private var scale: CGFloat = 1
     private var lighting: PiboCharacterLighting = .neutral
@@ -73,11 +90,14 @@ final class PiboVectorCharacter {
     private var capturedTransitionTargetID: String?
 
     init?(
-        stateID: String = PiboAnimationResourceID.stable,
-        data: PiboCharacterData? = PiboCharacterData.shared
+        stateID: String,
+        data: PiboCharacterData?,
+        projectionStyle: ProjectionStyle? = nil
     ) {
         guard let data, data.states[stateID] != nil else { return nil }
         self.data = data
+        self.projectionStyle = projectionStyle
+        projectionGrainShader = projectionStyle?.makeGrainShader()
         currentStateID = stateID
         targetStateID = stateID
         rootNode.addChild(presentationNode)
@@ -450,6 +470,12 @@ final class PiboVectorCharacter {
         let style = ElementStyle(element: element, strokeScale: strokeScale, lighting: lighting)
         let shape = (elementNodes[key]?.node) ?? makeShape(key: key, element: element, stateID: stateID, path: rawPath)
         let drawnPath = style.apply(to: shape, path: rawPath)
+        projectionStyle?.apply(
+            to: shape,
+            elementID: element.id,
+            scale: strokeScale,
+            grainShader: projectionGrainShader
+        )
         shape.zPosition = CGFloat(index)
         shape.alpha = element.idleOwned
             ? 0
@@ -841,6 +867,49 @@ final class PiboVectorCharacter {
         let c3 = c1 + 1
         let u = t - 1
         return 1 + c3 * u * u * u + c1 * u * u
+    }
+}
+
+private extension PiboVectorCharacter.ProjectionStyle {
+    func apply(
+        to shape: SKShapeNode,
+        elementID: String,
+        scale: CGFloat,
+        grainShader: SKShader?
+    ) {
+        let bodyElements: Set<String> = ["body", "rightleg", "leftleg"]
+        let hand = elementID.hasPrefix("lefthand") || elementID.hasPrefix("righthand")
+        if bodyElements.contains(elementID) {
+            shape.fillColor = bodyColor
+            shape.fillShader = elementID == "body" ? grainShader : nil
+        } else if hand {
+            shape.fillColor = handColor
+            shape.fillShader = nil
+        }
+
+        if bodyElements.contains(elementID) || elementID == "bo" {
+            shape.strokeColor = outlineColor
+            shape.lineWidth = outlineDesignWidth * scale
+            shape.lineCap = .round
+            shape.lineJoin = .round
+        }
+    }
+
+    func makeGrainShader() -> SKShader {
+        let shader = SKShader(source: """
+        void main() {
+            vec4 mask = texture2D(u_texture, v_tex_coord);
+            vec2 cell = floor(v_tex_coord * vec2(72.0, 68.0));
+            float noise = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+            float fleck = step(0.90, noise) * u_grain;
+            vec3 paper = vec3(0.898, 0.898, 0.961);
+            vec3 ink = vec3(0.141, 0.306, 0.263);
+            vec3 color = mix(paper, ink, fleck);
+            gl_FragColor = vec4(color * mask.a, mask.a);
+        }
+        """)
+        shader.uniforms = [SKUniform(name: "u_grain", float: Float(paperGrain))]
+        return shader
     }
 }
 

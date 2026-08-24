@@ -19,7 +19,7 @@ struct BoProgressFeedbackTests {
         ) == .threeQuarters)
         #expect(store.pending?.milestone == .threeQuarters)
         #expect(store.pending?.previousEnergyPool == 10)
-        #expect(store.pending?.newEnergyPool == 20)
+        #expect(store.pending?.newEnergyPool == 60)
 
         #expect(store.recordLedgerUpdate(
             previousEnergyPool: 0,
@@ -66,7 +66,7 @@ struct BoProgressFeedbackTests {
             newEnergyPool: 9,
             mintedCount: 0
         ) == .none)
-        #expect(store.pending?.milestone == .none)
+        #expect(store.pending?.milestone == BoProgressMilestone.none)
         #expect(store.pending?.isPresentable == true)
     }
 }

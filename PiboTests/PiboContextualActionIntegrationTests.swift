@@ -13,12 +13,9 @@ struct PiboContextualActionIntegrationTests {
         #expect(PiboCoreAnimationAdapter.contextualAction(for: .tired) == .rest)
     }
 
-    @Test func onlyStableCheckInCountsTowardAngry() {
+    @Test func contextualActionsNeverCountTowardTheRetiredAngryMechanic() {
         for state in PiboActivityState.allCases {
-            #expect(
-                PiboCoreAnimationAdapter.contextualActionCountsTowardAngry(for: state)
-                    == (state == .stable)
-            )
+            #expect(!PiboCoreAnimationAdapter.contextualActionCountsTowardAngry(for: state))
         }
     }
 

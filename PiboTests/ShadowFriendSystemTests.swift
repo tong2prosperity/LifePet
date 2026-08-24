@@ -85,6 +85,30 @@ struct ShadowFriendSystemTests {
         #expect(draft == nil)
     }
 
+    @Test func publicStateCopyIsDirectAndUnknownStatesStayNeutral() {
+        #expect(ShadowFriendPresentationValues.stateSentence("sleeping") == "正在睡觉")
+        #expect(ShadowFriendPresentationValues.stateSentence("energetic") == "有精神，正在活动")
+        #expect(ShadowFriendPresentationValues.stateSentence("future_state") == "状态平稳")
+    }
+
+    @Test func updateAgeUsesTheServerSyncTime() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = ShadowSnapshotDTO(
+            publicStateId: "stable",
+            publicBehaviorSubstateId: "stable.idle",
+            visualVariantKey: PiboAnimationResourceID.stable,
+            snapshotRevision: 2,
+            occurredAt: now.addingTimeInterval(-600),
+            syncedAt: now.addingTimeInterval(-125)
+        )
+        #expect(ShadowFriendPresentationValues.relativeUpdate(snapshot, now: now) == "2 分钟前更新")
+    }
+
+    @Test func unknownVisualVariantFallsBackToItsPublicState() {
+        #expect(ShadowSnapshotValues.renderableStateID("future.variant", publicStateID: "tired")
+            == PiboAnimationStateMap.ambientStateID(for: .tired))
+    }
+
     private func state(
         relationshipID: String,
         pendingLight: ShadowLightDTO? = nil,

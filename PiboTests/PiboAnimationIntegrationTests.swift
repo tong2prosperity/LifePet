@@ -449,16 +449,15 @@ struct PiboAnimationIntegrationTests {
         #expect(transition.toStateID == "pibo-event-workout-celebrate")
     }
 
-    @Test func actualPatsEnterAngryOnceWithoutExtending() {
+    @Test func legacyActualPatsNeverEnterTheRetiredAngryState() {
         let defaults = testDefaults()
         let experience = PiboAnimationExperienceStore(defaults: defaults)
         let now = Date()
         #expect(!experience.registerActualPat(localHour: 15, now: now))
         #expect(!experience.registerActualPat(localHour: 15, now: now.addingTimeInterval(1)))
-        #expect(experience.registerActualPat(localHour: 15, now: now.addingTimeInterval(2)))
-        let expiry = experience.angryUntil
+        #expect(!experience.registerActualPat(localHour: 15, now: now.addingTimeInterval(2)))
         #expect(!experience.registerActualPat(localHour: 15, now: now.addingTimeInterval(3)))
-        #expect(experience.angryUntil == expiry)
+        #expect(experience.angryUntil == nil)
 
         let sleeping = PiboAnimationExperienceStore(defaults: testDefaults())
         for offset in 0..<3 {
@@ -474,10 +473,9 @@ struct PiboAnimationIntegrationTests {
         let fixed = Date(timeIntervalSince1970: 1_000_000)
         #expect(!deterministic.registerActualPat(localHour: 15, now: fixed))
         #expect(!deterministic.registerActualPat(localHour: 15, now: fixed.addingTimeInterval(1)))
-        #expect(deterministic.registerActualPat(localHour: 15, now: fixed.addingTimeInterval(2)))
-        let fixedExpiry = deterministic.angryUntil
+        #expect(!deterministic.registerActualPat(localHour: 15, now: fixed.addingTimeInterval(2)))
         #expect(!deterministic.registerActualPat(localHour: 15, now: fixed.addingTimeInterval(3)))
-        #expect(deterministic.angryUntil == fixedExpiry)
+        #expect(deterministic.angryUntil == nil)
     }
 
     @Test func futurePatStateCannotLockAngryAfterClockRollbackOrCorruption() throws {

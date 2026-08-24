@@ -50,12 +50,16 @@ final class PiboStageScene: SKScene {
     var onOrnamentLightTapped: ((PiboOrnament.ID, Int) -> Void)?
     /// Fired when a forest common item is itself an interaction entry.
     var onOrnamentTapped: ((PiboOrnament.ID) -> Void)?
+    var onShadowTapped: (() -> Void)?
 
     // — Nodes —
     private let backdrop = SKNode()
     private let themeForegroundLayer = SKNode()
     private let themeAtmosphereLayer = SKNode()
     private let character = PiboCharacterRenderer()
+    private let shadow = PiboShadowRenderer()
+    private let friendLightGlow = SKShapeNode(circleOfRadius: 28)
+    private var shadowPresentation: ShadowPiboStagePresentation = .hidden
     private let rainBack = SKNode()      // 雨幕(Pibo 之后 — 景深层)
     private let rainFront = SKNode()     // 水花 + 滴在 Pibo(Pibo 之前)
     private let cam = SKCameraNode()
@@ -123,6 +127,11 @@ final class PiboStageScene: SKScene {
             time: currentTime,
             deltaTime: delta,
             wind: characterWind,
+            reduceMotion: UIAccessibility.isReduceMotionEnabled
+        )
+        shadow.update(
+            time: currentTime,
+            deltaTime: delta,
             reduceMotion: UIAccessibility.isReduceMotionEnabled
         )
     }
@@ -226,6 +235,13 @@ final class PiboStageScene: SKScene {
         litOrnamentLights = lights
         guard built else { return }
         themeRenderer?.apply(litOrnamentLights: lights)
+    }
+
+    func setShadowPresentation(_ presentation: ShadowPiboStagePresentation) {
+        let lightChanged = presentation.lightReceiptSequence > shadowPresentation.lightReceiptSequence
+        shadowPresentation = presentation
+        shadow.apply(presentation, reduceMotion: UIAccessibility.isReduceMotionEnabled)
+        if lightChanged { playFriendLightReceipt() }
     }
 
     func setOrnamentConstructionMode(enabled: Bool, selected: PiboOrnament.ID?) {
@@ -570,6 +586,10 @@ final class PiboStageScene: SKScene {
 
     /// Only Pibo itself handles stage touches. Feature entries live in SwiftUI.
     private func handleTap(at p: CGPoint) {
+        if shadow.contains(p, in: self) {
+            onShadowTapped?()
+            return
+        }
         if character.hitRegion(at: p, in: self) == .body {
             onPat?()
             return
@@ -600,12 +620,19 @@ final class PiboStageScene: SKScene {
         addChild(themeForegroundLayer)
         addChild(character.rootNode)
         addChild(character.overheadNode)
+        addChild(shadow.rootNode)
         themeAtmosphereLayer.zPosition = 40
         addChild(themeAtmosphereLayer)
         addChild(character.effectsNode)
         addChild(rainBack)
         rainFront.zPosition = 60
         addChild(rainFront)
+        friendLightGlow.fillColor = UIColor(red: 1, green: 0.95, blue: 0.56, alpha: 1)
+        friendLightGlow.strokeColor = .clear
+        friendLightGlow.alpha = 0
+        friendLightGlow.zPosition = 18.5
+        friendLightGlow.blendMode = .add
+        addChild(friendLightGlow)
         cam.position = CGPoint(x: size.width / 2, y: size.height / 2)
         addChild(cam)
         camera = cam
@@ -631,6 +658,7 @@ final class PiboStageScene: SKScene {
         themeRenderer?.apply(litOrnamentLights: litOrnamentLights)
         if stageEnvironment.rainIntensity > 0 { applyWeather() }
         applyTuning(visibilityChanged: true)
+        shadow.apply(shadowPresentation, reduceMotion: UIAccessibility.isReduceMotionEnabled)
     }
 
     /// When the active theme carries body art, the stage shows a sprite instead
@@ -699,6 +727,30 @@ final class PiboStageScene: SKScene {
             cam.setScale(1)
         }
         themeRenderer?.didEvaluateActions()
+        shadow.layout(sceneSize: size)
+        friendLightGlow.position = ForestLayoutMapper(sceneSize: size).point(CGPoint(x: 323, y: 504))
+    }
+
+    private func playFriendLightReceipt() {
+        friendLightGlow.removeAllActions()
+        let reduced = UIAccessibility.isReduceMotionEnabled
+        friendLightGlow.alpha = reduced ? 0.48 : 0
+        friendLightGlow.setScale(1)
+        if reduced {
+            friendLightGlow.run(.sequence([.wait(forDuration: 1.8), .fadeOut(withDuration: 0)]))
+            return
+        }
+        friendLightGlow.run(.sequence([
+            .group([
+                .fadeAlpha(to: 0.62, duration: 0.25),
+                .scale(to: 1.18, duration: 0.25),
+            ]),
+            .wait(forDuration: 0.8),
+            .group([
+                .fadeOut(withDuration: 0.75),
+                .scale(to: 1.36, duration: 0.75),
+            ]),
+        ]))
     }
 
     // MARK: - Weather

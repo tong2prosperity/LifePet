@@ -52,6 +52,8 @@ struct HomeSheetModifier: ViewModifier {
             OrnamentAwakeningSheet(ornamentID: id)
         case .healthDataStatus:
             HealthDataStatusSheet()
+        case .shadow(let manifest):
+            ShadowFriendSheet(ownerName: store.ownerName, manifestMode: manifest)
         }
     }
 }
