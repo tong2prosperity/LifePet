@@ -1,15 +1,21 @@
 # P0 首版改造工程状态
 
-> 更新时间：2026-08-17  
+> 更新时间：2026-08-25
 > 用途：把已确认产品方案与当前代码改造状态对齐；后续继续开发先读本文件。  
-> 结论：本轮无新增素材的 P0 代码改造已完成；`pibo-core 0.13.3` 已发布，iOS 已接入，HarmonyOS 已同步 submodule 与最小 ABI adapter。专门动作美术、成熟 `bo` 新手势、吊床首次试用动画和物理相机装置仍按确认范围延后。
+> 结论：无新增素材的基础 P0 改造已完成；用户已于 2026-08-25 重新授权 iOS 对齐，iOS 现已接入
+> `pibo-core 0.15.0`、同一中文拍一拍合同、直接 `bo` 投入、完整散步涂鸦、食物验证投影和 Shadow
+> Pibo 工程闭环。专门动作美术、吊床首次试用动画和物理相机装置仍按确认范围延后。
+> 平台顺序：HarmonyOS 仍是产品方案的首个落地端；已冻结且不依赖新素材的能力再按同一 Core／后端
+> 合同对齐 iOS。平台可有合理表现差异，不复制业务阈值或另建视觉系统。
+> 2026-08-25 更新：情境闲聊、`bo`、散步涂鸦、食物相机和 Shadow Pibo 的 iOS TODO 已关闭；
+> 英文仍不属于当前验收范围。
 
 ## 一、已经落地并验证
 
 ### 1. 基础餐食相机前置
 
 - iOS 基础相机只受 Release 开关控制，不再要求拥有补梦风铃；
-- Walk Doodle 仍保留原有物件门控，本次没有顺带开放；
+- 散步涂鸦已从原有物件门控中移出，在 Debug 与 Release 都保留独立入口；
 - 拍摄仍然是用户主动选择，不增加三餐任务或签到；
 - 已更新 `HomeFeatureAccessTests`，无共同物件时基础相机仍可用。
 
@@ -34,20 +40,31 @@
 - 用户仍需主动确认投入，关闭 Half-sheet 不会扣除 `bo`，不自动弹出独立结果页；
 - 已通过 `HomePluckCoordinatorTests`、`OrnamentUnlockStoreTests` 和模拟器截图走查。
 
-### 4. 六状态上下文动作与异常闭环
+### 4. 双端六状态上下文动作与异常闭环
 
-- 首页点击 Pibo 通过 Core 唯一映射执行 `checkConnection / letSleep / morningGreeting / checkIn / play / rest`；
-- 只有 `stable / checkIn` 继续进入 Pat V2 的连续拍击逻辑；其余动作去重，健康状态变化会中断动作；
+- HarmonyOS 首页点击 Pibo 通过 Core 当前主状态、行为与事件选择 27 个语义情境，并从单一中文
+  JSONL 的 45 个互动单元中按持久游标顺序循环；不使用随机、权重、文案 ID 或次数上限；
+- 单句与两至三句微章节共用 `lines`，每次有效拍击推进一句，仅第一句执行
+  `checkConnection / letSleep / morningGreeting / checkIn / play / rest`；
+- 气泡与冷却统一为 3 秒，冷却点击无振动、动作、排队或计数；状态变化和离开首页立即清除，
+  同页功能与 Sheet 不提前清除；
 - `dataUnknown` 区分未授权、无可读数据、设备不可用和暂时同步中断，提供授权、设置或重试入口；
 - 暂时中断且已有可信记录时保留上次可信状态，并在首页持续显示可点击提示；恢复后自动清除；
 - Onboarding 流程未修改。
+- iOS 已升级至 Core `0.15.0`，加载同一份 45 条简体中文 JSONL，按 Core 的情境、episode、顺序
+  游标和 3 秒冷却推进单句或微章节；状态变化和离开首页清除会话，冷却点击无副作用；
+- iOS `dataUnknown` 同样区分权限、无数据、设备不可用和暂时同步中断，并保留最近可信状态；
+  专项实现提交为 `baaf98a feat: align iOS state-driven pat conversations`。
 
 ### 5. 真实 `bo` 连续生长
 
 - 首页头顶生长值改为直接读取 `BoLedgerStore.growthProgress`；
 - 四阶段直接读取 Core 的 `dormant / sprouting / forming / ripe`，平台不复制 50% 阈值；
 - 现有 vector sprout mesh 已解除固定满尺寸，按持久化的 0...1 进度连续展开；
-- 成熟 `bo` 的新拔取动作与手势本轮不改。
+- 成熟 `bo` 不再依赖独立拔取动作或手势；它保持在 Pibo 头顶，直到用户从场景物件 Half Sheet
+  明确确认投入。
+- iOS 已取消独立拔取和背包中转，成熟 `bo` 保持在 Pibo 头顶，并从物件 Half Sheet 直接确认投入；
+  睡眠能量通过事实、Pibo 反馈与连续生长在同一森林落点，提交为 `9cce9c6`。
 
 ### 6. UI 与动效约束
 
@@ -57,7 +74,7 @@
 - SpriteKit 中的 Pibo、灰态目标和已拥有物件均提供 SwiftUI VoiceOver 镜像入口；
 - 相机继续是首页右上角悬浮按钮，不制作森林物理装置。
 
-### 7. HarmonyOS 食物相机完整闭环（2026-08-24）
+### 7. 双端食物相机完整闭环（HarmonyOS 2026-08-24 / iOS 2026-08-25）
 
 - 拍照先作为草稿提交后台；只有 `is_food == true` 才算拍摄成功并写入正式历史。非食物不投影、
   不说话、不留历史；网络或模型失败保留同一张草稿供原图重试或重拍；
@@ -73,11 +90,41 @@
 - `pibo-server c8ced72`、`pibo_design d5856e3`、`HarmonyPibo fffc023 / 9e2b6c5`
   已分别提交；HarmonyOS `entry + wearable` Debug HAP 和全部本地检查通过。当前没有连接中的
   HarmonyOS 设备，原生端真机视觉与真实相机／分割质量仍需发布前验收；
-- TODO（iOS）：仅登记同一门控、贴纸投影、观察动作和精确历史详情，不在 HarmonyOS 优先阶段实现。
+- iOS 已对齐同一后台 schema、JWT 请求与幂等键：相机保留在取景页等待 `is_food`，非食物或失败
+  原地提示重拍，不写 SwiftData、不生成投影、不更新最近成功缩略图；只有真食物才原子写入原图、
+  贴纸、分析和 `pibo_observation`；
+- iOS 贴纸同样使用 560px 上限与 7px 白边，Vision 无法分割时明确回退为带白框原图；相机退出后
+  才启动 6080ms 森林观察，六状态共用一次小幅朝向动作，Reduce Motion 只取消位移／弹性而不缩短
+  生命周期；足迹继续以被点击的 `FoodPhoto` 实例打开对应热量、三大营养素与食物明细；
+- iOS 专项测试覆盖当前／旧版 JSON schema、先识别后持久化、非食物与失败零副作用、原图回退以及
+  投影必须等待相机退出；真机相机、Vision 分割质量与真实服务延迟仍需发布前验收。
+
+### 8. iOS 散步涂鸦完整闭环（2026-08-25）
+
+- iOS 已将功能正式命名为“散步涂鸦”，Debug 与 Release 都开放独立入口，不再受共同物件门控；
+- Core `0.15.0` 每日确定性布置圆形、三角形或五角星任务，并统一完成判定、形状相似度、覆盖度、
+  闭合度、评分档位和 `bo` 能量增益；平台只采集精确定位、绘制、持久化和表现；
+- 开始前明确任务与精确位置要求，记录中显示目标轮廓、实际路线、当前进度和退出确认；完成后展示
+  可解释评分与鼓励文案，奖励通过 crash-safe outbox 原子进入本地 `bo` 账本，不会重复发放；
+- 足迹历史保留每次涂鸦，显示任务形状、得分、完成状态与奖励，并可进入详情查看目标与实际路线；
+- 专项实现提交为 `fb6485c feat: complete iOS walk doodle loop`，Core 与账本／历史专项测试通过；
+  发布前仍需用真机完成长时间定位、后台切换与弱 GPS 轨迹验收。
+
+### 9. Shadow Pibo 双向单好友闭环（iOS 2026-08-25）
+
+- iOS 已与 HarmonyOS 对齐单好友长期原则、邀请／明确接受、接受后首快照、公开语义状态、近似实时
+  长轮询、账号隔离缓存、暂停分享、本地隐藏、解除、屏蔽和一次性连接结束事件；
+- 首页铃兰旁 44pt 入口不受 `bo` 或物件 entitlement 门控；好友映照复用现有六状态矢量与 idle
+  时间线，只覆盖冻结的 Shadow 材质参数，不增加角色素材或复制状态动画；
+- 一个 Moss Half Sheet 覆盖未登录、空状态、邀请链接／二维码／短码、等待、收到邀请、等待首快照、
+  首次说明、稳定查看、管理、屏蔽列表和连接结束；状态文案直白展示，不分享健康数字和推断原因；
+- “送一束光”不带文字、数量、连续天数或奖励；接收端只显示来源并短暂点亮，离线最新一束 24 小时
+  有效。实现提交为 `62673a7` 与本轮 Shadow UI 提交；8 项专项测试和 iPhone 17 模拟器视觉检查通过；
+- 正式邀请域名、Associated Domains/App Linking、线上后端部署与双真机十秒内同步仍是发布门槛。
 
 ## 二、共享 Core 发布与双端接入
 
-`/Users/trevorlink/Project/PiboWorld/pibo-core` 已发布 `0.13.3`：
+`/Users/trevorlink/Project/PiboWorld/pibo-core` 已发布并由 iOS exact pin 消费 `0.15.0`：
 
 1. 六状态唯一上下文动作：
    - `dataUnknown → checkConnection`
@@ -86,22 +133,24 @@
    - `stable → checkIn`
    - `energetic → play`
    - `tired → rest`
-2. 只有 `stable / checkIn` 继续计入原有连续拍击生气逻辑；照料、问候、玩耍和连接检查不被解释成反复戳 Pibo；
+2. 状态／行为／事件映射为 27 个稳定情境，并提供顺序记录选择、微章节行进度、下一游标和
+   3 秒冷却判断；旧 Pat V2 兼容 API 固定为可说话且不再计入生气，HarmonyOS Home 已完全停用旧路径；
 3. `bo` 统一生长阶段：
    - `dormant`：无可见进度；
    - `sprouting`：大于 0 且小于 50%；
    - `forming`：达到 50% 但尚未成熟；
-   - `ripe`：存在至少一枚真实可拔取 `bo`，优先于下一枚的分数进度。
+   - `ripe`：存在至少一枚真实成熟 `bo`，优先于下一枚的分数进度。
 
-Rust、C ABI、Swift wrapper、XCFramework 和边界测试已同步；`cargo test` 135 项、Swift Package 66 项全部通过。提交为 `56ca5e80fd519862b2df6241f1b7693374a4f7d0`，Tag `0.13.3` 已 Push。iOS exact pin 已更新到 `0.13.3`；HarmonyOS submodule 与 NAPI／ArkTS 最小 wrapper 已同步。
+Rust、C ABI、Swift wrapper、XCFramework 和边界测试已随三次发布同步：`0.14.0` 情境拍一拍、
+`0.14.1` 直接 `bo` 投入、`0.15.0` 散步涂鸦评分／奖励。HarmonyOS submodule 与 iOS exact pin
+都已消费对应最新合同，平台不复制阈值。
 
 ## 三、明确延后
 
 1. Pibo 的专门动作素材与独立 `energetic`／`dataUnknown` 美术；当前代码使用现有状态资源与轻量程序性反馈；
-2. 成熟 `bo` 的新拔取手势、动作和行为；
-3. 吊床唤醒后 Pibo 当场跑去检查／首次使用的专门动作；自然睡眠已经按所有权选择吊床；
-4. 森林中的物理相机装置；当前继续使用右上角悬浮按钮；
-5. 补梦风铃的新价值、Walk Doodle 新位置、后续物件价格重算与 Shadow Pibo。
+2. 吊床唤醒后 Pibo 当场跑去检查／首次使用的专门动作；自然睡眠已经按所有权选择吊床；
+3. 森林中的物理相机装置；当前继续使用右上角悬浮按钮；
+4. 补梦风铃的新价值、后续物件价格重算，以及 Shadow Pibo 的生产域名与线上发布。
 
 ### 仍需要正式美术
 
@@ -116,14 +165,21 @@ Rust、C ABI、Swift wrapper、XCFramework 和边界测试已同步；`cargo tes
 
 - `pibo-core`: `cargo fmt --check`、`cargo test`、`cargo build --release --no-default-features`、`./scripts/build-apple.sh`、`swift test` 均通过；
 - iOS: Pibo Debug 模拟器完整构建与 `Pibo` 全量测试套件均通过；
-- iOS 针对性测试：上下文动作、相机保存、功能门控、首页展示策略、拔取顺序、共同物件库存均通过；
+- iOS 针对性测试：上下文动作、相机保存、功能门控、首页展示策略、直接投入和共同物件库存均通过；
+- iOS 散步涂鸦的 Core 评分、每日任务、奖励 outbox、账本幂等和历史持久化专项测试通过；
+- iOS Shadow 的邀请路由、账号缓存、revision 去重、光时效、状态文案和视觉回退 8 项专项测试通过；
 - iPhone 17 模拟器已视觉检查右上角相机、单一灰态吊床目标与检视 Half-sheet；
-- HarmonyOS: `tools/test_pibo_core.mjs` 通过，`entry + wearable` Debug HAP 完整构建成功；
+- iPhone 17 模拟器已视觉检查 Shadow 投影材质、铃兰连接线、44pt 入口和 Moss Half Sheet；
+- HarmonyOS: 拍一拍 45 单元／27 情境专项测试与全部本地检查通过，`entry + wearable` Debug HAP
+  完整构建成功；
 - 现存 Xcode 并发隔离警告和 App/Extension build number 警告不是本轮新增，未在本轮扩张修复范围。
 
 ## 五、尚未声称完成
 
 - 无新增素材范围内的 iOS P0 代码已完成；专门角色动作／资源动画仍待美术与动作设计；
-- HarmonyOS 本轮只同步 Core、NAPI 和 ArkTS adapter，没有实现与 iOS 相同的平台 UI 表现；
+- HarmonyOS 已完成决定 033 的顺序文案池、事件优先、微章节、等长冷却、episode 持久化和旧
+  Pat V2 退役；当前动作反馈仍是可替换的轻量程序性表现，专用角色动作／资源动画仍待设计；
+- iOS 的 Core／JSONL／会话持久化 TODO 已关闭；专用动作素材仍保持独立 TODO，不阻塞当前文字互动；
 - 本轮测试没有替代真实 HealthKit 跨日、相机真机、后台识别和权限拒绝验收；
-- Shadow Pibo、Walk Doodle 新位置、补梦风铃新价值和后续物件成本仍按既定顺序留到 P0 之后。
+- Shadow Pibo 的本地工程闭环已完成，但生产域名、App Linking、后端部署和双真机验收尚未完成；
+  补梦风铃新价值与后续物件成本仍按既定顺序另行设计。

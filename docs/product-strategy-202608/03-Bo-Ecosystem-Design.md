@@ -127,4 +127,6 @@ Walk Doodle 与补梦风铃的关系保持待讨论，本文件不重新冻结�
 - `pibo-core 0.14.1` 已发布 `available_bo` 与原子 `apply_investment`，Rust、C ABI、Swift wrapper 和 XCFramework 共用同一确定性规则；
 - HarmonyOS 已接入 `0.14.1`，完成 canonical `bo` 渲染、成熟 `bo` 直接投入物件、场景内物件恢复，以及睡眠事实到 Pibo 的能量落点反馈；
 - HarmonyOS 实现提交：`4189edf feat: invest mature bo directly into objects`、`cc0a70b feat: show sleep energy landing on Pibo`；
-- **TODO（iOS）**：升级 Core exact pin 至 `0.14.1`，接入直接投入，移除独立拔取／背包中转，统一六状态 `bo` 渲染，并实现同一睡眠事实 → Pibo → `bo` 生长因果场景；当前 HarmonyOS 优先阶段不修改 iOS 代码。
+- iOS 已于 2026-08-25 升级 Core exact pin 至 `0.15.0`（包含 `0.14.1` 直接投入合同），移除独立
+  拔取／背包中转，统一六状态 `bo` 渲染，并完成同一睡眠事实 → Pibo → `bo` 生长的场景内落点；
+  实现提交为 `9cce9c6 feat: make bo growth land directly on Pibo`。
