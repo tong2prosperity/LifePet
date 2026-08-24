@@ -122,7 +122,7 @@ final class WalkDoodleSession {
         clearStopSignal()
         startLiveActivity(startedAt: started)
         startTicking()
-        LPLog.app.notice("walk-doodle recording started (bg=\(Self.backgroundModeEnabled, privacy: .public))")
+        LPLog.walkDoodle.notice("recording started (bg=\(Self.backgroundModeEnabled, privacy: .public))")
     }
 
     /// Stop recording and hand back the traced doodle.
@@ -139,7 +139,7 @@ final class WalkDoodleSession {
             areaSquareMeters: areaSquareMeters,
             duration: elapsed,
             title: nil)
-        LPLog.app.notice("walk-doodle finished: \(self.coordinates.count, privacy: .public) pts, \(Int(self.distanceMeters), privacy: .public)m, \(Int(self.areaSquareMeters), privacy: .public)m²")
+        LPLog.walkDoodle.notice("finished: \(self.coordinates.count, privacy: .public) pts, \(Int(self.distanceMeters), privacy: .public)m, \(Int(self.areaSquareMeters), privacy: .public)m²")
         return result
     }
 
@@ -226,7 +226,7 @@ final class WalkDoodleSession {
                 content: ActivityContent(state: state, staleDate: nil),
                 pushType: nil)
         } catch {
-            LPLog.app.error("walk-doodle LA start failed: \(error.localizedDescription, privacy: .public)")
+            LPLog.walkDoodle.error("Live Activity start failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

@@ -16,6 +16,7 @@ struct HomeFeatureAccessTests {
         )
         #expect(enabled.cameraEnabled)
         #expect(enabled.walkDoodleEnabled)
+        #expect(enabled.walkDoodleRouteEchoEnabled)
         #expect(enabled.miniGamesEnabled)
 
         let unreleased = fixture.access(
@@ -39,7 +40,8 @@ struct HomeFeatureAccessTests {
         )
 
         #expect(access.cameraEnabled)
-        #expect(!access.walkDoodleEnabled)
+        #expect(access.walkDoodleEnabled)
+        #expect(!access.walkDoodleRouteEchoEnabled)
         #expect(access.miniGamesEnabled)
     }
 

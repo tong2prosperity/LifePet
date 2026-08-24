@@ -239,6 +239,56 @@ final class BoLedgerStore {
         return true
     }
 
+    func hasProcessedBonusEnergy(eventID: String) -> Bool {
+        state.processedBonusEnergyEventIDs.contains(eventID)
+    }
+
+    /// Applies one Core-authorized activity bonus exactly once. The progress
+    /// store owns task/reward policy; the ledger only carries its granted
+    /// energy into the same pool used by health-derived growth.
+    @discardableResult
+    func grantBonusEnergy(
+        eventID: String,
+        grantedEnergy: Double,
+        at date: Date = .now
+    ) -> Bool {
+        guard state.eligibilityEnabled,
+              !eventID.isEmpty,
+              eventID.hasPrefix("walk-doodle:"),
+              !state.processedBonusEnergyEventIDs.contains(eventID),
+              grantedEnergy.isFinite,
+              grantedEnergy > 0
+        else { return false }
+
+        let previousEnergyPool = state.energyPool
+        let result = PiboCoreBoEconomy.applyEnergy(
+            energyPool: previousEnergyPool,
+            grantedEnergy: grantedEnergy
+        )
+        state.energyPool = result.newEnergyPool
+        state.processedBonusEnergyEventIDs.insert(eventID)
+        if state.processedBonusEnergyEventIDs.count > 512 {
+            state.processedBonusEnergyEventIDs = Set(
+                state.processedBonusEnergyEventIDs.sorted().suffix(512)
+            )
+        }
+        if result.mintedCount > 0 {
+            state.ripeCount += result.mintedCount
+            state.lifetimeMinted += result.mintedCount
+            if state.firstBoMintedAt == nil { state.firstBoMintedAt = date }
+        }
+        persist()
+        progressFeedback?.recordLedgerUpdate(
+            previousEnergyPool: previousEnergyPool,
+            newEnergyPool: state.energyPool,
+            mintedCount: result.mintedCount
+        )
+        LPLog.bo.notice(
+            "bonus energy=\(grantedEnergy, privacy: .public) source=walk-doodle minted=\(result.mintedCount, privacy: .public)"
+        )
+        return true
+    }
+
     func reset(startedOn: Date = Date()) {
         state = BoLedgerSnapshot(
             startedOn: Calendar.current.startOfDay(for: startedOn),

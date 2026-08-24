@@ -11,12 +11,13 @@ struct HomeFeatureCoversModifier: ViewModifier {
     let gamesPresented: Binding<Bool>
     let walkDoodlePresented: Binding<Bool>
     let walkDoodleEnabled: Bool
+    let walkDoodleRouteEchoEnabled: Bool
     let store: PetStateStore
     let history: HealthHistoryStore
     let resumePendingFlows: () -> Void
     let historyDismissed: () -> Void
     let photoSaved: (UIImage?, String?, MealType?) -> Void
-    let doodleSaved: (WalkDoodleResult) -> Void
+    let doodleSaved: (WalkDoodleCompletionResult) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -39,6 +40,7 @@ struct HomeFeatureCoversModifier: ViewModifier {
             ) {
                 GameListView(
                     walkDoodleEnabled: walkDoodleEnabled,
+                    walkDoodleRouteEchoEnabled: walkDoodleRouteEchoEnabled,
                     onWalkDoodleSaved: doodleSaved
                 )
                 .environment(store)
@@ -61,7 +63,10 @@ struct HomeFeatureCoversModifier: ViewModifier {
                 isPresented: walkDoodlePresented,
                 onDismiss: resumePendingFlows
             ) {
-                WalkDoodleView(onSaved: doodleSaved)
+                WalkDoodleView(
+                    routeEchoEnabled: walkDoodleRouteEchoEnabled,
+                    onSaved: doodleSaved
+                )
             }
     }
 }

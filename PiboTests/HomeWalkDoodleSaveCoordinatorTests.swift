@@ -1,3 +1,5 @@
+import CoreLocation
+import PiboCore
 import Testing
 @testable import Pibo
 
@@ -18,6 +20,13 @@ struct HomeWalkDoodleSaveCoordinatorTests {
             persist: { persisted in
                 #expect(persisted == result)
                 events.append("persist")
+            },
+            applyReward: { _, _ in
+                Issue.record("A zero-reward route must not touch the ledger")
+                return false
+            },
+            acknowledgeReward: { _ in
+                Issue.record("A zero-reward route must not acknowledge an outbox item")
             },
             resolveSpeech: { cues, context in
                 #expect(cues.count == 1)
@@ -53,6 +62,8 @@ struct HomeWalkDoodleSaveCoordinatorTests {
         HomeWalkDoodleSaveCoordinator.run(
             result: result,
             persist: { _ in events.append("persist") },
+            applyReward: { _, _ in false },
+            acknowledgeReward: { _ in },
             resolveSpeech: { _, _ in
                 events.append("resolve")
                 return nil
@@ -63,13 +74,28 @@ struct HomeWalkDoodleSaveCoordinatorTests {
         #expect(events == ["persist", "resolve"])
     }
 
-    private func makeResult() -> WalkDoodleResult {
-        WalkDoodleResult(
+    private func makeResult() -> WalkDoodleCompletionResult {
+        let route = WalkDoodleResult(
             coordinates: [],
             distanceMeters: 345.7,
             areaSquareMeters: 128.9,
             duration: 181,
             title: nil
+        )
+        let evaluation = PiboCoreDoodleAdapter.evaluate(
+            shape: .circle,
+            coordinates: [],
+            previousBestScore: 0,
+            dailyRewardedEnergy: 0
+        )
+        return WalkDoodleCompletionResult(
+            route: route,
+            taskDayKey: 20_000,
+            shape: .circle,
+            evaluation: evaluation,
+            rewardEventID: "",
+            scoringVersion: PiboCoreDoodleAdapter.scoringVersion,
+            rewardVersion: PiboCoreDoodleAdapter.rewardVersion
         )
     }
 }

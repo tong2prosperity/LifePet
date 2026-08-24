@@ -29,7 +29,10 @@ struct PiboApp: App {
     /// Coalesced, durable presentation request for the latest crossed bo
     /// milestone. The local ledger writes committed balances into this seam.
     @State private var boProgressFeedback: BoProgressFeedbackStore
-    /// 本地优先的 `bo` 账本 —— 健康数据经 `pibo-core` 计分、成熟、拔取、消费的
+    /// Daily target assignment, best score, and crash-safe reward outbox for
+    /// 散步涂鸦. Core owns all shape/score/reward decisions.
+    @State private var walkDoodleProgress: WalkDoodleProgressStore
+    /// 本地优先的 `bo` 账本 —— 健康数据经 `pibo-core` 计分、成熟、直接投入的
     /// 唯一真源。不依赖登录，也不依赖 `pibo-server`（决定 031）。
     @State private var boLedger: BoLedgerStore
     /// 已解锁的森林物件。与账本分开：余额可增可减，解锁是只增不减的既成事实。
@@ -99,6 +102,8 @@ struct PiboApp: App {
         _onboarding = State(initialValue: onboardingState)
         let boFeedback = BoProgressFeedbackStore()
         _boProgressFeedback = State(initialValue: boFeedback)
+        let doodleProgress = WalkDoodleProgressStore()
+        _walkDoodleProgress = State(initialValue: doodleProgress)
 
         modelContainer = Self.makeModelContainer()
         let hist = HealthHistoryStore(context: modelContainer.mainContext)
@@ -127,6 +132,14 @@ struct PiboApp: App {
             eligibilityEnabled: boEligibilityStartAt != nil,
             progressFeedback: boFeedback
         )
+        for reward in doodleProgress.rewardOutbox {
+            if ledger.grantBonusEnergy(
+                eventID: reward.eventID,
+                grantedEnergy: reward.energy
+            ) || ledger.hasProcessedBonusEnergy(eventID: reward.eventID) {
+                doodleProgress.acknowledgeReward(eventID: reward.eventID)
+            }
+        }
         _boLedger = State(initialValue: ledger)
         onboardingState.configureTemporaryCooperation(
             enabled: PiboReleaseScope.temporaryCooperationOnboarding,
@@ -242,6 +255,7 @@ struct PiboApp: App {
                 .environment(onboarding)
                 .environment(boProgressFeedback)
                 .environment(boLedger)
+                .environment(walkDoodleProgress)
                 .environment(ornamentUnlocks)
                 .environment(ornamentLights)
                 .environment(piboSpeech)

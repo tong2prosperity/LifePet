@@ -309,6 +309,27 @@ struct BoLedgerTests {
         #expect(ledger.state.spentTotal == 2)
     }
 
+    @Test func walkDoodleBonusEnergyIsIdempotentAndUsesTheSharedPool() throws {
+        let today = Calendar.current.startOfDay(for: .now)
+        let feedbackSuite = "BoLedgerBonusFeedback.\(UUID().uuidString)"
+        let feedbackDefaults = try #require(UserDefaults(suiteName: feedbackSuite))
+        defer { feedbackDefaults.removePersistentDomain(forName: feedbackSuite) }
+        let feedback = BoProgressFeedbackStore(defaults: feedbackDefaults)
+        let (ledger, defaults, suite) = try makeLedger(
+            startedOn: today,
+            feedback: feedback
+        )
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let eventID = "walk-doodle:1:20000:12000"
+        #expect(ledger.grantBonusEnergy(eventID: eventID, grantedEnergy: 12))
+        let afterFirst = ledger.state
+        #expect(ledger.hasProcessedBonusEnergy(eventID: eventID))
+        #expect(feedback.pending != nil)
+        #expect(!ledger.grantBonusEnergy(eventID: eventID, grantedEnergy: 12))
+        #expect(ledger.state == afterFirst)
+    }
+
     @Test func legacySnapshotPreservesAssetsAndBuildsLifetimeFloors() throws {
         let today = Calendar.current.startOfDay(for: .now)
         let suite = "BoLedgerLegacy.\(UUID().uuidString)"

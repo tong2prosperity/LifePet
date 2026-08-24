@@ -7,8 +7,9 @@ struct GameListView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var walkDoodleEnabled: Bool = true
+    var walkDoodleRouteEchoEnabled: Bool = false
     /// A finished walk doodle — `HomeView` persists the route and shows an authored reaction.
-    var onWalkDoodleSaved: (WalkDoodleResult) -> Void
+    var onWalkDoodleSaved: (WalkDoodleCompletionResult) -> Void
 
     @State private var selectedGame: MiniGameKind?
     @State private var isChessPresented = false
@@ -38,7 +39,11 @@ struct GameListView: View {
         .lpDynamicTypeScaling()
         .accessibilityAddTraits(.isModal)
         .fullScreenCover(item: $selectedGame) { game in
-            MiniGameHostView(kind: game, onWalkDoodleSaved: onWalkDoodleSaved)
+            MiniGameHostView(
+                kind: game,
+                walkDoodleRouteEchoEnabled: walkDoodleRouteEchoEnabled,
+                onWalkDoodleSaved: onWalkDoodleSaved
+            )
         }
         .fullScreenCover(isPresented: $isChessPresented) {
             PiboChessMiniGameView()
@@ -221,12 +226,16 @@ struct GameListView: View {
 
 struct MiniGameHostView: View {
     let kind: MiniGameKind
-    var onWalkDoodleSaved: (WalkDoodleResult) -> Void
+    var walkDoodleRouteEchoEnabled: Bool = false
+    var onWalkDoodleSaved: (WalkDoodleCompletionResult) -> Void
 
     var body: some View {
         switch kind {
         case .walkDoodle:
-            WalkDoodleView(onSaved: onWalkDoodleSaved)
+            WalkDoodleView(
+                routeEchoEnabled: walkDoodleRouteEchoEnabled,
+                onSaved: onWalkDoodleSaved
+            )
         case .huarongRoad:
             HuarongRoadView()
         case .stepLights:

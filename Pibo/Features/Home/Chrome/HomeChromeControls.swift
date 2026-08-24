@@ -86,7 +86,7 @@ struct HomeCornerActions: View {
             if walkDoodleEnabled {
                 cornerButton(
                     systemImage: "map.fill",
-                    label: "Walk Doodle",
+                    label: "散步涂鸦",
                     rotation: 1,
                     size: 36,
                     action: onOpenWalkDoodle

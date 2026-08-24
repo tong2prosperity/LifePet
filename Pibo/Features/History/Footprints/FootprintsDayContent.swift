@@ -319,9 +319,17 @@ struct FootprintsMomentsSection: View {
                                     RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
                                         .fill(LP.Neutral.grey200.opacity(0.72))
                                 )
-                            Text(doodle.title ?? "用脚画下的路")
-                                .lpText(LP.Typography.b4Medium)
-                                .foregroundStyle(LP.Content.secondary)
+                            HStack {
+                                Text(doodle.title ?? "用脚画下的路")
+                                    .lpText(LP.Typography.b4Medium)
+                                    .foregroundStyle(LP.Content.secondary)
+                                Spacer(minLength: LP.Spacing.xs)
+                                if let score = doodle.score {
+                                    Text("\(score) 分")
+                                        .lpText(LP.Typography.c2Medium)
+                                        .foregroundStyle(PiboMoss.Color.foundationTeal)
+                                }
+                            }
                             Text("\(DoodleGeometry.distanceText(doodle.distanceMeters)) · \(DoodleGeometry.areaText(doodle.areaSquareMeters))")
                                 .lpText(LP.Typography.c2Regular)
                                 .foregroundStyle(LP.Content.tertiary)

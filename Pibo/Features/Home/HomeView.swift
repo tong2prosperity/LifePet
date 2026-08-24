@@ -14,6 +14,7 @@ struct HomeView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(BoProgressFeedbackStore.self) private var boProgressFeedback
     @Environment(BoLedgerStore.self) private var boLedger
+    @Environment(WalkDoodleProgressStore.self) private var walkDoodleProgress
     @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
     @Environment(OrnamentLightStore.self) private var ornamentLights
     @Environment(HealthHistoryStore.self) private var history
@@ -129,6 +130,8 @@ struct HomeView: View {
             currentCameraEnabled: { featureAccess.cameraEnabled },
             presentation: presentation,
             history: history,
+            ledger: boLedger,
+            walkDoodleProgress: walkDoodleProgress,
             recognizer: recognizer,
             speech: piboSpeech,
             showSpeech: speechPresentation.show,
@@ -441,6 +444,7 @@ struct HomeView: View {
                     gamesPresented: featureAccess.gamesPresented,
                     walkDoodlePresented: featureAccess.walkDoodlePresented,
                     walkDoodleEnabled: featureAccess.walkDoodleEnabled,
+                    walkDoodleRouteEchoEnabled: featureAccess.walkDoodleRouteEchoEnabled,
                     store: store,
                     history: history,
                     resumePendingFlows: presentationFlow.resumePendingFlows,
@@ -635,6 +639,7 @@ struct HomeView: View {
             ornamentUnlocks: ornamentUnlocks,
             ornamentLights: ornamentLights
         )
+        walkDoodleProgress.reset()
         animationPresentation.resetLifecycle()
         refreshAnimationState()
     }
@@ -649,6 +654,7 @@ struct HomeView: View {
         .environment(WeatherDataService())
         .environment(BoProgressFeedbackStore())
         .environment(BoLedgerStore())
+        .environment(WalkDoodleProgressStore())
         .environment(OrnamentUnlockStore())
         .environment(OrnamentLightStore())
         .environment(OnboardingStateStore())

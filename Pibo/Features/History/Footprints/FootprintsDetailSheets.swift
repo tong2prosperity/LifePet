@@ -1,4 +1,5 @@
 import Charts
+import PiboCore
 import SwiftUI
 import UIKit
 
@@ -741,6 +742,7 @@ struct FootprintsFoodDetailView: View {
 
 struct FootprintsDoodleDetailView: View {
     let doodle: WalkDoodleRecord
+    @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
     @State private var drawProgress: CGFloat = 0
 
     var body: some View {
@@ -771,6 +773,40 @@ struct FootprintsDoodleDetailView: View {
                     metric("距离", DoodleGeometry.distanceText(doodle.distanceMeters))
                     metric("路线面积", DoodleGeometry.areaText(doodle.areaSquareMeters))
                     metric("时长", durationText)
+                }
+
+                if let score = doodle.score {
+                    VStack(alignment: .leading, spacing: LP.Spacing.m) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(doodle.completed == true ? "Pibo 认出了这个形状" : "这次保留为路线")
+                                .lpText(LP.Typography.b3Medium)
+                                .foregroundStyle(PiboMoss.Color.forestInk)
+                            Spacer()
+                            Text("\(score) 分")
+                                .lpText(LP.Typography.uiH4)
+                                .foregroundStyle(PiboMoss.Color.foundationTeal)
+                                .monospacedDigit()
+                        }
+                        if ornamentUnlocks.grants(.walkDoodle),
+                           let closure = doodle.closureScore,
+                           let contour = doodle.contourScore,
+                           let structure = doodle.structureScore {
+                            HStack(spacing: LP.Spacing.s) {
+                                metric("闭合", "\(closure)")
+                                metric("轮廓", "\(contour)")
+                                metric("转向", "\(structure)")
+                            }
+                        } else {
+                            Text("唤醒补梦风铃后，可以看见闭合、轮廓和转向评分。")
+                                .lpText(LP.Typography.c2Regular)
+                                .foregroundStyle(PiboMoss.Color.tertiaryInk)
+                        }
+                    }
+                    .padding(LP.Spacing.m)
+                    .background(
+                        RoundedRectangle(cornerRadius: PiboMoss.Radius.card, style: .continuous)
+                            .fill(PiboMoss.Color.sheetMoss.opacity(0.72))
+                    )
                 }
 
                 Button {

@@ -35,9 +35,13 @@ struct HistoryDoodleCard: View {
 
     private func doodleTile(_ doodle: WalkDoodleRecord) -> some View {
         VStack(alignment: .leading, spacing: LP.Spacing.xs) {
-            Text(doodle.timeLabel)
-                .lpText(LP.Typography.c1Regular)
-                .foregroundStyle(LP.Content.tertiary)
+            HStack {
+                Text(doodle.timeLabel)
+                Spacer(minLength: LP.Spacing.xs)
+                if let score = doodle.score { Text("\(score) 分") }
+            }
+            .lpText(LP.Typography.c1Regular)
+            .foregroundStyle(LP.Content.tertiary)
             WalkDoodleShape(coordinates: doodle.coordinates)
                 .stroke(LP.Fill.foundationAccent,
                         style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))

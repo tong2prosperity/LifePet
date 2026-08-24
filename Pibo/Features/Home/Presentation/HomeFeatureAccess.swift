@@ -10,6 +10,7 @@ struct HomeFeatureAccess {
     let presentation: HomePresentationState
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
+    let walkDoodleRouteEchoEnabled: Bool
     let miniGamesEnabled: Bool
 
     init(
@@ -34,8 +35,10 @@ struct HomeFeatureAccess {
     ) {
         self.presentation = presentation
         cameraEnabled = cameraReleased
+        // 散步涂鸦 is a release capability, not an item gate. The chime grants
+        // the deeper three-part route echo instead of hiding the whole task.
         walkDoodleEnabled = walkDoodleReleased
-            && ornamentUnlocks.grants(.walkDoodle)
+        walkDoodleRouteEchoEnabled = ornamentUnlocks.grants(.walkDoodle)
         miniGamesEnabled = miniGamesReleased
     }
 

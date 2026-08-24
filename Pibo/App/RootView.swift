@@ -102,5 +102,6 @@ struct RootView: View {
         .environment(PiboSpeechService())
         .environment(OnboardingStateStore())
         .environment(BoLedgerStore())
+        .environment(WalkDoodleProgressStore())
         .preferredColorScheme(.light)
 }

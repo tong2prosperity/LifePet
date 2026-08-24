@@ -21,10 +21,10 @@ struct WalkDoodleTaskCard: View {
                     Text(AppLocalization.text("Pibo 的任务"))
                         .lpText(LP.Typography.c2Medium)
                         .foregroundStyle(LP.Content.tertiary)
-                    Text(AppLocalization.text("出门走一幅画"))
+                    Text(AppLocalization.text("散步涂鸦"))
                         .lpText(LP.Typography.b3Medium)
                         .foregroundStyle(LP.Content.primary)
-                    Text(AppLocalization.text("用脚画一条路线。我会记录它的形状。"))
+                    Text(AppLocalization.text("按 Pibo 的任务走出一个形状"))
                         .lpText(LP.Typography.c1Regular)
                         .foregroundStyle(LP.Content.tertiary)
                         .lineLimit(1)
@@ -45,7 +45,7 @@ struct WalkDoodleTaskCard: View {
             .lpShadow(LP.Shadow.elevation2)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(AppLocalization.text("Pibo 的任务：出门走一幅地图涂鸦"))
+        .accessibilityLabel(AppLocalization.text("Pibo 的任务：散步涂鸦"))
     }
 
     private var glyph: some View {

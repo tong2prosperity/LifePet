@@ -8,6 +8,8 @@ struct HomeContentCapture {
     let currentCameraEnabled: () -> Bool
     let presentation: HomePresentationState
     let history: HealthHistoryStore
+    let ledger: BoLedgerStore
+    let walkDoodleProgress: WalkDoodleProgressStore
     let recognizer: FoodRecognitionService
     let speech: PiboSpeechService
     let showSpeech: (PiboSpeech) -> Void
@@ -50,12 +52,14 @@ struct HomeContentCapture {
         )
     }
 
-    /// Walk Doodle is persisted content and authored reaction, never a `bo`
-    /// source.
-    func handleSavedDoodle(_ result: WalkDoodleResult) {
+    /// A completed task is persisted before its authored reaction. Any Core-
+    /// granted bonus reaches the normal `bo` pool through an idempotent outbox.
+    func handleSavedDoodle(_ result: WalkDoodleCompletionResult) {
         HomeWalkDoodleSaveCoordinator.run(
             result: result,
             history: history,
+            ledger: ledger,
+            progress: walkDoodleProgress,
             speech: speech,
             show: showSpeech
         )

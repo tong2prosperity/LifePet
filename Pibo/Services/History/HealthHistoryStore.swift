@@ -525,13 +525,26 @@ final class HealthHistoryStore {
 
     /// Persist a finished walk doodle. Bumps `revision`.
     @discardableResult
-    func addWalkDoodle(_ result: WalkDoodleResult, createdAt: Date = .now) -> WalkDoodleRecord {
+    func addWalkDoodle(
+        _ result: WalkDoodleCompletionResult,
+        createdAt: Date = .now
+    ) -> WalkDoodleRecord {
         let record = WalkDoodleRecord(
             createdAt: createdAt,
             coordinates: result.coordinates,
             distanceMeters: result.distanceMeters,
             areaSquareMeters: result.areaSquareMeters,
             durationSeconds: result.duration,
+            taskDayKey: result.taskDayKey,
+            shapeRawValue: Int(result.shape.rawValue),
+            completed: result.evaluation.score.isCompleted,
+            score: result.evaluation.score.score,
+            closureScore: result.evaluation.score.closureScore,
+            contourScore: result.evaluation.score.contourScore,
+            structureScore: result.evaluation.score.structureScore,
+            grantedEnergy: result.evaluation.reward.grantedEnergy,
+            scoringVersion: Int(result.scoringVersion),
+            rewardVersion: Int(result.rewardVersion),
             title: result.title)
         context.insert(record)
         try? context.save()

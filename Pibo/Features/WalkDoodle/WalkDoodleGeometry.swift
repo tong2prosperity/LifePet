@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreLocation
 import MapKit
+import PiboCore
 
 // MARK: - Geometry
 
@@ -110,32 +111,124 @@ struct WalkDoodleShape: Shape {
     }
 }
 
-// MARK: - Challenge (scaffold for 布置涂鸦)
+struct WalkDoodleTargetShape: Shape {
+    let shape: PiboCoreWalkDoodleShape
 
-/// A doodle task Pibo hands the user. MVP ships `.freeform` only; named target
-/// shapes (圆 / 心 / 字) slot in later so `WalkDoodleView` can score 完成度 and
-/// the history can 比拼面积. Carried into `WalkDoodleResult.title` on save.
-struct WalkDoodleChallenge: Equatable {
-    var title: String?          // nil = freeform
-    var promptKey: String       // Pibo-voice assignment line (localization key)
+    func path(in rect: CGRect) -> Path {
+        let frame = rect.insetBy(dx: 16, dy: 16)
+        let center = CGPoint(x: frame.midX, y: frame.midY)
+        let radius = min(frame.width, frame.height) / 2
+        var path = Path()
+        if shape == .circle {
+            path.addEllipse(in: CGRect(
+                x: center.x - radius,
+                y: center.y - radius,
+                width: radius * 2,
+                height: radius * 2
+            ))
+            return path
+        }
+        let count = shape == .triangle ? 3 : 5
+        let vertices = (0..<count).map { index in
+            let angle = -.pi / 2 + CGFloat(index) * 2 * .pi / CGFloat(count)
+            return CGPoint(
+                x: center.x + cos(angle) * radius,
+                y: center.y + sin(angle) * radius
+            )
+        }
+        let order = shape == .star ? [0, 2, 4, 1, 3, 0] : [0, 1, 2, 0]
+        path.move(to: vertices[order[0]])
+        for index in order.dropFirst() { path.addLine(to: vertices[index]) }
+        return path
+    }
+}
 
-    static let freeform = WalkDoodleChallenge(
-        title: nil,
-        promptKey: "用脚画一条路线。我会记录它的形状。")
+struct WalkDoodleRouteEchoView: View {
+    let shape: PiboCoreWalkDoodleShape
+    var coordinates: [DoodleCoordinate] = []
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: PiboMoss.Radius.media, style: .continuous)
+                .fill(PiboMoss.Color.raisedNeutral.opacity(0.84))
+            WalkDoodleTargetShape(shape: shape)
+                .stroke(
+                    PiboMoss.Color.hairline,
+                    style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
+                )
+            if coordinates.count >= 2 {
+                WalkDoodleShape(coordinates: coordinates, inset: 13)
+                    .stroke(
+                        PiboMoss.Color.foundationTeal,
+                        style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round)
+                    )
+            }
+        }
+        .accessibilityHidden(true)
+    }
 }
 
 // MARK: - Pibo voice
 
 /// Short procedural observations. These never grade the route or claim land.
 enum WalkDoodleCopy {
-    /// Task card subtitle + the idle-screen assignment line.
-    static let taskPrompts = [
-        "用脚画一条路线。我会记录它的形状。",
-        "走出去，留下完整的一笔。",
-        "从这里出发，再回到附近。",
-        "不用画得标准。路线本身就是记录。",
-    ]
+    static func shapeName(_ shape: PiboCoreWalkDoodleShape) -> String {
+        switch shape {
+        case .circle: AppLocalization.text("圆")
+        case .triangle: AppLocalization.text("三角形")
+        case .star: AppLocalization.text("五角星")
+        }
+    }
 
+    static func taskInstruction(_ shape: PiboCoreWalkDoodleShape) -> String {
+        switch shape {
+        case .circle: AppLocalization.text("绕一圈，尽量让终点靠近出发的位置。")
+        case .triangle: AppLocalization.text("走出三次明显转向，再回到出发的位置。")
+        case .star: AppLocalization.text("沿同一方向穿过五个尖角，最后回到起点。")
+        }
+    }
+
+    static func resultTitle(_ evaluation: PiboCoreDoodleAdapter.Evaluation) -> String {
+        guard evaluation.score.isCompleted else { return AppLocalization.text("这次还没画成") }
+        return switch evaluation.reward.tier {
+        case .excellent: AppLocalization.text("画得很像")
+        case .clear: AppLocalization.text("我认出来了")
+        case .recognizable: AppLocalization.text("看得出来")
+        case .none: AppLocalization.text("路线完成了")
+        }
+    }
+
+    static func resultMessage(
+        shape: PiboCoreWalkDoodleShape,
+        evaluation: PiboCoreDoodleAdapter.Evaluation
+    ) -> String {
+        let name = shapeName(shape)
+        if evaluation.score.isCompleted {
+            switch evaluation.reward.tier {
+            case .excellent:
+                return AppLocalization.format("这个%@很清楚，收尾也稳。", name)
+            case .clear:
+                return AppLocalization.format("是%@。这条路线已经画清楚了。", name)
+            case .recognizable, .none:
+                return AppLocalization.format("看得出来是%@。下一次可以把轮廓走得更稳。", name)
+            }
+        }
+        switch evaluation.score.completionReason {
+        case .distanceTooShort:
+            return AppLocalization.format(
+                "路线还不够长。至少走满 %d 米，我才开始判形。",
+                Int(PiboCoreDoodleAdapter.minimumDistanceMeters.rounded())
+            )
+        case .closureTooLow:
+            return AppLocalization.format("快收成%@了，但终点离出发位置还有点远。", name)
+        case .contourMismatch:
+            return AppLocalization.format("长度够了，不过轮廓还不像%@。转弯可以再明确一点。", name)
+        case .accepted, .notEnoughPoints, .noSpatialExtent, .scoreTooLow:
+            return AppLocalization.format("我还认不出%@。可以看着目标路线再走一次。", name)
+        }
+    }
+
+    /// Task card subtitle + the idle-screen assignment line.
     /// Murmured while recording (shown faintly over the map).
     static let recordingHints = [
         "路线正在形成。",

@@ -1,22 +1,24 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import PiboCore
 
 /// 地图涂鸦 (walk doodle) — a walking route and creation tool. Presented
 /// full-screen from the home (like the 餐食相机). The user walks; their GPS trail
 /// draws a thick Pibo-green stroke over the map in real time. On 完成 the camera
 /// fits the doodle, Pibo says a line, and 保存 persists it as a `WalkDoodleRecord`
-/// that lands on the 历史数据页's 足迹涂鸦 card. Saving never mints `bo`.
-///
-/// MVP is freeform. The `WalkDoodleChallenge` scaffold + the stored 面积/完成度
-/// fields are where 布置涂鸦 / 比拼面积 plug in later.
+/// that lands on the 历史数据页. Core assigns 圆/三角形/五角星, grades the
+/// completed route, and authorizes a capped improvement bonus for `bo` growth.
 struct WalkDoodleView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// Hands the finished doodle to `HomeView` (persist + Pibo reaction).
-    var onSaved: (WalkDoodleResult) -> Void
+    @Environment(WalkDoodleProgressStore.self) private var progress
+
+    var routeEchoEnabled = false
+    /// Hands the committed task to `HomeView` (reward + persist + reaction).
+    var onSaved: (WalkDoodleCompletionResult) -> Void
 
     @State private var session = WalkDoodleSession()
     @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
@@ -24,8 +26,11 @@ struct WalkDoodleView: View {
     @State private var piboLine: String = ""
     @State private var hint: String = WalkDoodleCopy.recordingHints[0]
     @State private var showDiscardConfirmation = false
+    @State private var dayTask: WalkDoodleDayProgress?
+    @State private var evaluation: PiboCoreDoodleAdapter.Evaluation?
+    @State private var attemptOrdinal = 0
 
-    private let challenge = WalkDoodleChallenge.freeform
+    private var taskShape: PiboCoreWalkDoodleShape { dayTask?.shape ?? .circle }
 
     var body: some View {
         ZStack {
@@ -37,10 +42,18 @@ struct WalkDoodleView: View {
             }
             .padding(LP.Spacing.l)
         }
-        .background(LP.Fill.bgSurface.ignoresSafeArea())
+        .background(PiboMoss.Color.canvasMist.ignoresSafeArea())
         .lpDynamicTypeScaling()
         .accessibilityAddTraits(.isModal)
-        .onAppear { session.requestAuthorization() }
+        .onAppear {
+            session.requestAuthorization()
+            dayTask = progress.task()
+            hint = copyLine(
+                kind: .recordingHint,
+                lines: WalkDoodleCopy.recordingHints,
+                result: nil
+            )
+        }
         .onDisappear { session.reset() }
         // Live Activity 结束 button → finalize the doodle (preview shows on next
         // foreground). Guarded so we never double-finish.
@@ -138,7 +151,7 @@ struct WalkDoodleView: View {
             Text(AppLocalization.text("Pibo 的任务"))
                 .lpText(LP.Typography.c2Medium)
                 .foregroundStyle(LP.Content.tertiary)
-            Text(AppLocalization.text("地图涂鸦"))
+            Text(AppLocalization.text("散步涂鸦"))
                 .lpText(LP.Typography.b3Medium)
                 .foregroundStyle(LP.Content.primary)
         }
@@ -182,7 +195,11 @@ struct WalkDoodleView: View {
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: LP.Radius.xl, style: .continuous)
-                .fill(LP.Fill.bgPop))
+                .fill(PiboMoss.Color.sheetMoss.opacity(0.96)))
+        .overlay {
+            RoundedRectangle(cornerRadius: LP.Radius.xl, style: .continuous)
+                .strokeBorder(PiboMoss.Color.hairline.opacity(0.68), lineWidth: 1)
+        }
         .lpShadow(LP.Shadow.elevation3)
     }
 
@@ -202,12 +219,8 @@ struct WalkDoodleView: View {
             if session.isDenied || session.needsPreciseLocation {
                 deniedNotice
             } else {
-                Text(challenge.promptKey)
-                    .lpText(LP.Typography.handMid)
-                    .foregroundStyle(LP.Content.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                primaryButton(AppLocalization.text("开始涂鸦"), system: "scribble.variable") {
+                taskCard
+                primaryButton(AppLocalization.text("开始散步涂鸦"), system: "figure.walk") {
                     Analytics.track(.walkDoodleStart, screen: "walk_doodle")
                     withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85)) {
                         session.start()
@@ -222,7 +235,7 @@ struct WalkDoodleView: View {
             Text(AppLocalization.text(
                 session.needsPreciseLocation
                     ? "当前只有大概位置权限，记录轨迹需要精确位置"
-                    : "需要定位权限才能画地图涂鸦"
+                    : "需要定位权限才能进行散步涂鸦"
             ))
                 .lpText(LP.Typography.b3Medium)
                 .foregroundStyle(LP.Content.secondary)
@@ -261,21 +274,60 @@ struct WalkDoodleView: View {
         )
     }
 
+    private var taskCard: some View {
+        HStack(spacing: LP.Spacing.m) {
+            WalkDoodleRouteEchoView(shape: taskShape)
+                .frame(width: 84, height: 84)
+            VStack(alignment: .leading, spacing: LP.Spacing.xs) {
+                Text(AppLocalization.format(
+                    "今天画一个%@",
+                    WalkDoodleCopy.shapeName(taskShape)
+                ))
+                    .lpText(LP.Typography.b3Medium)
+                    .foregroundStyle(PiboMoss.Color.forestInk)
+                Text(WalkDoodleCopy.taskInstruction(taskShape))
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(PiboMoss.Color.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let best = dayTask?.bestScore, best > 0 {
+                    Text(AppLocalization.format("今日最好 %d 分", best))
+                        .lpText(LP.Typography.c2Medium)
+                        .foregroundStyle(PiboMoss.Color.foundationTeal)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(LP.Spacing.s)
+        .background(
+            RoundedRectangle(cornerRadius: PiboMoss.Radius.card, style: .continuous)
+                .fill(PiboMoss.Color.raisedNeutral.opacity(0.58))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: PiboMoss.Radius.card, style: .continuous)
+                .strokeBorder(PiboMoss.Color.hairline.opacity(0.62), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     // — finished —
 
     private var finishedPanel: some View {
         VStack(spacing: LP.Spacing.m) {
             if let result {
                 finishedStats(result)
-                piboBubble
+                resultCard(result)
                 if result.isDrawn {
                     adaptiveActionRow {
                         secondaryButton(AppLocalization.text("重走"), system: "arrow.counterclockwise") {
                             redraw()
                         }
-                        primaryButton(AppLocalization.text("保存"), system: "leaf.fill") {
-                            onSaved(result)
-                            dismiss()
+                        primaryButton(
+                            AppLocalization.text(evaluation?.score.isCompleted == true
+                                ? "保存这次涂鸦"
+                                : "保存路线"),
+                            system: "leaf.fill"
+                        ) {
+                            save(result)
                         }
                     }
                 } else {
@@ -299,6 +351,95 @@ struct WalkDoodleView: View {
             area: DoodleGeometry.areaText(result.areaSquareMeters),
             duration: DoodleGeometry.durationText(result.duration)
         )
+    }
+
+    @ViewBuilder
+    private func resultCard(_ result: WalkDoodleResult) -> some View {
+        if let evaluation {
+            VStack(alignment: .leading, spacing: LP.Spacing.m) {
+                HStack(spacing: LP.Spacing.m) {
+                    WalkDoodleRouteEchoView(
+                        shape: taskShape,
+                        coordinates: result.coordinates
+                    )
+                    .frame(width: 112, height: 112)
+
+                    VStack(alignment: .leading, spacing: LP.Spacing.xs) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(WalkDoodleCopy.resultTitle(evaluation))
+                                .lpText(LP.Typography.b3Medium)
+                                .foregroundStyle(PiboMoss.Color.forestInk)
+                            Spacer(minLength: LP.Spacing.s)
+                            Text("\(evaluation.score.score)")
+                                .lpText(LP.Typography.uiH3)
+                                .foregroundStyle(evaluation.score.isCompleted
+                                    ? PiboMoss.Color.foundationTeal
+                                    : PiboMoss.Color.secondaryInk)
+                                .monospacedDigit()
+                        }
+                        Text(piboLine)
+                            .lpText(LP.Typography.c1Regular)
+                            .foregroundStyle(PiboMoss.Color.secondaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if evaluation.reward.grantedEnergy > 0 {
+                            Text(AppLocalization.format(
+                                "本次为 Pibo 补充 +%d 能量",
+                                Int(evaluation.reward.grantedEnergy.rounded())
+                            ))
+                                .lpText(LP.Typography.c2Medium)
+                                .foregroundStyle(PiboMoss.Color.stepsGreen)
+                        } else if evaluation.score.isCompleted,
+                                  (dayTask?.rewardedEnergy ?? 0) > 0 {
+                            Text(AppLocalization.text("今天的奖励已按最好成绩结算"))
+                                .lpText(LP.Typography.c2Regular)
+                                .foregroundStyle(PiboMoss.Color.secondaryInk)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if routeEchoEnabled {
+                    HStack(spacing: LP.Spacing.s) {
+                        scorePart("闭合", value: evaluation.score.closureScore,
+                                  tint: PiboMoss.Color.activityCyan)
+                        scorePart("轮廓", value: evaluation.score.contourScore,
+                                  tint: PiboMoss.Color.foundationTeal)
+                        scorePart("转向", value: evaluation.score.structureScore,
+                                  tint: PiboMoss.Color.sleepIndigo)
+                    }
+                } else {
+                    Text(AppLocalization.text("唤醒补梦风铃后，可以看见闭合、轮廓和转向评分。"))
+                        .lpText(LP.Typography.c2Regular)
+                        .foregroundStyle(PiboMoss.Color.tertiaryInk)
+                }
+            }
+            .padding(LP.Spacing.s)
+            .background(
+                RoundedRectangle(cornerRadius: PiboMoss.Radius.card, style: .continuous)
+                    .fill(PiboMoss.Color.raisedNeutral.opacity(0.62))
+            )
+        }
+    }
+
+    private func scorePart(_ label: String, value: Int, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: LP.Spacing.xs) {
+            HStack {
+                Text(AppLocalization.text(label))
+                Spacer(minLength: 2)
+                Text("\(value)").monospacedDigit()
+            }
+            .lpText(LP.Typography.c2Medium)
+            .foregroundStyle(PiboMoss.Color.secondaryInk)
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(PiboMoss.Color.hairline.opacity(0.48))
+                    Capsule().fill(tint)
+                        .frame(width: geometry.size.width * CGFloat(min(100, max(0, value))) / 100)
+                }
+            }
+            .frame(height: 5)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -329,19 +470,6 @@ struct WalkDoodleView: View {
         } else {
             HStack(spacing: LP.Spacing.s) { content() }
         }
-    }
-
-    private var piboBubble: some View {
-        Text(piboLine)
-            .lpText(LP.Typography.handMid)
-            .foregroundStyle(LP.Content.secondary)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, LP.Spacing.m)
-            .padding(.vertical, LP.Spacing.s)
-            .background(
-                RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
-                    .fill(LP.Fill.bgSurfaceSecondary))
     }
 
     // MARK: Pieces
@@ -412,8 +540,26 @@ struct WalkDoodleView: View {
     private func finishRecording() {
         let finished = session.finish()
         result = finished
-        piboLine = (finished.isDrawn ? WalkDoodleCopy.savedLines : WalkDoodleCopy.tooShortLines)
-            .randomElement() ?? "..."
+        evaluation = PiboCoreDoodleAdapter.evaluate(
+            shape: taskShape,
+            coordinates: finished.coordinates.map(\.coordinate),
+            previousBestScore: dayTask?.bestScore ?? 0,
+            dailyRewardedEnergy: dayTask?.rewardedEnergy ?? 0
+        )
+        if let evaluation {
+            piboLine = WalkDoodleCopy.resultMessage(
+                shape: taskShape,
+                evaluation: evaluation
+            )
+        } else {
+            piboLine = copyLine(
+                kind: finished.isDrawn ? .saved : .tooShort,
+                lines: finished.isDrawn
+                    ? WalkDoodleCopy.savedLines
+                    : WalkDoodleCopy.tooShortLines,
+                result: finished
+            )
+        }
         if let region = finished.coordinates.isEmpty
             ? nil
             : DoodleGeometry.boundingRegion(finished.coordinates.map(\.coordinate)) {
@@ -430,14 +576,61 @@ struct WalkDoodleView: View {
     /// 开始涂鸦 again to record a fresh one (clearer than silently re-recording).
     private func redraw() {
         camera = .userLocation(fallback: .automatic)
-        hint = WalkDoodleCopy.recordingHints.randomElement() ?? hint
+        attemptOrdinal += 1
+        hint = copyLine(
+            kind: .recordingHint,
+            lines: WalkDoodleCopy.recordingHints,
+            result: nil
+        )
         withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85)) {
             result = nil
+            evaluation = nil
+            piboLine = ""
             session.reset()
         }
+    }
+
+    private func save(_ result: WalkDoodleResult) {
+        let resolvedEvaluation = evaluation ?? PiboCoreDoodleAdapter.evaluate(
+            shape: taskShape,
+            coordinates: result.coordinates.map(\.coordinate),
+            previousBestScore: dayTask?.bestScore ?? 0,
+            dailyRewardedEnergy: dayTask?.rewardedEnergy ?? 0
+        )
+        let committed = progress.commit(
+            shape: taskShape,
+            evaluation: resolvedEvaluation
+        )
+        onSaved(WalkDoodleCompletionResult(
+            route: result,
+            taskDayKey: committed.day.dayKey,
+            shape: taskShape,
+            evaluation: resolvedEvaluation,
+            rewardEventID: committed.eventID,
+            scoringVersion: PiboCoreDoodleAdapter.scoringVersion,
+            rewardVersion: PiboCoreDoodleAdapter.rewardVersion
+        ))
+        dismiss()
+    }
+
+    private func copyLine(
+        kind: PiboCoreWalkDoodleCopyKind,
+        lines: [String],
+        result: WalkDoodleResult?
+    ) -> String {
+        guard let index = PiboCoreDoodleAdapter.copyIndex(
+            kind: kind,
+            coordinateCount: result?.coordinates.count ?? 0,
+            distanceMeters: result?.distanceMeters ?? 0,
+            durationSeconds: result?.duration ?? 0,
+            attempt: attemptOrdinal,
+            lineCount: lines.count
+        ), lines.indices.contains(index) else { return "" }
+        return AppLocalization.text(lines[index])
     }
 }
 
 #Preview {
     WalkDoodleView(onSaved: { _ in })
+        .environment(WalkDoodleProgressStore())
 }

@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import SwiftData
+import PiboCore
 
 /// One sampled GPS point on a walk-doodle stroke. Stored raw (lat / lon / time) so
 /// the codable layout stays stable across refactors and the doodle can be
@@ -50,6 +51,22 @@ struct WalkDoodleResult: Sendable, Equatable {
     }
 }
 
+struct WalkDoodleCompletionResult: Sendable, Equatable {
+    let route: WalkDoodleResult
+    let taskDayKey: Int64
+    let shape: PiboCoreWalkDoodleShape
+    let evaluation: PiboCoreDoodleAdapter.Evaluation
+    let rewardEventID: String
+    let scoringVersion: UInt32
+    let rewardVersion: UInt32
+
+    var coordinates: [DoodleCoordinate] { route.coordinates }
+    var distanceMeters: Double { route.distanceMeters }
+    var areaSquareMeters: Double { route.areaSquareMeters }
+    var duration: TimeInterval { route.duration }
+    var title: String { WalkDoodleCopy.shapeName(shape) }
+}
+
 /// A walk doodle the user traced by walking — Pibo's "用脚画一幅画" task.
 /// Persisted per day so completed doodles land
 /// on the 历史数据页's 足迹涂鸦 card, and so future builds can compare 完成度 /
@@ -69,7 +86,16 @@ final class WalkDoodleRecord {
     /// the future 比拼面积 feature.
     var areaSquareMeters: Double
     var durationSeconds: Double
-    /// Challenge title — `nil` = freeform. Future: target-doodle prompt name.
+    var taskDayKey: Int64?
+    var shapeRawValue: Int?
+    var completed: Bool?
+    var score: Int?
+    var closureScore: Int?
+    var contourScore: Int?
+    var structureScore: Int?
+    var grantedEnergy: Double?
+    var scoringVersion: Int?
+    var rewardVersion: Int?
     var title: String?
     var updatedAt: Date
 
@@ -79,6 +105,16 @@ final class WalkDoodleRecord {
          distanceMeters: Double,
          areaSquareMeters: Double,
          durationSeconds: Double,
+         taskDayKey: Int64? = nil,
+         shapeRawValue: Int? = nil,
+         completed: Bool? = nil,
+         score: Int? = nil,
+         closureScore: Int? = nil,
+         contourScore: Int? = nil,
+         structureScore: Int? = nil,
+         grantedEnergy: Double? = nil,
+         scoringVersion: Int? = nil,
+         rewardVersion: Int? = nil,
          title: String? = nil,
          updatedAt: Date = .now) {
         self.id = id
@@ -88,12 +124,25 @@ final class WalkDoodleRecord {
         self.distanceMeters = distanceMeters
         self.areaSquareMeters = areaSquareMeters
         self.durationSeconds = durationSeconds
+        self.taskDayKey = taskDayKey
+        self.shapeRawValue = shapeRawValue
+        self.completed = completed
+        self.score = score
+        self.closureScore = closureScore
+        self.contourScore = contourScore
+        self.structureScore = structureScore
+        self.grantedEnergy = grantedEnergy
+        self.scoringVersion = scoringVersion
+        self.rewardVersion = rewardVersion
         self.title = title
         self.updatedAt = updatedAt
     }
 }
 
 extension WalkDoodleRecord {
+    var shape: PiboCoreWalkDoodleShape? {
+        shapeRawValue.flatMap { PiboCoreWalkDoodleShape(rawValue: Int32($0)) }
+    }
     /// Has a renderable stroke.
     var hasData: Bool { coordinates.count >= 2 }
 
