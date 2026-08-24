@@ -57,6 +57,7 @@ nonisolated enum LPLog {
     static let snapshot     = Logger(subsystem: subsystem, category: "Snapshot")
     static let petState     = Logger(subsystem: subsystem, category: "PetState")
     static let bo           = Logger(subsystem: subsystem, category: "Bo")
+    static let speech       = Logger(subsystem: subsystem, category: "Speech")
     static let audio        = Logger(subsystem: subsystem, category: "Audio.Soundscape")
     static let weather      = Logger(subsystem: subsystem, category: "Weather")
 

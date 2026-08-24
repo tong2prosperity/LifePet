@@ -46,6 +46,8 @@ struct PiboSpeechLine: Equatable {
     var isStoryClue: Bool = false
     var source: PiboSpeechSource = .pibo
     var data: PiboSpeechData? = nil
+    var hasNext = false
+    var lingerDuration: TimeInterval? = nil
 
     /// A system notice — the app explaining why Pibo is not answering.
     static func system(_ text: String) -> PiboSpeechLine {

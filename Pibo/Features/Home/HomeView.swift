@@ -144,7 +144,7 @@ struct HomeView: View {
             morningSleep: morningSleep,
             storyStage: { speechInput.storyStage },
             speechFacts: { speechInput.facts },
-            hasReliableHealthData: { health.dataAvailability.hasReliableData },
+            healthAvailability: { health.dataAvailability },
             canPresentOrnament: {
                 presentation.activeSheet == nil
                     && !fullScreenFeaturePresented
@@ -405,6 +405,15 @@ struct HomeView: View {
                     to: state,
                     stageCommands: stageCommands
                 )
+                piboSpeech.patStateChanged(
+                    state,
+                    episodeKey: animationPresentation.patEpisodeKey
+                )
+                speechPresentation.dismiss()
+            }
+            .onDisappear {
+                piboSpeech.leaveHome()
+                speechPresentation.dismiss()
             }
             .onChange(of: health.dataAvailability) { _, _ in
                 refreshAnimationState()

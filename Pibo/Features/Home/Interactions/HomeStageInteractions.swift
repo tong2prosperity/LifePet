@@ -18,7 +18,7 @@ struct HomeStageInteractions {
     let morningSleep: MorningSleepCoordinator
     let storyStage: () -> PiboCoreStorySpeechStage
     let speechFacts: () -> PiboHomeSpeechFacts
-    let hasReliableHealthData: () -> Bool
+    let healthAvailability: () -> HealthDataService.DataAvailability
     let canPresentOrnament: () -> Bool
     let dismissSpeech: () -> Void
     let showAnimationLine: (PiboSpeechLine) -> Void
@@ -44,41 +44,21 @@ struct HomeStageInteractions {
     }
 
     private func handlePat() {
-        let state = animationPresentation.state
-        let action = PiboCoreAnimationAdapter.contextualAction(for: state)
-        guard action != .checkIn else {
-            stageCommands.playContextualAction(action)
-            HomePatInteractionCoordinator.run(
-                store: store,
-                history: history,
-                animationPresentation: animationPresentation,
-                stageCommands: stageCommands,
-                speech: speech,
-                storyStage: storyStage,
-                facts: speechFacts,
-                neutralLegacyMode: {
-                    !PiboReleaseScope.temporaryCooperationOnboarding
-                },
-                hasReliableHealthData: hasReliableHealthData(),
-                showAnimationLine: showAnimationLine,
-                showResolvedSpeech: showResolvedSpeech
-            )
-            return
-        }
-        guard contextualActions.begin(
-            action: action,
-            state: state,
-            stageCommands: stageCommands
-        ) else { return }
-        LPHaptics.tap()
-        Analytics.track(
-            .pat,
-            screen: "home",
-            ["reaction": .string(action.rawValue)]
+        let input = HomePatInputProvider(
+            store: store,
+            history: history,
+            animationPresentation: animationPresentation,
+            healthAvailability: healthAvailability(),
+            storyStage: storyStage()
+        ).input()
+        HomePatInteractionCoordinator.run(
+            input: input,
+            speech: speech,
+            contextualActions: contextualActions,
+            stageCommands: stageCommands,
+            presentHealthStatus: { presentSheet(.healthDataStatus) },
+            show: showAnimationLine
         )
-        if action == .checkConnection {
-            presentSheet(.healthDataStatus)
-        }
     }
 
     private func handleHairPull() {

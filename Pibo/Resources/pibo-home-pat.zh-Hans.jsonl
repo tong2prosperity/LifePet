@@ -1,0 +1,45 @@
+{"state":"stable","context":"touchDiscovery","action":"checkIn","speaker":"pibo","lines":[{"text":"这边也能碰到？"}]}
+{"state":"stable","context":"touchDiscovery","action":"checkIn","speaker":"pibo","lines":[{"text":"好吧，我也碰不到你。"}]}
+{"state":"stable","context":"touchDiscovery","action":"checkIn","speaker":"pibo","lines":[{"text":"这算打招呼吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"怎么了？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你是在叫我吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你刚才是故意的吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我还以为你要点旁边。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我刚才没有发呆。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我正在想事情。现在忘了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我没睡。只是没动。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"我看到今天有 {steps} 步了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"昨晚睡了 {sleepDuration}。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"你睡了 {sleepDuration}，我当时也睡着了。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我现在很有精神。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"你是想看我动一下？"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你刚才跑步了吗？"},{"text":"如果我也开始跑……"},{"text":"不知道我的肚子多久能小一点。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"你刚才走路了吗？"},{"text":"我也可以散步。"},{"text":"围着这里走，算散步吗？"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"你刚才骑车了吗？"},{"text":"骑快一点，风会很大吧。"},{"text":"我头上的花大概会被吹歪。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"你刚才游泳了吗？"},{"text":"我这么圆……"},{"text":"应该很容易浮起来吧。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"你刚才训练了吗？"},{"text":"我也跟着做了一下。"},{"text":"一下应该也算。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"你刚才在伸展身体吗？"},{"text":"我也可以试试。"},{"text":"先让我找找腰在哪里。"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"你刚才运动了吗？"},{"text":"名字我没认出来。"},{"text":"但你动过了，这个我看得懂。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"令人刮目相看。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"做得真的不错。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"睡真饱啊。"},{"text":"今天又是美好的一天。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"昨晚睡得有点少。"},{"text":"难怪我今天总想坐下。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我今天有点困。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我没有睡着。"},{"text":"只是眼睛不太想睁开。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我本来想站直一点。"},{"text":"还是下次吧。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"这样舒服一点。"},{"text":"我就坐一会儿。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"我刚醒。"},{"text":"先让我站稳。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"醒是醒了。"},{"text":"就是还不太想动。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"我已经醒了。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"早上好已经说过了。"},{"text":"再说一次也可以。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"呼……"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"还没醒。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"我睡得正香呢。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"等我醒了再说。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"晚安。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"我正在睡。很认真。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"我还看不到睡眠和活动记录。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"记录还不够。我先不乱猜。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"新的记录暂时拿不到。"}]}
+{"state":"dataUnknown","context":"interruptedNoTrustedState","action":"checkConnection","speaker":"pibo","lines":[{"text":"新的记录断了。我还不能判断。"}]}

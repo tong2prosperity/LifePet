@@ -3,6 +3,7 @@ import PiboCore
 enum PiboCorePatAdapter {
     static let recentWindowSeconds = PiboCorePat.recentWindowSeconds
     static let dailyWindowSeconds = PiboCorePat.dailyWindowSeconds
+    static let interactionDurationSeconds = PiboCorePat.interactionDurationSeconds
 
     static func shouldIdleMutter(roll: Double) -> Bool {
         PiboCorePat.shouldIdleMutter(roll: roll)

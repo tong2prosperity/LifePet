@@ -23,6 +23,7 @@ final class PiboSpeechService: PiboSpeechProviding {
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private var history: PiboSpeechHistory
     @ObservationIgnored private var homeHistory: PiboHomeSpeechHistory
+    @ObservationIgnored private var patConversation: PiboPatConversationStore
 
     init(
         defaults: UserDefaults = .standard,
@@ -39,6 +40,7 @@ final class PiboSpeechService: PiboSpeechProviding {
         self.calendar = calendar
         self.history = PiboSpeechHistory(defaults: defaults)
         self.homeHistory = PiboHomeSpeechHistory(defaults: defaults)
+        self.patConversation = PiboPatConversationStore(defaults: defaults)
     }
 
     init(
@@ -57,6 +59,7 @@ final class PiboSpeechService: PiboSpeechProviding {
         self.calendar = calendar
         self.history = PiboSpeechHistory(defaults: defaults)
         self.homeHistory = PiboHomeSpeechHistory(defaults: defaults)
+        self.patConversation = PiboPatConversationStore(defaults: defaults)
     }
 
     func resolve(
@@ -114,6 +117,22 @@ final class PiboSpeechService: PiboSpeechProviding {
     func resetHistory() {
         history.reset()
         homeHistory.reset()
+        patConversation.reset()
+    }
+
+    func resolvePatConversation(
+        _ input: PiboPatConversationInput,
+        at date: Date = .now
+    ) -> PiboPatResolution {
+        patConversation.resolve(input, at: date)
+    }
+
+    func patStateChanged(_ state: PiboActivityState, episodeKey: String) {
+        patConversation.stateChanged(state, episodeKey: episodeKey)
+    }
+
+    func leaveHome() {
+        patConversation.leaveHome()
     }
 
     func resolvePat(

@@ -31,10 +31,18 @@ struct PiboSpeechBubbleView: View {
                 if line.source == .system {
                     systemContent
                 } else {
-                    Text(displayText)
-                        .lpText(LP.Typography.b3Regular)
-                        .foregroundStyle(textColor)
-                        .multilineTextAlignment(line.data == nil ? .center : .leading)
+                    HStack(alignment: .lastTextBaseline, spacing: LP.Spacing.xs) {
+                        Text(displayText)
+                            .lpText(LP.Typography.b3Regular)
+                            .foregroundStyle(textColor)
+                            .multilineTextAlignment(line.data == nil ? .center : .leading)
+                        if line.hasNext {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(LP.Colorful.teal500)
+                                .accessibilityLabel(AppLocalization.text("再次拍一拍继续"))
+                        }
+                    }
                 }
             }
 

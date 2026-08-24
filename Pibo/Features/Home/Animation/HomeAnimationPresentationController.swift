@@ -14,6 +14,16 @@ final class HomeAnimationPresentationController {
     private var lifecycleSnapshot: PiboCoreStateSnapshot
     private var hasHammock = false
 
+    var patEpisodeKey: String {
+        let event = lifecycleSnapshot.eventAt ?? 0
+        let wake = lifecycleSnapshot.wakeStartedAt ?? 0
+        return "\(state.rawValue):\(event):\(wake)"
+    }
+
+    var wakeStartedAt: Date? {
+        lifecycleSnapshot.wakeStartedAt.map(Date.init(timeIntervalSince1970:))
+    }
+
     #if DEBUG
     var forcedStateID: String?
     private(set) var coreStateID: String

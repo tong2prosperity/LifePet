@@ -40,7 +40,9 @@ enum HomeSpeechPresentationPolicy {
     /// A system notice is a full sentence rather than a garbled fragment, so
     /// it holds a beat longer than ordinary speech.
     static func lingerDuration(for line: PiboSpeechLine) -> TimeInterval {
-        if line.data != nil {
+        if let lingerDuration = line.lingerDuration {
+            lingerDuration
+        } else if line.data != nil {
             5.0
         } else if line.source == .system {
             3.0

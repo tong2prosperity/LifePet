@@ -1,44 +1,49 @@
+import PiboCore
 import Testing
 @testable import Pibo
 
-@Test func rustPatV2UsesFortyPercentAndBothSpeechCaps() {
-    #expect(PiboCorePatAdapter.decideV2(
-        spokenIn24Hours: 0,
-        spokenIn10Minutes: 0,
-        speechRoll: 0.399_999,
-        restingState: false
-    ).speaks)
-    #expect(!PiboCorePatAdapter.decideV2(
-        spokenIn24Hours: 0,
-        spokenIn10Minutes: 0,
-        speechRoll: 0.4,
-        restingState: false
-    ).speaks)
-    #expect(!PiboCorePatAdapter.decideV2(
-        spokenIn24Hours: 9,
-        spokenIn10Minutes: 0,
-        speechRoll: 0,
-        restingState: false
-    ).speaks)
-    #expect(!PiboCorePatAdapter.decideV2(
-        spokenIn24Hours: 0,
-        spokenIn10Minutes: 3,
-        speechRoll: 0,
-        restingState: false
-    ).speaks)
+@Test func corePatCooldownMatchesBubbleDuration() {
+    #expect(PiboCorePatAdapter.interactionDurationSeconds == 3)
+    #expect(!PiboCorePat.cooldownAllows(
+        elapsedSinceLastAcceptedSeconds: 2.999,
+        hasPreviousAcceptedTap: true
+    ))
+    #expect(PiboCorePat.cooldownAllows(
+        elapsedSinceLastAcceptedSeconds: 3,
+        hasPreviousAcceptedTap: true
+    ))
 }
 
-@Test func sleepAndWakingPatsNeverCountTowardAngry() {
-    #expect(!PiboCorePatAdapter.decideV2(
-        spokenIn24Hours: 0,
-        spokenIn10Minutes: 0,
-        speechRoll: 0,
-        restingState: true
-    ).countsTowardAngry)
-    #expect(PiboCorePatAdapter.decideV2(
-        spokenIn24Hours: 0,
-        spokenIn10Minutes: 0,
-        speechRoll: 0,
-        restingState: false
-    ).countsTowardAngry)
+@Test func corePatMapsSixStatesAndSubstatesToSemanticContexts() {
+    #expect(PiboCorePat.context(
+        state: .stable,
+        behavior: .stableThinking,
+        event: .none
+    ) == .stableThinking)
+    #expect(PiboCorePat.context(
+        state: .energetic,
+        behavior: .default,
+        event: .workoutRun
+    ) == .energeticWorkoutRun)
+    #expect(PiboCorePat.context(
+        state: .tired,
+        behavior: .tiredResting,
+        event: .none
+    ) == .tiredResting)
+    #expect(PiboCorePat.context(
+        state: .waking,
+        behavior: .wakingGreeted,
+        event: .none
+    ) == .wakingGreeted)
+    #expect(PiboCorePat.context(
+        state: .sleeping,
+        behavior: .default,
+        event: .none
+    ) == .sleepingAsleep)
+    #expect(PiboCorePat.context(
+        state: .dataUnknown,
+        behavior: .default,
+        event: .none,
+        dataUnknownReason: .authorization
+    ) == .dataUnknownAuthorization)
 }
