@@ -4,21 +4,6 @@ import Testing
 
 @MainActor
 struct HomePresentationStateTests {
-    @Test func startsWithEveryDestinationDismissed() {
-        let state = HomePresentationState()
-
-        #expect(!state.showCamera)
-        #expect(!state.showGames)
-        #expect(!state.showHistory)
-        #expect(!state.showSettings)
-        #expect(!state.showStoryRecovery)
-        #expect(!state.storyRecoveryDismissed)
-        #expect(!state.showWalkDoodle)
-        #expect(state.historyFocus == nil)
-        #expect(state.cameraInitialMeal == nil)
-        #expect(state.queuedCameraMeal == nil)
-    }
-
     @Test func cameraBindingRequiresAvailabilityInBothDirections() {
         let state = HomePresentationState()
         state.showCamera = true

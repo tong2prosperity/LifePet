@@ -28,6 +28,12 @@ extension LP {
         static let bgContainer        = LP.Neutral.grey25   // fill-bg-container — card / clickable container
         static let bgPop              = LP.Neutral.grey0    // fill-bg-pop — popover / elevated (pairs w/ shadow)
 
+        // — sleep review: very low-chroma category surfaces —
+        // These keep the morning summary mostly neutral while letting structure
+        // and body signals scan as two distinct groups.
+        static let sleepStructure     = Color(hex: 0xF8F7FC)
+        static let sleepBody          = Color(hex: 0xF6F9FC)
+
         // — semantic: brand accent + status (Figma fill-semantic-*) —
         static let foundationAccent   = LP.Colorful.green500  // Pibo green (sprout / leaf / "?")
         static let foundationOnAccent = LP.Neutral.grey0      // text/icon on accent
@@ -75,5 +81,7 @@ extension LP {
         static let primary   = Color.black.opacity(31.0 / 255.0)  // border-primary (#000 @ 0x1F)
         static let secondary = Color.black.opacity(20.0 / 255.0)  // border-secondary — inferred (no var); = separator-secondary
         static let tertiary  = Color.black.opacity(10.0 / 255.0)  // border-tertiary (@ 0x0A)
+        static let sleepStructure = Color(hex: 0xD9D7EB)
+        static let sleepBody      = Color(hex: 0xD3E0ED)
     }
 }

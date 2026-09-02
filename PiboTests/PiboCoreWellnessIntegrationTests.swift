@@ -51,6 +51,7 @@ struct PiboCoreWellnessIntegrationTests {
         record.sleepEnd = day
 
         let report = PiboCoreWellnessAdapter.report(current: record, history: [])
+        let readiness = PiboCoreWellnessAdapter.readiness(current: record, history: [])
 
         #expect(report.sleep.score != nil)
         #expect(report.activity.score == nil)
@@ -58,9 +59,11 @@ struct PiboCoreWellnessIntegrationTests {
         #expect(report.recovery.heartRateScore == nil)
         #expect(report.recovery.temperatureScore == nil)
         #expect(report.recovery.trainingScore == nil)
+        #expect(readiness.score == nil)
+        #expect(readiness.primaryReason == .buildingPersonalBaseline)
     }
 
-    @Test func instrumentDoesNotPresentUnobservedTrainingLoadsAsZero() throws {
+    @Test func wellnessSnapshotPersistsObservationCountsForUnobservedTrainingLoads() throws {
         let day = Calendar.current.startOfDay(for: .now)
         let record = HealthDayRecord(date: day)
         let report = PiboCoreWellnessAdapter.report(current: record, history: [])
@@ -69,13 +72,7 @@ struct PiboCoreWellnessIntegrationTests {
         #expect(snapshot.acuteTrainingObservedDays == 0)
         #expect(snapshot.chronicTrainingObservedDays == 0)
 
-        record.wellnessPayload = try JSONEncoder().encode(snapshot)
-        let presentation = WellnessInstrumentData(record: record)
-        #expect(presentation.acuteTrainingLoad == nil)
-        #expect(presentation.chronicTrainingLoad == nil)
-        #expect(presentation.trainingBalanceStatus == nil)
-
-        let persistedPayload = try #require(record.wellnessPayload)
+        let persistedPayload = try JSONEncoder().encode(snapshot)
         var legacyObject = try #require(
             JSONSerialization.jsonObject(with: persistedPayload) as? [String: Any]
         )
@@ -185,6 +182,9 @@ struct PiboCoreWellnessIntegrationTests {
         #expect(snapshot.algorithmVersion == PiboCoreWellness.algorithmVersion)
         #expect(snapshot.sleepScore != nil)
         #expect(snapshot.activityScore != nil)
+        #expect(snapshot.readinessScore != nil)
+        #expect(snapshot.readinessBand == PiboCoreWellnessReadinessBand.personalNormal.rawValue)
+        #expect(snapshot.readinessCalibrationDays == 7)
         #expect(snapshot.restorativeMinutes == 10)
         #expect(snapshot.resilienceScore != nil)
         #expect(snapshot.resilienceObservedDays == 8)

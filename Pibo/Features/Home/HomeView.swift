@@ -37,6 +37,7 @@ struct HomeView: View {
 
     @State private var speechPresentation = HomeSpeechPresentationController()
     @State private var presentation = HomePresentationState()
+    @State private var statusObserverPresentation = StatusObserverPresentationStore()
     #if DEBUG
     @State private var debugAutomation = HomeDebugAutomationController()
     #endif
@@ -97,6 +98,49 @@ struct HomeView: View {
 
     private var fullScreenFeaturePresented: Bool {
         presentationPolicy.fullScreenFeaturePresented
+    }
+
+    private var statusObserverPinned: Bool {
+        #if DEBUG
+        if HomeDebugLaunchOptions.current.showsStatusObserver { return true }
+        #endif
+        return statusObserverPresentation.isPinned(petID: store.identity.currentPetId)
+    }
+
+    private var statusObserverOwnsHealthStatus: Bool {
+        statusObserverPinned && ornamentUnlocks.grants(.recoveryStatus)
+    }
+
+    private var statusObserverCardVisible: Bool {
+        presentationPolicy.statusObserverCardVisible(
+            isPinned: statusObserverPinned,
+            recoveryStatusGranted: ornamentUnlocks.grants(.recoveryStatus),
+            foodProjectionPresented: presentation.foodProjection != nil,
+            transientNoticePresented: presentation.transientNotice != nil,
+            shadowLightBannerPresented: shadowLightBanner != nil
+        )
+    }
+
+    private var statusObserverCardData: WellnessObserverPresentation {
+        #if DEBUG
+        if HomeDebugLaunchOptions.current.showsStatusObserver {
+            return .init(content: .available(.init(
+                score: 78,
+                band: .personalNormal,
+                sleepSufficiency: 86,
+                load: .usual,
+                primaryReason: .sleepSufficient,
+                secondaryReason: .hrvUsual,
+                calibrationDays: 18,
+                generatedAt: Date(timeIntervalSince1970: 1_777_013_400)
+            )))
+        }
+        #endif
+        _ = history.revision
+        return WellnessObserverPresentation.make(
+            record: history.record(on: atmosphereClock.now),
+            availability: health.dataAvailability
+        )
     }
 
     private var speechInput: HomeSpeechInputProvider {
@@ -173,6 +217,7 @@ struct HomeView: View {
                     && sproutPhase == .idle
                     && presentation.foodProjection == nil
             },
+            toggleStatusObserver: toggleStatusObserver,
             dismissSpeech: speechPresentation.dismiss,
             showAnimationLine: speechPresentation.show,
             showResolvedSpeech: speechPresentation.show,
@@ -346,6 +391,14 @@ struct HomeView: View {
             chromeContent
                 .accessibilityHidden(stagePaused)
 
+            if statusObserverCardVisible {
+                statusObserverCard
+                    .zIndex(20)
+                    .transition(reduceMotion
+                        ? .identity
+                        : .move(edge: .top).combined(with: .opacity))
+            }
+
             HomeStoryRecoveryOverlay(
                 onboarding: onboarding,
                 presentation: presentation
@@ -396,7 +449,8 @@ struct HomeView: View {
             }
 
             if health.dataAvailability.requiresAttention,
-               health.dataAvailability.hasReliableData {
+               health.dataAvailability.hasReliableData,
+               !statusObserverOwnsHealthStatus {
                 VStack {
                     PiboMossInlineNotice(
                         title: AppLocalization.text("健康数据暂时中断"),
@@ -717,6 +771,44 @@ struct HomeView: View {
         .allowsHitTesting(!sproutPhase.obscuresHomeChrome)
     }
 
+    private var statusObserverCard: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
+                WellnessObserverCard(
+                    presentation: statusObserverCardData,
+                    expanded: statusObserverPresentation.expanded,
+                    onToggleExpanded: {
+                        statusObserverPresentation.setExpanded(
+                            !statusObserverPresentation.expanded
+                        )
+                    },
+                    onOpenHealthStatus: {
+                        speechPresentation.dismiss()
+                        presentation.activeSheet = .healthDataStatus
+                    }
+                )
+                Spacer(minLength: 0)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, LP.Spacing.l)
+        .padding(.top, 56)
+    }
+
+    private func toggleStatusObserver() {
+        let isPinned = statusObserverPinned
+        let animation: Animation? = if reduceMotion {
+            nil
+        } else if isPinned {
+            .easeIn(duration: 0.14)
+        } else {
+            .easeOut(duration: 0.20)
+        }
+        withAnimation(animation) {
+            statusObserverPresentation.togglePinned(petID: store.identity.currentPetId)
+        }
+    }
+
     // MARK: 能量收集 (发芽 flow — see EnergySproutFlow.swift)
     private func maybeStartEnergyFlow() {
         sproutFlow.startIfPossible(
@@ -816,6 +908,7 @@ struct HomeView: View {
     }
 
     private func performReset() {
+        statusObserverPresentation.reset()
         HomeResetCoordinator.run(
             speech: piboSpeech,
             store: store,

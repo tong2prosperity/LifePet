@@ -21,6 +21,7 @@ nonisolated enum PiboPersistenceKeys {
 
         static let workoutAnchor = "pibo.healthkit.workoutAnchor.v1"
         static let healthKitAuthorized = "pibo.healthkit.authorized.v1"
+        static let wellnessObserverPinnedPetIDs = "pibo.wellnessObserver.pinnedPetIDs.v1"
 
         static let lastSeenDate = "pibo.dayRollover.lastSeenDate.v1"
         static let lastDecayAt = "pibo.decay.lastDecayAt.v1"

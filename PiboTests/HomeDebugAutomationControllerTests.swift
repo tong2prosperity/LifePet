@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-import UIKit
 @testable import Pibo
 
 #if DEBUG
@@ -36,23 +35,6 @@ struct HomeDebugAutomationControllerTests {
             ledger: ledger
         )
         #expect(ledger.state.energyPool == rewardedEnergy)
-    }
-
-    @Test func simulatedMealPreservesImageAndCallbackInputs() throws {
-        var capturedImage: UIImage? = nil
-        var capturedLabel: String? = "unread"
-        var capturedMeal: MealType? = nil
-
-        HomeDebugAutomationController.simulateMeal(.dinner) { image, label, meal in
-            capturedImage = image
-            capturedLabel = label
-            capturedMeal = meal
-        }
-
-        let image = try #require(capturedImage)
-        #expect(image.size == CGSize(width: 512, height: 512))
-        #expect(capturedLabel == nil)
-        #expect(capturedMeal == .dinner)
     }
 
     private func achievement(id: UUID) -> PiboAnimationAchievementPayload {

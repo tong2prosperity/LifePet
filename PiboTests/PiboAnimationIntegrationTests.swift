@@ -386,8 +386,10 @@ struct PiboAnimationIntegrationTests {
     @Test func achievementHardCutUsesOnlyTheAuthoredIntro() throws {
         let data = try PiboCharacterData.load()
         let character = try #require(PiboVectorCharacter(stateID: "pibo-event-workout-celebrate", data: data))
-        #expect(abs(character.sproutNode.xScale - (1 / 3)) < 0.0001)
-        #expect(abs(character.sproutNode.yScale - (1 / 3)) < 0.0001)
+        #expect(abs(character.sproutNode.xScale - 1) < 0.0001)
+        #expect(abs(character.sproutNode.yScale - 1) < 0.0001)
+        #expect(abs(character.sproutGeometryScale.width - (1 / 3)) < 0.0001)
+        #expect(abs(character.sproutGeometryScale.height - (1 / 3)) < 0.0001)
         #expect(character.sproutPath() != nil)
 
         let transition = PiboStateTransition(data: data, stateID: "pibo-event-workout-celebrate")

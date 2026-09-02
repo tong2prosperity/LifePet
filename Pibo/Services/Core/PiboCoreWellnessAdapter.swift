@@ -59,6 +59,19 @@ enum PiboCoreWellnessAdapter {
         )
     }
 
+    static func readiness(
+        current: HealthDayRecord,
+        history: [HealthDayRecord],
+        calendar: Calendar = .current
+    ) -> PiboCoreWellnessReadinessResult {
+        PiboCoreWellness.readiness(
+            current: observation(for: current, relativeTo: current.date, calendar: calendar),
+            history: history.map {
+                observation(for: $0, relativeTo: current.date, calendar: calendar)
+            }
+        )
+    }
+
     static func trainingLoad(
         workout: WorkoutValues,
         restingHeartRate: Double?

@@ -26,8 +26,8 @@ struct PiboStageView: View, Equatable {
     /// 魔丸 head growth (「?」卷芽 ⇄ 发芽带叶) — drives which head sprite shows.
     var growth: PiboGrowthStage = .sprouted
     var boGrowthStage: PiboCoreBoGrowthStage = .dormant
-    /// Continuous, persisted extension of the sprouted six-bone mesh.
-    var sproutGrowthProgress: Double = 1
+    /// Continuous, persisted content level inside the fixed `bo` shell.
+    var boFillProgress: Double = 0
     /// Theme-neutral local time and weather input.
     var environment: PiboStageEnvironment = .daylight
     /// 森林中的全部共同物件。未拥有的物件由渲染器直接显示为灰态。
@@ -110,8 +110,8 @@ struct PiboStageView: View, Equatable {
             .onChange(of: state) { _, _ in applySceneState() }
             .onChange(of: animationStateID) { _, _ in applySceneState() }
             .onChange(of: growth) { _, _ in applySceneState() }
-            .onChange(of: sproutGrowthProgress) { _, value in
-                scene.setSproutGrowthProgress(value)
+            .onChange(of: boFillProgress) { _, value in
+                scene.setBoFillProgress(value)
             }
             .onChange(of: environment) { _, value in scene.setEnvironment(value) }
             .onChange(of: presentedOrnaments) { _, _ in applyOrnaments() }
@@ -197,7 +197,7 @@ struct PiboStageView: View, Equatable {
             )
         }
         applySceneState()
-        scene.setSproutGrowthProgress(sproutGrowthProgress)
+        scene.setBoFillProgress(boFillProgress)
         scene.setEnvironment(environment)
         applyOrnaments()
         scene.setLitOrnamentLights(litOrnamentLights)
@@ -236,7 +236,7 @@ struct PiboStageView: View, Equatable {
             && lhs.animationStateID == rhs.animationStateID
             && lhs.growth == rhs.growth
             && lhs.boGrowthStage == rhs.boGrowthStage
-            && lhs.sproutGrowthProgress == rhs.sproutGrowthProgress
+            && lhs.boFillProgress == rhs.boFillProgress
             && lhs.environment == rhs.environment
             && lhs.presentedOrnaments == rhs.presentedOrnaments
             && lhs.unlockedOrnaments == rhs.unlockedOrnaments

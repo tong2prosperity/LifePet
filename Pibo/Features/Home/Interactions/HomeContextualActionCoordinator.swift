@@ -10,12 +10,14 @@ final class HomeContextualActionCoordinator {
     private var sourceState: PiboActivityState?
     @ObservationIgnored private var completionTask: Task<Void, Never>?
 
-    func begin(
+    /// Every accepted physical pat restarts its short visual reaction. Speech
+    /// cooldown and conversation progress are deliberately outside this owner.
+    func restart(
         action: PiboCoreAnimationAdapter.ContextualAction,
         state: PiboActivityState,
         stageCommands: PiboStageCommandController
-    ) -> Bool {
-        guard runningAction == nil else { return false }
+    ) {
+        completionTask?.cancel()
         runningAction = action
         sourceState = state
         stageCommands.playContextualAction(action)
@@ -25,7 +27,6 @@ final class HomeContextualActionCoordinator {
             self?.runningAction = nil
             self?.sourceState = nil
         }
-        return true
     }
 
     func cancelIfStateChanged(

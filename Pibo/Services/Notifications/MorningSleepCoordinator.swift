@@ -172,7 +172,9 @@ final class MorningSleepCoordinator {
     func receive(_ input: MorningSleepSummary) async {
         let now = Date()
         var summary = input
-        summary.baselineDelta = baselineDelta(for: summary)
+        let baseline = baselineComparison(for: summary)
+        summary.baselineDelta = baseline.delta
+        summary.baselineSampleCount = baseline.sampleCount > 0 ? baseline.sampleCount : nil
 
         let readiness = summary.readiness(now: now, userIsInteracting: appIsActive)
         // "Settled" ignores the app-is-open shortcut: the user being awake says
@@ -669,14 +671,24 @@ final class MorningSleepCoordinator {
     /// Read-only comparison against the personal median. Kept separate from
     /// recording so a provisional night can still show a delta without being
     /// folded into the baseline it is measured against.
-    private func baselineDelta(for summary: MorningSleepSummary) -> TimeInterval? {
+    private struct BaselineComparison {
+        let delta: TimeInterval?
+        let sampleCount: Int
+    }
+
+    private func baselineComparison(for summary: MorningSleepSummary) -> BaselineComparison {
         let entries = decode([BaselineEntry].self, forKey: Self.baselineKey) ?? []
         let prior = entries
             .filter { $0.wakeDay < summary.wakeDay && $0.total > 0 }
             .suffix(28)
             .map(\.total)
-        guard prior.count >= 5, let baseline = Self.median(Array(prior)) else { return nil }
-        return summary.total - baseline
+        guard prior.count >= 5, let baseline = Self.median(Array(prior)) else {
+            return BaselineComparison(delta: nil, sampleCount: prior.count)
+        }
+        return BaselineComparison(
+            delta: summary.total - baseline,
+            sampleCount: prior.count
+        )
     }
 
     private func recordBaseline(_ summary: MorningSleepSummary) {

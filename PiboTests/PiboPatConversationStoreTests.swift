@@ -42,13 +42,13 @@ struct PiboPatConversationStoreTests {
         let first = store.resolve(input, at: date)
         #expect(first.text == "第一句")
         #expect(first.hasNext)
-        #expect(first.shouldExecuteAction)
-        #expect(!store.resolve(input, at: date.addingTimeInterval(2.9)).accepted)
+        #expect(first.shouldExecuteSideEffect)
+        #expect(!store.resolve(input, at: date.addingTimeInterval(2.9)).speechAccepted)
 
         let second = store.resolve(input, at: date.addingTimeInterval(3))
         #expect(second.text == "第二句")
         #expect(second.interactionCompleted)
-        #expect(!second.shouldExecuteAction)
+        #expect(!second.shouldExecuteSideEffect)
 
         let nextInput = PiboPatConversationInput(
             state: .energetic,

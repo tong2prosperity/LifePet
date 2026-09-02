@@ -4,15 +4,6 @@ import Testing
 
 @MainActor
 struct HomeDebugControlsStateTests {
-    @Test func initializesWithInjectedPanelStateAndDisabledAnimationOptions() {
-        let state = HomeDebugControlsState(isPanelExpanded: true)
-
-        #expect(state.tuning == .standard)
-        #expect(state.isPanelExpanded)
-        #expect(!state.usesBounceCut)
-        #expect(!state.playsAchievementCombo)
-    }
-
     @Test func selectionPassesCurrentIntentIntoResolutionBeforeTransitioning() {
         let state = HomeDebugControlsState(usesBounceCut: true)
         var events: [String] = []

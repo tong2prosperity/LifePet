@@ -59,6 +59,15 @@ struct DailyWellnessSnapshot: Codable, Equatable, Sendable {
     let recoveryTemperatureContributor: Double?
     let recoveryTrainingContributor: Double?
 
+    let readinessScore: DailyWellnessScoreSnapshot?
+    let readinessBand: Int32?
+    let readinessSleepSufficiency: Double?
+    let readinessLoadStatus: Int32?
+    let readinessPrimaryReason: Int32?
+    let readinessSecondaryReason: Int32?
+    let readinessCalibrationDays: Int?
+    let readinessRequiredCalibrationDays: Int?
+
     var restorativeMinutes: Double?
     var restorativeConfidence: Double?
 
@@ -68,7 +77,11 @@ struct DailyWellnessSnapshot: Codable, Equatable, Sendable {
     var resilienceRestorativeContributor: Double?
     var resilienceObservedDays: Int
 
-    nonisolated init(report: PiboCoreWellnessReport, generatedAt: Date) {
+    nonisolated init(
+        report: PiboCoreWellnessReport,
+        readiness: PiboCoreWellnessReadinessResult? = nil,
+        generatedAt: Date
+    ) {
         algorithmVersion = report.algorithmVersion
         self.generatedAt = generatedAt
         sleepScore = report.sleep.score.map(DailyWellnessScoreSnapshot.init)
@@ -97,6 +110,14 @@ struct DailyWellnessSnapshot: Codable, Equatable, Sendable {
         recoveryHeartRateContributor = report.recovery.heartRateScore
         recoveryTemperatureContributor = report.recovery.temperatureScore
         recoveryTrainingContributor = report.recovery.trainingScore
+        readinessScore = readiness?.score.map(DailyWellnessScoreSnapshot.init)
+        readinessBand = readiness?.band.rawValue
+        readinessSleepSufficiency = readiness?.sleepSufficiencyScore
+        readinessLoadStatus = readiness?.loadStatus.rawValue
+        readinessPrimaryReason = readiness?.primaryReason.rawValue
+        readinessSecondaryReason = readiness?.secondaryReason.rawValue
+        readinessCalibrationDays = readiness?.calibrationDays
+        readinessRequiredCalibrationDays = readiness?.requiredCalibrationDays
         restorativeMinutes = nil
         restorativeConfidence = nil
         resilienceScore = nil

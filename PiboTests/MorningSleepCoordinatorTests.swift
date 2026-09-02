@@ -304,6 +304,40 @@ struct MorningSleepCoordinatorTests {
         #expect(defaults.data(forKey: "pibo.sleep.morning.baseline.v1") != nil)
     }
 
+    @Test func personalBaselineCarriesItsPriorNightCountIntoTheSummary() async throws {
+        let notifications = FakeNotificationCenter()
+        let (coordinator, _) = makeCoordinator(notifications: notifications)
+        coordinator.setAppActive(false)
+        coordinator.debugLocalHourOverride = 8
+
+        let anchor = todayAt(8)
+        let priorHours: [Double] = [6, 7, 8, 7, 6]
+        for (index, hours) in priorHours.enumerated() {
+            let daysAgo = 6 - index
+            let end = Calendar.current.date(
+                byAdding: .day,
+                value: -daysAgo,
+                to: anchor
+            ) ?? anchor
+            await coordinator.receive(nightSummary(
+                end: end,
+                total: hours * 3_600,
+                hasTerminalAwakeSignal: false
+            ))
+        }
+
+        let targetEnd = Calendar.current.date(byAdding: .day, value: -1, to: anchor) ?? anchor
+        await coordinator.receive(nightSummary(
+            end: targetEnd,
+            total: 7.5 * 3_600,
+            hasTerminalAwakeSignal: false
+        ))
+
+        let latest = try #require(coordinator.latestSummary)
+        #expect(latest.baselineSampleCount == 5)
+        #expect(abs((latest.baselineDelta ?? -1) - 30 * 60) < 1)
+    }
+
     @Test func lockedHammockStillArchivesRawSleepWithoutUIOrNotification() async {
         let notifications = FakeNotificationCenter()
         let (coordinator, defaults) = makeCoordinator(notifications: notifications)

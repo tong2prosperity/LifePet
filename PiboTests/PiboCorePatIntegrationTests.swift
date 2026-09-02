@@ -2,15 +2,15 @@ import PiboCore
 import Testing
 @testable import Pibo
 
-@Test func corePatCooldownMatchesBubbleDuration() {
-    #expect(PiboCorePatAdapter.interactionDurationSeconds == 3)
-    #expect(!PiboCorePat.cooldownAllows(
-        elapsedSinceLastAcceptedSeconds: 2.999,
-        hasPreviousAcceptedTap: true
+@Test func corePatSpeechCooldownMatchesBubbleDuration() {
+    #expect(PiboCorePatAdapter.speechCooldownDurationSeconds == 3)
+    #expect(!PiboCorePat.speechCooldownAllows(
+        elapsedSinceLastSpeechSeconds: 2.999,
+        hasPreviousSpeech: true
     ))
-    #expect(PiboCorePat.cooldownAllows(
-        elapsedSinceLastAcceptedSeconds: 3,
-        hasPreviousAcceptedTap: true
+    #expect(PiboCorePat.speechCooldownAllows(
+        elapsedSinceLastSpeechSeconds: 3,
+        hasPreviousSpeech: true
     ))
 }
 

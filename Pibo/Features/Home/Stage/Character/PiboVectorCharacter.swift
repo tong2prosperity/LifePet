@@ -36,6 +36,11 @@ final class PiboVectorCharacter {
     /// morph. The warp deforms a render mesh and never reads path data, so the
     /// two systems compose without knowing about each other.
     let sproutNode = SKEffectNode()
+    /// Keeps 3× path tessellation inside the effect while the warp host itself
+    /// stays in the same 1× coordinate system as Pibo's body. Scaling the
+    /// `SKEffectNode` used to offset its offscreen texture, so the authored root
+    /// was mathematically inside the body but visibly floated above it.
+    private let sproutGeometryNode = SKNode()
 
     /// Scaling happens about a node's own origin, and the design package anchors
     /// the settle pulse at 50% / 80% — near Pibo's feet, so the "biu" reads as
@@ -48,6 +53,27 @@ final class PiboVectorCharacter {
     private let pulseNode = SKNode()
     private let contentNode = SKNode()
     private let bodyLayer = SKNode()
+    /// A `bo` is a persistent container, not a leaf that scales into existence.
+    /// The authored solid fill and highlight live under one root-to-tip crop; a
+    /// translucent shell remains outside the crop even when progress is zero.
+    private let boContentCrop = SKCropNode()
+    private let boRevealMask = SKShapeNode()
+    private let boGhostNode = SKShapeNode()
+    private let boGhostOutlineNode = SKShapeNode()
+    private let boRootGhostNode = SKShapeNode()
+    private let boRootContentNode = SKShapeNode()
+    private var boContainerProgress = PiboBoContainerProgress()
+    private var boContainerShapeBounds = CGRect.null
+    private var boContainerBounds = CGRect.null
+    private var boContainerRoot = CGPoint.zero
+    private var boContainerLeafRoot = CGPoint.zero
+    private var boContainerTip = CGPoint.zero
+    private var boConnectionRootDesign = CGPoint.zero
+    private var boLeafRootDesign = CGPoint.zero
+    private var boConnectorStartDesign = CGPoint.zero
+    private var boConnectorEndDesign = CGPoint.zero
+    private var boConnectorStart = CGPoint.zero
+    private var boConnectorEnd = CGPoint.zero
     /// 闪亮登场的金光。两层描边 + `glowWidth`，对应设计包的双层 drop-shadow：
     /// 外层宽而淡、内层窄而亮。垫在角色底下，不参与命中也不进倒影快照的主体。
     private let glowLayer = SKNode()
@@ -117,12 +143,27 @@ final class PiboVectorCharacter {
         contentNode.addChild(bodyLayer)
         sproutNode.shouldEnableEffects = true
         sproutNode.shouldRasterize = false
-        // The sprout geometry is authored at 3× for antialiasing and its host
-        // always scales back to 1/3. Modal artboards use exactly scale == 1;
-        // relying on `setScale` to install this would hit its equality fast-path
+        // The sprout geometry is authored at 3× for antialiasing and this inner
+        // node always scales back to 1/3. Modal artboards use exactly scale == 1;
+        // relying on `setScale` to install it would hit the equality fast-path
         // and leave bo/boline three times too large, outside the 300×300 frame.
-        sproutNode.setScale(1 / Self.sproutSupersample)
+        sproutGeometryNode.setScale(1 / Self.sproutSupersample)
         contentNode.addChild(sproutNode)
+        sproutNode.addChild(sproutGeometryNode)
+        if projectionStyle == nil {
+            boRevealMask.fillColor = .white
+            boRevealMask.strokeColor = .clear
+            boContentCrop.maskNode = boRevealMask
+            boGhostNode.isAntialiased = true
+            boGhostOutlineNode.isAntialiased = true
+            boRootGhostNode.isAntialiased = true
+            sproutGeometryNode.addChild(boRootGhostNode)
+            sproutGeometryNode.addChild(boGhostNode)
+            boRootContentNode.isAntialiased = true
+            boContentCrop.addChild(boRootContentNode)
+            sproutGeometryNode.addChild(boContentCrop)
+            sproutGeometryNode.addChild(boGhostOutlineNode)
+        }
         // The proxy is a sibling of contentNode under the animated presentation
         // containers. It therefore follows bounce/settle scale in the water
         // reflection, while `texture(from: contentNode)` still cannot capture
@@ -203,7 +244,7 @@ final class PiboVectorCharacter {
     func setScale(_ pointsPerDesignUnit: CGFloat) {
         guard pointsPerDesignUnit != scale else { return }
         scale = pointsPerDesignUnit
-        sproutNode.setScale(1 / Self.sproutSupersample)
+        sproutGeometryNode.setScale(1 / Self.sproutSupersample)
         applyPulseAnchor()
         rebuild()
     }
@@ -480,6 +521,9 @@ final class PiboVectorCharacter {
         shape.alpha = element.idleOwned
             ? 0
             : decorationAlpha(element: element, isOutgoing: isOutgoing, isTransitioning: isTransitioning)
+        if projectionStyle == nil, element.id == "bo" {
+            configureBoContainer(path: drawnPath, element: element, contentNode: shape)
+        }
         elementNodes[key] = ElementNode(
             node: shape,
             element: element,
@@ -496,10 +540,280 @@ final class PiboVectorCharacter {
     ) -> SKShapeNode {
         let shape = SKShapeNode()
         shape.isAntialiased = true
-        let host: SKNode = Self.sproutElementIDs.contains(element.id) ? sproutNode : bodyLayer
+        let host: SKNode
+        if projectionStyle == nil, Self.sproutElementIDs.contains(element.id) {
+            host = boContentCrop
+        } else {
+            host = Self.sproutElementIDs.contains(element.id) ? sproutGeometryNode : bodyLayer
+        }
         host.addChild(shape)
         elementNodes[key] = ElementNode(node: shape, element: element, stateID: stateID, basePath: path)
         return shape
+    }
+
+    // MARK: - Bo container
+
+    /// Keeps the complete authored silhouette visible as an empty shell. Only
+    /// the solid `bo` and its white inner line are clipped by energy progress.
+    private func configureBoContainer(
+        path: CGPath,
+        element: PiboCharacterData.Element,
+        contentNode: SKShapeNode
+    ) {
+        guard projectionStyle == nil else { return }
+        let fill = UIColor(svgColor: element.fill, opacity: 1)
+            .map(lighting.applied(to:))
+            ?? UIColor(red: 32 / 255, green: 147 / 255, blue: 122 / 255, alpha: 1)
+        let shellEdge = lighting.applied(to: UIColor(
+            red: 235 / 255,
+            green: 255 / 255,
+            blue: 248 / 255,
+            alpha: 1
+        ))
+
+        // `ElementStyle` already installed the production solid colour on the
+        // cropped content node. The two shell nodes sit outside that crop.
+        contentNode.fillColor = fill
+        boGhostNode.path = path
+        boGhostNode.fillColor = fill.withAlphaComponent(0.10)
+        boGhostNode.strokeColor = .clear
+        boGhostOutlineNode.path = path
+        boGhostOutlineNode.fillColor = .clear
+        boGhostOutlineNode.strokeColor = shellEdge.withAlphaComponent(0.58)
+        boGhostOutlineNode.lineWidth = max(0.8 * scale * Self.sproutSupersample, 0.8)
+        boGhostOutlineNode.lineCap = .round
+        boGhostOutlineNode.lineJoin = .round
+
+        boContainerShapeBounds = path.boundingBoxOfPath.insetBy(
+            dx: -1.2 * scale * Self.sproutSupersample,
+            dy: -1.2 * scale * Self.sproutSupersample
+        )
+        boContainerBounds = boContainerShapeBounds
+        if let axis = sproutAxis {
+            let attachment = bodyDesignPath.flatMap {
+                PiboBoContainerProgress.bodyAttachmentPoint(from: axis.root, in: $0)
+            } ?? axis.root
+            let leafConnection = boDesignPath.flatMap {
+                PiboBoContainerProgress.boInteriorConnectionPoint(
+                    from: axis.root,
+                    toward: axis.tip,
+                    in: $0
+                )
+            } ?? axis.root
+            boConnectionRootDesign = attachment
+            boLeafRootDesign = axis.root
+            boContainerRoot = attachment.applying(sproutTransform)
+            boContainerLeafRoot = leafConnection.applying(sproutTransform)
+            boContainerTip = axis.tip.applying(sproutTransform)
+            configureBoRootConnector(fill: fill, source: contentNode)
+        }
+        applyBoRevealMask()
+        syncBoContainerPresentation()
+    }
+
+    /// Makes the authored attachment readable against Pibo's white body. This
+    /// remains translucent in the empty state; solid content still appears only
+    /// when the ledger reports energy.
+    private func configureBoRootConnector(fill: UIColor, source: SKShapeNode) {
+        let liveLeafRoot = source.path.flatMap {
+            PiboBoContainerProgress.boInteriorConnectionPoint(
+                from: boContainerLeafRoot,
+                toward: boContainerTip,
+                in: $0,
+                overlap: 4 * scale * Self.sproutSupersample
+            )
+        } ?? boContainerLeafRoot
+        // Idle primitives rotate and reshape the authored leaf node. Resolve
+        // its live endpoint into the common sprout host, while the connector's
+        // body endpoint stays fixed inside Pibo. The connector therefore
+        // bridges the two silhouettes instead of inheriting a transform that
+        // could pull its body end away.
+        let resolvedLeafRoot = sproutGeometryNode.convert(liveLeafRoot, from: source)
+        let connection = CGVector(
+            dx: resolvedLeafRoot.x - boContainerRoot.x,
+            dy: resolvedLeafRoot.y - boContainerRoot.y
+        )
+        let connectionLength = hypot(connection.dx, connection.dy)
+        guard connectionLength > 0.001 else {
+            boRootGhostNode.path = nil
+            boRootContentNode.path = nil
+            boConnectorStartDesign = boConnectionRootDesign
+            boConnectorEndDesign = boConnectionRootDesign
+            boConnectorStart = boContainerRoot
+            boConnectorEnd = boContainerRoot
+            return
+        }
+        let unit = scale * Self.sproutSupersample
+        // Both endpoints are resolved from the current frame's actual paths:
+        // start is inside Pibo's body and end is inside bo. This remains true
+        // for upright, lying, downward and every interpolated state.
+        let start = boContainerRoot
+        let end = resolvedLeafRoot
+        boConnectorStart = start
+        boConnectorEnd = end
+        let path = CGMutablePath()
+        path.move(to: start)
+        path.addLine(to: end)
+        let toDesign = sproutTransform.inverted()
+        boConnectorStartDesign = start.applying(toDesign)
+        boConnectorEndDesign = end.applying(toDesign)
+        boRootGhostNode.path = path
+        boRootGhostNode.fillColor = .clear
+        boRootGhostNode.strokeColor = fill.withAlphaComponent(0.24)
+        boRootGhostNode.lineWidth = max(2.2 * unit, 1)
+        boRootGhostNode.lineCap = .round
+        boRootContentNode.path = path
+        boRootContentNode.fillColor = .clear
+        boRootContentNode.strokeColor = fill
+        boRootContentNode.lineWidth = max(2.2 * unit, 1)
+        boRootContentNode.lineCap = .round
+        boContainerBounds = boContainerShapeBounds.union(
+            path.boundingBoxOfPath.insetBy(dx: -2.2 * unit, dy: -2.2 * unit)
+        )
+    }
+
+    func setBoFillProgress(_ progress: CGFloat) {
+        guard projectionStyle == nil else { return }
+        boContainerProgress.set(progress)
+        applyBoRevealMask()
+        reflectionNeedsSnapshot = true
+    }
+
+    func animateBoFill(from start: CGFloat, to target: CGFloat, duration: TimeInterval) {
+        guard projectionStyle == nil else { return }
+        boContainerProgress.animate(from: start, to: target, duration: duration)
+        applyBoRevealMask()
+        reflectionNeedsSnapshot = true
+    }
+
+    func updateBoFill(deltaTime: TimeInterval, reduceMotion: Bool) {
+        guard projectionStyle == nil else { return }
+        if boContainerProgress.update(deltaTime: deltaTime, reduceMotion: reduceMotion) {
+            applyBoRevealMask()
+            reflectionNeedsSnapshot = true
+        }
+    }
+
+    /// Idle primitives may rotate, scale, or reshape the solid `bo` node after
+    /// the state rebuild. Mirror those presentation properties onto the shell so
+    /// the empty container and injected content can never drift apart.
+    func syncBoContainerPresentation() {
+        guard projectionStyle == nil,
+              let source = elementNodes["shared:bo"]?.node
+        else { return }
+        for shell in [boGhostNode, boGhostOutlineNode] {
+            shell.path = source.path
+            shell.position = source.position
+            shell.zRotation = source.zRotation
+            shell.xScale = source.xScale
+            shell.yScale = source.yScale
+            shell.alpha = source.alpha
+            shell.isHidden = source.isHidden
+        }
+        // The crop grows from the fixed body attachment. The leaf moves inside
+        // it; the connector itself is rebuilt between that attachment and the
+        // leaf's live root every frame.
+        boRevealMask.position = .zero
+        boRevealMask.zRotation = 0
+        boRevealMask.setScale(1)
+        boRootGhostNode.position = .zero
+        boRootGhostNode.zRotation = 0
+        boRootGhostNode.setScale(1)
+        boRootContentNode.position = .zero
+        boRootContentNode.zRotation = 0
+        boRootContentNode.setScale(1)
+        boRootGhostNode.alpha = source.alpha
+        boRootGhostNode.isHidden = source.isHidden
+        boRootContentNode.alpha = source.alpha
+        boRootContentNode.isHidden = source.isHidden
+        boContainerShapeBounds = source.frame.insetBy(
+            dx: -1.2 * scale * Self.sproutSupersample,
+            dy: -1.2 * scale * Self.sproutSupersample
+        )
+        configureBoRootConnector(fill: source.fillColor, source: source)
+        boGhostNode.zPosition = source.zPosition - 0.2
+        boRootGhostNode.zPosition = source.zPosition - 0.1
+        boRootContentNode.zPosition = source.zPosition - 0.1
+        boGhostOutlineNode.zPosition = source.zPosition + 0.2
+    }
+
+    private func applyBoRevealMask() {
+        guard projectionStyle == nil, !boContainerBounds.isNull else { return }
+        let reveal = PiboBoContainerProgress.revealPath(
+            in: boContainerBounds,
+            root: boContainerRoot,
+            tip: boContainerTip,
+            progress: boContainerProgress.displayed
+        )
+        boContentCrop.isHidden = reveal == nil
+        boRevealMask.path = reveal
+        boRevealMask.fillColor = .white
+    }
+
+    /// Small verification surface used by renderer tests. It reports presentation
+    /// state only and exposes no product thresholds.
+    var boContainerPresentation: (progress: CGFloat, shellVisible: Bool, contentVisible: Bool, reveal: CGRect) {
+        (
+            boContainerProgress.displayed,
+            boGhostNode.alpha > 0 && !boGhostNode.isHidden,
+            !boContentCrop.isHidden,
+            PiboBoContainerProgress.revealPath(
+                in: boContainerBounds,
+                root: boContainerRoot,
+                tip: boContainerTip,
+                progress: boContainerProgress.displayed
+            )?.boundingBoxOfPath ?? .zero
+        )
+    }
+
+    /// Verification surface: the warp host must remain at 1× while only its
+    /// supersampled child returns the authored paths to their final size.
+    var sproutGeometryScale: CGSize {
+        CGSize(width: sproutGeometryNode.xScale, height: sproutGeometryNode.yScale)
+    }
+
+    /// Verification surface for the semantic body root and the authored leaf
+    /// base. They differ only for poses whose generated metadata left a gap.
+    var boConnectionDesign: (
+        root: CGPoint,
+        leafRoot: CGPoint,
+        connectorStart: CGPoint,
+        connectorEnd: CGPoint
+    ) {
+        (
+            boConnectionRootDesign,
+            boLeafRootDesign,
+            boConnectorStartDesign,
+            boConnectorEndDesign
+        )
+    }
+
+    /// Verification surface for the final SpriteKit presentation, including
+    /// per-state idle transforms and path wiggle. Both ends of the connector
+    /// must still intersect the live body/bo silhouettes.
+    var boPresentedConnectionIntersections: (body: Bool, bo: Bool) {
+        guard let body = bodyPath(),
+              let source = elementNodes["shared:bo"]?.node,
+              let bo = source.path
+        else { return (false, false) }
+        let samples = 160
+        var hitsBody = false
+        var hitsBo = false
+        for index in 0 ... samples {
+            let amount = CGFloat(index) / CGFloat(samples)
+            let point = CGPoint(
+                x: boConnectorStart.x + (boConnectorEnd.x - boConnectorStart.x) * amount,
+                y: boConnectorStart.y + (boConnectorEnd.y - boConnectorStart.y) * amount
+            )
+            if body.contains(contentNode.convert(point, from: boRootGhostNode)) {
+                hitsBody = true
+            }
+            if bo.contains(source.convert(point, from: boRootGhostNode)) {
+                hitsBo = true
+            }
+            if hitsBody, hitsBo { break }
+        }
+        return (hitsBody, hitsBo)
     }
 
     // MARK: - Idle access
@@ -561,7 +875,8 @@ final class PiboVectorCharacter {
         for child in sproutNode.children { bounds = bounds.union(child.frame) }
         guard !bounds.isNull, bounds.width > 0 else { return nil }
 
-        let matrix = sproutTransform
+        // The warp host is 1×; only its child geometry is supersampled.
+        let matrix = bodyTransform
         let root = axis.root.applying(matrix)
         let tip = axis.tip.applying(matrix)
         return (
@@ -573,11 +888,18 @@ final class PiboVectorCharacter {
     /// Body silhouette in design units for the current blend. Y is down, as in
     /// the source artwork, so the character's ground line is `maxY`.
     var bodyDesignBounds: CGRect? {
-        guard let morph = data.morph["body"],
-              let path = interpolatedPath(id: "body", morph: morph, transform: .identity)
-        else { return nil }
-        let bounds = path.boundingBoxOfPath
+        let bounds = bodyDesignPath?.boundingBoxOfPath ?? .null
         return bounds.isNull ? nil : bounds
+    }
+
+    var bodyDesignPath: CGPath? {
+        guard let morph = data.morph["body"] else { return nil }
+        return interpolatedPath(id: "body", morph: morph, transform: .identity)
+    }
+
+    var boDesignPath: CGPath? {
+        guard let morph = data.morph["bo"] else { return nil }
+        return interpolatedPath(id: "bo", morph: morph, transform: .identity)
     }
 
     /// Visible vector bounds in the root node's coordinate system. This is a

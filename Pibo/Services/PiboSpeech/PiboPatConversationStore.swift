@@ -60,16 +60,16 @@ struct PiboPatConversationInput {
 }
 
 struct PiboPatResolution: Equatable {
-    let accepted: Bool
+    let speechAccepted: Bool
     var text: String?
     var speaker: PiboPatSpeaker?
     var action: PiboPatAction?
-    var shouldExecuteAction = false
+    var shouldExecuteSideEffect = false
     var hasNext = false
     var interactionCompleted = false
     var context: PiboCorePatContext = .none
 
-    static let rejected = PiboPatResolution(accepted: false)
+    static let speechSuppressed = PiboPatResolution(speechAccepted: false)
 }
 
 struct PiboPatCatalog {
@@ -150,7 +150,7 @@ final class PiboPatConversationStore {
     private let defaults: UserDefaults
     private var snapshot: Snapshot
     private var active: ActiveUnit?
-    private var lastAcceptedAt: Date?
+    private var lastSpeechAt: Date?
     private var lastState: PiboActivityState?
     private var lastEpisodeKey = ""
 
@@ -177,7 +177,7 @@ final class PiboPatConversationStore {
 
     func leaveHome() {
         active = nil
-        lastAcceptedAt = nil
+        lastSpeechAt = nil
         lastState = nil
         lastEpisodeKey = ""
     }
@@ -190,19 +190,19 @@ final class PiboPatConversationStore {
         }
         guard lastState != state || lastEpisodeKey != episodeKey else { return }
         active = nil
-        lastAcceptedAt = nil
+        lastSpeechAt = nil
         self.lastState = state
         lastEpisodeKey = episodeKey
     }
 
     func resolve(_ input: PiboPatConversationInput, at date: Date = .now) -> PiboPatResolution {
         stateChanged(input.state, episodeKey: input.episodeKey)
-        if let lastAcceptedAt,
-           !PiboCorePat.cooldownAllows(
-               elapsedSinceLastAcceptedSeconds: date.timeIntervalSince(lastAcceptedAt),
-               hasPreviousAcceptedTap: true
+        if let lastSpeechAt,
+           !PiboCorePat.speechCooldownAllows(
+               elapsedSinceLastSpeechSeconds: date.timeIntervalSince(lastSpeechAt),
+               hasPreviousSpeech: true
            ) {
-            return .rejected
+            return .speechSuppressed
         }
 
         if let active,
@@ -253,11 +253,11 @@ final class PiboPatConversationStore {
             units = catalog.units(for: context, storyStage: input.storyStage)
             selected = selectedRecord(context: context, units: units, values: input.values)
         }
-        guard let selected, units.indices.contains(selected) else { return .rejected }
+        guard let selected, units.indices.contains(selected) else { return .speechSuppressed }
 
         let unit = units[selected]
         let progress = PiboCorePat.lineProgress(currentLineIndex: 0, lineCount: unit.lines.count)
-        lastAcceptedAt = date
+        lastSpeechAt = date
         beginBehavior(input, context: context)
         if progress.hasNext {
             active = ActiveUnit(
@@ -280,11 +280,11 @@ final class PiboPatConversationStore {
             )
         }
         return PiboPatResolution(
-            accepted: true,
+            speechAccepted: true,
             text: render(unit.lines[0].text, values: values),
             speaker: unit.speaker,
             action: unit.action,
-            shouldExecuteAction: unit.action != .none
+            shouldExecuteSideEffect: unit.action != .none
                 && !(behavior == .tiredResting && unit.action == .rest),
             hasNext: progress.hasNext,
             interactionCompleted: progress.interactionCompleted,
@@ -313,7 +313,7 @@ final class PiboPatConversationStore {
             currentLineIndex: lineIndex,
             lineCount: unit.lines.count
         )
-        lastAcceptedAt = date
+        lastSpeechAt = date
         if progress.hasNext {
             var next = current
             next.nextLineIndex = progress.nextLineIndex
@@ -330,11 +330,11 @@ final class PiboPatConversationStore {
             active = nil
         }
         return PiboPatResolution(
-            accepted: true,
+            speechAccepted: true,
             text: render(unit.lines[lineIndex].text, values: input.values),
             speaker: unit.speaker,
             action: unit.action,
-            shouldExecuteAction: false,
+            shouldExecuteSideEffect: false,
             hasNext: progress.hasNext,
             interactionCompleted: progress.interactionCompleted,
             context: current.context

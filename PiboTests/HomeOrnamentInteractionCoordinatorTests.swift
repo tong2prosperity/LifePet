@@ -13,7 +13,6 @@ final class HomeOrnamentInteractionCoordinatorTests: XCTestCase {
             sleepReviewGranted: { featureDataRead = true; return true },
             latestSleepReview: { featureDataRead = true; return nil },
             recoveryStatusGranted: { featureDataRead = true; return true },
-            recoveryCalibration: { featureDataRead = true; return .calibrating },
             handlers: tapHandlers(events: events)
         )
 
@@ -31,7 +30,6 @@ final class HomeOrnamentInteractionCoordinatorTests: XCTestCase {
             sleepReviewGranted: { featureDataRead = true; return true },
             latestSleepReview: { featureDataRead = true; return nil },
             recoveryStatusGranted: { featureDataRead = true; return true },
-            recoveryCalibration: { featureDataRead = true; return .calibrating },
             handlers: tapHandlers(events: events)
         )
 
@@ -39,7 +37,7 @@ final class HomeOrnamentInteractionCoordinatorTests: XCTestCase {
         XCTAssertEqual(events.values, ["feedback", "dismiss"])
     }
 
-    func testStatusTapMapsResolvedActionAfterFeedbackAndDismissal() {
+    func testStatusTapTogglesAfterFeedbackAndDismissal() {
         let events = EventLog()
 
         HomeOrnamentInteractionCoordinator.handleTap(
@@ -48,11 +46,10 @@ final class HomeOrnamentInteractionCoordinatorTests: XCTestCase {
             sleepReviewGranted: { false },
             latestSleepReview: { nil },
             recoveryStatusGranted: { true },
-            recoveryCalibration: { .waitingForData },
             handlers: tapHandlers(events: events)
         )
 
-        XCTAssertEqual(events.values, ["feedback", "dismiss", "status:等待数据"])
+        XCTAssertEqual(events.values, ["feedback", "dismiss", "toggle"])
     }
 
     func testInvalidLightTapPreservesLazyGuards() {
@@ -109,7 +106,8 @@ final class HomeOrnamentInteractionCoordinatorTests: XCTestCase {
             feedback: { events.append("feedback") },
             dismissSpeech: { events.append("dismiss") },
             presentMorningSleep: { _ in events.append("sleep") },
-            presentStatus: { events.append("status:\($0.status)") }
+            presentStatus: { events.append("status:\($0.status)") },
+            toggleStatusObserver: { events.append("toggle") }
         )
     }
 

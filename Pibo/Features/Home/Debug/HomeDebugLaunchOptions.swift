@@ -20,6 +20,7 @@ struct HomeDebugLaunchOptions {
     let boProgressMilestone: BoProgressMilestone?
     let opensBoPanel: Bool
     let opensStressCard: Bool
+    let showsStatusObserver: Bool
 
     static var current: Self {
         Self(arguments: ProcessInfo.processInfo.arguments)
@@ -43,6 +44,7 @@ struct HomeDebugLaunchOptions {
         showsMorningSleep = arguments.contains("-PiboShowMorningSleep")
         opensBoPanel = arguments.contains("-PiboOpenBoPanel")
         opensStressCard = arguments.contains("-PiboOpenStressCard")
+        showsStatusObserver = arguments.contains("-PiboShowStatusObserver")
 
         let forcedAnimationStateID = value(after: "-PiboAnimationState=")
         self.forcedAnimationStateID = forcedAnimationStateID.flatMap {

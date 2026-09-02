@@ -27,6 +27,7 @@ struct RootView: View {
             // 而那些会顺手弹出一个盖住首页的 sheet。
             || arguments.contains("-PiboSkipOnboarding")
             || arguments.contains("-PiboOpenGames")
+            || arguments.contains("-PiboShowStatusObserver")
             || arguments.contains("-PiboShowMorningSleep")
             || arguments.contains { $0.hasPrefix("-PiboShowAchievement=") }
             || arguments.contains("-PiboOpenMiniGame")

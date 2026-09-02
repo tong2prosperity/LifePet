@@ -20,6 +20,7 @@ struct HomeStageInteractions {
     let speechFacts: () -> PiboHomeSpeechFacts
     let healthAvailability: () -> HealthDataService.DataAvailability
     let canPresentOrnament: () -> Bool
+    let toggleStatusObserver: () -> Void
     let dismissSpeech: () -> Void
     let showAnimationLine: (PiboSpeechLine) -> Void
     let showResolvedSpeech: (PiboSpeech) -> Void
@@ -80,8 +81,8 @@ struct HomeStageInteractions {
             canPresent: canPresentOrnament,
             unlocks: ornamentUnlocks,
             morningSleep: morningSleep,
-            history: history,
             dismissSpeech: dismissSpeech,
+            toggleStatusObserver: toggleStatusObserver,
             present: presentSheet
         )
     }

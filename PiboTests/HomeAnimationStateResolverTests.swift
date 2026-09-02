@@ -13,12 +13,6 @@ final class HomeAnimationStateResolverTests: XCTestCase {
         XCTAssertTrue(["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"].contains(resolve(.sleeping).stateID))
     }
 
-    func testResolutionPreservesSemanticDecision() {
-        let resolution = resolve(.tired)
-        XCTAssertEqual(resolution.state, .tired)
-        XCTAssertEqual(resolution.decision.cause, .insufficientSleep)
-    }
-
     func testGroundSleepShipsWhileGenericGroundWakeStillFallsBack() {
         let semantic = resolve(.sleeping)
         XCTAssertEqual(

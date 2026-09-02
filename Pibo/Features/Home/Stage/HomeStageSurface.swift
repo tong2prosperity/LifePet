@@ -10,7 +10,8 @@ struct HomeStageSurface: View {
         let animationStateID: String
         let growth: PiboGrowthStage
         let boGrowthStage: PiboCoreBoGrowthStage
-        let sproutGrowthProgress: Double
+        /// Exact Core-ledger progress rendered as a bottom-up `bo` fill.
+        let boFillProgress: Double
         let environment: PiboStageEnvironment
         let presentedOrnaments: Set<PiboOrnament.ID>
         let unlockedOrnaments: Set<PiboOrnament.ID>
@@ -39,7 +40,7 @@ struct HomeStageSurface: View {
             // workout-driven mystery/sprouted field remains only for migration.
             growth = .sprouted
             boGrowthStage = boLedger.growthStage
-            sproutGrowthProgress = boLedger.growthProgress
+            boFillProgress = boLedger.growthProgress
             self.environment = environment
             let unlocked = ornamentUnlocks.unlocked
             unlockedOrnaments = unlocked
@@ -75,7 +76,7 @@ struct HomeStageSurface: View {
             commandController: commandController,
             growth: input.growth,
             boGrowthStage: input.boGrowthStage,
-            sproutGrowthProgress: input.sproutGrowthProgress,
+            boFillProgress: input.boFillProgress,
             environment: input.environment,
             presentedOrnaments: input.presentedOrnaments,
             unlockedOrnaments: input.unlockedOrnaments,

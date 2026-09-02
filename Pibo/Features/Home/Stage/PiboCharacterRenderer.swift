@@ -46,7 +46,8 @@ final class PiboCharacterRenderer {
     private var blush = SKNode()
     private let headNode = SKSpriteNode()
     private let headRig = PiboHeadRigDeformer()
-    private var sproutGrowthProgress: CGFloat = 1
+    /// Persisted Core progress rendered as content inside the fixed `bo` shell.
+    private var boFillProgress: CGFloat = 0
     private var headArtwork: PiboSVGArtwork?
     private var hairDragOrigin: CGPoint?
     private var surface: [CGPoint] = []
@@ -471,15 +472,27 @@ final class PiboCharacterRenderer {
         return true
     }
 
-    func setSproutGrowthProgress(_ progress: CGFloat) {
-        sproutGrowthProgress = min(max(progress, 0), 1)
-        headRig.setGrowthProgress(sproutGrowthProgress)
+    func setBoFillProgress(_ progress: CGFloat) {
+        boFillProgress = PiboBoContainerProgress.normalized(progress)
+        if let vector {
+            vector.setBoFillProgress(boFillProgress)
+            // The rig now bends the complete container; it no longer reveals the
+            // silhouette segment-by-segment as energy arrives.
+            headRig.setGrowthProgress(1)
+        } else {
+            headRig.setGrowthProgress(boFillProgress)
+        }
     }
 
     func playSproutGrowth(from start: CGFloat, to target: CGFloat, duration: TimeInterval) {
-        sproutGrowthProgress = min(max(target, 0), 1)
-        headRig.animateGrowth(from: start, to: sproutGrowthProgress, duration: duration)
-        headRig.addImpulse(0.8 + (sproutGrowthProgress - start) * 2.4)
+        boFillProgress = PiboBoContainerProgress.normalized(target)
+        if let vector {
+            vector.animateBoFill(from: start, to: boFillProgress, duration: duration)
+            headRig.setGrowthProgress(1)
+        } else {
+            headRig.animateGrowth(from: start, to: boFillProgress, duration: duration)
+        }
+        headRig.addImpulse(0.8 + (boFillProgress - start) * 2.4)
         emitSparkles(
             at: CGPoint(x: rootNode.position.x, y: rootNode.position.y + bodyHeight * 0.7),
             count: 12
@@ -531,9 +544,14 @@ final class PiboCharacterRenderer {
         let swap = SKAction.run { [weak self] in
             guard let self else { return }
             self.growth = .sprouted
-            self.sproutGrowthProgress = start
+            self.boFillProgress = start
             self.rebuildHead()
-            self.headRig.setGrowthProgress(start)
+            if let vector = self.vector {
+                vector.setBoFillProgress(start)
+                self.headRig.setGrowthProgress(1)
+            } else {
+                self.headRig.setGrowthProgress(start)
+            }
             self.playSproutGrowth(from: start, to: target, duration: 1.35)
             self.overheadNode.run(.fadeOut(withDuration: 0.45))
             self.emitSparkles(at: headWorld, count: 18)
@@ -614,6 +632,7 @@ final class PiboCharacterRenderer {
         vectorTransition = driver
         vectorIdle = animator
         vectorPlaybook = PiboCharacterPlaybook(transition: driver, ambientStateID: built.currentStateID)
+        built.setBoFillProgress(boFillProgress)
         layoutVector()
         showZzz(visible && state == .sleeping)
         return true
@@ -689,6 +708,8 @@ final class PiboCharacterRenderer {
                 amplitude: transition.idleAmplitude
             )
         }
+        vector.updateBoFill(deltaTime: deltaTime, reduceMotion: reduceMotion)
+        vector.syncBoContainerPresentation()
         updateVectorRig(time: time, deltaTime: deltaTime, wind: wind, reduceMotion: reduceMotion)
         if let view = scene?.view { vector.refreshReflectionSnapshotIfNeeded(in: view) }
     }
@@ -817,7 +838,7 @@ final class PiboCharacterRenderer {
             headNode.texture = headArtwork?.makeTexture() ?? SKTexture(imageNamed: head.image)
             headNode.isHidden = false
             headRig.attach(to: headNode, imageName: head.image)
-            headRig.setGrowthProgress(sproutGrowthProgress)
+            headRig.setGrowthProgress(boFillProgress)
         } else if usesArt {
             headNode.isHidden = true
             headRig.attach(to: headNode, imageName: nil)
@@ -1044,7 +1065,12 @@ final class PiboCharacterRenderer {
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
         let previous = CGFloat(min(1, max(0, presentation.previousProgress)))
         let current = CGFloat(min(1, max(0, presentation.currentProgress)))
-        headRig.setGrowthProgress(previous)
+        if let vector {
+            vector.setBoFillProgress(previous)
+            headRig.setGrowthProgress(1)
+        } else {
+            headRig.setGrowthProgress(previous)
+        }
 
         if !presentation.fact.isEmpty {
             buildBoProgressLabel(
@@ -1070,12 +1096,21 @@ final class PiboCharacterRenderer {
             .wait(forDuration: reduceMotion ? 0.08 : 1.00),
             .run { [weak self] in
                 guard let self else { return }
-                self.headRig.animateGrowth(
-                    from: previous,
-                    to: current,
-                    duration: reduceMotion ? 0.12 : 1.05
-                )
-                self.sproutGrowthProgress = current
+                if let vector = self.vector {
+                    vector.animateBoFill(
+                        from: previous,
+                        to: current,
+                        duration: reduceMotion ? 0.12 : 1.05
+                    )
+                    self.headRig.setGrowthProgress(1)
+                } else {
+                    self.headRig.animateGrowth(
+                        from: previous,
+                        to: current,
+                        duration: reduceMotion ? 0.12 : 1.05
+                    )
+                }
+                self.boFillProgress = current
             },
         ]), withKey: "boProgressCausality")
         buildBoProgressLabel(

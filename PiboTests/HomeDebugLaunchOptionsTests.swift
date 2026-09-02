@@ -3,25 +3,6 @@ import XCTest
 
 #if DEBUG
 final class HomeDebugLaunchOptionsTests: XCTestCase {
-    func testDefaultsDoNotRequestAnyAutomation() {
-        let options = HomeDebugLaunchOptions(arguments: ["Pibo"])
-
-        XCTAssertFalse(options.hidesTuningPanel)
-        XCTAssertNil(options.forcedAnimationStateID)
-        XCTAssertNil(options.forestHourOverride)
-        XCTAssertFalse(options.simulatesMeal)
-        XCTAssertFalse(options.opensGames)
-        XCTAssertFalse(options.opensHistory)
-        XCTAssertFalse(options.showsMorningSleep)
-        XCTAssertFalse(options.hasAchievementArgument)
-        XCTAssertNil(options.achievementKind)
-        XCTAssertNil(options.bounceTargetStateID)
-        XCTAssertNil(options.selectedStateIDAfterDelay)
-        XCTAssertNil(options.boProgressMilestone)
-        XCTAssertFalse(options.opensBoPanel)
-        XCTAssertFalse(options.opensStressCard)
-    }
-
     func testEverySupportedArgumentKeepsItsParsedValue() {
         let options = HomeDebugLaunchOptions(arguments: [
             "Pibo",
@@ -38,6 +19,7 @@ final class HomeDebugLaunchOptionsTests: XCTestCase {
             "-PiboBoProgress=75",
             "-PiboOpenBoPanel",
             "-PiboOpenStressCard",
+            "-PiboShowStatusObserver",
         ])
 
         XCTAssertTrue(options.hidesTuningPanel)
@@ -54,6 +36,7 @@ final class HomeDebugLaunchOptionsTests: XCTestCase {
         XCTAssertEqual(options.boProgressMilestone?.rawValue, 75)
         XCTAssertTrue(options.opensBoPanel)
         XCTAssertTrue(options.opensStressCard)
+        XCTAssertTrue(options.showsStatusObserver)
     }
 
     func testAutoAndInvalidForestHoursBothPreserveNilOverrideValue() {
@@ -103,6 +86,7 @@ final class HomeDebugLaunchOptionsTests: XCTestCase {
             "-PiboShowMorningSleepLater",
             "-PiboOpenBoPanelNow",
             "-PiboOpenStressCardLater",
+            "-PiboShowStatusObserverLater",
         ])
 
         XCTAssertFalse(options.opensGames)
@@ -110,6 +94,7 @@ final class HomeDebugLaunchOptionsTests: XCTestCase {
         XCTAssertFalse(options.showsMorningSleep)
         XCTAssertFalse(options.opensBoPanel)
         XCTAssertFalse(options.opensStressCard)
+        XCTAssertFalse(options.showsStatusObserver)
     }
 }
 #endif

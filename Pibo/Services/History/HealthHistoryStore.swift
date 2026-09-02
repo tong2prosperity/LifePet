@@ -436,7 +436,16 @@ final class HealthHistoryStore {
                 history: Array(verified[..<index]),
                 calendar: cal
             )
-            var snapshot = DailyWellnessSnapshot(report: report, generatedAt: now)
+            let readiness = PiboCoreWellnessAdapter.readiness(
+                current: record,
+                history: Array(verified[..<index]),
+                calendar: cal
+            )
+            var snapshot = DailyWellnessSnapshot(
+                report: report,
+                readiness: readiness,
+                generatedAt: now
+            )
             snapshot.apply(PiboCoreWellnessAdapter.restorativeTime(
                 mindfulMinutes: record.mindfulMinutes
             ))

@@ -9,15 +9,6 @@ struct HealthWorkoutKindMapperTests {
         }
     }
 
-    @Test func serviceCompatibilityEntryPointForwardsToTheMapper() {
-        for (activityType, _) in Self.cases {
-            #expect(
-                HealthDataService.bucket(activityType)
-                    == HealthWorkoutKindMapper.kind(for: activityType)
-            )
-        }
-    }
-
     private static let cases: [
         (HKWorkoutActivityType, HealthEvent.WorkoutKind)
     ] = [

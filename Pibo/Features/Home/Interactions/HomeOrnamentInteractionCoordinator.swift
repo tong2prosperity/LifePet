@@ -9,6 +9,7 @@ enum HomeOrnamentInteractionCoordinator {
         let dismissSpeech: () -> Void
         let presentMorningSleep: (MorningSleepPresentation) -> Void
         let presentStatus: (CommonItemStatusModel) -> Void
+        let toggleStatusObserver: () -> Void
     }
 
     struct LightTapHandlers {
@@ -22,8 +23,8 @@ enum HomeOrnamentInteractionCoordinator {
         canPresent: () -> Bool,
         unlocks: OrnamentUnlockStore,
         morningSleep: MorningSleepCoordinator,
-        history: HealthHistoryStore,
         dismissSpeech: @escaping () -> Void,
+        toggleStatusObserver: @escaping () -> Void,
         present: @escaping (HomeSheetDestination) -> Void
     ) {
         guard canPresent() else { return }
@@ -39,14 +40,14 @@ enum HomeOrnamentInteractionCoordinator {
             sleepReviewGranted: { unlocks.grants(.sleepReview) },
             latestSleepReview: { morningSleep.latestReviewPresentation() },
             recoveryStatusGranted: { unlocks.grants(.recoveryStatus) },
-            recoveryCalibration: { history.recoveryCalibrationState() },
             handlers: TapHandlers(
                 feedback: { LPHaptics.tap() },
                 dismissSpeech: dismissSpeech,
                 presentMorningSleep: {
                     present(.morningSleep($0, consumesPending: false))
                 },
-                presentStatus: { present(.commonItemStatus($0)) }
+                presentStatus: { present(.commonItemStatus($0)) },
+                toggleStatusObserver: toggleStatusObserver
             )
         )
     }
@@ -81,7 +82,6 @@ enum HomeOrnamentInteractionCoordinator {
         sleepReviewGranted: () -> Bool,
         latestSleepReview: () -> MorningSleepPresentation?,
         recoveryStatusGranted: () -> Bool,
-        recoveryCalibration: () -> RecoveryCalibrationState,
         handlers: TapHandlers
     ) {
         guard canPresent() else { return }
@@ -93,8 +93,7 @@ enum HomeOrnamentInteractionCoordinator {
             ornamentID: ornamentID,
             sleepReviewGranted: sleepReviewGranted(),
             latestSleepReview: latestSleepReview(),
-            recoveryStatusGranted: recoveryStatusGranted(),
-            recoveryCalibration: recoveryCalibration()
+            recoveryStatusGranted: recoveryStatusGranted()
         )
         switch action {
         case .none:
@@ -103,6 +102,8 @@ enum HomeOrnamentInteractionCoordinator {
             handlers.presentMorningSleep(presentation)
         case .presentStatus(let model):
             handlers.presentStatus(model)
+        case .toggleStatusObserver:
+            handlers.toggleStatusObserver()
         }
     }
 

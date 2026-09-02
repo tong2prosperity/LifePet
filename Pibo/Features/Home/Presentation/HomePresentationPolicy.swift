@@ -90,6 +90,24 @@ struct HomePresentationPolicy {
         return sheetPresented() ? .suspended : .active
     }
 
+    func statusObserverCardVisible(
+        isPinned: @autoclosure () -> Bool,
+        recoveryStatusGranted: @autoclosure () -> Bool,
+        foodProjectionPresented: @autoclosure () -> Bool,
+        transientNoticePresented: @autoclosure () -> Bool,
+        shadowLightBannerPresented: @autoclosure () -> Bool
+    ) -> Bool {
+        sceneIsActive()
+            && isPinned()
+            && recoveryStatusGranted()
+            && !stagePaused
+            && !sheetDismissalInProgress()
+            && sproutFlowIsIdle()
+            && !foodProjectionPresented()
+            && !transientNoticePresented()
+            && !shadowLightBannerPresented()
+    }
+
     func pendingAchievement(
         animationStateID: @autoclosure () -> String,
         pendingAchievement: @autoclosure () -> PiboAnimationAchievementPayload?

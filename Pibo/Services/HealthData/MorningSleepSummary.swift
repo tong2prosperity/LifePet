@@ -25,6 +25,10 @@ struct MorningSleepSummary: Codable, Equatable, Identifiable, Sendable {
     let continuity: Double?
 
     var baselineDelta: TimeInterval?
+    /// Number of prior settled nights available to the personal baseline.
+    /// Optional/defaulted so pre-v3 persisted summaries remain decodable and
+    /// existing construction sites can adopt the metadata incrementally.
+    var baselineSampleCount: Int? = nil
     let overnightHRV: Double?
     let sleepingWristTemperature: Double?
     let sleepingWristTemperatureDelta: Double?
@@ -107,9 +111,9 @@ enum MorningSleepCopy {
     /// deferred out of the quiet band.
     static let notificationTitle = "睡眠记录整理好了"
     static let notificationBody = "点开看看这一觉睡了多久，深睡、眼动和清醒的分布。"
-    static let cardPiboLine = "这是昨晚的睡眠记录，帮你做了个小结。"
+    static let cardPiboLine = "昨晚的睡眠记录在这里。"
     /// Shown instead of `cardPiboLine` when the card is opened on a later day.
-    static let cardPiboCatchUpLine = "这是那天早上的睡眠记录，一直帮你留着。"
+    static let cardPiboCatchUpLine = "这是那天的睡眠记录。"
 }
 
 /// Pure 0–100 sleep score for **background use only** — it must never be shown
@@ -173,6 +177,7 @@ extension MorningSleepSummary {
             awakeningCount: 2,
             continuity: 0.93,
             baselineDelta: 24 * 60,
+            baselineSampleCount: 8,
             overnightHRV: 46,
             sleepingWristTemperature: 33.2,
             sleepingWristTemperatureDelta: 0.2,

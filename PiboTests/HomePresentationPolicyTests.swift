@@ -57,6 +57,71 @@ final class HomePresentationPolicyTests: XCTestCase {
         )
     }
 
+    func testStatusObserverRequiresAnActiveClearHomeAndEveryTransientToBeAbsent() {
+        XCTAssertTrue(policy().statusObserverCardVisible(
+            isPinned: true,
+            recoveryStatusGranted: true,
+            foodProjectionPresented: false,
+            transientNoticePresented: false,
+            shadowLightBannerPresented: false
+        ))
+
+        XCTAssertFalse(policy(sceneIsActive: false).statusObserverCardVisible(
+            isPinned: true,
+            recoveryStatusGranted: true,
+            foodProjectionPresented: false,
+            transientNoticePresented: false,
+            shadowLightBannerPresented: false
+        ))
+        XCTAssertFalse(policy().statusObserverCardVisible(
+            isPinned: false,
+            recoveryStatusGranted: true,
+            foodProjectionPresented: false,
+            transientNoticePresented: false,
+            shadowLightBannerPresented: false
+        ))
+        XCTAssertFalse(policy().statusObserverCardVisible(
+            isPinned: true,
+            recoveryStatusGranted: false,
+            foodProjectionPresented: false,
+            transientNoticePresented: false,
+            shadowLightBannerPresented: false
+        ))
+
+        let occupied = [true, false, false, false, false, false, false]
+        XCTAssertFalse(policy(occupied: occupied).statusObserverCardVisible(
+            isPinned: true,
+            recoveryStatusGranted: true,
+            foodProjectionPresented: false,
+            transientNoticePresented: false,
+            shadowLightBannerPresented: false
+        ))
+        XCTAssertFalse(policy(sheetDismissalInProgress: true).statusObserverCardVisible(
+            isPinned: true,
+            recoveryStatusGranted: true,
+            foodProjectionPresented: false,
+            transientNoticePresented: false,
+            shadowLightBannerPresented: false
+        ))
+        XCTAssertFalse(policy(sproutFlowIsIdle: false).statusObserverCardVisible(
+            isPinned: true,
+            recoveryStatusGranted: true,
+            foodProjectionPresented: false,
+            transientNoticePresented: false,
+            shadowLightBannerPresented: false
+        ))
+
+        for blocked in 0..<3 {
+            XCTAssertFalse(policy().statusObserverCardVisible(
+                isPinned: true,
+                recoveryStatusGranted: true,
+                foodProjectionPresented: blocked == 0,
+                transientNoticePresented: blocked == 1,
+                shadowLightBannerPresented: blocked == 2
+            ))
+        }
+    }
+
     func testStagePauseKeepsLeftToRightShortCircuiting() {
         let probe = ReadProbe()
 

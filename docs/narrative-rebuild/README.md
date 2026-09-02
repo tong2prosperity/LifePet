@@ -1,7 +1,7 @@
 # Pibo 叙事重构工作室
 
 > 启动日期：2026-07-23  
-> 当前阶段：2026-08-13 已重新冻结极简养成核心，正在分层 MVP、餐食相机、Walk Doodle、Shadow Pibo 与共同物件能力。
+> 当前阶段：2026-08-17 已进一步明确为“用真实健康数据养一只 Pibo”，正在收口拓麻歌子式最小养成循环、旧关系模型替代、餐食相机、Walk Doodle、Shadow Pibo 与共同物件能力。
 > 工作原则：旧设定可以提供素材，但不构成本轮推演的前提。
 
 这个目录记录 Pibo 新一轮叙事重构的完整过程。我们不从旧设定或具体情节开始，
@@ -12,6 +12,7 @@
 产品、设计、动画和开发不需要从过程文档开始阅读。请先看：
 
 - [`HANDOFF.md`](HANDOFF.md)：新对话和新 Agent 的第一入口，记录当前检查点、MVP 边界、未决问题和下一步。
+- [`28-Pibo当前实现现状、产品目标与问题审计-v0.1.md`](28-Pibo%E5%BD%93%E5%89%8D%E5%AE%9E%E7%8E%B0%E7%8E%B0%E7%8A%B6%E3%80%81%E4%BA%A7%E5%93%81%E7%9B%AE%E6%A0%87%E4%B8%8E%E9%97%AE%E9%A2%98%E5%AE%A1%E8%AE%A1-v0.1.md)：当前工程、产品目标、系统缺口、核心困境、较少改动方案和问题排查的统一现状入口。
 - [`collaboration/README.md`](collaboration/README.md)：完整快速简报，包含当前结论、设计红线和按角色选读入口。
 
 本目录其余文件主要用于创作推进与决策追溯。
@@ -45,6 +46,8 @@
 - [`24-bo数值审计与Core-v0.1方向提案.md`](24-bo%E6%95%B0%E5%80%BC%E5%AE%A1%E8%AE%A1%E4%B8%8ECore-v0.1%E6%96%B9%E5%90%91%E6%8F%90%E6%A1%88.md)：现有后端公式与双端真实输入差异、第一枚时间模拟及 Core v0.1 数值结构提案。
 - [`25-pibo-server现有bo算法复核.md`](25-pibo-server%E7%8E%B0%E6%9C%89bo%E7%AE%97%E6%B3%95%E5%A4%8D%E6%A0%B8.md)：完整复核服务端复杂算法、事务与幂等链路、客户端接线缺口、匿名身份及 Core 迁移修正；当前结论优先于 24 号提案。
 - [`26-移植pibo-server计算模型到pibo-core-Coding-Agent-Prompt.md`](26-%E7%A7%BB%E6%A4%8Dpibo-server%E8%AE%A1%E7%AE%97%E6%A8%A1%E5%9E%8B%E5%88%B0pibo-core-Coding-Agent-Prompt.md)：可直接交给 Coding Agent 的等价迁移 Prompt，包含仓库路径、模块/API 设计、golden parity、no_std/ABI、验证与发布边界。
+- [`27-Pibo状态与行为系统指导-v0.1.md`](27-Pibo%E7%8A%B6%E6%80%81%E4%B8%8E%E8%A1%8C%E4%B8%BA%E7%B3%BB%E7%BB%9F%E6%8C%87%E5%AF%BC-v0.1.md)：六个状态的语义、生命周期、视觉资源、行为结构和当前实现边界。
+- [`28-Pibo当前实现现状、产品目标与问题审计-v0.1.md`](28-Pibo%E5%BD%93%E5%89%8D%E5%AE%9E%E7%8E%B0%E7%8E%B0%E7%8A%B6%E3%80%81%E4%BA%A7%E5%93%81%E7%9B%AE%E6%A0%87%E4%B8%8E%E9%97%AE%E9%A2%98%E5%AE%A1%E8%AE%A1-v0.1.md)：基于当前工作树梳理实际实现、最新宠物养成目标、产品与工程断点、相机结合方式和排查顺序。
 - [`process/2026-07-30-MVP冻结与并行推进里程碑.md`](process/2026-07-30-MVP%E5%86%BB%E7%BB%93%E4%B8%8E%E5%B9%B6%E8%A1%8C%E6%8E%A8%E8%BF%9B%E9%87%8C%E7%A8%8B%E7%A2%91.md)：OF1–OF3、MP1–MP3 的确认背景、阶段切换与可追溯入口。
 - [`process/2026-07-31-Core-v0.5完成与事件04启动.md`](process/2026-07-31-Core-v0.5%E5%AE%8C%E6%88%90%E4%B8%8E%E4%BA%8B%E4%BB%B604%E5%90%AF%E5%8A%A8.md)：Core 等价迁移完成、App 尚未接线的边界，以及事件 04 叙事工作线的启动问题。
 - [`process/2026-08-13-极简MVP与后续能力重新分层.md`](process/2026-08-13-%E6%9E%81%E7%AE%80MVP%E4%B8%8E%E5%90%8E%E7%BB%AD%E8%83%BD%E5%8A%9B%E9%87%8D%E6%96%B0%E5%88%86%E5%B1%82.md)：极简养成核心、Pibo 受苦边界重开、三项后续能力与共同物件的最新检查点。
@@ -91,6 +94,12 @@
 - [`decisions/029-Onboarding语言身份信息与临时合作文案.md`](decisions/029-Onboarding%E8%AF%AD%E8%A8%80%E8%BA%AB%E4%BB%BD%E4%BF%A1%E6%81%AF%E4%B8%8E%E4%B8%B4%E6%97%B6%E5%90%88%E4%BD%9C%E6%96%87%E6%A1%88.md)：语言损伤、授权前身份信息和临时合作按钮。
 - [`decisions/030-MVP叙事冻结点与并行推进.md`](decisions/030-MVP%E5%8F%99%E4%BA%8B%E5%86%BB%E7%BB%93%E7%82%B9%E4%B8%8E%E5%B9%B6%E8%A1%8C%E6%8E%A8%E8%BF%9B.md)：MVP 叙事冻结点、开发前收口范围与并行推进方式。
 - [`decisions/031-bo本地优先与Core单一规则源.md`](decisions/031-bo%E6%9C%AC%E5%9C%B0%E4%BC%98%E5%85%88%E4%B8%8ECore%E5%8D%95%E4%B8%80%E8%A7%84%E5%88%99%E6%BA%90.md)：`bo` 本地优先、Core 单一规则源、登录后合并及许可时间边界。
+- [`decisions/032-物件硬解锁功能与主页发现.md`](decisions/032-%E7%89%A9%E4%BB%B6%E7%A1%AC%E8%A7%A3%E9%94%81%E5%8A%9F%E8%83%BD%E4%B8%8E%E4%B8%BB%E9%A1%B5%E5%8F%91%E7%8E%B0.md)：四件物件的真实能力门控与回森林发现规则。
+- [`decisions/033-Pibo情境闲聊与拍一拍调度机制.md`](decisions/033-Pibo%E6%83%85%E5%A2%83%E9%97%B2%E8%81%8A%E4%B8%8E%E6%8B%8D%E4%B8%80%E6%8B%8D%E8%B0%83%E5%BA%A6%E6%9C%BA%E5%88%B6.md)：状态驱动的情境短句、顺序循环、冷却生命周期和旧 Pat V2 替代边界。
+- [`decisions/034-Pibo恒定说话风格与中文首发.md`](decisions/034-Pibo%E6%81%92%E5%AE%9A%E8%AF%B4%E8%AF%9D%E9%A3%8E%E6%A0%BC%E4%B8%8E%E4%B8%AD%E6%96%87%E9%A6%96%E5%8F%91.md)：克制的观察型同伴、六状态恒定人格和当前 MVP 简体中文单语范围。
+- [`decisions/035-Pibo小说叙事契约.md`](decisions/035-Pibo%E5%B0%8F%E8%AF%B4%E5%8F%99%E4%BA%8B%E5%A5%91%E7%BA%A6.md)：刘林克第一人称限知、七部约三十章、12–15 万字规模和小说适配边界。
+
+小说化工作单独保存在 [`novel/`](novel/)；小说专属主角和场景不直接回写为 App 用户正史。
 
 ## 与现有叙事文档的关系
 

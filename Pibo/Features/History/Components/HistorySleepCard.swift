@@ -1,5 +1,15 @@
 import SwiftUI
 
+/// Compact stage fact shown inside the dark cloud card in the morning review.
+/// Other history callers keep their existing layout by leaving this array empty.
+struct SleepStageSummaryValue: Identifiable {
+    var id: String { label }
+    let label: String
+    let seconds: TimeInterval
+    let percent: Int
+    let tint: Color
+}
+
 /// 睡眠 card — a nocturnal cloudscape rather than a chart (Figma `activity card`
 /// 1193:2161 + the cloud mock): the total duration floats centered in the sky,
 /// below it one opaque puffy cloud per stage segment of the night — x = when it
@@ -21,6 +31,9 @@ struct HistorySleepCard: View {
     /// The morning modal shows the duration in its own hero, so it hides the
     /// card's built-in duration line to avoid printing the same number twice.
     var showsDuration: Bool = true
+    /// The morning review places the exact duration/proportion facts beside the
+    /// cloud visualization instead of repeating them in a second white card.
+    var stageSummary: [SleepStageSummaryValue] = []
 
     @State private var selectedSegmentStart: Date?
     @State private var isVisible = false
@@ -65,6 +78,16 @@ struct HistorySleepCard: View {
                         .animation(
                             reduceMotion ? nil : .easeOut(duration: 0.20).delay(0.12),
                             value: isRevealed)
+                    if !stageSummary.isEmpty {
+                        Divider()
+                            .overlay(Color.white.opacity(0.12))
+                            .padding(.vertical, LP.Spacing.m)
+                        HStack(alignment: .top, spacing: LP.Spacing.s) {
+                            ForEach(stageSummary) { item in
+                                stageSummaryFact(item)
+                            }
+                        }
+                    }
                 } else {
                     emptyState
                 }
@@ -214,6 +237,39 @@ struct HistorySleepCard: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, LP.Spacing.l)
         .accessibilityElement(children: .combine)
+    }
+
+    private func stageSummaryFact(_ item: SleepStageSummaryValue) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(item.tint)
+                    .frame(width: 7, height: 7)
+                    .accessibilityHidden(true)
+                Text(AppLocalization.text(item.label))
+                    .lpText(LP.Typography.c2Regular)
+                    .foregroundStyle(LP.Content.invertSecondary)
+                    .lineLimit(1)
+            }
+            Text(stageClock(item.seconds))
+                .lpText(LP.Typography.b4Medium)
+                .foregroundStyle(LP.Content.invertPrimary)
+                .monospacedDigit()
+                .lineLimit(1)
+            Text("\(item.percent)%")
+                .lpText(LP.Typography.c2Regular)
+                .foregroundStyle(LP.Content.invertQuarternary)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(AppLocalization.text(item.label))
+        .accessibilityValue("\(stageClock(item.seconds)), \(item.percent)%")
+    }
+
+    private func stageClock(_ seconds: TimeInterval) -> String {
+        let totalMinutes = max(0, Int((seconds / 60).rounded()))
+        return String(format: "%d:%02d", totalMinutes / 60, totalMinutes % 60)
     }
 
     private func resetReveal() {

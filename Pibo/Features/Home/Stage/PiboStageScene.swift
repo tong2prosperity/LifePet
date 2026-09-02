@@ -372,8 +372,8 @@ final class PiboStageScene: SKScene {
         return character.playBoProgressFeedback(presentation)
     }
 
-    func setSproutGrowthProgress(_ progress: Double) {
-        character.setSproutGrowthProgress(CGFloat(progress))
+    func setBoFillProgress(_ progress: Double) {
+        character.setBoFillProgress(CGFloat(progress))
     }
 
     func playSproutGrowth(from start: Double, to target: Double) {

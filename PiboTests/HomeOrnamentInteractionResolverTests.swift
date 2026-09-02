@@ -6,21 +6,18 @@ final class HomeOrnamentInteractionResolverTests: XCTestCase {
         var sleepGrantRead = false
         var sleepReviewRead = false
         var recoveryGrantRead = false
-        var recoveryCalibrationRead = false
 
         let action = HomeOrnamentInteractionResolver.resolve(
             ornamentID: .hammock,
             sleepReviewGranted: read(&sleepGrantRead, value: false),
             latestSleepReview: read(&sleepReviewRead, value: nil),
-            recoveryStatusGranted: read(&recoveryGrantRead, value: true),
-            recoveryCalibration: read(&recoveryCalibrationRead, value: .calibrating)
+            recoveryStatusGranted: read(&recoveryGrantRead, value: true)
         )
 
         XCTAssertEqual(action, .none)
         XCTAssertTrue(sleepGrantRead)
         XCTAssertFalse(sleepReviewRead)
         XCTAssertFalse(recoveryGrantRead)
-        XCTAssertFalse(recoveryCalibrationRead)
     }
 
     func testHammockPresentsExistingSleepReviewUnchanged() {
@@ -30,8 +27,7 @@ final class HomeOrnamentInteractionResolverTests: XCTestCase {
             ornamentID: .hammock,
             sleepReviewGranted: true,
             latestSleepReview: presentation,
-            recoveryStatusGranted: false,
-            recoveryCalibration: .waitingForData
+            recoveryStatusGranted: false
         )
 
         XCTAssertEqual(action, .presentMorningSleep(presentation))
@@ -42,8 +38,7 @@ final class HomeOrnamentInteractionResolverTests: XCTestCase {
             ornamentID: .hammock,
             sleepReviewGranted: true,
             latestSleepReview: nil,
-            recoveryStatusGranted: false,
-            recoveryCalibration: .waitingForData
+            recoveryStatusGranted: false
         )
 
         XCTAssertEqual(action, .presentStatus(CommonItemStatusModel(
@@ -54,43 +49,32 @@ final class HomeOrnamentInteractionResolverTests: XCTestCase {
         )))
     }
 
-    func testStatusObserverPreservesBothCalibrationPresentations() {
-        let waiting = resolveStatusObserver(calibration: .waitingForData)
-        XCTAssertEqual(waiting, .presentStatus(CommonItemStatusModel(
-            ornamentID: .statusObserver,
-            title: "恢复状态",
-            status: "等待数据",
-            message: "状态观测仪会使用已授权的睡眠和身体记录。收到数据后开始校准。"
-        )))
-
-        let calibrating = resolveStatusObserver(calibration: .calibrating)
-        XCTAssertEqual(calibrating, .presentStatus(CommonItemStatusModel(
-            ornamentID: .statusObserver,
-            title: "恢复状态",
-            status: "正在校准",
-            message: "正在依据已授权的原始记录建立个人基线。恢复算法确认前不会显示分数。"
-        )))
-    }
-
-    func testStatusObserverChecksEntitlementBeforeReadingCalibration() {
+    func testStatusObserverTogglesOnlyAfterEntitlementPasses() {
         var sleepGrantRead = false
         var sleepReviewRead = false
         var recoveryGrantRead = false
-        var recoveryCalibrationRead = false
 
-        let action = HomeOrnamentInteractionResolver.resolve(
+        let granted = HomeOrnamentInteractionResolver.resolve(
             ornamentID: .statusObserver,
             sleepReviewGranted: read(&sleepGrantRead, value: true),
             latestSleepReview: read(&sleepReviewRead, value: sleepPresentation()),
-            recoveryStatusGranted: read(&recoveryGrantRead, value: false),
-            recoveryCalibration: read(&recoveryCalibrationRead, value: .calibrating)
+            recoveryStatusGranted: read(&recoveryGrantRead, value: true)
         )
 
-        XCTAssertEqual(action, .none)
+        XCTAssertEqual(granted, .toggleStatusObserver)
         XCTAssertFalse(sleepGrantRead)
         XCTAssertFalse(sleepReviewRead)
         XCTAssertTrue(recoveryGrantRead)
-        XCTAssertFalse(recoveryCalibrationRead)
+
+        recoveryGrantRead = false
+        let denied = HomeOrnamentInteractionResolver.resolve(
+            ornamentID: .statusObserver,
+            sleepReviewGranted: read(&sleepGrantRead, value: true),
+            latestSleepReview: read(&sleepReviewRead, value: sleepPresentation()),
+            recoveryStatusGranted: read(&recoveryGrantRead, value: false)
+        )
+        XCTAssertEqual(denied, .none)
+        XCTAssertTrue(recoveryGrantRead)
     }
 
     func testDecorativeOrnamentsReadNoFeatureData() {
@@ -98,34 +82,19 @@ final class HomeOrnamentInteractionResolverTests: XCTestCase {
             var sleepGrantRead = false
             var sleepReviewRead = false
             var recoveryGrantRead = false
-            var recoveryCalibrationRead = false
 
             let action = HomeOrnamentInteractionResolver.resolve(
                 ornamentID: ornamentID,
                 sleepReviewGranted: read(&sleepGrantRead, value: true),
                 latestSleepReview: read(&sleepReviewRead, value: sleepPresentation()),
-                recoveryStatusGranted: read(&recoveryGrantRead, value: true),
-                recoveryCalibration: read(&recoveryCalibrationRead, value: .calibrating)
+                recoveryStatusGranted: read(&recoveryGrantRead, value: true)
             )
 
             XCTAssertEqual(action, .none)
             XCTAssertFalse(sleepGrantRead)
             XCTAssertFalse(sleepReviewRead)
             XCTAssertFalse(recoveryGrantRead)
-            XCTAssertFalse(recoveryCalibrationRead)
         }
-    }
-
-    private func resolveStatusObserver(
-        calibration: RecoveryCalibrationState
-    ) -> HomeOrnamentInteractionResolver.Action {
-        HomeOrnamentInteractionResolver.resolve(
-            ornamentID: .statusObserver,
-            sleepReviewGranted: false,
-            latestSleepReview: nil,
-            recoveryStatusGranted: true,
-            recoveryCalibration: calibration
-        )
     }
 
     private func sleepPresentation() -> MorningSleepPresentation {

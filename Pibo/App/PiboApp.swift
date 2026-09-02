@@ -466,7 +466,10 @@ struct PiboApp: App {
         ornamentLights.applyDebugLaunchArguments(arguments)
         let balance = value("-PiboBoBalance").flatMap(Int.init)
         let growth = value("-PiboBoGrowth").flatMap(Double.init)
-        let ripe = arguments.contains("-PiboBoRipe") ? 1 : nil
+        // A forced in-progress value represents the current, unripe container.
+        // Clear any persisted ripe sample unless the launch explicitly asks for
+        // it, otherwise every progress screenshot renders as 100%.
+        let ripe = arguments.contains("-PiboBoRipe") ? 1 : (growth != nil ? 0 : nil)
         guard balance != nil || growth != nil || ripe != nil else { return }
         boLedger.debugSet(balance: balance, ripe: ripe, progress: growth)
         LPLog.bo.notice("debug override applied balance=\(balance ?? -1, privacy: .public) ripe=\(ripe ?? -1, privacy: .public)")

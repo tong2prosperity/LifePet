@@ -7,12 +7,16 @@ import SwiftUI
 /// per-tile decoration — durations, proportions, and clock times only.
 struct MorningSleepCard: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let presentation: MorningSleepPresentation
     let appearance: PiboAppearance
     /// Built by the host (which owns store + history) so this view stays free of
     /// heavyweight @Environment and `#Preview` can pass a fixture directly.
     let weekly: SleepWeeklyReport
+
+    @State private var bodyRecordsExpanded = true
+    @State private var weeklyExpanded = false
 
     private var summary: MorningSleepSummary { presentation.summary }
 
@@ -37,12 +41,10 @@ struct MorningSleepCard: View {
                     start: summary.start,
                     end: summary.end,
                     segments: summary.segments,
-                    showsDuration: false
+                    showsDuration: false,
+                    stageSummary: stageSummary
                 )
 
-                if summary.hasDetailedStages, summary.total > 0 {
-                    stagesSection
-                }
                 structureSection
                 signalsSection
                 weeklySection
@@ -72,7 +74,7 @@ struct MorningSleepCard: View {
                 Text(titleText)
                     .lpText(LP.Typography.b2Medium)
                     .foregroundStyle(LP.Content.primary)
-                Text("\(Self.time.string(from: summary.start)) – \(Self.time.string(from: summary.end))")
+                Text(headerMetadata)
                     .lpText(LP.Typography.c1Regular)
                     .foregroundStyle(LP.Content.tertiary)
                     .monospacedDigit()
@@ -87,7 +89,7 @@ struct MorningSleepCard: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(LP.Content.tertiary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 44, height: 44)
                     .background(Circle().fill(LP.Fill.bgContainer))
             }
             .buttonStyle(.plain)
@@ -96,16 +98,28 @@ struct MorningSleepCard: View {
     }
 
     private var hero: some View {
-        VStack(alignment: .leading, spacing: LP.Spacing.xs) {
+        VStack(alignment: .leading, spacing: LP.Spacing.s) {
             Text(durationText(summary.total))
                 .lpText(LP.Typography.uiH2)
                 .foregroundStyle(LP.Content.primary)
                 .monospacedDigit()
                 .minimumScaleFactor(0.8)
                 .lineLimit(1)
-            Text(comparisonText)
-                .lpText(LP.Typography.b3Regular)
-                .foregroundStyle(LP.Content.tertiary)
+            HStack(alignment: .center, spacing: LP.Spacing.s) {
+                Text(AppLocalization.text("个人常态"))
+                    .lpText(LP.Typography.c1Medium)
+                    .foregroundStyle(Self.deepTint)
+                    .padding(.horizontal, LP.Spacing.s)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: LP.Radius.s, style: .continuous)
+                            .fill(LP.Colorful.purple100)
+                    )
+                Text(comparisonText)
+                    .lpText(LP.Typography.b3Regular)
+                    .foregroundStyle(LP.Content.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.top, LP.Spacing.xs)
     }
@@ -116,30 +130,11 @@ struct MorningSleepCard: View {
         HStack(alignment: .center, spacing: LP.Spacing.s) {
             PiboPortraitView(appearance: appearance)
                 .frame(width: 30, height: 36)
-            Text(presentation.isCatchUp
-                 ? MorningSleepCopy.cardPiboCatchUpLine
-                 : MorningSleepCopy.cardPiboLine)
+            Text(piboLine)
                 .lpText(LP.Typography.b4Regular)
                 .foregroundStyle(LP.Content.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-        }
-    }
-
-    // MARK: Sleep stages (merged bar + rows)
-
-    private var stagesSection: some View {
-        section("睡眠阶段") {
-            panel {
-                stageBar
-                VStack(spacing: LP.Spacing.s) {
-                    ForEach(stageSlices) { slice in
-                        if slice.seconds > 0 {
-                            stageRow(slice)
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -152,117 +147,175 @@ struct MorningSleepCard: View {
         ]
     }
 
-    private var stageBar: some View {
+    private var stageSummary: [SleepStageSummaryValue] {
+        guard summary.hasDetailedStages, summary.total > 0 else { return [] }
         let denom = max(1, summary.deep + summary.core + summary.rem + summary.awake)
-        return GeometryReader { geo in
-            HStack(spacing: 2) {
-                ForEach(stageSlices) { slice in
-                    if slice.seconds > 0 {
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(slice.tint)
-                            .frame(width: max(3, geo.size.width * (slice.seconds / denom) - 2))
-                    }
-                }
-            }
+        return stageSlices.filter { $0.seconds > 0 }.map { slice in
+            SleepStageSummaryValue(
+                label: slice.label,
+                seconds: slice.seconds,
+                percent: Int((slice.seconds / denom * 100).rounded()),
+                tint: slice.tint
+            )
         }
-        .frame(height: 10)
-        .accessibilityHidden(true)
     }
 
-    private func stageRow(_ slice: StageSlice) -> some View {
-        let denom = max(1, summary.deep + summary.core + summary.rem + summary.awake)
-        let pct = Int((slice.seconds / denom * 100).rounded())
-        return HStack(spacing: LP.Spacing.s) {
-            Circle().fill(slice.tint).frame(width: 8, height: 8)
-            Text(AppLocalization.text(slice.label))
-                .lpText(LP.Typography.b4Regular)
-                .foregroundStyle(LP.Content.secondary)
-            Spacer(minLength: 0)
-            Text(durationText(slice.seconds))
-                .lpText(LP.Typography.b3Medium)
-                .foregroundStyle(LP.Content.primary)
-                .monospacedDigit()
-            Text("\(pct)%")
-                .lpText(LP.Typography.c1Regular)
-                .foregroundStyle(LP.Content.quarternary)
-                .monospacedDigit()
-                .frame(width: 34, alignment: .trailing)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    // MARK: Structure + body-signal facts (de-noised)
+    // MARK: Structure + body-signal facts
 
     private var structureSection: some View {
-        section("睡眠结构") {
-            panel {
-                statGrid {
-                    statCell(
-                        "连续性",
-                        value: summary.continuity.map { "\(Int(($0 * 100).rounded()))" },
-                        unit: "%"
-                    )
-                    statCell(
-                        "夜醒",
-                        value: summary.awakeningCount.map(String.init),
-                        unit: "次"
-                    )
-                    statCell(
-                        "入睡用时",
-                        value: summary.sleepLatency.map { "\(Int(($0 / 60).rounded()))" },
-                        unit: "分",
-                        caption: summary.sleepLatency != nil ? AppLocalization.text("估算") : nil
-                    )
-                }
+        factPanel(
+            title: "睡眠结构",
+            fill: LP.Fill.sleepStructure,
+            border: LP.Border.sleepStructure,
+            titleTint: Self.deepTint
+        ) {
+            HStack(alignment: .top, spacing: LP.Spacing.s) {
+                statCell(
+                    "夜醒",
+                    value: summary.awakeningCount.map(String.init),
+                    unit: "次"
+                )
+                factDivider(LP.Border.sleepStructure)
+                statCell(
+                    "入睡",
+                    value: summary.sleepLatency.map { "\(Int(($0 / 60).rounded()))" },
+                    unit: "分",
+                    caption: summary.sleepLatency != nil ? AppLocalization.text("估") : nil
+                )
+                factDivider(LP.Border.sleepStructure)
+                statCell(
+                    "睡着占记录",
+                    value: summary.continuity.map { "\(Int(($0 * 100).rounded()))" },
+                    unit: "%"
+                )
             }
         }
     }
 
     private var signalsSection: some View {
-        section("夜间指标") {
-            panel {
-                statGrid {
-                    statCell(
-                        "腕温",
-                        value: summary.sleepingWristTemperature.map { String(format: "%.1f", $0) },
-                        unit: "℃",
-                        caption: wristTemperatureCaption
-                    )
-                    statCell(
+        VStack(alignment: .leading, spacing: LP.Spacing.l) {
+            Button {
+                LPHaptics.tap()
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                    bodyRecordsExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: LP.Spacing.s) {
+                    Circle()
+                        .fill(LP.Colorful.blue600)
+                        .frame(width: 6, height: 6)
+                        .accessibilityHidden(true)
+                    Text(AppLocalization.text("夜间身体记录"))
+                        .lpText(LP.Typography.b3Medium)
+                        .foregroundStyle(LP.Content.secondary)
+                    Spacer(minLength: 0)
+                    disclosureLabel(expanded: bodyRecordsExpanded)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(AppLocalization.text("夜间身体记录"))
+            .accessibilityValue(bodyRecordsExpanded
+                ? AppLocalization.text("已展开")
+                : AppLocalization.text("已收起"))
+
+            if bodyRecordsExpanded {
+                HStack(alignment: .top, spacing: LP.Spacing.xs) {
+                    bodyFact(
                         "HRV",
+                        symbol: "waveform.path.ecg",
+                        tint: Self.deepTint,
+                        iconFill: LP.Colorful.purple100,
                         value: summary.overnightHRV.map { "\(Int($0.rounded()))" },
                         unit: "ms"
                     )
-                    statCell(
+                    factDivider(LP.Border.sleepBody)
+                    bodyFact(
                         "平均心率",
+                        symbol: "heart",
+                        tint: LP.Colorful.blue500,
+                        iconFill: LP.Colorful.blue100,
                         value: summary.sleepHeartRateAverage.map { "\(Int($0.rounded()))" },
                         unit: "bpm"
                     )
-                    statCell(
+                    factDivider(LP.Border.sleepBody)
+                    bodyFact(
                         "最低心率",
+                        symbol: "heart.fill",
+                        tint: LP.Colorful.purple500,
+                        iconFill: LP.Colorful.purple100,
                         value: summary.sleepHeartRateMin.map { "\(Int($0.rounded()))" },
                         unit: "bpm"
                     )
-                    statCell(
-                        "呼吸",
-                        value: summary.respiratoryRate.map { String(format: "%.1f", $0) },
-                        unit: "次/分"
-                    )
-                    statCell(
-                        "血氧",
-                        value: summary.oxygenSaturation.map { String(format: "%.0f", $0 * 100) },
-                        unit: "%"
+                    factDivider(LP.Border.sleepBody)
+                    bodyFact(
+                        "腕温",
+                        symbol: "thermometer",
+                        tint: Self.deepTint,
+                        iconFill: LP.Colorful.purple100,
+                        value: summary.sleepingWristTemperature.map { String(format: "%.1f", $0) },
+                        unit: "℃"
                     )
                 }
+                .transition(.opacity)
             }
         }
+        .padding(LP.Spacing.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: LP.Radius.xl, style: .continuous)
+                .fill(LP.Fill.sleepBody)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: LP.Radius.xl, style: .continuous)
+                .strokeBorder(LP.Border.sleepBody, lineWidth: 1)
+        )
     }
 
     // MARK: Recent nights
 
     private var weeklySection: some View {
-        section("近 7 晚") {
-            panel {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                LPHaptics.tap()
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                    weeklyExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: LP.Spacing.m) {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Self.deepTint)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(LP.Colorful.purple100))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(AppLocalization.format(
+                            "最近趋势 · 已记录 %d/7 晚",
+                            weekly.nightsWithData
+                        ))
+                            .lpText(LP.Typography.b4Medium)
+                            .foregroundStyle(LP.Content.secondary)
+                        Text(weeklySummaryText)
+                            .lpText(LP.Typography.c1Regular)
+                            .foregroundStyle(LP.Content.tertiary)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: weeklyExpanded ? "chevron.up" : "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(LP.Content.tertiary)
+                        .frame(width: 44, height: 44)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(AppLocalization.text("最近趋势"))
+            .accessibilityValue(weeklyExpanded ? AppLocalization.text("已展开") : AppLocalization.text("已收起"))
+
+            if weeklyExpanded {
+                Divider()
+                    .overlay(LP.Separator.secondary)
+                    .padding(.vertical, LP.Spacing.l)
                 statGrid {
                     statCell("平均时长", value: weekly.averageDuration.map(compactDuration))
                     statCell("平均就寝", value: weekly.averageBedtimeMinutes.map(SleepWeeklyReport.timeText))
@@ -279,6 +332,16 @@ struct MorningSleepCard: View {
                 }
             }
         }
+        .padding(LP.Spacing.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: LP.Radius.xl, style: .continuous)
+                .fill(LP.Fill.bgContainer)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: LP.Radius.xl, style: .continuous)
+                .strokeBorder(LP.Border.tertiary, lineWidth: 1)
+        )
     }
 
     private var dataNote: some View {
@@ -291,29 +354,54 @@ struct MorningSleepCard: View {
 
     // MARK: Reusable chrome
 
-    private func section<Content: View>(
-        _ title: String,
+    private func factPanel<Content: View>(
+        title: String,
+        fill: Color,
+        border: Color,
+        titleTint: Color,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: LP.Spacing.s) {
-            Text(AppLocalization.text(title))
-                .lpText(LP.Typography.c1Medium)
-                .foregroundStyle(LP.Content.tertiary)
-                .textCase(nil)
-            content()
-        }
-    }
-
-    private func panel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: LP.Spacing.l) {
+            HStack(spacing: LP.Spacing.s) {
+                Circle()
+                    .fill(titleTint)
+                    .frame(width: 6, height: 6)
+                    .accessibilityHidden(true)
+                Text(AppLocalization.text(title))
+                    .lpText(LP.Typography.b3Medium)
+                    .foregroundStyle(LP.Content.secondary)
+                Spacer(minLength: 0)
+            }
             content()
         }
         .padding(LP.Spacing.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: LP.Radius.xl, style: .continuous)
-                .fill(LP.Fill.bgContainer)
+                .fill(fill)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: LP.Radius.xl, style: .continuous)
+                .strokeBorder(border, lineWidth: 1)
+        )
+    }
+
+    private func disclosureLabel(expanded: Bool) -> some View {
+        HStack(spacing: LP.Spacing.xs) {
+            Text(AppLocalization.text(expanded ? "收起" : "展开"))
+                .lpText(LP.Typography.c1Regular)
+            Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(LP.Content.tertiary)
+        .frame(minHeight: 44)
+    }
+
+    private func factDivider(_ color: Color) -> some View {
+        Rectangle()
+            .fill(color)
+            .frame(width: 1, height: 58)
+            .accessibilityHidden(true)
     }
 
     private func statGrid<Content: View>(@ViewBuilder content: () -> Content) -> some View {
@@ -359,6 +447,44 @@ struct MorningSleepCard: View {
         .accessibilityElement(children: .combine)
     }
 
+    private func bodyFact(
+        _ label: String,
+        symbol: String,
+        tint: Color,
+        iconFill: Color,
+        value: String?,
+        unit: String
+    ) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(iconFill))
+                .accessibilityHidden(true)
+            Text(AppLocalization.text(label))
+                .lpText(LP.Typography.c2Regular)
+                .foregroundStyle(LP.Content.tertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                Text(value ?? "—")
+                    .lpText(LP.Typography.uiH5)
+                    .foregroundStyle(value == nil ? LP.Content.quarternary : LP.Content.primary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if value != nil {
+                    Text(unit)
+                        .lpText(LP.Typography.c2Regular)
+                        .foregroundStyle(LP.Content.quarternary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
     private struct StageSlice: Identifiable {
         var id: String { label }
         let label: String
@@ -370,24 +496,40 @@ struct MorningSleepCard: View {
 
     private var comparisonText: String {
         guard let delta = summary.baselineDelta else {
-            return AppLocalization.text("个人常态仍在积累")
+            let count = summary.baselineSampleCount ?? 0
+            return count > 0
+                ? AppLocalization.format("已记录 %d 晚 · 还在积累", count)
+                : AppLocalization.text("数据还在积累")
         }
         let minutes = Int((abs(delta) / 60).rounded())
-        if minutes < 5 { return AppLocalization.text("接近你的近期个人常态") }
-        return AppLocalization.format(
-            "比近期个人常态%@ %d 分钟",
-            delta > 0 ? "多睡" : "少睡",
-            minutes
-        )
+        let count = summary.baselineSampleCount ?? 0
+        let difference = minutes < 5
+            ? AppLocalization.text("和平时差不多")
+            : AppLocalization.format(delta > 0 ? "多 %d 分钟" : "少 %d 分钟", minutes)
+        guard count > 0 else { return difference }
+        return AppLocalization.format("%@ · 基于 %d 晚", difference, count)
     }
 
-    private var wristTemperatureCaption: String? {
-        guard let delta = summary.sleepingWristTemperatureDelta else { return nil }
-        return AppLocalization.format(
-            "基线 %@%.1f",
-            delta >= 0 ? "+" : "",
-            delta
-        )
+    private var piboLine: String {
+        if presentation.isCatchUp { return MorningSleepCopy.cardPiboCatchUpLine }
+        guard let delta = summary.baselineDelta else { return MorningSleepCopy.cardPiboLine }
+        let minutes = Int((abs(delta) / 60).rounded())
+        if minutes < 5 { return AppLocalization.text("昨晚和平时睡得差不多。") }
+        return AppLocalization.text(delta > 0
+            ? "昨晚睡得比平时久一点。"
+            : "昨晚睡得比平时少一点。")
+    }
+
+    private var weeklySummaryText: String {
+        if weekly.nightsWithData < 5 { return AppLocalization.text("数据还在积累") }
+        if let tip = weekly.suggestions.first { return AppLocalization.text(tip) }
+        return AppLocalization.text("查看近 7 晚的睡眠变化")
+    }
+
+    private var headerMetadata: String {
+        let range = "\(Self.time.string(from: summary.start))–\(Self.time.string(from: summary.end))"
+        guard !presentation.isCatchUp else { return range }
+        return "\(Self.day.string(from: summary.end)) · \(range)"
     }
 
     private func durationText(_ seconds: TimeInterval) -> String {
@@ -537,6 +679,7 @@ private struct SleepSparkline: View {
             awakeningCount: 2,
             continuity: 0.93,
             baselineDelta: 24 * 60,
+            baselineSampleCount: 8,
             overnightHRV: 46,
             sleepingWristTemperature: 33.2,
             sleepingWristTemperatureDelta: 0.2,
