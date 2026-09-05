@@ -1,0 +1,322 @@
+{
+  "status": "executed",
+  "deleteCount": 18,
+  "editCount": 28,
+  "files": [
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/decisions/001-Pibo角色关系模型.md",
+      "sha256": "80740982d5073fca5298c045e019245a5a1ead0b8b52305db22792f4b7d10eb1",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/decisions/027-低健康积累对Pibo的影响.md",
+      "sha256": "3b6ebe41843708af58792a10acfad19acd3949a40439729fc336230686acf312",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/drafts/Pibo基础逻辑宪章-v0.1.md",
+      "sha256": "5787f782e1489c6dcfbeec03b02dc1f6d08dfc13c4cb9c18a94abe299daf7c2f",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/drafts/Pibo基础逻辑宪章-v0.2.md",
+      "sha256": "61afbc08a1defa3dd204c96bbf9a754d83d3ca73bf29ffff475ac696e406ff9d",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/drafts/Pibo故事基础圣经-v0.1.md",
+      "sha256": "6b657662766963807468c30e99732012db7927e97ceeb3e599933a3fcf2bfb00",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/drafts/Pibo故事基础圣经-v0.2.md",
+      "sha256": "7d984e61a2f710214dc249e1e01dbd3c7c568215298ec1c55311c6550507dd00",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/03-基础逻辑批次问卷.md",
+      "sha256": "76e872783d7a8cea6d5abc08d1d20e4ce59e7b87ecb8006e9fec6807ce921291",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/06-Pibo人物基础批次提案.md",
+      "sha256": "0566fe5ab6049e0c823c63f22bb2587b5b05a0f6e71baf3d399b725767a63498",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/07-相遇与连接规则批次提案.md",
+      "sha256": "91ee5b42b29ee6cdd71e11edbfc6b44022ba1a00f54760af4670e7f16aca2513",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/08-一年主线骨架批次提案.md",
+      "sha256": "6eed0e185faae7c6d1868c6108bed4202825f30c53bfb50119ae5cc272dbee0f",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/13-二十一个主线事件-v0.1.md",
+      "sha256": "8529f40762f57d4943869ce7dde0c0097b325447e69c85ac6909b6629ce03f14",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/15-二十一个主线事件-v0.2.md",
+      "sha256": "4e6c4a55a1ad5abc31b73fe16ef8a281fde9bf3b565ebaee40186380ed8eb048",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/20-Onboarding叙事流程-v0.1.md",
+      "sha256": "ca227d89f8af92cdf51b8e975bf5c94d08da10e3add7ddef6ba979543f3db4d0",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/21-Onboarding逐屏方案-v0.2.md",
+      "sha256": "65b52deb89b4c9a6d634c93646c70b2badd0ebb6e942b310e99a198d371aa922",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/collaboration/README.md",
+      "sha256": "cec66e168e86229a7de8f3d11fc0e639a983dbef2e2d52d5155bad4c3213c4b7",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/process/2026-07-23-共同经历模型.md",
+      "sha256": "e434b149edc8c668d0acd0a076f3bb4b6281cfce074af9e6f706bb2fb43029f1",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "docs/narrative-rebuild/process/2026-07-23-共同经历概念纠偏.md",
+      "sha256": "9d7d94a09997fdae034b2245a3e221fae8deec0dcac66c632d5eec55e4e7a06b",
+      "result": "deleted"
+    },
+    {
+      "action": "delete",
+      "path": "product-web-prototype/pibo-home-features-spec.md",
+      "sha256": "72613c69dd57e88f635edc50dcd30842bdcc83703f577445c94ad0281f755b26",
+      "result": "deleted"
+    },
+    {
+      "action": "edit",
+      "path": "README.md",
+      "sha256": "c5094121240813026cef1bae57445b4e30537524c3e2a8dfb503a29e45f61b6e",
+      "result": "edited",
+      "resultSha256": "c1fa3b858573b0ff03d54e6df9cd4caae3573139d74d1615532ad5d66797ae32"
+    },
+    {
+      "action": "edit",
+      "path": "CLAUDE.md",
+      "sha256": "0b29f997a98f1ed34d88436338eec44f35d1763dac896120c3e8f63172b068da",
+      "result": "edited",
+      "resultSha256": "35206dd5467df849716dfc23c324576cad4eb4e85ca81ef9b7afd280a40bdc43"
+    },
+    {
+      "action": "edit",
+      "path": "AGENTS.md",
+      "sha256": "a7a20e03b17adbcbd0c66f602d621a4745ac81fc1a68261a6fa41dd6516e8725",
+      "result": "edited",
+      "resultSha256": "d18fd5e6dbe9f02c42c94b258b4ffec98eef1eb36c7d51dbeff307c608f4380d"
+    },
+    {
+      "action": "edit",
+      "path": "docs/README.md",
+      "sha256": "78c27c3bc0fa69c86f80fbf4aa67bd07cf09e14d7f26c1c1135cba248b8a960d",
+      "result": "edited",
+      "resultSha256": "64c17d9214acaa1cc477ca222e05e98df9b3fd617f04a22b77a887f69cc83790"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/README.md",
+      "sha256": "bad0621e5dc356dae9a89fa007dc94c830cf35c8ea97030f8e634f9b3bea1bce",
+      "result": "edited",
+      "resultSha256": "23f52e337d92485e0fefba4cb482d28635c468860a0c99388a858bd9e24bd470"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/decisions/README.md",
+      "sha256": "db094211a351d86bf710a14cb75e319773197a6dd5548f940307b5fe8b2ac60b",
+      "result": "edited",
+      "resultSha256": "7fe820a1a07f9a135d0f588f300af6056e0116291cee0ac2d0e209ca42c7cef6"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/HANDOFF.md",
+      "sha256": "264cac7ccdc40d14bf325c7112e7947655c38fefcbdeca1b0dbf486cda547e49",
+      "result": "edited",
+      "resultSha256": "b264f2473a317dfa7b871e83f0754bab174ee21c0d380e59f3d1d2a19d05dee7"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/decisions/002-Pibo基础逻辑宪章.md",
+      "sha256": "a1fbefbf31995b3c1e1fe937339a356167fea722d63a75fd4e54439875aa513a",
+      "result": "edited",
+      "resultSha256": "426f6dc5030d04079177324fab71d25559e7fa7811a7ebf7cc56341de74abe78"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/decisions/005-Pibo人物基础.md",
+      "sha256": "8d0f836605e2fc698515200f913969d0d72482037359f4a710126c9454fa07fb",
+      "result": "edited",
+      "resultSha256": "f4fad33735088171570c8b1490803485dd9771ffb327daa839834d911ca2d6e9"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/decisions/006-App窗口与偶然相遇.md",
+      "sha256": "4bd470dd78ea7a0d818f6ffa1239f5d0eca29f0f729c55c220546e18a12bcd8f",
+      "result": "edited",
+      "resultSha256": "3779f9703ed88e97902c0954f1fbceb3532ad188621fcbf33db4f31d5f44a355"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/decisions/034-Pibo恒定说话风格与中文首发.md",
+      "sha256": "e7dbb1687ea47c51c7974d15348350ff08da64b2be2d5ae8ef1dfe815cefd837",
+      "result": "edited",
+      "resultSha256": "0ab2c553ec3ffb74f9a07387dd155345e20d228520ab1b299f3b18eb87cfc9d7"
+    },
+    {
+      "action": "edit",
+      "path": "docs/pibo-context-animation-integration.md",
+      "sha256": "e397d43229b42adae2450c1b88e2b3269e91201808f8bacad1f3ae754ddd36e5",
+      "result": "edited",
+      "resultSha256": "45705b08a83020fa014d4d209dcd261afcb1ccc0da489825e6c2b152255c372a"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/decisions/032-物件硬解锁功能与主页发现.md",
+      "sha256": "b0e11c8dfe366f4f3367e77d85890c353ed61a33285cbfd6106fc5830a53b13c",
+      "result": "edited",
+      "resultSha256": "d5229bea2ca952c28ad5551cf217a1f1cf0931a662e5b03e41e0d58b3a731e88"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/decisions/025-餐食相机与初版功能范围.md",
+      "sha256": "ca1424437842aa904da7dc33c2a721f72ec4a52aa92379cb760037c872f3c793",
+      "result": "edited",
+      "resultSha256": "203793012afff08fe4ad40dc84a9e4aef5b3476a026157482b3d890ff20a9904"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/decisions/033-Pibo情境闲聊与拍一拍调度机制.md",
+      "sha256": "0c3b8804e69d7dd4b49fb947bac83ce5675bd5dde9fd8933a5d97c3a03e5cd58",
+      "result": "edited",
+      "resultSha256": "75c4ea25a43b2d8a72bcfd3d0211781c499573fdc891c85f2876e47664d012a0"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/decisions/046-共同物件渐进解锁、能力与发现反馈.md",
+      "sha256": "812fb0525128f05a017aa23c1994982ca4afee16bcc3bf32ad27f5eafc4bf34e",
+      "result": "edited",
+      "resultSha256": "aed7379bd24274680973d41141febf28e0b5bbd7db6b0e1c3f13dfb4b1156d37"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/28-Pibo当前实现现状、产品目标与问题审计-v0.1.md",
+      "sha256": "082e15b9c1ffa280709b9bd49497be44c750eab2272c98f017c64ea326feb4b4",
+      "result": "edited",
+      "resultSha256": "63d26d11d56471062a79f18bb1d7a14008cc4e124a917417b11832f6c2c9091d"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/23-Onboarding与事件01-03跨平台MVP规格-v0.1.md",
+      "sha256": "ddf20c65674ee223011f9b4d68713beb56efd73ae41b6b15c9db870cafae4370",
+      "result": "edited",
+      "resultSha256": "5288a895cdaf8276846d6ccebabf4c6bc124bcb380b887f5b24f8dbb576675df"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/16-二十一个主线事件-v0.3.md",
+      "sha256": "4386bdb5f9bc23d806e9a7608ee471338cef5254632bdb614d67db533e57396e",
+      "result": "edited",
+      "resultSha256": "ed2463bf60903309ae676d3e7a53a672c5da10967f41c00926aacdcc91346de9"
+    },
+    {
+      "action": "edit",
+      "path": "docs/narrative-rebuild/decisions/015-二十一个主线事件与动态空间规则.md",
+      "sha256": "bea4530169c3499189eb2a8a4922517e5b5663626e7bfaf8caac9fc4cc0ae7a4",
+      "result": "edited",
+      "resultSha256": "7cdacf0010b27ca27ef1c06004e56e451b1dc95b43bfc1f7ffc1b862fc5c4310"
+    },
+    {
+      "action": "edit",
+      "path": "docs/product-strategy-202608/00-Turnaround-Master-Plan.md",
+      "sha256": "fd6f0cd25662db74770f35bb5cbc3c72a1f8d102aa3478d79ceade020870e9da",
+      "result": "edited",
+      "resultSha256": "1465f77131d8e34841f864c0f95335ee8c5daa1d2d7fbaba6f5d58994d9f4b52"
+    },
+    {
+      "action": "edit",
+      "path": "docs/product-strategy-202608/01-Deep-Dive-Bo-and-Identity.md",
+      "sha256": "2157f7423a8160002cd15bc233a580eef823ff20e5c0ca6569ef61ba87d704af",
+      "result": "edited",
+      "resultSha256": "140207883df3311046c5de6d8df1ba3cf2bc27d10006321c674b0ce1fc4606a3"
+    },
+    {
+      "action": "edit",
+      "path": "docs/product-strategy-202608/02-Contextual-Actions-Design.md",
+      "sha256": "5f2552cdbd546d79e6c57b6f4c025c954387872baa2c8e6fe38a7ae541ed4f20",
+      "result": "edited",
+      "resultSha256": "d3e0a2f15b3229ec69fa014393906a105d041754397fa98a81e8fd30a678f8fd"
+    },
+    {
+      "action": "edit",
+      "path": "docs/product-strategy-202608/04-Day-1-Journey-and-Item-Inspection.md",
+      "sha256": "a0dfad7f28bd520c56fd9ff78232a50087ac544bd9dcf0f6391ac139d3e91585",
+      "result": "edited",
+      "resultSha256": "0b24c0f545c23ed1984ec0587c3311fd0c750fc5e28f06db0b4b96f6dd2f4eeb"
+    },
+    {
+      "action": "edit",
+      "path": "docs/product-strategy-202608/05-P0-Implementation-Status.md",
+      "sha256": "0c6395de015a16f70df8f06fc54e213850028b1fdbcd04baadfa059a3f02ef57",
+      "result": "edited",
+      "resultSha256": "03601de044dfbb616dff0a9eb2cb2ee1fc22844f22e22d33f7811781d932a528"
+    },
+    {
+      "action": "edit",
+      "path": "product-web-prototype/README.md",
+      "sha256": "7d7bf183afc1702e2c986ecc50395ff052449c1574d8b99e9949cc59b64f2505",
+      "result": "edited",
+      "resultSha256": "5dafe9d329436e1180797c48e42d55178d0c7d90ae74699f207ec30e8cc6ee3b"
+    },
+    {
+      "action": "edit",
+      "path": "数值系统-开发方案.md",
+      "sha256": "6d3a1a6bd0e8b4416d9338dc103ff41bf708c554120a0e06d3931f9dce363940",
+      "result": "edited",
+      "resultSha256": "7eebc22c12f6975fdabc858f71d1f9af77ac137a654eff32bbf832db1ace7bd5"
+    },
+    {
+      "action": "edit",
+      "path": "bo-经济后端架构设计.md",
+      "sha256": "af24b082a3dfb31ea50527ddc2a25f4b017802ffd1349655faa9f12f695cce60",
+      "result": "edited",
+      "resultSha256": "efd607faaf2c18fb69528686d78a9f6967fe0ea241ea41d0d3b3cc5d6ebf0f58"
+    }
+  ],
+  "approvedOn": "2026-09-05",
+  "definition": "docs/PRODUCT.md",
+  "verification": {
+    "exactApprovedDeletions": 18,
+    "approvedDocumentsEdited": 28,
+    "newBrokenMarkdownLinks": 0,
+    "nonDocumentFilesUnchanged": 739,
+    "criticalSleepMappingPreserved": true,
+    "preexistingMotionDocUpdatesPreserved": true,
+    "appTests": "not run; documentation only"
+  }
+}

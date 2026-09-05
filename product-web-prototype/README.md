@@ -1,12 +1,3 @@
-# 产品网页原型
+# 历史网页原型
 
-此文件夹存放 LifePet 产品的网页原型文件，用于产品设计和交互验证。
-
-## 文件说明
-
-- `prototype-v0603-home.html` — 首页原型（2025-06-03 版本）
-- `prototype-v0603-onboarding.html` — 引导页/新用户 onboarding 原型（2025-06-03 版本）
-
-## 使用方式
-
-直接用浏览器打开 `.html` 文件即可预览原型效果。
+此目录保留早期 Pibo HTML 原型供创作回看，不是当前产品或交互规则。当前定义见 [PRODUCT](../docs/PRODUCT.md)，实现状态见 [05](../docs/product-strategy-202608/05-P0-Implementation-Status.md)。本次没有删除 HTML 文件。
