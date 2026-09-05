@@ -11,6 +11,7 @@ struct PiboAnimationIntegrationTests {
     @Test func shippedCharacterDataCoversAllStatesZonesAndRuntimePrimitives() throws {
         let data = try PiboCharacterData.load()
         let expectedStates: Set<String> = [
+            PiboAnimationResourceID.energetic,
             "pibo-state-stable-forest-idle", "pibo-state-waking-hammock-idle", "pibo-state-tired-forest-idle", "boring", "weak", "pibo-event-workout-celebrate",
             "pibo-event-activity-milestone-celebrate", "angry", "dive", "coolhide", "pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b",
             "pibo-state-sleeping-ground-idle-a", "pibo-state-waking-ground-behavior-recovering",
@@ -24,6 +25,7 @@ struct PiboAnimationIntegrationTests {
 
         let expectedZones: [String: Set<String>] = [
             "ground": [
+                PiboAnimationResourceID.energetic,
                 "pibo-state-stable-forest-idle", "pibo-state-tired-forest-idle",
                 "pibo-event-workout-celebrate", "pibo-event-activity-milestone-celebrate", "angry",
             ],
@@ -46,6 +48,7 @@ struct PiboAnimationIntegrationTests {
         }
 
         let requiredPrimitives: Set<String> = [
+            "sampled-pose",
             "sigh-sequence", "bring-to-front", "pop-loop", "bubble-breathe",
             "wink-morph", "blink", "path-wiggle", "shake", "bob", "sway",
         ]

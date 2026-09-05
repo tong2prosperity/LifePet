@@ -380,6 +380,11 @@ final class PiboCharacterRenderer {
     }
 
     func playContextualAction(_ action: PiboCoreAnimationAdapter.ContextualAction) {
+        if action == .checkIn, animationStateID == PiboAnimationResourceID.stable,
+           vector != nil, vectorTransition?.isRunning == false {
+            vectorIdle?.restartAuthoredPat()
+            return
+        }
         cancelContextualAction()
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
         let short = reduceMotion ? 0.08 : 0.15
@@ -462,6 +467,7 @@ final class PiboCharacterRenderer {
     }
 
     func cancelContextualAction() {
+        vectorIdle?.cancelAuthoredPat()
         contextualActionNode.removeAction(forKey: "contextualAction")
         contextualActionNode.removeAction(forKey: "squash")
         contextualActionNode.position = .zero

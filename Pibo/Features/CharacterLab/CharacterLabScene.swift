@@ -9,6 +9,9 @@ import UIKit
 /// 之后它是 `PiboVectorCharacter` + `PiboStateTransition` 的独立验证环境：
 /// 不受森林场景的光照 / 倒影 / 天气干扰，能把角色本身的问题单独暴露出来。
 final class CharacterLabScene: SKScene {
+    /// Deterministic native pose capture, using the production renderer.
+    var captureMotionClip: String?
+    var captureMotionTime: Double = 0
     var zoom: CGFloat = 1 { didSet { character?.setScale(baseScale * zoom) } }
     /// Pixel-comparison mode: preserve the authored 300×300 registration at
     /// 1:1 and center it on Figma's neutral preview gray.
@@ -169,6 +172,10 @@ final class CharacterLabScene: SKScene {
                 time: currentTime,
                 amplitude: transition.idleAmplitude
             )
+        }
+        if let clipID = captureMotionClip, let clip = data?.authoredClips?[clipID] {
+            PiboSampledMotionPlayer.apply(clip.pose(at: captureMotionTime), to: character,
+                stateID: transition.toStateID)
         }
         applyRig(time: currentTime, delta: delta, character: character)
 

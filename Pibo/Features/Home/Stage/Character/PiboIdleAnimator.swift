@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import SpriteKit
+import UIKit
 
 /// Runs one state's idle choreography.
 ///
@@ -28,6 +29,11 @@ final class PiboIdleAnimator {
     /// deforming a shape that is still travelling reads as noise.
     private let pathPrimitiveMinAmplitude: CGFloat
     private let designFrame: CGSize
+    private let authoredClips: [String: PiboSampledClip]
+    private let authoredMotion = PiboSampledMotionPlayer()
+
+    func restartAuthoredPat() { authoredMotion.restartPat() }
+    func cancelAuthoredPat() { authoredMotion.cancelPat() }
 
     private var timelineStart: TimeInterval?
     private var activeStateID: String?
@@ -38,6 +44,7 @@ final class PiboIdleAnimator {
     private var randomBlinks: [String: RandomBlinkSchedule] = [:]
 
     init(data: PiboCharacterData) {
+        authoredClips = data.authoredClips ?? [:]
         pathPrimitiveMinAmplitude = CGFloat(data.idleBlend.pathPrimitiveMinAmplitude)
         designFrame = CGSize(width: data.designFrame.width, height: data.designFrame.height)
     }
@@ -46,6 +53,7 @@ final class PiboIdleAnimator {
     /// always begins at its own zero rather than wherever the clock happens to be.
     func restartTimeline() {
         timelineStart = nil
+        authoredMotion.reset()
     }
 
     func apply(
@@ -56,6 +64,7 @@ final class PiboIdleAnimator {
         amplitude: CGFloat
     ) {
         if activeStateID != stateID {
+            authoredMotion.reset()
             activeStateID = stateID
             timelineStart = nil
             randomBlinks.removeAll()
@@ -194,6 +203,11 @@ final class PiboIdleAnimator {
         let strength = amplitude * gateValue
 
         switch part.kind {
+        case "sampled-pose":
+            guard let clip = part.clip else { return }
+            let pose = authoredMotion.pose(id: clip, time: elapsed, clips: authoredClips,
+                strength: UIAccessibility.isReduceMotionEnabled ? 0 : amplitude)
+            PiboSampledMotionPlayer.apply(pose, to: character, stateID: stateID)
         case "breathe", "breathe-y":
             applyBreathe(part, character: character, elapsed: elapsed, strength: strength, verticalOnly: part.kind == "breathe-y")
         case "breathe-hop":

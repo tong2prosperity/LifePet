@@ -8,7 +8,7 @@ final class HomeAnimationStateResolverTests: XCTestCase {
         XCTAssertEqual(resolve(.dataUnknown).stateID, "pibo-state-stable-forest-idle")
         XCTAssertEqual(resolve(.stable).stateID, "pibo-state-stable-forest-idle")
         XCTAssertEqual(resolve(.waking).stateID, "pibo-state-waking-hammock-idle")
-        XCTAssertEqual(resolve(.energetic).stateID, PiboAnimationResourceID.stable)
+        XCTAssertEqual(resolve(.energetic).stateID, PiboAnimationResourceID.energetic)
         XCTAssertEqual(resolve(.tired).stateID, "pibo-state-tired-forest-idle")
         XCTAssertTrue(["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"].contains(resolve(.sleeping).stateID))
     }

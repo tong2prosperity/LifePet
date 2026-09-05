@@ -141,6 +141,7 @@ struct PiboCharacterData: Decodable {
 
         struct Part: Decodable {
             let kind: String
+            let clip: String?
             let selector: String?
             let selectorAll: String?
 
@@ -256,6 +257,7 @@ struct PiboCharacterData: Decodable {
     }
 
     let schemaVersion: Int
+    let authoredClips: [String: PiboSampledClip]?
     let designFrame: Size
     let transition: Transition
     let settlePulse: SettlePulse

@@ -13,7 +13,7 @@ enum PiboCoreAnimationAdapter {
 
         var duration: Duration {
             switch self {
-            case .checkIn: .milliseconds(360)
+            case .checkIn: .milliseconds(2_800)
             case .checkConnection, .letSleep: .milliseconds(900)
             case .morningGreeting, .rest: .milliseconds(1_100)
             case .play: .milliseconds(1_300)
@@ -45,9 +45,7 @@ enum PiboCoreAnimationAdapter {
         case .waking:
             PiboAnimationResourceID.wakingHammock
         case .energetic:
-            // The semantic state stays in Core, but the incomplete energetic
-            // artwork is deliberately absent from the current App.
-            PiboAnimationResourceID.stable
+            PiboAnimationResourceID.energetic
         case .tired:
             PiboAnimationResourceID.tired
         }
@@ -141,7 +139,7 @@ enum PiboCoreAnimationAdapter {
 
     static func semanticState(for stateID: String) -> PiboActivityState {
         if PiboAnimationResourceID.sleeping.contains(stateID) { return .sleeping }
-        if stateID == PiboAnimationResourceID.activityMilestoneCelebrate {
+        if stateID == PiboAnimationResourceID.activityMilestoneCelebrate || stateID == PiboAnimationResourceID.energetic {
             return .energetic
         }
         return switch stateID {

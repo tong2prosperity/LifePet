@@ -4,6 +4,7 @@ import Foundation
 /// Product state names stay separate from concrete art clips.
 enum PiboAnimationResourceID {
     static let stable = "pibo-state-stable-forest-idle"
+    static let energetic = "pibo-state-energetic-forest-idle"
     static let activityMilestoneCelebrate = "pibo-event-activity-milestone-celebrate"
     static let workoutCelebrate = "pibo-event-workout-celebrate"
     static let sleepingHammockA = "pibo-state-sleeping-hammock-idle-a"
@@ -47,6 +48,7 @@ enum PiboAnimationStateMap {
     /// Stable semantic IDs and reviewed key poses shipped by pibo-media 0.5.0.
     static let available: Set<String> = [
         PiboAnimationResourceID.stable,
+        PiboAnimationResourceID.energetic,
         PiboAnimationResourceID.activityMilestoneCelebrate,
         PiboAnimationResourceID.workoutCelebrate,
         PiboAnimationResourceID.sleepingHammockA,

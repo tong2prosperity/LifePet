@@ -51,6 +51,8 @@ struct CharacterLabView: View {
     }
 
     private func applyLaunchArguments() {
+        scene.captureMotionClip = Self.argument("-PiboLabMotionClip")
+        scene.captureMotionTime = Self.argument("-PiboLabMotionTime").flatMap(Double.init) ?? 0
         if let raw = Self.argument("-PiboLabZoom"), let value = Double(raw) {
             zoom = min(max(value, 0.5), 4)
         }
