@@ -4304,6 +4304,10 @@ struct WatchPiboParticleLayerView: View {
 // Idle math runs in TimelineView's body so it's frame-driven.
 
 public struct PiboStateAnimator: View {
+    // Watch runtime inputs; authored geometry and idle timelines remain intact.
+    private let boProgress: Double
+    private let animates: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding private var externalState: PiboVectorState
     @State private var internalState: PiboVectorState = .default
     private let usesExternalBinding: Bool
@@ -4329,10 +4333,14 @@ public struct PiboStateAnimator: View {
     @State private var fillState: PiboVectorState = .default
 
     public init() {
+        boProgress = 1
+        animates = true
         self._externalState = .constant(.default)
         self.usesExternalBinding = false
     }
-    public init(state: Binding<PiboVectorState>) {
+    public init(state: Binding<PiboVectorState>, boProgress: Double = 1, animates: Bool = true) {
+        self.boProgress = boProgress
+        self.animates = animates
         self._externalState = state
         self.usesExternalBinding = true
     }
@@ -4342,8 +4350,8 @@ public struct PiboStateAnimator: View {
     }
 
     public var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSince(animStart)
+        TimelineView(.animation(minimumInterval: 1.0 / 24, paused: !animates || reduceMotion)) { context in
+            let t = reduceMotion ? 0 : context.date.timeIntervalSince(animStart)
             // Whole-body idle: the JS engine writes each root part to
             // el.style.transform, so multiple root parts CLOBBER each other —
             // only the LAST one renders (e.g. waggle's sway overwrites its
@@ -4362,7 +4370,7 @@ public struct PiboStateAnimator: View {
                 // .compositingGroup() flattens each state's orphan stack before the
                 // opacity fade so overlapping transparent shapes don't double-blend
                 // mid-fade (would otherwise look fragmented).
-                ForEach(PiboVectorState.allCases, id: \.self) { sn in
+                ForEach(displayedState == targetState ? [displayedState] : [displayedState, targetState], id: \.self) { sn in
                     backOrphans(for: sn, t: t, amplitude: idleAmplitude)
                         .compositingGroup()
                         .opacity(sn == displayedOrphanState ? 1 : 0)
@@ -4396,6 +4404,7 @@ public struct PiboStateAnimator: View {
                 .fill(fillColor(for: "bo", in: fillState))
                 .frame(width: 300, height: 300, alignment: .topLeading)
                 .modifier(WatchPiboElementIdleMod(e: idleForElement("bo", in: displayedState, t: t, amplitude: idleAmplitude, blinkSuppressed: displayedState != targetState)))
+                .mask(WatchBoGrowthMask(state: displayedState, progress: boProgress))
 
                 Group {
                     WatchPiboMorphShape(
@@ -4407,9 +4416,10 @@ public struct PiboStateAnimator: View {
                 }
                 .frame(width: 300, height: 300, alignment: .topLeading)
                 .modifier(WatchPiboElementIdleMod(e: idleForElement("boline", in: displayedState, t: t, amplitude: idleAmplitude, blinkSuppressed: displayedState != targetState)))
+                .mask(WatchBoGrowthMask(state: displayedState, progress: boProgress))
 
 
-                ForEach(PiboVectorState.allCases, id: \.self) { sn in
+                ForEach(displayedState == targetState ? [displayedState] : [displayedState, targetState], id: \.self) { sn in
                     frontOrphans(for: sn, t: t, amplitude: idleAmplitude)
                         .compositingGroup()
                         .opacity(sn == displayedOrphanState ? 1 : 0)
@@ -4434,6 +4444,14 @@ public struct PiboStateAnimator: View {
 
     private func transition(to newState: PiboVectorState) {
         guard newState != targetState else { return }
+        if reduceMotion || !animates {
+            displayedState = newState
+            targetState = newState
+            displayedOrphanState = newState
+            fillState = newState
+            morphProgress = 1
+            return
+        }
         // Particle handoff: if we're leaving a state that emits particles
         // and heading somewhere with a different (or no) particle spec, stop
         // spawning immediately. Alive cells finish naturally during the morph.

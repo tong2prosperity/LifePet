@@ -6,6 +6,7 @@ final class HomeIdleSpeechContextResolverTests: XCTestCase {
     func testEveryShippedAnimationStateKeepsItsIdleSpeechContext() {
         let expectations: [String: PiboCoreHomeSpeechContext?] = [
             "pibo-state-stable-forest-idle": .idle,
+            "pibo-state-energetic-forest-idle": .idle,
             "pibo-event-activity-milestone-celebrate": .idle,
             "pibo-event-workout-celebrate": .idle,
             "pibo-state-sleeping-hammock-idle-a": nil,

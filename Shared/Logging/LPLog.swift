@@ -101,12 +101,8 @@ nonisolated enum LPLog {
 
     // MARK: - watchOS
 
-    /// The watch's only live feature: the CRC breathing trainer.
-    static let watchBreathing = Logger(subsystem: subsystem, category: "Watch.Breathing")
-    /// `HKWorkoutSession` lifecycle backing that trainer. Split from
-    /// `Watch.Breathing` because state transitions arrive on a delegate,
-    /// interleaved with — but not part of — the training flow.
-    static let watchWorkout   = Logger(subsystem: subsystem, category: "Watch.Workout")
+    /// Phone-to-watch companion snapshots and read-only activity acquisition.
+    static let watchCompanion = Logger(subsystem: subsystem, category: "Watch.Companion")
 
     /// Shared "MM-dd HH:mm:ss" formatter for log timestamps. Local-time
     /// output reads more naturally than `Date`'s default UTC `description`.

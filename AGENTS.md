@@ -2,14 +2,14 @@
 
 ## Project Structure & Module Organization
 
-`Pibo.xcodeproj` contains the iOS app, watch app, and widget extension targets. The primary product surface is the iOS app in `Pibo/`; the watch app is active only for the standalone CRC breathing trainer.
+`Pibo.xcodeproj` contains the iOS app, watch app, and widget extension targets. The primary product surface is the iOS app in `Pibo/`; the watch app is a wrist companion for the same Pibo, with state/growth projection and double-tap responses. CRC breathing was removed on 2026-09-05.
 
 - `Pibo/App/`: app entry point, root view, environment wiring, scene phase hooks.
 - `Pibo/Features/`: SwiftUI/SpriteKit feature surfaces. `Home` is the fixed portrait SpriteKit forest (`PiboStageView` / `PiboStageScene`) with Pibo、由真实健康数据驱动的 `bo` 生长、共同物件直接投入和 SwiftUI chrome；旧 Studio/Gym 分区、横向漫游与独立拔取流程已经删除。`History` is the full-screen history page; `WalkDoodle` is the released independent「散步涂鸦」activity-creation loop, not a mini-game or gated item capability; `Games` contains unreleased engineering inventory and is not a current Gym page; `Onboarding` handles HealthKit auth. `Catalog` / `Together` were removed 2026-06-13.
 - `Pibo/Services/`: HealthKit, SwiftData history, identity/auth/backend, membership, analytics, Vision, localization, and app services. Do not extend the old connectivity/playback/session/music-generation direction.
 - `Shared/Logging/LPLog.swift`: the one logging entry point for app + watch + widget. Add a category to the table; never construct an `os.Logger` at a call site.
 - `Pibo/Services/Core/`: thin iOS adapters over the shared Rust `pibo-core` SDK. Keep type mapping and platform presentation here; shared thresholds and deterministic rules belong in the SDK.
-- `Pibo Watch App/Features/CRCBreathing/`: the only current watch feature. Older `Recording`, `Start`, and watch connectivity code are WCSession-era leftovers.
+- `Pibo Watch App/Features/PiboStatus/`: the live watch companion, receiving Core-selected state/action and real growth from iPhone. `Shared/WatchSupport/` owns the versioned projection and cache reconciliation. CRC breathing, workout recording, motion detection and workout background processing were removed; do not restore them without a new product decision.
 - `PiboWidgets/`: Home Screen widget and Live Activity extension. Shared payloads live in `Shared/WidgetSupport/` and are live, not legacy.
 - `Shared/DesignSystem/`: LP tokens, Figma UI Kit tokens, reusable components, modifiers, and theme data. Use these before adding one-off UI styling.
 - `Shared/Connectivity/` and old `Shared/Models/Vital*`: WatchConnectivity wire-format leftovers; avoid extending them.
@@ -46,11 +46,11 @@ Info.plist keys are usually generated from `INFOPLIST_KEY_*` build settings. Key
 
 ## Testing Guidelines
 
-`PiboTests` (swift-testing) is wired into the `Pibo` scheme; run it with `xcodebuild test -project Pibo.xcodeproj -scheme Pibo -destination 'platform=iOS Simulator,name=iPhone 17'`. Mirror source paths where practical and name files `TypeNameTests.swift`. Suites that touch app-wide singletons (e.g. `StressNotifier.shared`) must be `@Suite(.serialized)`. Prioritize direct-data state derivation (6-state machine), double-tap gesture acceptance, contextual speech/microchapter/cooldown lifecycle, direct `bo` investment and idempotency, morning-sleep readiness/delivery, HealthKit event mapping/backfill, food-camera validation/history, Walk Doodle scoring/reward/history, Shadow friendship/snapshot/privacy behavior, widget snapshots, membership entitlement handling, and CRC coupling logic.
+`PiboTests` (swift-testing) is wired into the `Pibo` scheme; run it with `xcodebuild test -project Pibo.xcodeproj -scheme Pibo -destination 'platform=iOS Simulator,name=iPhone 17'`. Mirror source paths where practical and name files `TypeNameTests.swift`. Suites that touch app-wide singletons (e.g. `StressNotifier.shared`) must be `@Suite(.serialized)`. Prioritize direct-data state derivation (6-state machine), double-tap gesture acceptance, contextual speech/microchapter/cooldown lifecycle, direct `bo` investment and idempotency, morning-sleep readiness/delivery, HealthKit event mapping/backfill, food-camera validation/history, Walk Doodle scoring/reward/history, Shadow friendship/snapshot/privacy behavior, widget snapshots, membership entitlement handling, and watch companion cross-day/unknown-state/relationship continuity.
 
 The suite is green; treat any failure as a regression. Sleep ingestion in particular is pinned by `PiboTests/PiboCoreSleepIntegrationTests.swift`, which encodes why HealthKit's ambiguous asleep value (`.asleep` == `.asleepUnspecified`) must resolve conservatively — see `CLAUDE.md` before changing that mapping.
 
-For UI changes, include simulator screenshots or recordings where practical, especially for home SpriteKit, history, widgets/Live Activities, camera, and watch CRC surfaces.
+For UI changes, include simulator screenshots or recordings where practical, especially for home SpriteKit, history, widgets/Live Activities, camera, and watch companion surfaces.
 
 ## Commit & Pull Request Guidelines
 
@@ -86,7 +86,7 @@ Food capture succeeds only after the backend confirms `is_food`. A successful me
 
 The current home IA is one fixed portrait SpriteKit forest; there is no Studio page, Gym page, horizontal camera pan, snap, or inertia. SwiftUI owns feature chrome and presentation around the scene. The old 上滑数据二楼 / `FloorModel` / `FloorContainer` / `FloorDome` navigation is retired; history opens as `HistoryScreen`. Do not reconstruct Studio/Gym from stale narrative documents.
 
-New iOS feature work should read from `HealthDataService`, `HealthHistoryStore`, and `PetStateStore`, not WatchConnectivity. iOS passively reads on-device HealthKit samples written by the user's watch; the phone/watch WCSession streaming direction is cut. The watch app's current CRC breathing trainer is self-contained and does not feed the phone.
+New iOS feature work should read from `HealthDataService`, `HealthHistoryStore`, and `PetStateStore`, not WatchConnectivity. iOS passively reads on-device HealthKit samples written by the user's watch; the phone/watch WCSession streaming direction is cut. The live WatchConnectivity path is an iPhone → paired-watch companion projection, not a health streaming pipeline. Watch double taps only play the Core-selected action and haptics; they do not generate bo, health recovery or conversation progress. Pet identity/growth and consented Shadow snapshots survive stale or cross-day activity data. Explicit hiding, logout, relationship removal and account switches must still clear the relevant projection. The watch optionally reads its own activity facts and never starts a workout or writes health records.
 
 The sibling HarmonyOS app lives at `/Users/trevorlink/Project/hackathon/HarmonyPibo`, the production media source repository at `/Users/trevorlink/Project/PiboWorld/pibo-media`, and the sibling backend at `/Users/trevorlink/Project/hackathon/pibo-server`; none live inside this repo. Media binaries never belong in `pibo-core`: keep approved masters under `pibo-media/source/`, publish iOS-ready derivatives under `pibo-media/platform/ios/`, and copy/version selected runtime files into this App with the repository's sync tool. Core returns stable semantic IDs, not filenames or absolute paths. iOS backend clients are under `Pibo/Services/Backend/`. Membership uses StoreKit 2 in `MembershipService` with products `fun.tiebao.co.Pibo.membership.monthly` and `.yearly`; local simulator testing uses the root `PiboStore.storekit`.
 

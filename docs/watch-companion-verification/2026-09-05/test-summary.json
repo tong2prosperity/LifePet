@@ -1,0 +1,45 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "1A6A5ABC-10E7-4269-BC40-6392A449DF58",
+        "deviceName" : "iPhone 17",
+        "modelName" : "iPhone 17",
+        "osBuildNumber" : "23F77",
+        "osVersion" : "26.5",
+        "platform" : "iOS Simulator"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 0,
+      "passedTests" : 446,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "Pibo · Built with macOS 26.6.2",
+  "expectedFailures" : 0,
+  "failedTests" : 0,
+  "finishTime" : 1788599907.437,
+  "passedTests" : 444,
+  "result" : "Passed",
+  "skippedTests" : 0,
+  "startTime" : 1788599841.384,
+  "statistics" : [
+    {
+      "subtitle" : "4 test runs",
+      "title" : "2 tests ran with dynamic parameters"
+    }
+  ],
+  "testFailures" : [
+
+  ],
+  "title" : "Test - Pibo",
+  "topInsights" : [
+
+  ],
+  "totalTestCount" : 444
+}

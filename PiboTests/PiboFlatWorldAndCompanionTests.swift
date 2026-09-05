@@ -29,7 +29,7 @@ struct PiboFlatWorldAndCompanionTests {
         #expect(PiboFlatWorldScene.widgetCycle.contains(first))
     }
 
-    @Test func companionSnapshotRejectsUnknownFutureStaleAndWrongDayData() {
+    @Test func companionKeepsIdentityButExpiresDailyFacts() {
         let now = Date(timeIntervalSince1970: 1_788_400_000)
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 8 * 3_600)!
@@ -37,10 +37,14 @@ struct PiboFlatWorldAndCompanionTests {
 
         #expect(snapshot(dayStart: dayStart, generatedAt: now).isAcceptable(now: now, calendar: calendar))
         #expect(!snapshot(dayStart: dayStart, generatedAt: now.addingTimeInterval(301)).isAcceptable(now: now, calendar: calendar))
-        #expect(!snapshot(dayStart: dayStart, generatedAt: now.addingTimeInterval(-86_401)).isAcceptable(now: now, calendar: calendar))
-        #expect(!snapshot(dayStart: dayStart.addingTimeInterval(-86_400), generatedAt: now).isAcceptable(now: now, calendar: calendar))
-        #expect(!snapshot(dayStart: dayStart, generatedAt: now, state: "dataUnknown").isAcceptable(now: now, calendar: calendar))
-        #expect(!snapshot(dayStart: dayStart, generatedAt: now, schemaVersion: 2).isAcceptable(now: now, calendar: calendar))
+        let stale = snapshot(dayStart: dayStart, generatedAt: now.addingTimeInterval(-86_401))
+        #expect(stale.isAcceptable(now: now, calendar: calendar))
+        #expect(!stale.hasCurrentActivity(now: now, calendar: calendar))
+        let yesterday = snapshot(dayStart: dayStart.addingTimeInterval(-86_400), generatedAt: now)
+        #expect(yesterday.isAcceptable(now: now, calendar: calendar))
+        #expect(!yesterday.hasCurrentActivity(now: now, calendar: calendar))
+        #expect(snapshot(dayStart: dayStart, generatedAt: now, state: "dataUnknown").isAcceptable(now: now, calendar: calendar))
+        #expect(!snapshot(dayStart: dayStart, generatedAt: now, schemaVersion: 3).isAcceptable(now: now, calendar: calendar))
     }
 
     @Test func companionWireRoundTripsWithoutRawHealthFields() throws {
@@ -54,12 +58,12 @@ struct PiboFlatWorldAndCompanionTests {
         #expect(object["bo"] == nil)
     }
 
-    @Test func shadowProjectionRejectsUnknownAndStalePublicState() {
+    @Test func shadowRejectsUnknownButRetainsOldConsentedState() {
         let now = Date(timeIntervalSince1970: 1_788_400_000)
         let valid = shadow(state: "stable", syncedAt: now)
         #expect(valid.isAcceptable(now: now))
         #expect(!shadow(state: "dataUnknown", syncedAt: now).isAcceptable(now: now))
-        #expect(!shadow(state: "stable", syncedAt: now.addingTimeInterval(-86_401)).isAcceptable(now: now))
+        #expect(shadow(state: "stable", syncedAt: now.addingTimeInterval(-86_401)).isAcceptable(now: now))
     }
 
     private func snapshot(

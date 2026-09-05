@@ -186,7 +186,7 @@ enum HeartbeatSeriesReader {
         }
     }
 
-    /// Excludes Apple Mindfulness sessions. Pibo's CRC watch trainer is already
+    /// Excludes Apple Mindfulness sessions. Historical Pibo CRC sessions are also
     /// excluded through its overlapping `.mindAndBody` workout.
     private static func hasMindfulnessOverlap(during series: HKHeartbeatSeriesSample,
                                                store: HKHealthStore) async -> OverlapRead {

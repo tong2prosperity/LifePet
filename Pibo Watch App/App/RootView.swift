@@ -2,11 +2,11 @@ import SwiftUI
 
 struct RootView: View {
     var body: some View {
-        CRCTrainingView()
+        PiboWatchHomeView()
     }
 }
 
-#Preview("CRC") {
+#Preview("Pibo Companion") {
     RootView()
         .preferredColorScheme(.dark)
 }

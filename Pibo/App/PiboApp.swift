@@ -58,6 +58,7 @@ struct PiboApp: App {
     /// WeatherKit + coarse foreground location, cached across launches.
     @State private var weather: WeatherDataService
     private let watchSync: PiboCompanionSyncService
+    @State private var watchIdentityReady = false
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -304,6 +305,8 @@ struct PiboApp: App {
                     watchSync.activate()
                     shadowSync.initialize()
                     _ = await auth.restoreSession()
+                    watchIdentityReady = true
+                    publishWatchSnapshot()
                     shadowSync.setAppActive(scenePhase == .active)
                     // Lifetime StoreKit transaction listener + entitlement hydrate.
                     membership.start()
@@ -391,6 +394,7 @@ struct PiboApp: App {
                         // at "today's HK reality, minus elapsed pressure").
                         store.checkDayRollover()
                         store.applyDecayCatchup()
+                        publishWatchSnapshot()
                         // Server-side reconciliation: push today's health so the
                         // server re-mints any bo earned while we were away.
                         if auth.phase == .loggedIn {
@@ -446,7 +450,14 @@ struct PiboApp: App {
                 .onChange(of: shadowStore.revision) { _, _ in
                     publishWatchSnapshot()
                 }
+                .onChange(of: identity.petName) { _, _ in publishWatchSnapshot() }
+                .onChange(of: identity.currentPetId) { _, _ in publishWatchSnapshot() }
+                .onChange(of: boLedger.growthProgress) { _, _ in publishWatchSnapshot() }
+                .onChange(of: boLedger.state.ripeCount) { _, _ in publishWatchSnapshot() }
+                .onChange(of: ornamentUnlocks.unlocked) { _, _ in publishWatchSnapshot() }
+                .onChange(of: health.dataAvailability) { _, _ in publishWatchSnapshot() }
                 .onChange(of: auth.phase) { _, phase in
+                    publishWatchSnapshot()
                     guard phase == .loggedIn else { return }
                     Task { await coordinator.syncToday() }
                 }
@@ -486,10 +497,20 @@ struct PiboApp: App {
     }
 
     private func publishWatchSnapshot() {
+        guard watchIdentityReady else { return }
+        let accountID = auth.userId ?? ""
+        // Account restoration is asynchronous. Do not revoke a cached friendship
+        // with the temporary empty store before that account has hydrated.
+        guard accountID.isEmpty || shadowStore.activeUserID == accountID else { return }
         watchSync.publish(
             store: store,
             record: history.record(on: .now),
-            shadowView: shadowStore.cachedView
+            shadowView: accountID.isEmpty ? nil : shadowStore.cachedView,
+            shadowAccountID: accountID,
+            shadowHidden: shadowStore.hideOnHome,
+            ledger: boLedger,
+            unlocks: ornamentUnlocks,
+            availability: health.dataAvailability
         )
     }
 
