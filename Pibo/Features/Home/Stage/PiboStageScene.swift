@@ -262,6 +262,16 @@ final class PiboStageScene: SKScene {
         (themeRenderer as? ForestThemeRenderer)?.prepareOrnamentReveal(id)
     }
 
+    func prepareOrnamentDiscovery(_ id: PiboOrnament.ID) {
+        guard built else { return }
+        (themeRenderer as? ForestThemeRenderer)?.prepareOrnamentDiscovery(id)
+    }
+
+    func playOrnamentDiscovery(_ id: PiboOrnament.ID, completion: @escaping () -> Void) {
+        guard built else { completion(); return }
+        (themeRenderer as? ForestThemeRenderer)?.playOrnamentDiscovery(id, completion: completion)
+    }
+
     func ornamentTargetFrame(_ id: PiboOrnament.ID) -> CGRect? {
         guard built,
               let sceneFrame = (themeRenderer as? ForestThemeRenderer)?.ornamentTargetFrame(id),
@@ -460,6 +470,7 @@ final class PiboStageScene: SKScene {
     // Body taps require the system's second tap; other stage objects remain single-tap.
     private var tapTouch: UITouch?
     private var tapOrigin: CGPoint = .zero
+    private var bodyContactFeedbackActive = false
     /// Beyond this move a touch is a drag/scroll, not a tap.
     private static let tapSlop: CGFloat = 16
 
@@ -485,6 +496,10 @@ final class PiboStageScene: SKScene {
         }
         tapTouch = t
         tapOrigin = p
+        if piboRegion == .body {
+            bodyContactFeedbackActive = true
+            character.beginContactFeedback()
+        }
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -508,6 +523,7 @@ final class PiboStageScene: SKScene {
             let p = t.location(in: self)
             if hypot(p.x - tapOrigin.x, p.y - tapOrigin.y) > Self.tapSlop {
                 tapTouch = nil
+                endBodyContactFeedback()
             }
         }
     }
@@ -533,6 +549,7 @@ final class PiboStageScene: SKScene {
         }
         guard let t = tapTouch, touches.contains(t) else { return }
         tapTouch = nil
+        endBodyContactFeedback()
         handleTap(at: t.location(in: self), tapCount: t.tapCount)
     }
 
@@ -556,6 +573,7 @@ final class PiboStageScene: SKScene {
         }
         if let t = tapTouch, touches.contains(t) {
             tapTouch = nil
+            endBodyContactFeedback()
         }
     }
 
@@ -580,6 +598,13 @@ final class PiboStageScene: SKScene {
         if tapTouch != nil {
             tapTouch = nil
         }
+        endBodyContactFeedback()
+    }
+
+    private func endBodyContactFeedback() {
+        guard bodyContactFeedbackActive else { return }
+        bodyContactFeedbackActive = false
+        character.endContactFeedback()
     }
 
     // MARK: Tap routing

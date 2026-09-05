@@ -8,117 +8,128 @@ final class WatchPiboStatusStore: ObservableObject {
 
     @Published private(set) var loadState: LoadState = .loading
     @Published private(set) var vectorState: PiboVectorState = .default
-    @Published private(set) var title = "Pibo 正安静待着"
-    @Published private(set) var detail = "今天也在这里"
+    @Published private(set) var petName = "Pibo"
+    @Published private(set) var stateLabel = "等待手机同步"
+    @Published private(set) var detail = "活动数据可由手表暂时补充"
+    @Published private(set) var activeEnergy: Double?
+    @Published private(set) var exerciseMinutes: Int?
+    @Published private(set) var standHours: Int?
+    @Published private(set) var moveProgress: Double?
+    @Published private(set) var exerciseProgress: Double?
+    @Published private(set) var standProgress: Double?
+    @Published private(set) var scene: PiboFlatWorldScene = .rainGorge
+    @Published private(set) var shadow: PiboCompanionShadowSnapshot?
+    @Published private(set) var waitingForPhone = true
 
     private let healthStore = HKHealthStore()
+    private let companion = WatchCompanionSyncService.shared
 
-    func refresh() async {
-        guard HKHealthStore.isHealthDataAvailable() else { applyFallback(); return }
-        let readTypes: Set<HKObjectType> = [
-            HKQuantityType(.stepCount), HKObjectType.workoutType(), HKCategoryType(.sleepAnalysis),
-        ]
-        do {
-            try await healthStore.requestAuthorization(toShare: [], read: readTypes)
-            async let steps = todaySteps()
-            async let workout = hasWorkoutToday()
-            async let sleep = lastNightSleepHours()
-            apply(steps: await steps, hasWorkout: await workout, sleepHours: await sleep)
-        } catch { applyFallback() }
+    init() {
+        companion.onSnapshot = { [weak self] value in self?.applyPhoneSnapshot(value) }
     }
 
-    private func apply(steps: Int?, hasWorkout: Bool?, sleepHours: Double?) {
-        let components = Calendar.current.dateComponents([.hour, .minute], from: Date())
-        let localHour = Double(components.hour ?? 12) + Double(components.minute ?? 0) / 60
-        let presentation = Self.presentation(
-            localHour: localHour,
-            hasHealthData: steps != nil || hasWorkout != nil || sleepHours != nil,
-            hasWorkout: hasWorkout == true,
-            sleepHours: sleepHours
-        )
-        vectorState = presentation.state
-        title = presentation.title
-        detail = presentation.detail
+    func refresh() async {
+        loadState = .loading
+        if let value = companion.activate(), value.isAcceptable() {
+            applyPhoneSnapshot(value)
+            return
+        }
+        await applyDirectActivityFallback()
+    }
+
+    private func applyPhoneSnapshot(_ value: PiboCompanionSnapshot) {
+        guard value.isAcceptable() else { return }
+        petName = value.petName
+        stateLabel = value.stateLabel
+        detail = "来自 iPhone · \(value.generatedAt.formatted(date: .omitted, time: .shortened))"
+        vectorState = Self.vectorState(for: value.publicStateID)
+        activeEnergy = value.activeEnergy
+        exerciseMinutes = value.exerciseMinutes
+        standHours = value.standHours
+        moveProgress = value.moveProgress
+        exerciseProgress = value.exerciseProgress
+        standProgress = value.standProgress
+        scene = value.sceneID
+        shadow = value.shadow.flatMap { $0.isAcceptable() ? $0 : nil }
+        waitingForPhone = false
         loadState = .ready
     }
 
-    private func applyFallback() {
+    /// Local HealthKit only fills direct activity facts. It never derives a
+    /// semantic Pibo state or copies Core thresholds into the watch target.
+    private func applyDirectActivityFallback() async {
+        waitingForPhone = true
         vectorState = .default
-        title = "Pibo 正安静待着"
-        detail = "健康数据暂不可用"
-        loadState = .unavailable
+        petName = "Pibo"
+        stateLabel = "等待手机同步"
+        detail = "Pibo 状态保持中性"
+        scene = .rainGorge
+        shadow = nil
+        guard HKHealthStore.isHealthDataAvailable() else {
+            loadState = .unavailable
+            return
+        }
+        let types: Set<HKObjectType> = [
+            HKQuantityType(.activeEnergyBurned),
+            HKQuantityType(.appleExerciseTime),
+            HKQuantityType(.appleStandTime),
+        ]
+        do {
+            try await healthStore.requestAuthorization(toShare: [], read: types)
+            async let energy = todaySum(.activeEnergyBurned, unit: .kilocalorie())
+            async let exercise = todaySum(.appleExerciseTime, unit: .minute())
+            async let stand = todaySum(.appleStandTime, unit: .hour())
+            let values = await (energy, exercise, stand)
+            activeEnergy = values.0.flatMap { $0 > 0 ? $0 : nil }
+            exerciseMinutes = values.1.flatMap { $0 > 0 ? Int($0.rounded()) : nil }
+            standHours = values.2.flatMap { $0 > 0 ? Int($0.rounded()) : nil }
+            moveProgress = nil
+            exerciseProgress = nil
+            standProgress = nil
+            loadState = .ready
+        } catch {
+            loadState = .unavailable
+        }
     }
 
-    /// Presentation-only fallback while the pinned PiboCore XCFramework has no
-    /// watchOS slice. This deliberately avoids reproducing the six-state domain
-    /// machine; it selects only a final pose from direct, qualitative signals.
-    private static func presentation(
-        localHour: Double,
-        hasHealthData: Bool,
-        hasWorkout: Bool,
-        sleepHours: Double?
-    ) -> (state: PiboVectorState, title: String, detail: String) {
-        if localHour < 6 {
-            return (.sleep_1, "Pibo 睡着了", "动作放得很轻")
-        }
-        if localHour < 9 {
-            if let sleepHours, sleepHours < 7 {
-                return (.tired, "Pibo 还有点困", "今天先轻一点")
-            }
-            return (.awake, "Pibo 刚刚醒来", "正在慢慢清醒")
-        }
-        if hasWorkout {
-            return (.muscle, "Pibo 很有精神", "身体里有充足的能量")
-        }
-        if !hasHealthData {
-            return (.default, "Pibo 正安静待着", "健康数据暂不可用")
-        }
-        return (.boring, "Pibo 正安静待着", "今天也在这里")
-    }
-
-    private func todaySteps() async -> Int? {
-        let type = HKQuantityType(.stepCount)
-        let start = Calendar.current.startOfDay(for: Date())
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
+    private func todaySum(_ identifier: HKQuantityTypeIdentifier, unit: HKUnit) async -> Double? {
+        let type = HKQuantityType(identifier)
+        let start = Calendar.current.startOfDay(for: .now)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: .now)
         return await withCheckedContinuation { continuation in
             let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, error in
                 guard error == nil else { continuation.resume(returning: nil); return }
-                let count = result?.sumQuantity()?.doubleValue(for: .count())
-                continuation.resume(returning: count.map { Int($0.rounded()) })
+                continuation.resume(returning: result?.sumQuantity()?.doubleValue(for: unit))
             }
             healthStore.execute(query)
         }
     }
 
-    private func hasWorkoutToday() async -> Bool? {
-        let start = Calendar.current.startOfDay(for: Date())
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
-        return await withCheckedContinuation { continuation in
-            let query = HKSampleQuery(sampleType: HKObjectType.workoutType(), predicate: predicate, limit: 1, sortDescriptors: nil) { _, samples, error in
-                continuation.resume(returning: error == nil ? !(samples?.isEmpty ?? true) : nil)
-            }
-            healthStore.execute(query)
+    static func vectorState(for publicStateID: String) -> PiboVectorState {
+        switch publicStateID {
+        case "sleeping": .sleep_1
+        case "waking": .awake
+        case "energetic": .muscle
+        case "tired": .tired
+        default: .default
         }
     }
 
-    private func lastNightSleepHours() async -> Double? {
-        let type = HKCategoryType(.sleepAnalysis)
-        let now = Date()
-        guard let start = Calendar.current.date(byAdding: .hour, value: -18, to: now) else { return nil }
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: now)
-        return await withCheckedContinuation { continuation in
-            let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
-                guard error == nil, let samples = samples as? [HKCategorySample] else { continuation.resume(returning: nil); return }
-                let asleepValues: Set<Int> = [
-                    HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepCore.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepDeep.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepREM.rawValue,
-                ]
-                let seconds = samples.filter { asleepValues.contains($0.value) }.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
-                continuation.resume(returning: samples.isEmpty ? nil : seconds / 3600)
-            }
-            healthStore.execute(query)
+    static func stateLabel(for publicStateID: String) -> String {
+        switch publicStateID {
+        case "sleeping": "正在睡觉"
+        case "waking": "刚刚醒来"
+        case "energetic": "很有精神"
+        case "tired": "正在休息"
+        default: "状态平稳"
         }
+    }
+
+    static func relativeUpdate(_ date: Date, now: Date = .now) -> String {
+        let minutes = max(0, Int(now.timeIntervalSince(date) / 60))
+        if minutes < 1 { return "刚刚更新" }
+        if minutes < 60 { return "\(minutes) 分钟前" }
+        let hours = minutes / 60
+        return hours < 24 ? "\(hours) 小时前" : "\(hours / 24) 天前"
     }
 }

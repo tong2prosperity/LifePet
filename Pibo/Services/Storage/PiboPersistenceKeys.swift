@@ -29,6 +29,7 @@ nonisolated enum PiboPersistenceKeys {
 
         /// 本地 `bo` 账本（能量池 / 待拔取 / 余额 / 每日入账书签）。
         static let boLedger = "pibo.bo.ledger.v1"
+        static let boLedgerSync = "pibo.bo.ledger.sync.v1"
         static let boOwnedOrnaments = "pibo.bo.inventory.owned.v2"
         static let boEligibleOrnaments = "pibo.bo.inventory.eligible.v2"
         static let boPendingOrnamentPurchase = "pibo.bo.inventory.pendingPurchase.v2"

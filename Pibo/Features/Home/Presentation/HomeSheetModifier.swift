@@ -10,6 +10,7 @@ struct HomeSheetModifier: ViewModifier {
     let recognizer: FoodRecognitionService
     let morningSleep: MorningSleepCoordinator
     let onDismiss: () -> Void
+    let replayWalkEcho: (WalkDoodleRecord) -> Void
     let startMealCapture: (MealType) -> Void
     let confirmAchievement: (PiboAnimationAchievementPayload) -> Void
 
@@ -50,6 +51,12 @@ struct HomeSheetModifier: ViewModifier {
                 .interactiveDismissDisabled()
         case .ornamentUnlock(let id):
             OrnamentAwakeningSheet(ornamentID: id)
+        case .chimeEcho:
+            ChimeEchoSheet(
+                petID: store.identity.currentPetId,
+                history: history,
+                onReplay: replayWalkEcho
+            )
         case .healthDataStatus:
             HealthDataStatusSheet()
         case .shadow(let manifest):

@@ -1,4 +1,5 @@
 import Testing
+import PiboCore
 @testable import Pibo
 
 @MainActor
@@ -40,6 +41,47 @@ struct HomeAnimationPresentationControllerTests {
     }
 
     #if DEBUG
+    @Test func debugPatStateFollowsVisualOverrideWithoutReplacingCoreState() {
+        let coreState = PiboActivityState.dataUnknown
+
+        #expect(HomeAnimationPresentationController.resolvedPatState(
+            coreState: coreState,
+            debugForcedStateID: PiboAnimationResourceID.sleepingHammockA
+        ) == .sleeping)
+        #expect(HomeAnimationPresentationController.resolvedPatState(
+            coreState: coreState,
+            debugForcedStateID: PiboAnimationResourceID.wakingHammock
+        ) == .waking)
+        #expect(HomeAnimationPresentationController.resolvedPatState(
+            coreState: coreState,
+            debugForcedStateID: PiboAnimationResourceID.tired
+        ) == .tired)
+        #expect(HomeAnimationPresentationController.resolvedPatState(
+            coreState: coreState,
+            debugForcedStateID: PiboAnimationResourceID.activityMilestoneCelebrate
+        ) == .energetic)
+        #expect(HomeAnimationPresentationController.resolvedPatState(
+            coreState: coreState,
+            debugForcedStateID: PiboAnimationResourceID.workoutCelebrate
+        ) == .energetic)
+        #expect(HomeAnimationPresentationController.resolvedPatState(
+            coreState: coreState,
+            debugForcedStateID: PiboAnimationResourceID.stable
+        ) == .stable)
+        #expect(coreState == .dataUnknown)
+    }
+
+    @Test func debugPatStateFallsBackToCoreWithoutAValidOverride() {
+        #expect(HomeAnimationPresentationController.resolvedPatState(
+            coreState: PiboActivityState.tired,
+            debugForcedStateID: nil
+        ) == .tired)
+        #expect(HomeAnimationPresentationController.resolvedPatState(
+            coreState: PiboActivityState.tired,
+            debugForcedStateID: "unknown"
+        ) == .tired)
+    }
+
     @Test func capturePreparationChangesOnlyThePresentedState() {
         let controller = HomeAnimationPresentationController(stateID: "pibo-state-stable-forest-idle")
         let originalCoreState = controller.coreStateID

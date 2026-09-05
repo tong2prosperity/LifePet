@@ -15,6 +15,7 @@ import os
 @Observable
 final class EconomyService {
     private(set) var lastSync: SyncResponse?
+    private(set) var lastLedgerSync: BoLedgerSyncResponse?
     private(set) var state: EconomyState?
     private(set) var config: EconomyConfigDTO?
     private(set) var isSyncing = false
@@ -24,6 +25,26 @@ final class EconomyService {
 
     init(api: APIClient = .shared) {
         self.api = api
+    }
+
+    /// Relays immutable local-ledger records between this account's devices.
+    /// The response is merged by `BoLedgerStore`; this service never overwrites
+    /// local assets with a server projection.
+    func syncLedger(_ request: BoLedgerSyncRequest) async -> BoLedgerSyncResponse? {
+        do {
+            let response: BoLedgerSyncResponse = try await api.post(
+                "/api/v1/economy/ledger/sync",
+                body: request,
+                authed: true
+            )
+            lastLedgerSync = response
+            lastError = nil
+            return response
+        } catch {
+            lastError = .from(error)
+            LPLog.economySync.notice("local ledger sync deferred: \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
 
     /// Upload an incremental batch and apply the authoritative result.

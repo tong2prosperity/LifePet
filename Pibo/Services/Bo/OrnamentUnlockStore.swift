@@ -17,6 +17,7 @@ private struct PendingOrnamentPurchase: Codable {
     /// Kept under the legacy coding key so an interrupted purchase from an
     /// older build can still be recovered. It now means total usable `bo`.
     let balanceBefore: Int
+    let eventID: String?
 }
 
 private struct OrnamentInventoryPersistence {
@@ -122,6 +123,23 @@ final class OrnamentUnlockStore {
         PiboOrnament.ordered.first { !isUnlocked($0.id) }
     }
 
+    var unlockedBitmask: UInt32 {
+        owned.reduce(into: UInt32(0)) { result, id in
+            guard (0...30).contains(id.coreID.rawValue) else { return }
+            result |= UInt32(1) << UInt32(id.coreID.rawValue)
+        }
+    }
+
+    /// Imports remote/legacy ownership monotonically. It never removes an item.
+    func reconcileUnlockedBitmask(_ bitmask: UInt32) {
+        var changed = false
+        for id in PiboOrnament.ID.allCases {
+            let bit = UInt32(1) << UInt32(id.coreID.rawValue)
+            if bitmask & bit != 0, owned.insert(id).inserted { changed = true }
+        }
+        if changed { persistInventory() }
+    }
+
     func state(_ id: PiboOrnament.ID, balance: Int) -> PiboCoreUnlockableItemState {
         let definition = PiboOrnament.coreDefinition(id)
         let prerequisiteOwned = definition.prerequisiteID
@@ -156,14 +174,19 @@ final class OrnamentUnlockStore {
         }
 
         let cost = PiboOrnament.coreDefinition(id).cost
-        persistence.savePendingPurchase(
-            PendingOrnamentPurchase(id: id, cost: cost, balanceBefore: ledger.availableBo)
-        )
+        let eventID = UUID().uuidString.lowercased()
+        persistence.savePendingPurchase(PendingOrnamentPurchase(
+            id: id,
+            cost: cost,
+            balanceBefore: ledger.availableBo,
+            eventID: eventID
+        ))
         guard ledger.spend(cost) else {
             persistence.clearPendingPurchase()
             return .insufficientBalance
         }
         owned.insert(id)
+        ledger.recordUnlockedItem(id.coreID, eventID: eventID)
         persistInventory()
         persistence.clearPendingPurchase()
         LPLog.bo.notice("ornament purchased=\(id.rawValue, privacy: .public) cost=\(cost, privacy: .public)")
@@ -179,6 +202,10 @@ final class OrnamentUnlockStore {
         var recoveredID: PiboOrnament.ID?
         if ledger.availableBo <= pending.balanceBefore - pending.cost {
             owned.insert(pending.id)
+            ledger.recordUnlockedItem(
+                pending.id.coreID,
+                eventID: pending.eventID ?? UUID().uuidString.lowercased()
+            )
             persistInventory()
             recoveredID = pending.id
             LPLog.bo.notice("recovered ornament purchase=\(pending.id.rawValue, privacy: .public)")

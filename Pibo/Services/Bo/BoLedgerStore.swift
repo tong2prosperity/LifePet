@@ -12,11 +12,14 @@ final class BoLedgerStore {
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let persistenceKey: String
+    @ObservationIgnored private let syncPersistenceKey: String
     @ObservationIgnored private weak var progressFeedback: BoProgressFeedbackStore?
+    @ObservationIgnored private var syncState: BoLedgerSyncState
 
     init(
         defaults: UserDefaults = .standard,
         persistenceKey: String = PiboPersistenceKeys.Defaults.boLedger,
+        syncPersistenceKey: String = PiboPersistenceKeys.Defaults.boLedgerSync,
         startedOn: Date = Date(),
         acceptedAt: Date? = nil,
         eligibilitySource: BoEligibilitySource? = .temporaryCooperation,
@@ -25,7 +28,9 @@ final class BoLedgerStore {
     ) {
         self.defaults = defaults
         self.persistenceKey = persistenceKey
+        self.syncPersistenceKey = syncPersistenceKey
         self.progressFeedback = progressFeedback
+        self.syncState = BoLedgerSyncState(deviceID: UUID())
 
         let version = PiboCoreBoEconomy.scoringVersion
         if let data = defaults.data(forKey: persistenceKey),
@@ -56,8 +61,6 @@ final class BoLedgerStore {
                 state.scoringVersion = version
             }
             repairOversizedEnergyPoolIfNeeded()
-            // Re-encode after a legacy decode so lifetime floors become durable.
-            persist()
         } else {
             let calendar = Calendar.current
             let resolved = max(
@@ -71,9 +74,11 @@ final class BoLedgerStore {
                 eligibilityEnabled: eligibilityEnabled,
                 scoringVersion: version
             )
-            persist()
             LPLog.bo.notice("ledger created startedOn=\(Self.dayKey(resolved), privacy: .public)")
         }
+        restoreSyncState()
+        // Re-encode legacy state and seed a merge-safe bootstrap for other devices.
+        commit()
     }
 
     var balance: Int { state.balance }
@@ -89,6 +94,7 @@ final class BoLedgerStore {
     var hasRipeBo: Bool { state.ripeCount > 0 }
     var lifetimeMinted: Int { state.lifetimeMinted }
     var lifetimeCollected: Int { state.lifetimeCollected }
+    var unlockedItems: UInt32 { state.unlockedItems }
 
     var growthStage: PiboCoreBoGrowthStage {
         PiboCoreBoEconomy.growthStage(
@@ -129,7 +135,7 @@ final class BoLedgerStore {
             // A nil boundary cannot legitimately have eligible bookmarks.
             state.grantedEnergyByDay.removeAll()
         }
-        persist()
+        commit()
         LPLog.bo.notice(
             "bo eligibility boundary recorded source=\(source.rawValue, privacy: .public)"
         )
@@ -176,6 +182,13 @@ final class BoLedgerStore {
             guard delta > 0 else { continue }
 
             state.grantedEnergyByDay[key] = target
+            appendSyncRecord(
+                kind: .healthRecord,
+                semanticKey: "bo.health.day:\(key)",
+                occurredAt: max(entry.day, state.acceptedAt ?? entry.day),
+                acceptedAt: state.acceptedAt,
+                payload: BoLedgerSyncPayload(targetEnergy: target)
+            )
             let result = PiboCoreBoEconomy.applyEnergy(
                 energyPool: state.energyPool,
                 grantedEnergy: delta
@@ -192,7 +205,7 @@ final class BoLedgerStore {
 
         guard changed else { return }
         prunePastBookmarks(now: now)
-        persist()
+        commit()
         progressFeedback?.recordLedgerUpdate(
             previousEnergyPool: poolBefore,
             newEnergyPool: state.energyPool,
@@ -215,7 +228,13 @@ final class BoLedgerStore {
         state.lifetimeCollected += 1
         if state.firstBoCollectedAt == nil { state.firstBoCollectedAt = date }
         state.processedCollectionEventIDs.insert(eventID)
-        persist()
+        appendSyncRecord(
+            kind: .ledgerEvent,
+            semanticKey: "bo.collect",
+            occurredAt: date,
+            payload: BoLedgerSyncPayload(amount: 1, eventID: eventID)
+        )
+        commit()
         LPLog.bo.notice("plucked → balance=\(self.state.balance, privacy: .public)")
         return true
     }
@@ -232,7 +251,13 @@ final class BoLedgerStore {
         state.ripeCount = result.newRipeCount
         state.balance = result.newStoredCount
         state.spentTotal += result.spentCount
-        persist()
+        appendSyncRecord(
+            kind: .ledgerEvent,
+            semanticKey: "bo.spend",
+            occurredAt: .now,
+            payload: BoLedgerSyncPayload(amount: Double(result.spentCount))
+        )
+        commit()
         LPLog.bo.notice(
             "invested=\(result.spentCount, privacy: .public) → available=\(self.availableBo, privacy: .public)"
         )
@@ -277,7 +302,13 @@ final class BoLedgerStore {
             state.lifetimeMinted += result.mintedCount
             if state.firstBoMintedAt == nil { state.firstBoMintedAt = date }
         }
-        persist()
+        appendSyncRecord(
+            kind: .domainEvent,
+            semanticKey: "bo.bonus.energy",
+            occurredAt: date,
+            payload: BoLedgerSyncPayload(amount: grantedEnergy, eventID: eventID)
+        )
+        commit()
         progressFeedback?.recordLedgerUpdate(
             previousEnergyPool: previousEnergyPool,
             newEnergyPool: state.energyPool,
@@ -297,7 +328,10 @@ final class BoLedgerStore {
             eligibilityEnabled: false,
             scoringVersion: PiboCoreBoEconomy.scoringVersion
         )
-        persist()
+        syncState.outbox.removeAll()
+        syncState.activeRequestID = nil
+        syncState.activeRecordIDs.removeAll()
+        commit()
         LPLog.bo.notice("ledger reset")
     }
 
@@ -317,7 +351,7 @@ final class BoLedgerStore {
         if let progress {
             state.energyPool = PiboCoreBoEconomy.energyPerBo * min(1, max(0, progress))
         }
-        persist()
+        commit()
     }
 
     @discardableResult
@@ -346,7 +380,7 @@ final class BoLedgerStore {
         state.ripeCount += result.mintedCount
         state.lifetimeMinted += result.mintedCount
         if result.mintedCount > 0, state.firstBoMintedAt == nil { state.firstBoMintedAt = .now }
-        persist()
+        commit()
         progressFeedback?.recordLedgerUpdate(
             previousEnergyPool: previousEnergyPool,
             newEnergyPool: state.energyPool,
@@ -401,9 +435,182 @@ final class BoLedgerStore {
         }
     }
 
+    /// Unions permanent platform inventory through Core's monotonic migration rule.
+    func mergeUnlockedItems(_ bitmask: UInt32) {
+        let merged = PiboCoreBoEconomy.mergeLegacyBootstrap(
+            bootstrap(),
+            bootstrap(unlockedItems: bitmask)
+        )
+        guard merged.unlockedItems != state.unlockedItems else { return }
+        applyBootstrap(merged)
+        commit()
+    }
+
+    func recordUnlockedItem(_ coreID: PiboCoreUnlockableItemID, eventID: String) {
+        guard (0...30).contains(coreID.rawValue) else { return }
+        let bit = UInt32(1) << UInt32(coreID.rawValue)
+        guard state.unlockedItems & bit == 0 else { return }
+        state.unlockedItems |= bit
+        appendSyncRecord(
+            kind: .ledgerEvent,
+            semanticKey: "bo.ornament.unlock",
+            occurredAt: .now,
+            payload: BoLedgerSyncPayload(itemID: Int(coreID.rawValue), eventID: eventID)
+        )
+        commit()
+    }
+
+    /// Freezes at most 200 records. The UUID and record set remain stable on retry.
+    func syncRequest() -> BoLedgerSyncRequest {
+        if syncState.activeRequestID == nil {
+            let selected = Array(syncState.outbox.prefix(200))
+            syncState.activeRequestID = UUID()
+            syncState.activeRecordIDs = selected.map(\.recordID)
+            persist()
+        }
+        let active = Set(syncState.activeRecordIDs)
+        let records = syncState.outbox.filter { active.contains($0.recordID) }
+        return BoLedgerSyncRequest(
+            requestID: (syncState.activeRequestID ?? UUID()).uuidString.lowercased(),
+            deviceID: syncState.deviceID.uuidString.lowercased(),
+            cursor: syncState.cursor,
+            epoch: 1,
+            healthRecords: records.filter { $0.kind == .healthRecord },
+            domainEvents: records.filter { $0.kind == .domainEvent },
+            ledgerEvents: records.filter { $0.kind == .ledgerEvent }
+        )
+    }
+
+    @discardableResult
+    func acknowledgeSync(_ response: BoLedgerSyncResponse) -> UInt32 {
+        let active = Set(syncState.activeRecordIDs)
+        syncState.outbox.removeAll { active.contains($0.recordID) }
+        syncState.activeRequestID = nil
+        syncState.activeRecordIDs.removeAll()
+        for entry in response.changes where entry.cursor > syncState.cursor {
+            applyRemoteEntry(entry)
+        }
+        syncState.cursor = max(syncState.cursor, response.nextCursor)
+        persist()
+        return state.unlockedItems
+    }
+
+    func hasPendingSyncRecords() -> Bool { !syncState.outbox.isEmpty }
+
+    private func bootstrap(unlockedItems: UInt32? = nil) -> PiboCoreBoLedgerBootstrap {
+        PiboCoreBoLedgerBootstrap(
+            energyPool: state.energyPool,
+            ripeCount: state.ripeCount,
+            storedCount: state.balance,
+            spentTotal: state.spentTotal,
+            lifetimeMinted: state.lifetimeMinted,
+            lifetimeCollected: state.lifetimeCollected,
+            unlockedItems: unlockedItems ?? state.unlockedItems
+        )
+    }
+
+    private func applyBootstrap(_ value: PiboCoreBoLedgerBootstrap) {
+        let merged = PiboCoreBoEconomy.mergeLegacyBootstrap(bootstrap(), value)
+        state.energyPool = merged.energyPool
+        state.ripeCount = merged.ripeCount
+        state.balance = merged.storedCount
+        state.spentTotal = merged.spentTotal
+        state.lifetimeMinted = merged.lifetimeMinted
+        state.lifetimeCollected = merged.lifetimeCollected
+        state.unlockedItems = merged.unlockedItems
+    }
+
+    private func applyRemoteEntry(_ entry: BoLedgerSyncEntryDTO) {
+        if entry.semanticKey == "bo.bootstrap" {
+            let payload = entry.payload
+            applyBootstrap(PiboCoreBoLedgerBootstrap(
+                energyPool: max(0, payload.energyPool ?? 0),
+                ripeCount: max(0, payload.ripeCount ?? 0),
+                storedCount: max(0, payload.storedCount ?? 0),
+                spentTotal: max(0, payload.spentTotal ?? 0),
+                lifetimeMinted: max(0, payload.lifetimeMinted ?? 0),
+                lifetimeCollected: max(0, payload.lifetimeCollected ?? 0),
+                unlockedItems: payload.unlockedItems ?? 0
+            ))
+            return
+        }
+        let prefix = "bo.health.day:"
+        guard entry.semanticKey.hasPrefix(prefix),
+              let candidate = entry.payload.targetEnergy,
+              candidate.isFinite, candidate > 0 else { return }
+        let day = String(entry.semanticKey.dropFirst(prefix.count))
+        let existing = state.grantedEnergyByDay[day] ?? 0
+        let target = PiboCoreBoEconomy.mergeEnergyGrantTarget(
+            existing: existing,
+            candidate: candidate
+        )
+        guard target > existing else { return }
+        state.grantedEnergyByDay[day] = target
+        let result = PiboCoreBoEconomy.applyEnergy(
+            energyPool: state.energyPool,
+            grantedEnergy: target - existing
+        )
+        state.energyPool = result.newEnergyPool
+        state.ripeCount += result.mintedCount
+        state.lifetimeMinted += result.mintedCount
+    }
+
+    private func commit() {
+        appendSyncRecord(
+            kind: .ledgerEvent,
+            semanticKey: "bo.bootstrap",
+            occurredAt: .now,
+            payload: BoLedgerSyncPayload(
+                energyPool: state.energyPool,
+                ripeCount: state.ripeCount,
+                storedCount: state.balance,
+                spentTotal: state.spentTotal,
+                lifetimeMinted: state.lifetimeMinted,
+                lifetimeCollected: state.lifetimeCollected,
+                unlockedItems: state.unlockedItems
+            )
+        )
+        persist()
+    }
+
+    private func appendSyncRecord(
+        kind: BoLedgerSyncKind,
+        semanticKey: String,
+        occurredAt: Date,
+        acceptedAt: Date? = nil,
+        payload: BoLedgerSyncPayload
+    ) {
+        guard occurredAt.timeIntervalSince1970.isFinite,
+              !semanticKey.isEmpty, semanticKey.count <= 160 else { return }
+        syncState.sequence &+= 1
+        syncState.outbox.append(BoLedgerSyncRecord(
+            kind: kind,
+            recordID: "\(syncState.deviceID.uuidString.lowercased()):\(syncState.sequence)",
+            semanticKey: semanticKey,
+            scoringVersion: max(1, state.scoringVersion),
+            occurredAt: occurredAt,
+            acceptedAt: acceptedAt,
+            payload: payload
+        ))
+    }
+
+    private func restoreSyncState() {
+        guard let data = defaults.data(forKey: syncPersistenceKey),
+              var decoded = try? JSONDecoder().decode(BoLedgerSyncState.self, from: data)
+        else { return }
+        let queued = Set(decoded.outbox.map(\.recordID))
+        decoded.activeRecordIDs = decoded.activeRecordIDs.filter(queued.contains)
+        if decoded.activeRequestID != nil, decoded.activeRecordIDs.isEmpty {
+            decoded.activeRequestID = nil
+        }
+        syncState = decoded
+    }
+
     private func persist() {
-        guard let data = try? JSONEncoder().encode(state) else { return }
-        defaults.set(data, forKey: persistenceKey)
+        guard let snapshotData = try? JSONEncoder().encode(state),
+              let syncData = try? JSONEncoder().encode(syncState) else { return }
+        defaults.set(snapshotData, forKey: persistenceKey)
+        defaults.set(syncData, forKey: syncPersistenceKey)
     }
 
     private static let legacyDayFormatter: DateFormatter = {

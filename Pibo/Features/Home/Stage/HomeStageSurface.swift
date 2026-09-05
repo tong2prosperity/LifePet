@@ -44,10 +44,12 @@ struct HomeStageSurface: View {
             self.environment = environment
             let unlocked = ornamentUnlocks.unlocked
             unlockedOrnaments = unlocked
-            // Common objects belong to the shared forest from the beginning.
-            // Ownership changes their material and behavior, not whether they
-            // exist in a separate catalogue or progress window.
-            presentedOrnaments = Set(PiboOrnament.ordered.map(\.id))
+            // Keep the forest legible: every owned item plus exactly the next
+            // discoverable grey target. Later items stay absent until the chain
+            // advances.
+            presentedOrnaments = unlocked.union(
+                ornamentUnlocks.nextLocked.map { [$0.id] } ?? []
+            )
             litOrnamentLights = ornamentLights.lit
             self.shadowPresentation = shadowPresentation
             self.tuning = tuning

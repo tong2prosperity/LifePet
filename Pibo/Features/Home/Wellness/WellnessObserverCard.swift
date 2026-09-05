@@ -3,7 +3,14 @@ import SwiftUI
 /// A compact, persistent Home overlay. It explains today's Core readiness
 /// without turning the forest into a dashboard or exposing raw health values.
 struct WellnessObserverCard: View {
+    struct TrendDay: Identifiable, Equatable {
+        let date: Date
+        let score: Double?
+        var id: Date { date }
+    }
+
     let presentation: WellnessObserverPresentation
+    var trend: [TrendDay] = []
     let expanded: Bool
     let onToggleExpanded: () -> Void
     let onOpenHealthStatus: () -> Void
@@ -17,6 +24,7 @@ struct WellnessObserverCard: View {
             if expanded {
                 explanation
                     .transition(.opacity)
+                if !trend.isEmpty { sevenDayTrend }
             }
         }
         .padding(.horizontal, LP.Spacing.l)
@@ -254,6 +262,40 @@ struct WellnessObserverCard: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var sevenDayTrend: some View {
+        VStack(alignment: .leading, spacing: LP.Spacing.s) {
+            Divider().overlay(PiboMoss.Color.hairline.opacity(0.72))
+            Text(AppLocalization.text("近 7 个自然日"))
+                .lpText(LP.Typography.c1Medium)
+                .foregroundStyle(PiboMoss.Color.secondaryInk)
+            HStack(alignment: .bottom, spacing: 6) {
+                ForEach(trend) { day in
+                    VStack(spacing: 4) {
+                        if let score = day.score {
+                            Capsule()
+                                .fill(PiboMoss.Color.foundationTeal.opacity(0.78))
+                                .frame(height: max(5, min(42, score / 100 * 42)))
+                            Text(Int(score.rounded()).formatted())
+                                .font(.system(size: 8, weight: .semibold, design: .rounded))
+                        } else {
+                            Text("—").font(.system(size: 11, weight: .medium))
+                                .frame(height: 42, alignment: .bottom)
+                        }
+                        Text(day.date.formatted(.dateTime.weekday(.narrow)))
+                            .font(.system(size: 8, weight: .medium))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(PiboMoss.Color.secondaryInk)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(day.score.map { "\(day.date.formatted(date: .abbreviated, time: .omitted))，准备度 \(Int($0.rounded())) 分" } ?? "\(day.date.formatted(date: .abbreviated, time: .omitted))，无数据")
+                }
+            }
+            Text(AppLocalization.text("缺失日期保持空白，不补算。"))
+                .lpText(LP.Typography.c1Regular)
+                .foregroundStyle(PiboMoss.Color.tertiaryInk)
+        }
     }
 
     private var cardBackground: some View {

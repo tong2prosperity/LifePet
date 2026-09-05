@@ -787,7 +787,7 @@ struct FootprintsDoodleDetailView: View {
                                 .foregroundStyle(PiboMoss.Color.foundationTeal)
                                 .monospacedDigit()
                         }
-                        if ornamentUnlocks.grants(.walkDoodle),
+                        if ornamentUnlocks.grants(.walkEchoCollection),
                            let closure = doodle.closureScore,
                            let contour = doodle.contourScore,
                            let structure = doodle.structureScore {

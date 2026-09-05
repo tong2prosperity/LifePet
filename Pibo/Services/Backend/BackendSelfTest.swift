@@ -45,7 +45,7 @@ enum BackendSelfTest {
         line("built \(samples.count) health samples from today's record")
 
         if let r = await coordinator.syncToday() {
-            line("SYNC OK bo_pending=\(r.boPending) bo_balance=\(r.boBalance) energy_pool=\(r.energyPool) minted=\(r.minted.count) state=\(r.piboState) animations=\(r.animations)")
+            line("LEDGER SYNC OK accepted=\(r.accepted) duplicates=\(r.duplicates) cursor=\(r.nextCursor) changes=\(r.changes.count)")
         } else {
             line("SYNC FAILED: \(economy.lastError?.displayMessage ?? "unknown")")
             return

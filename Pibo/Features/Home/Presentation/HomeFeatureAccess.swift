@@ -38,7 +38,7 @@ struct HomeFeatureAccess {
         // 散步涂鸦 is a release capability, not an item gate. The chime grants
         // the deeper three-part route echo instead of hiding the whole task.
         walkDoodleEnabled = walkDoodleReleased
-        walkDoodleRouteEchoEnabled = ornamentUnlocks.grants(.walkDoodle)
+        walkDoodleRouteEchoEnabled = ornamentUnlocks.grants(.walkEchoCollection)
         miniGamesEnabled = miniGamesReleased
     }
 

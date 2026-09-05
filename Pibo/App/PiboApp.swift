@@ -57,6 +57,7 @@ struct PiboApp: App {
     @State private var membership: MembershipService
     /// WeatherKit + coarse foreground location, cached across launches.
     @State private var weather: WeatherDataService
+    private let watchSync: PiboCompanionSyncService
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -160,6 +161,8 @@ struct PiboApp: App {
         ))
         let inventory = OrnamentUnlockStore()
         inventory.recoverPendingPurchase(using: ledger)
+        ledger.mergeUnlockedItems(inventory.unlockedBitmask)
+        inventory.reconcileUnlockedBitmask(ledger.unlockedItems)
         morning.configureCapabilities(
             sleepReview: { [weak inventory] in
                 inventory?.grants(.sleepReview) == true
@@ -183,13 +186,20 @@ struct PiboApp: App {
         )
         _auth = State(initialValue: a)
         _economy = State(initialValue: e)
-        _coordinator = State(initialValue: EconomySyncCoordinator(auth: a, economy: e, history: hist))
+        _coordinator = State(initialValue: EconomySyncCoordinator(
+            auth: a,
+            economy: e,
+            history: hist,
+            ledger: ledger,
+            ornaments: inventory
+        ))
         _shadow = State(initialValue: shadowService)
         _shadowStore = State(initialValue: shadowFriendStore)
         _shadowLightStore = State(initialValue: shadowLight)
         _shadowSync = State(initialValue: shadowCoordinator)
         _membership = State(initialValue: MembershipService())
         _weather = State(initialValue: WeatherDataService())
+        watchSync = PiboCompanionSyncService()
     }
 
     /// Build the on-disk history store. If the store can't open (usually an
@@ -291,6 +301,7 @@ struct PiboApp: App {
                 .modelContainer(modelContainer)
                 .preferredColorScheme(.light)   // LP palette is light-only paper
                 .task {
+                    watchSync.activate()
                     shadowSync.initialize()
                     _ = await auth.restoreSession()
                     shadowSync.setAppActive(scenePhase == .active)
@@ -318,13 +329,13 @@ struct PiboApp: App {
                         await health.requestWellnessAuthorizationIfNeeded()
                         await health.requestMorningSleepEnrichmentAuthorizationIfNeeded()
                     }
-                    // Backfill the SwiftData history once per launch. On a real
-                    // authorized device this is HK data; on a simulator with no
-                    // HK, DEBUG-seed so the 二楼 is demonstrable.
+                    // Optional simulator fixtures are explicit. Missing or empty
+                    // HealthKit must cold-start honestly and never create data.
                     #if DEBUG
-                    let forceHistoryDemo = ProcessInfo.processInfo.arguments
-                        .contains("-PiboHistoryDemoContent")
-                    if health.authState != .granted || forceHistoryDemo {
+                    let forceHistoryDemo = Self.shouldSeedDebugHistory(
+                        arguments: ProcessInfo.processInfo.arguments
+                    )
+                    if forceHistoryDemo {
                         // Let Home commit its first frame before optional demo
                         // data maintenance. Image generation inside the seeder
                         // runs off the main actor and is versioned per day.
@@ -429,8 +440,24 @@ struct PiboApp: App {
                         recomputeBoLedger()
                     }
                 }
+                .onChange(of: store.activityState) { _, _ in
+                    publishWatchSnapshot()
+                }
+                .onChange(of: shadowStore.revision) { _, _ in
+                    publishWatchSnapshot()
+                }
+                .onChange(of: auth.phase) { _, phase in
+                    guard phase == .loggedIn else { return }
+                    Task { await coordinator.syncToday() }
+                }
         }
     }
+
+    #if DEBUG
+    static func shouldSeedDebugHistory(arguments: [String]) -> Bool {
+        arguments.contains("-PiboHistoryDemoContent")
+    }
+    #endif
 
     private func backfillHealthHistoryIfAuthorized() async {
         guard health.authState == .granted else { return }
@@ -443,12 +470,27 @@ struct PiboApp: App {
 
     private func recomputeBoLedger() {
         boLedger.recompute(history: history)
+        PetStateWidgetBridge.publishActivitySnapshot(
+            petName: store.petName,
+            dayCount: store.dayCount,
+            activityState: store.activityState,
+            record: history.record(on: .now)
+        )
+        publishWatchSnapshot()
         if PiboReleaseScope.temporaryCooperationOnboarding {
             onboarding.observeBoProgress(
                 lifetimeMinted: boLedger.lifetimeMinted,
                 lifetimeCollected: boLedger.lifetimeCollected
             )
         }
+    }
+
+    private func publishWatchSnapshot() {
+        watchSync.publish(
+            store: store,
+            record: history.record(on: .now),
+            shadowView: shadowStore.cachedView
+        )
     }
 
     #if DEBUG

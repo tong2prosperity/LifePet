@@ -14,10 +14,28 @@ final class HomeAnimationPresentationController {
     private var lifecycleSnapshot: PiboCoreStateSnapshot
     private var hasHammock = false
 
+    /// The semantic state used by pat interactions. Production always follows
+    /// Core; Debug may mirror the animation picker so copy and reactions can be
+    /// reviewed without manufacturing HealthKit history.
+    var patState: PiboActivityState {
+        #if DEBUG
+        Self.resolvedPatState(coreState: state, debugForcedStateID: forcedStateID)
+        #else
+        state
+        #endif
+    }
+
     var patEpisodeKey: String {
         let event = lifecycleSnapshot.eventAt ?? 0
         let wake = lifecycleSnapshot.wakeStartedAt ?? 0
+        #if DEBUG
+        let validOverride = forcedStateID.flatMap {
+            PiboAnimationStateMap.available.contains($0) ? $0 : nil
+        }
+        return "\(patState.rawValue):\(event):\(wake):\(validOverride ?? "core")"
+        #else
         return "\(state.rawValue):\(event):\(wake)"
+        #endif
     }
 
     var wakeStartedAt: Date? {
@@ -117,6 +135,27 @@ final class HomeAnimationPresentationController {
     ) -> String? {
         guard usesBounceCut, presentedStateID != previousStateID else { return nil }
         return presentedStateID
+    }
+
+    /// Maps a visual override to the nearest one of Core's six semantic states
+    /// for copy QA only. Release builds compile out the override branch and
+    /// unconditionally return the real Core state.
+    static func resolvedPatState(
+        coreState: PiboActivityState,
+        debugForcedStateID: String?
+    ) -> PiboActivityState {
+        #if DEBUG
+        guard let debugForcedStateID,
+              PiboAnimationStateMap.available.contains(debugForcedStateID)
+        else { return coreState }
+        if debugForcedStateID == PiboAnimationResourceID.activityMilestoneCelebrate
+            || debugForcedStateID == PiboAnimationResourceID.workoutCelebrate {
+            return .energetic
+        }
+        return PiboCoreAnimationAdapter.semanticState(for: debugForcedStateID)
+        #else
+        return coreState
+        #endif
     }
 
     #if DEBUG

@@ -32,6 +32,7 @@ struct DebugSettingsView: View {
     @State private var showStressProbe = false
     @State private var showWaterLab = false
     @State private var showCharacterLab = false
+    @State private var showOrnamentDiscoveryLab = false
     @State private var stressProbeText = ""
     @State private var schedulingSleepMock = false
     @State private var showSleepMockError = false
@@ -75,6 +76,9 @@ struct DebugSettingsView: View {
         }
         .fullScreenCover(isPresented: $showCharacterLab) {
             CharacterLabView()
+        }
+        .fullScreenCover(isPresented: $showOrnamentDiscoveryLab) {
+            OrnamentDiscoveryLab()
         }
         #endif
         .confirmationDialog(
@@ -425,6 +429,14 @@ struct DebugSettingsView: View {
                     // 首页那块「森林细节」面板在真实场景里走查；这里是隔离环境，
                     // 带缩放与自动巡演，看单个状态的形状与路径用它。
                     debugRow("Character Lab（隔离看角色）")
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                Button {
+                    LPHaptics.tap()
+                    showOrnamentDiscoveryLab = true
+                } label: {
+                    debugRow("共同物件发现动画实验")
                 }
                 .buttonStyle(.plain)
                 Divider().overlay(LP.Separator.primary)

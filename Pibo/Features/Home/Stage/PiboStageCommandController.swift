@@ -13,6 +13,7 @@ final class PiboStageCommandController {
     @ObservationIgnored private var ornamentConstruction: (enabled: Bool, selected: PiboOrnament.ID?) = (false, nil)
     @ObservationIgnored private var ornamentPreview: PiboOrnament.ID?
     @ObservationIgnored private var pendingOrnamentReveal: PiboOrnament.ID?
+    @ObservationIgnored private var pendingDiscovery: PiboOrnament.ID?
 
     /// Reserved capability seams. They remain nil in this release, so the bo
     /// progress effect performs no audio or haptic system calls.
@@ -34,6 +35,7 @@ final class PiboStageCommandController {
         if let pendingOrnamentReveal {
             scene.prepareOrnamentReveal(pendingOrnamentReveal)
         }
+        if let pendingDiscovery { scene.prepareOrnamentDiscovery(pendingDiscovery) }
     }
 
     func detach(scene: PiboStageScene) {
@@ -125,6 +127,19 @@ final class PiboStageCommandController {
     func completeOrnamentReveal(_ id: PiboOrnament.ID) {
         pendingOrnamentReveal = nil
         scene?.completeOrnamentReveal(id)
+    }
+
+    func prepareOrnamentDiscovery(_ id: PiboOrnament.ID) {
+        pendingDiscovery = id
+        scene?.prepareOrnamentDiscovery(id)
+    }
+
+    func playOrnamentDiscovery(_ id: PiboOrnament.ID, completion: @escaping () -> Void) {
+        guard let scene else { return }
+        scene.playOrnamentDiscovery(id) { [weak self] in
+            self?.pendingDiscovery = nil
+            completion()
+        }
     }
 
     func cancelOrnamentPresentation() {

@@ -10,7 +10,7 @@ struct HomePatInputProvider {
     let storyStage: PiboCoreStorySpeechStage
 
     func input() -> PiboPatConversationInput {
-        let state = animationPresentation.state
+        let state = animationPresentation.patState
         return PiboPatConversationInput(
             state: state,
             episodeKey: animationPresentation.patEpisodeKey,

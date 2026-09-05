@@ -147,7 +147,7 @@ final class OrnamentLightStore {
     /// 具体钟点的事实：**中午之前 Core 仍判为 `.night` 的时刻，一定是前一夜的
     /// 尾巴**（`.morning` 的参考钟点是 6.5，`.day` 是 12）。所以边界跟着 Core 走，
     /// Core 改了日出时间这里不用动。
-    nonisolated static func lightingDay(at date: Date, calendar: Calendar) -> Date {
+    static func lightingDay(at date: Date, calendar: Calendar) -> Date {
         let startOfDay = calendar.startOfDay(for: date)
         let components = calendar.dateComponents([.hour, .minute], from: date)
         let hour = Double(components.hour ?? 12) + Double(components.minute ?? 0) / 60

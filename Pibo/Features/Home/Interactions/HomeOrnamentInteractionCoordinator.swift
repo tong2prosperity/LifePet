@@ -34,6 +34,12 @@ enum HomeOrnamentInteractionCoordinator {
             present(.ornamentUnlock(ornamentID))
             return
         }
+        if ornamentID == .chime, unlocks.grants(.walkEchoCollection) {
+            LPHaptics.tap()
+            dismissSpeech()
+            present(.chimeEcho)
+            return
+        }
         handleTap(
             ornamentID: ornamentID,
             canPresent: { true },

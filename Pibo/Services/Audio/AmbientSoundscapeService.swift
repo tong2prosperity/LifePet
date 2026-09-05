@@ -1,6 +1,7 @@
 import AVFAudio
 import Foundation
 import os
+import PiboCore
 
 @MainActor
 final class AmbientSoundscapeService {
@@ -11,6 +12,7 @@ final class AmbientSoundscapeService {
     private var enabled = true
     private var interrupted = false
     private var externalAudioSuppressed = false
+    private var coLightGain: Float = 1
     private var sessionActive = false
 
     private var loopPlayers: [SoundscapeAsset: AVAudioPlayer] = [:]
@@ -55,6 +57,13 @@ final class AmbientSoundscapeService {
         let shouldSuppress = session.secondaryAudioShouldBeSilencedHint
         guard externalAudioSuppressed != shouldSuppress else { return }
         externalAudioSuppressed = shouldSuppress
+        updateMix()
+    }
+
+    func setCoLightCount(_ count: Int) {
+        let value = Float(PiboCoreSoundscape.coLightGain(litLanternCount: count))
+        guard value != coLightGain else { return }
+        coLightGain = value
         updateMix()
     }
 
@@ -118,7 +127,7 @@ final class AmbientSoundscapeService {
         sessionStopTask = nil
         guard activateSession() else { return }
 
-        let multiplier = presentation.volumeMultiplier
+        let multiplier = presentation.volumeMultiplier * coLightGain
         for asset in SoundscapeAsset.loopAssets {
             let target = (profile.loopVolumes[asset] ?? 0) * multiplier
             setLoopVolume(target, for: asset, duration: 1.8)
@@ -212,7 +221,7 @@ final class AmbientSoundscapeService {
             let player = try AVAudioPlayer(contentsOf: url)
             player.numberOfLoops = 0
             thunderGain = Float.random(in: 0.55...0.80)
-            player.volume = thunderGain * presentation.volumeMultiplier
+            player.volume = thunderGain * presentation.volumeMultiplier * coLightGain
             player.prepareToPlay()
             player.play()
             thunderPlayer = player

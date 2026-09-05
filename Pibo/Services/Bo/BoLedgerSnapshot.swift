@@ -15,6 +15,8 @@ struct BoLedgerSnapshot: Codable, Equatable, Sendable {
     var spentTotal: Int = 0
     var lifetimeMinted: Int = 0
     var lifetimeCollected: Int = 0
+    /// Permanent common-item ownership mirrored into the cross-device ledger.
+    var unlockedItems: UInt32 = 0
     var firstBoMintedAt: Date?
     var firstBoCollectedAt: Date?
     var processedCollectionEventIDs: Set<String> = []
@@ -39,6 +41,7 @@ struct BoLedgerSnapshot: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case energyPool, ripeCount, balance, spentTotal, lifetimeMinted, lifetimeCollected
+        case unlockedItems
         case firstBoMintedAt, firstBoCollectedAt, processedCollectionEventIDs
         case processedBonusEnergyEventIDs
         case grantedEnergyByDay, startedOn, acceptedAt, eligibilitySource, eligibilityEnabled
@@ -104,6 +107,7 @@ struct BoLedgerSnapshot: Codable, Equatable, Sendable {
             mintedFloor,
             try values.decodeIfPresent(Int.self, forKey: .lifetimeMinted) ?? mintedFloor
         )
+        unlockedItems = try values.decodeIfPresent(UInt32.self, forKey: .unlockedItems) ?? 0
         firstBoMintedAt = try values.decodeIfPresent(Date.self, forKey: .firstBoMintedAt)
         firstBoCollectedAt = try values.decodeIfPresent(Date.self, forKey: .firstBoCollectedAt)
         processedCollectionEventIDs = try values.decodeIfPresent(

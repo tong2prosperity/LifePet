@@ -98,13 +98,10 @@ private struct CRCWatchBackground: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            RadialGradient(
-                colors: [Color(red: 0.03, green: 0.18, blue: 0.14).opacity(0.34), .clear],
-                center: .top,
-                startRadius: 4,
-                endRadius: 190
-            )
-            .ignoresSafeArea()
+            Circle()
+                .fill(Color(red: 0.03, green: 0.18, blue: 0.14).opacity(0.20))
+                .frame(width: 260, height: 260)
+                .offset(y: -150)
             Circle()
                 .fill(CRCPalette.mint.opacity(0.09))
                 .frame(width: 4, height: 4)
@@ -119,49 +116,131 @@ private struct PiboStatusHome: View {
     let onBreathe: () -> Void
 
     var body: some View {
-        GeometryReader { proxy in
-            VStack(spacing: 1) {
-                Spacer(minLength: 0)
-                ZStack(alignment: .bottom) {
-                    Circle()
-                        .fill(CRCPalette.glow.opacity(0.16))
-                        .frame(width: 112, height: 112)
-                        .blur(radius: 18)
-                        .offset(y: -7)
-                    CRCGroundLight()
-                        .frame(width: 102, height: 18)
-                    PiboStatusPose(state: status.vectorState)
-                        .padding(.bottom, 5)
-                        .offset(y: -17)
-                }
-                .frame(height: min(139, proxy.size.height * 0.54))
-                .accessibilityLabel(status.title)
+        ScrollView {
+            VStack(spacing: 10) {
+                Text("我的 Pibo")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                Text(status.title)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                Text(status.detail)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(CRCPalette.dim)
-                    .lineLimit(1)
+                WatchFlatWorldCard(status: status)
+
+                HStack(spacing: 7) {
+                    WatchActivityRing(title: "活动", value: status.activeEnergy.map { "\(Int($0.rounded()))" } ?? "--", unit: "kcal", progress: status.moveProgress, color: .pink)
+                    WatchActivityRing(title: "运动", value: status.exerciseMinutes.map(String.init) ?? "--", unit: "min", progress: status.exerciseProgress, color: .mint)
+                    WatchActivityRing(title: "站立", value: status.standHours.map(String.init) ?? "--", unit: "h", progress: status.standProgress, color: .cyan)
+                }
+
+                if let shadow = status.shadow {
+                    HStack(spacing: 8) {
+                        PiboStatusPose(state: WatchPiboStatusStore.vectorState(for: shadow.publicStateID))
+                            .frame(width: 58, height: 58)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Shadow Pibo")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(CRCPalette.dim)
+                            Text(shadow.displayName)
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .lineLimit(1)
+                            Text(WatchPiboStatusStore.stateLabel(for: shadow.publicStateID))
+                                .font(.system(size: 10, weight: .medium))
+                            Text(WatchPiboStatusStore.relativeUpdate(shadow.syncedAt))
+                                .font(.system(size: 8))
+                                .foregroundStyle(CRCPalette.dim)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(10)
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(
+                        "Shadow Pibo，\(shadow.displayName)，\(WatchPiboStatusStore.stateLabel(for: shadow.publicStateID))，\(WatchPiboStatusStore.relativeUpdate(shadow.syncedAt))"
+                    )
+                }
 
                 Button(action: onBreathe) {
                     Label("一起呼吸", systemImage: "wind")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 36)
+                        .frame(maxWidth: .infinity).frame(height: 38)
                         .background(CRCPalette.moss, in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
-                .padding(.top, 8)
             }
-            .padding(.horizontal, 13)
+            .padding(.horizontal, 8)
             .padding(.bottom, 8)
-            .frame(width: proxy.size.width, height: proxy.size.height)
         }
+    }
+}
+
+private struct WatchFlatWorldCard: View {
+    @ObservedObject var status: WatchPiboStatusStore
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            sceneColor
+            Circle()
+                .fill(sceneAccent.opacity(0.22))
+                .frame(width: 128, height: 128)
+                .offset(x: 72, y: -74)
+            Circle().fill(CRCPalette.glow.opacity(0.20)).frame(width: 118).blur(radius: 18).offset(y: -18)
+            CRCGroundLight().frame(width: 108, height: 18).padding(.bottom, 25)
+            PiboStatusPose(state: status.vectorState).frame(height: 118).offset(y: -22)
+            VStack(spacing: 1) {
+                Text(status.petName).font(.system(size: 15, weight: .bold, design: .rounded)).lineLimit(1)
+                Text(status.stateLabel).font(.system(size: 10, weight: .semibold, design: .rounded))
+                Text(status.detail).font(.system(size: 8)).foregroundStyle(.white.opacity(0.62)).lineLimit(1)
+            }
+            .padding(.bottom, 7)
+        }
+        .frame(height: 178)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(status.petName)，\(status.stateLabel)，\(status.detail)")
+    }
+
+    private var sceneColor: Color {
+        switch status.scene {
+        case .nightClouds: Color(red: 0.08, green: 0.10, blue: 0.28)
+        case .dawnCreek: Color(red: 0.08, green: 0.28, blue: 0.27)
+        case .riverValley: Color(red: 0.08, green: 0.30, blue: 0.20)
+        case .rainGorge: Color(red: 0.05, green: 0.17, blue: 0.28)
+        case .coralDusk: Color(red: 0.25, green: 0.16, blue: 0.34)
+        }
+    }
+
+    private var sceneAccent: Color {
+        switch status.scene {
+        case .rainGorge: .blue
+        case .riverValley, .dawnCreek: .green
+        case .nightClouds, .coralDusk: .purple
+        }
+    }
+}
+
+private struct WatchActivityRing: View {
+    let title: String
+    let value: String
+    let unit: String
+    let progress: Double?
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 3) {
+            ZStack {
+                Circle().stroke(.white.opacity(0.16), lineWidth: 4)
+                Circle().trim(from: 0, to: min(1, max(0, progress ?? 0)))
+                    .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                VStack(spacing: -1) {
+                    Text(value).font(.system(size: 11, weight: .bold, design: .rounded))
+                    Text(unit).font(.system(size: 6, weight: .medium)).foregroundStyle(CRCPalette.dim)
+                }
+            }.frame(width: 48, height: 48)
+            Text(title).font(.system(size: 8, weight: .medium))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title)，\(value) \(unit)")
     }
 }
 

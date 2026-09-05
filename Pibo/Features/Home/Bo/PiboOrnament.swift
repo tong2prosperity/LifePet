@@ -201,8 +201,7 @@ struct PiboOrnament: Identifiable, Equatable, Sendable {
         )
     }
 
-    /// 与 Core 目录保持相同的叙事顺序。风铃和观测仪同为 5 bo，不能依赖
-    /// 非稳定的价格排序决定谁先出现。
+    /// 与 Core 目录保持相同的叙事顺序；不能按价格或平台枚举 raw value 重排。
     static let ordered: [PiboOrnament] = all
 
     /// Hot UI paths (the unlock timeline and SpriteKit accessibility bridge)

@@ -23,6 +23,7 @@ private func date(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
     ))!
 }
 
+@MainActor
 @Test func lightingDayRunsFromDaybreakNotMidnight() {
     // 午夜之后、天亮之前仍然属于前一个点灯日 —— 半夜两点点的灯是「昨晚」的灯。
     #expect(OrnamentLightStore.lightingDay(at: date(10, 2), calendar: calendar)

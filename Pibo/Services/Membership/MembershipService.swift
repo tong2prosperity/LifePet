@@ -13,9 +13,10 @@ enum MembershipProduct {
 }
 
 /// StoreKit 2 membership client. On-device StoreKit is the entitlement source
-/// of truth (works logged-out); every verified transaction's JWS is also pushed
-/// to pibo-server (`/api/v1/membership/verify`) when a session exists, so the
-/// server keeps its own auditable copy.
+/// of truth. New purchases require a Pibo login and a server-issued
+/// `appAccountToken`; restoring an existing App Store purchase remains available
+/// while logged out. Every verified transaction's JWS is pushed to pibo-server
+/// when a session exists so the server keeps its own auditable copy.
 @MainActor
 @Observable
 final class MembershipService {
@@ -77,11 +78,23 @@ final class MembershipService {
     /// updates listener).
     @discardableResult
     func purchase(_ product: Product) async -> Bool {
+        guard await api.isLoggedIn else {
+            lastError = AppLocalization.text("登录后订阅")
+            return false
+        }
         purchasingProductID = product.id
         lastError = nil
         defer { purchasingProductID = nil }
         do {
-            switch try await product.purchase() {
+            let issued: MembershipAppAccountTokenResponse = try await api.post(
+                "/api/v1/membership/app-account-token",
+                body: MembershipAppAccountTokenRequest(),
+                authed: true
+            )
+            guard let token = UUID(uuidString: issued.appAccountToken) else {
+                throw APIError.decoding("invalid app_account_token")
+            }
+            switch try await product.purchase(options: [.appAccountToken(token)]) {
             case .success(let verification):
                 await handle(verification)
                 Analytics.track(.purchase, screen: "membership",
@@ -144,7 +157,10 @@ final class MembershipService {
 
     /// Reads the server's view (display-only; local StoreKit wins on-device).
     func refreshServerStatus() async {
-        guard await api.isLoggedIn else { return }
+        guard await api.isLoggedIn else {
+            serverStatus = nil
+            return
+        }
         do {
             let status: MembershipStatusDTO = try await api.get("/api/v1/membership/status", authed: true)
             serverStatus = status

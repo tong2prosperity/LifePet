@@ -6,7 +6,10 @@ import StoreKit
 /// run through `MembershipService` (StoreKit 2 + pibo-server registration).
 struct MembershipSheet: View {
     @Environment(MembershipService.self) private var membership
+    @Environment(AuthService.self) private var auth
     @Environment(\.dismiss) private var dismiss
+    @State private var showLogin = false
+    @State private var pendingProductID: String?
 
     var body: some View {
         ScrollView {
@@ -21,6 +24,17 @@ struct MembershipSheet: View {
         .background(LP.Fill.bgSurface)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showLogin) {
+            BackendLoginView()
+        }
+        .onChange(of: auth.phase) { _, phase in
+            guard phase == .loggedIn,
+                  let id = pendingProductID,
+                  let product = membership.products.first(where: { $0.id == id }) else { return }
+            pendingProductID = nil
+            showLogin = false
+            Task { await membership.purchase(product) }
+        }
         .task {
             if membership.products.isEmpty { await membership.loadProducts() }
             await membership.refreshServerStatus()
@@ -58,6 +72,11 @@ struct MembershipSheet: View {
                         .lpText(LP.Typography.c1Regular)
                         .foregroundStyle(LP.Content.tertiary)
                 }
+                if let accountStatusText {
+                    Text(accountStatusText)
+                        .lpText(LP.Typography.c1Regular)
+                        .foregroundStyle(LP.Content.tertiary)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -66,6 +85,18 @@ struct MembershipSheet: View {
             RoundedRectangle(cornerRadius: LP.Radius.l, style: .continuous)
                 .fill(LP.Fill.bgContainer)
         )
+    }
+
+    private var accountStatusText: String? {
+        guard auth.phase == .loggedIn,
+              let status = membership.serverStatus,
+              let provider = status.provider else { return nil }
+        let store = switch provider {
+        case "apple_iap": "Apple App Store"
+        case "huawei_iap": "华为应用内支付"
+        default: provider
+        }
+        return "账号记录 · \(store) · \(status.isActive ? "有效" : "已结束")"
     }
 
     // MARK: 方案
@@ -133,13 +164,20 @@ struct MembershipSheet: View {
             } else {
                 Button {
                     LPHaptics.tap()
-                    Task { await membership.purchase(product) }
+                    if auth.phase == .loggedIn {
+                        Task { await membership.purchase(product) }
+                    } else {
+                        pendingProductID = product.id
+                        showLogin = true
+                    }
                 } label: {
                     Group {
                         if purchasing {
                             ProgressView()
                         } else {
-                            Text(AppLocalization.text("订阅"))
+                            Text(AppLocalization.text(
+                                auth.phase == .loggedIn ? "订阅" : "登录后订阅"
+                            ))
                                 .lpText(LP.Typography.b3Medium)
                         }
                     }
@@ -187,4 +225,6 @@ struct MembershipSheet: View {
 #Preview {
     MembershipSheet()
         .environment(MembershipService())
+        .environment(AuthService())
+        .environment(EconomyService())
 }

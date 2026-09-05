@@ -34,6 +34,9 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     /// not produce a reliable grey state on device.
     private var lockedOrnamentShaders: [ForestLightingGroup: SKShader] = [:]
     private var fireflyEmitter: SKEmitterNode?
+    private var lanternGroundGlow: SKShapeNode?
+    private var lanternWaterGlow: SKShapeNode?
+    private var forestCoLightNode: SKSpriteNode?
 
     /// 用 `bo` 换来的物件。它们是长期状态，不随环境或帧变化 —— 所以用一份集合 +
     /// 定向增删，而不是每次都重扫清单。
@@ -154,6 +157,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         }
         litOrnamentLights = lights
         refreshOrnamentLights(igniting: igniting)
+        updateCoLightEffects()
     }
 
     private struct LightKey: Hashable {
@@ -209,6 +213,45 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     func prepareOrnamentReveal(_ id: PiboOrnament.ID) {
         revealPending.insert(id)
         ornamentNodes[id]?.alpha = 0
+    }
+
+    func prepareOrnamentDiscovery(_ id: PiboOrnament.ID) {
+        syncOrnaments()
+        guard let node = ornamentNodes[id] else { return }
+        node.removeAction(forKey: "ornament.discovery")
+        node.alpha = 0
+        node.setScale(0.94)
+    }
+
+    func playOrnamentDiscovery(_ id: PiboOrnament.ID, completion: @escaping () -> Void) {
+        syncOrnaments()
+        guard let node = ornamentNodes[id] else { completion(); return }
+        node.removeAction(forKey: "ornament.discovery")
+        if UIAccessibility.isReduceMotionEnabled {
+            node.alpha = 0.42
+            node.setScale(1)
+            completion()
+            return
+        }
+        let reveal = SKAction.group([
+            .fadeAlpha(to: 0.42, duration: 0.72),
+            .scale(to: 1, duration: 0.72),
+            .sequence([
+                .colorize(withColorBlendFactor: 0.46, duration: 0.34),
+                .colorize(withColorBlendFactor: 0.18, duration: 0.38),
+            ]),
+        ])
+        reveal.timingFunction = { time in
+            let t = CGFloat(time), inverse = 1 - t
+            return Float(3 * inverse * inverse * t * 0.84 + 3 * inverse * t * t + t * t * t)
+        }
+        let haptic = SKAction.run {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.45)
+        }
+        node.run(.sequence([
+            .group([reveal, .sequence([.wait(forDuration: 0.36), haptic])]),
+            .run(completion),
+        ]), withKey: "ornament.discovery")
     }
 
     func ornamentTargetFrame(_ id: PiboOrnament.ID) -> CGRect? {
@@ -515,11 +558,40 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         context.layers.background.addChild(dusk)
         duskLightNode = dusk
 
+        let groundGlow = SKShapeNode(ellipseOf: mapper.size(CGSize(width: 150, height: 48)))
+        groundGlow.fillColor = UIColor(red: 0.22, green: 0.86, blue: 0.68, alpha: 1)
+        groundGlow.strokeColor = .clear
+        groundGlow.blendMode = .add
+        groundGlow.alpha = 0
+        groundGlow.position = mapper.point(CGPoint(x: 306, y: 604))
+        groundGlow.zPosition = 17.8
+        context.layers.background.addChild(groundGlow)
+        lanternGroundGlow = groundGlow
+
+        let waterGlow = SKShapeNode(ellipseOf: mapper.size(CGSize(width: 100, height: 22)))
+        waterGlow.fillColor = UIColor(red: 0.18, green: 0.78, blue: 0.72, alpha: 1)
+        waterGlow.strokeColor = .clear
+        waterGlow.blendMode = .add
+        waterGlow.alpha = 0
+        waterGlow.position = mapper.point(CGPoint(x: 260, y: 640))
+        waterGlow.zPosition = waterDefinition.zPosition + 0.7
+        context.layers.background.addChild(waterGlow)
+        lanternWaterGlow = waterGlow
+
+        let coLight = SKSpriteNode(color: UIColor(red: 0.30, green: 0.90, blue: 0.70, alpha: 1), size: size)
+        coLight.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        coLight.blendMode = .screen
+        coLight.alpha = 0
+        coLight.zPosition = -0.5
+        context.layers.atmosphere.addChild(coLight)
+        forestCoLightNode = coLight
+
         rebuildReflectionProxies()
         applyWaterPerformanceUniforms()
         applyLighting()
         syncOrnaments()
         rebuildConstructionDrawing()
+        updateCoLightEffects()
     }
 
     // MARK: 兑换来的物件
@@ -728,6 +800,18 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         }
     }
 
+    private func updateCoLightEffects() {
+        let count = litOrnamentLights[.lantern]?.count ?? 0
+        let duration = UIAccessibility.isReduceMotionEnabled ? 0 : 0.48
+        lanternGroundGlow?.run(.fadeAlpha(to: count >= 1 ? 0.22 : 0, duration: duration), withKey: "lantern.ground")
+        lanternWaterGlow?.run(.fadeAlpha(to: count >= 1 ? 0.16 : 0, duration: duration), withKey: "lantern.water")
+        forestCoLightNode?.run(.fadeAlpha(to: count >= 3 ? 0.10 : 0, duration: duration), withKey: "lantern.forest")
+        let leafScale: CGFloat = count >= 2 ? 1.015 : 1
+        for leaf in foliage {
+            leaf.run(.scale(to: leafScale, duration: duration), withKey: "lantern.leaves")
+        }
+    }
+
     private func apply(
         peak: CGFloat,
         to node: SKSpriteNode,
@@ -823,6 +907,9 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         morningLightNode = nil
         duskLightNode = nil
         fireflyEmitter = nil
+        lanternGroundGlow = nil
+        lanternWaterGlow = nil
+        forestCoLightNode = nil
         materialShaders.removeAll(keepingCapacity: true)
         lockedOrnamentShaders.removeAll(keepingCapacity: true)
     }

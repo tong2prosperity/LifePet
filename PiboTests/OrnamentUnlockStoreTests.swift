@@ -26,8 +26,8 @@ struct OrnamentUnlockStoreTests {
     @Test func coreCatalogDefinesOrderPricesAndInitialEligibility() {
         #expect(PiboOrnament.ordered.map(\.id.coreID) == PiboCoreUnlockableItems.catalog.map(\.id))
         #expect(PiboOrnament.ordered.map(\.cost) == PiboCoreUnlockableItems.catalog.map(\.cost))
-        #expect(PiboOrnament.ordered.map(\.id) == [.hammock, .chime, .statusObserver, .lantern])
-        #expect(PiboOrnament.ordered.map(\.cost) == [1, 5, 5, 15])
+        #expect(PiboOrnament.ordered.map(\.id) == [.hammock, .statusObserver, .chime, .lantern])
+        #expect(PiboOrnament.ordered.map(\.cost) == [1, 3, 6, 10])
         #expect(PiboOrnament.ordered.allSatisfy { PiboOrnament.coreDefinition($0.id).initiallyEligible })
         let observer = PiboOrnament.ornament(.statusObserver)?.placement
         #expect(observer?.frame == CGRect(x: 24, y: 606, width: 76, height: 96))
@@ -46,17 +46,17 @@ struct OrnamentUnlockStoreTests {
     @Test func purchasesAreSequentialExactAndPersistent() throws {
         let (inventory, ledger, defaults, suite) = try fixture()
         defer { defaults.removePersistentDomain(forName: suite) }
-        ledger.debugSet(balance: 26)
+        ledger.debugSet(balance: 20)
 
         #expect(inventory.purchase(.chime, using: ledger) == .prerequisiteMissing)
         #expect(inventory.purchase(.hammock, using: ledger) == .purchased)
-        #expect(ledger.balance == 25)
+        #expect(ledger.balance == 19)
         #expect(inventory.purchase(.hammock, using: ledger) == .alreadyOwned)
-        #expect(inventory.purchase(.chime, using: ledger) == .purchased)
-        #expect(ledger.balance == 20)
-        #expect(inventory.purchase(.lantern, using: ledger) == .prerequisiteMissing)
         #expect(inventory.purchase(.statusObserver, using: ledger) == .purchased)
-        #expect(ledger.balance == 15)
+        #expect(ledger.balance == 16)
+        #expect(inventory.purchase(.lantern, using: ledger) == .prerequisiteMissing)
+        #expect(inventory.purchase(.chime, using: ledger) == .purchased)
+        #expect(ledger.balance == 10)
         #expect(inventory.purchase(.lantern, using: ledger) == .purchased)
         #expect(ledger.balance == 0)
 
@@ -104,7 +104,7 @@ struct OrnamentUnlockStoreTests {
     @Test func capabilitiesAreDerivedFromPermanentItemOwnership() throws {
         let (inventory, ledger, defaults, suite) = try fixture()
         defer { defaults.removePersistentDomain(forName: suite) }
-        ledger.debugSet(balance: 26)
+        ledger.debugSet(balance: 20)
 
         #expect(!inventory.grants(.sleepReview))
         #expect(!inventory.grants(.dewCamera))
@@ -113,16 +113,15 @@ struct OrnamentUnlockStoreTests {
         #expect(inventory.grants(.wakeNotification))
         #expect(!inventory.grants(.dewCamera))
 
-        #expect(inventory.purchase(.chime, using: ledger) == .purchased)
-        #expect(inventory.grants(.dewCamera))
-        #expect(inventory.grants(.walkDoodle))
-        #expect(!inventory.grants(.recoveryStatus))
-
         #expect(inventory.purchase(.statusObserver, using: ledger) == .purchased)
         #expect(inventory.grants(.recoveryStatus))
+        #expect(inventory.purchase(.chime, using: ledger) == .purchased)
+        #expect(inventory.grants(.walkEchoCollection))
+        #expect(!inventory.grants(.dewCamera))
+        #expect(!inventory.grants(.walkDoodle))
+        #expect(!inventory.grants(.shadowPiboEligibility))
         #expect(inventory.purchase(.lantern, using: ledger) == .purchased)
         #expect(inventory.grants(.lanternLighting))
-        #expect(inventory.grants(.shadowPiboEligibility))
     }
 
     @Test func pendingDebitIsRecoveredAfterRelaunch() throws {

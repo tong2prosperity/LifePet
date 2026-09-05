@@ -8,6 +8,7 @@ enum HomeSheetDestination: Equatable, Identifiable {
     case achievement(PiboAnimationAchievementPayload)
     case healthDataStatus
     case ornamentUnlock(PiboOrnament.ID)
+    case chimeEcho
     case shadow(manifest: Bool)
 
     var id: String {
@@ -20,6 +21,7 @@ enum HomeSheetDestination: Equatable, Identifiable {
         case .achievement(let payload): "animation-achievement-\(payload.id)"
         case .healthDataStatus: "health-data-status"
         case .ornamentUnlock(let id): "ornament-unlock-\(id.rawValue)"
+        case .chimeEcho: "chime-echo"
         case .shadow(let manifest): "shadow-friend-\(manifest ? "manifest" : "standard")"
         }
     }

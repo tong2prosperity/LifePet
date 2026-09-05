@@ -15,11 +15,15 @@ import SwiftData
 struct PiboHistoryView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(HealthHistoryStore.self) private var history
+    @Environment(HealthDataService.self) private var health
 
     /// Card to scroll to on open (notification deep link). `nil` = top of page.
     var focus: HistoryFocus?
 
     @State private var selectedDate: Date = Self.initialDate()
+    @State private var preparingShare = false
+    @State private var shareSnapshot: TodayPiboShareSnapshot?
+    @State private var showHealthStatus = false
 
     private let cal = Calendar.current
 
@@ -57,6 +61,15 @@ struct PiboHistoryView: View {
             .task { await scrollToFocus(using: proxy) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: Binding(
+            get: { shareSnapshot != nil },
+            set: { if !$0 { shareSnapshot = nil } }
+        )) {
+            if let shareSnapshot { TodayPiboShareSheet(snapshot: shareSnapshot) }
+        }
+        .sheet(isPresented: $showHealthStatus) {
+            HealthDataStatusSheet()
+        }
         // Transparent — the opaque rising surface is `FloorContainer`'s single drawer
         // (one #E8EEF1 `FloorDome` surface: convex-up domed top, fills down), which
         // this content rides on top of. Giving this ScrollView its own opaque bg would
@@ -67,13 +80,31 @@ struct PiboHistoryView: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: LP.Spacing.s) {
-            Text(AppLocalization.text("历史"))
-                .lpText(LP.Typography.b2Medium)
-                .foregroundStyle(LP.Content.secondary)
-            Text(AppLocalization.format("陪你走过的 %d 天", totalDays))
-                .lpText(LP.Typography.uiH4)
-                .foregroundStyle(LP.Content.secondary)
+        HStack(alignment: .top, spacing: LP.Spacing.m) {
+            VStack(alignment: .leading, spacing: LP.Spacing.s) {
+                Text(AppLocalization.text("历史"))
+                    .lpText(LP.Typography.b2Medium)
+                    .foregroundStyle(LP.Content.secondary)
+                Text(AppLocalization.format("陪你走过的 %d 天", totalDays))
+                    .lpText(LP.Typography.uiH4)
+                    .foregroundStyle(LP.Content.secondary)
+            }
+            Spacer(minLength: 0)
+            if cal.isDateInToday(selectedDate) {
+                Button {
+                    prepareTodayShare()
+                } label: {
+                    Group {
+                        if preparingShare { ProgressView() }
+                        else { Image(systemName: "square.and.arrow.up") }
+                    }
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(LP.Fill.bgContainer))
+                }
+                .buttonStyle(.plain)
+                .disabled(preparingShare)
+                .accessibilityLabel(preparingShare ? "正在准备今日分享" : "分享今天的 Pibo")
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, LP.Spacing.xl)
@@ -257,6 +288,24 @@ struct PiboHistoryView: View {
 
     /// 相识总天数 (header "陪你走过的 N 天").
     private var totalDays: Int { max(1, store.dayCount) }
+
+    private func prepareTodayShare() {
+        guard !preparingShare else { return }
+        preparingShare = true
+        Task {
+            await health.reconcile()
+            let snapshot = TodayPiboShareSnapshot.make(
+                store: store,
+                record: history.record(on: .now)
+            )
+            if health.dataAvailability.hasReliableData, snapshot.hasHealthFacts {
+                shareSnapshot = snapshot
+            } else {
+                showHealthStatus = true
+            }
+            preparingShare = false
+        }
+    }
 
 
     private func shift(_ days: Int) {

@@ -1,5 +1,6 @@
 import Foundation
 import os
+import PiboCore
 #if canImport(WidgetKit)
 import WidgetKit
 #endif
@@ -27,8 +28,23 @@ enum PetStateWidgetBridge {
             updatedAt: Date(),
             pendingWorkoutTitle: pendingWorkoutTitle()
         )
+        var merged = snapshot
+        let previous = PiboWidgetSnapshotStore.load()
+        merged.activeEnergy = previous.activeEnergy
+        merged.exerciseMinutes = previous.exerciseMinutes
+        merged.standHours = previous.standHours
+        merged.moveGoal = previous.moveGoal
+        merged.exerciseGoal = previous.exerciseGoal
+        merged.standGoal = previous.standGoal
+        merged.moveProgress = previous.moveProgress
+        merged.exerciseProgress = previous.exerciseProgress
+        merged.standProgress = previous.standProgress
+        merged.sceneID = PiboFlatWorldScene.recommended(
+            petName: merged.petName,
+            choices: PiboFlatWorldScene.widgetCycle
+        )
 
-        if !PiboWidgetSnapshotStore.save(snapshot) {
+        if !PiboWidgetSnapshotStore.save(merged) {
             LPLog.petState.error("widget snapshot save failed")
         }
 
@@ -59,8 +75,80 @@ enum PetStateWidgetBridge {
             mood: 0,
             updatedAt: updatedAt,
             pendingWorkoutTitle: pendingWorkoutTitle,
-            pendingWorkoutGain: nil
+            pendingWorkoutGain: nil,
+            activeEnergy: nil,
+            exerciseMinutes: nil,
+            standHours: nil,
+            moveGoal: nil,
+            exerciseGoal: nil,
+            standGoal: nil,
+            moveProgress: nil,
+            exerciseProgress: nil,
+            standProgress: nil,
+            sceneID: PiboFlatWorldScene.recommended(
+                petName: petName,
+                choices: PiboFlatWorldScene.widgetCycle
+            )
         )
+    }
+
+    static func publishActivitySnapshot(
+        petName: String,
+        dayCount: Int,
+        activityState: PiboActivityState,
+        record: HealthDayRecord?
+    ) {
+        let value = activitySnapshot(
+            petName: petName,
+            dayCount: dayCount,
+            activityState: activityState,
+            record: record,
+            pendingWorkoutTitle: PiboWidgetSnapshotStore.load().pendingWorkoutTitle
+        )
+        if PiboWidgetSnapshotStore.save(value) {
+            #if canImport(WidgetKit)
+            WidgetCenter.shared.reloadTimelines(ofKind: PiboWidgetConstants.homeWidgetKind)
+            #endif
+        }
+    }
+
+    static func activitySnapshot(
+        petName: String,
+        dayCount: Int,
+        activityState: PiboActivityState,
+        record: HealthDayRecord?,
+        pendingWorkoutTitle: String? = nil
+    ) -> PiboWidgetSnapshot {
+        var value = snapshot(
+            petName: petName,
+            dayCount: dayCount,
+            stateTag: activityState.rawValue,
+            stateLabel: activityState.displayName,
+            updatedAt: record?.updatedAt ?? .now,
+            pendingWorkoutTitle: pendingWorkoutTitle
+        )
+        if let record {
+            value.activeEnergy = record.activeEnergy > 0 ? record.activeEnergy : nil
+            value.exerciseMinutes = record.exerciseMinutes > 0 ? record.exerciseMinutes : nil
+            value.standHours = record.standMinutes > 0 ? record.standMinutes / 60 : nil
+            if record.moveGoal > 0, record.exerciseGoal > 0, record.standGoal > 0 {
+                value.moveGoal = record.moveGoal
+                value.exerciseGoal = Double(record.exerciseGoal)
+                value.standGoal = Double(record.standGoal)
+                let normalized = PiboCoreActivityWater.intensities(
+                    activeCalories: record.activeEnergy,
+                    exerciseMinutes: Double(record.exerciseMinutes),
+                    standHours: Double(record.standMinutes) / 60,
+                    moveGoal: record.moveGoal,
+                    exerciseGoal: Double(record.exerciseGoal),
+                    standGoal: Double(record.standGoal)
+                )
+                value.moveProgress = normalized.move
+                value.exerciseProgress = normalized.exercise
+                value.standProgress = normalized.stand
+            }
+        }
+        return value
     }
 
     #if canImport(ActivityKit)

@@ -13,6 +13,14 @@ enum PiboCharacterHitRegion {
 /// this component owns character art, state, hit geometry, and authored FX.
 final class PiboCharacterRenderer {
     let rootNode = SKNode()
+    /// Interaction transforms pivot around the authored character frame's
+    /// lower support point (50% × 80% in top-left design coordinates), matching
+    /// HarmonyOS. Keeping placement outside these nodes prevents a pat from
+    /// pulling hammock poses away from the hammock.
+    private let interactionPivotNode = SKNode()
+    private let contextualActionNode = SKNode()
+    private let contactFeedbackNode = SKNode()
+    private let characterContentNode = SKNode()
     let overheadNode = SKSpriteNode()
     let effectsNode = SKNode()
 
@@ -52,6 +60,31 @@ final class PiboCharacterRenderer {
     private var hairDragOrigin: CGPoint?
     private var surface: [CGPoint] = []
     private(set) var isCloseupActive = false
+
+    /// Immediate, non-semantic acknowledgement of a finger resting on Pibo.
+    /// No haptic, analytics, speech, or state transition is coupled to this.
+    func beginContactFeedback() {
+        contactFeedbackNode.removeAction(forKey: "contactFeedback")
+        if UIAccessibility.isReduceMotionEnabled {
+            let fade = SKAction.fadeAlpha(to: 0.90, duration: 0.06)
+            fade.timingMode = .easeOut
+            contactFeedbackNode.run(fade, withKey: "contactFeedback")
+        } else {
+            let press = SKAction.scaleX(to: 1.035, y: 0.97, duration: 0.06)
+            press.timingMode = .easeOut
+            contactFeedbackNode.run(press, withKey: "contactFeedback")
+        }
+    }
+
+    func endContactFeedback() {
+        contactFeedbackNode.removeAction(forKey: "contactFeedback")
+        let scale = SKAction.scaleX(to: 1, y: 1, duration: 0.12)
+        scale.timingMode = .easeOut
+        let fade = SKAction.fadeAlpha(to: 1, duration: 0.12)
+        fade.timingMode = .easeOut
+        let restore = SKAction.group([scale, fade])
+        contactFeedbackNode.run(restore, withKey: "contactFeedback")
+    }
 
     var bodyForReflection: SKNode? { vector?.reflectionSource ?? bodySprite ?? bodyNode }
     /// 矢量角色是一棵 shape 树、没有纹理，倒影靠一张定期快照的隐藏代理供图。
@@ -118,7 +151,8 @@ final class PiboCharacterRenderer {
     }
 
     func buildIfNeeded() {
-        guard rootNode.children.isEmpty else { return }
+        installInteractionHierarchyIfNeeded()
+        guard characterContentNode.children.isEmpty else { return }
         if usesVector, buildVector() { return }
         buildBody()
         rebuildHead()
@@ -126,6 +160,14 @@ final class PiboCharacterRenderer {
         applyState(animated: false)
         startIdleBob()
         startHeadIdle()
+    }
+
+    private func installInteractionHierarchyIfNeeded() {
+        guard interactionPivotNode.parent == nil else { return }
+        rootNode.addChild(interactionPivotNode)
+        interactionPivotNode.addChild(contextualActionNode)
+        contextualActionNode.addChild(contactFeedbackNode)
+        contactFeedbackNode.addChild(characterContentNode)
     }
 
     func setVisible(_ isVisible: Bool) {
@@ -208,7 +250,7 @@ final class PiboCharacterRenderer {
         }
         if !headNode.isHidden {
             if headRig.isEnabled {
-                let local = scene.convert(point, to: rootNode)
+                let local = scene.convert(point, to: characterContentNode)
                 let interactiveFrame = headNode.frame.insetBy(dx: -12, dy: -10)
                 if interactiveFrame.contains(local) { return .hair }
             }
@@ -220,7 +262,7 @@ final class PiboCharacterRenderer {
                     anchorPoint: headNode.anchorPoint
                 ) { return .hair }
             } else {
-                let local = scene.convert(point, to: rootNode)
+                let local = scene.convert(point, to: characterContentNode)
                 let frame = headNode.frame
                 let padX = max(12, (44 - frame.width) / 2)
                 let padY = max(12, (44 - frame.height) / 2)
@@ -317,97 +359,125 @@ final class PiboCharacterRenderer {
     }
 
     func playBodyTap() {
-        if let vector {
-            vector.rootNode.removeAction(forKey: "squash")
-            vector.rootNode.run(.sequence([
-                .scaleX(to: 1.10, y: 0.92, duration: 0.08),
-                .scaleX(to: 0.96, y: 1.06, duration: 0.10),
-                .scaleX(to: 1, y: 1, duration: 0.12),
-            ]), withKey: "squash")
-            return
+        contextualActionNode.removeAction(forKey: "squash")
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled
+        let first = eased(.scaleX(
+            to: reduceMotion ? 1.02 : 1.12,
+            y: reduceMotion ? 0.98 : 0.9,
+            duration: 0.08
+        ))
+        let sequence: SKAction
+        if reduceMotion {
+            sequence = .sequence([first, eased(.scaleX(to: 1, y: 1, duration: 0.08))])
+        } else {
+            sequence = .sequence([
+                first,
+                eased(.scaleX(to: 0.94, y: 1.08, duration: 0.10)),
+                eased(.scaleX(to: 1, y: 1, duration: 0.12)),
+            ])
         }
-        bodyForReflection?.removeAction(forKey: "squash")
-        bodyForReflection?.run(.sequence([
-            .scaleX(to: 1.12, y: 0.9, duration: 0.08),
-            .scaleX(to: 0.94, y: 1.08, duration: 0.10),
-            .scaleX(to: 1, y: 1, duration: 0.12),
-        ]), withKey: "squash")
+        contextualActionNode.run(sequence, withKey: "squash")
     }
 
     func playContextualAction(_ action: PiboCoreAnimationAdapter.ContextualAction) {
         cancelContextualAction()
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
-        let short = reduceMotion ? 0.01 : 0.12
-        let medium = reduceMotion ? 0.01 : 0.20
-        let actor = rootNode
+        let short = reduceMotion ? 0.08 : 0.15
+        let medium = reduceMotion ? 0.10 : 0.22
+        let actor = contextualActionNode
         let sequence: SKAction
         switch action {
         case .checkConnection:
+            let angle = reduceMotion ? CGFloat.pi / 180 : 4 * CGFloat.pi / 180
             sequence = .sequence([
-                .rotate(byAngle: 0.08, duration: short),
-                .rotate(byAngle: -0.16, duration: medium),
-                .rotate(byAngle: 0.08, duration: short),
+                eased(.rotate(toAngle: -angle, duration: short, shortestUnitArc: true)),
+                eased(.rotate(toAngle: angle, duration: medium, shortestUnitArc: true)),
+                eased(.rotate(toAngle: 0, duration: short, shortestUnitArc: true)),
             ])
         case .letSleep:
             sequence = .sequence([
-                .scaleX(to: 1.015, y: 0.985, duration: medium),
-                .wait(forDuration: reduceMotion ? 0.01 : 0.32),
-                .scaleX(to: 1, y: 1, duration: medium),
+                eased(.scaleX(
+                    to: reduceMotion ? 1.005 : 1.015,
+                    y: reduceMotion ? 0.995 : 0.985,
+                    duration: medium
+                )),
+                .wait(forDuration: reduceMotion ? 0.08 : 0.26),
+                eased(.scaleX(to: 1, y: 1, duration: medium)),
             ])
         case .morningGreeting:
+            let angle = reduceMotion ? CGFloat.pi / 180 : 3 * CGFloat.pi / 180
             sequence = .sequence([
-                .scaleX(to: 0.96, y: 1.08, duration: medium),
-                .rotate(byAngle: 0.06, duration: short),
-                .rotate(byAngle: -0.06, duration: short),
-                .scaleX(to: 1, y: 1, duration: medium),
+                eased(.scaleX(
+                    to: reduceMotion ? 0.99 : 0.96,
+                    y: reduceMotion ? 1.02 : 1.08,
+                    duration: medium
+                )),
+                eased(.rotate(toAngle: angle, duration: short, shortestUnitArc: true)),
+                eased(.rotate(toAngle: -angle, duration: short, shortestUnitArc: true)),
+                eased(.group([
+                    .scaleX(to: 1, y: 1, duration: medium),
+                    .rotate(toAngle: 0, duration: medium, shortestUnitArc: true),
+                ])),
             ])
         case .checkIn:
             playBodyTap()
             return
         case .play:
-            let hop = reduceMotion ? CGFloat(2) : max(10, bodyHeight * 0.08)
-            let side = reduceMotion ? CGFloat(2) : max(12, bodyWidth * 0.12)
+            let hop = designLength(reduceMotion ? 2 : 10)
+            let side = designLength(reduceMotion ? 2 : 14)
+            let angle = reduceMotion ? CGFloat.pi / 180 : 4 * CGFloat.pi / 180
             sequence = .sequence([
-                .group([
+                eased(.group([
                     .moveBy(x: -side, y: hop, duration: medium),
-                    .rotate(byAngle: 0.08, duration: medium),
-                ]),
-                .group([
+                    .rotate(toAngle: angle, duration: medium, shortestUnitArc: true),
+                ])),
+                eased(.group([
                     .moveBy(x: side * 2, y: 0, duration: medium),
-                    .rotate(byAngle: -0.16, duration: medium),
-                ]),
-                .group([
+                    .rotate(toAngle: -angle, duration: medium, shortestUnitArc: true),
+                ])),
+                eased(.group([
                     .moveBy(x: -side, y: -hop, duration: medium),
-                    .rotate(byAngle: 0.08, duration: medium),
-                ]),
+                    .rotate(toAngle: 0, duration: medium, shortestUnitArc: true),
+                ])),
             ])
         case .rest:
-            let settle = reduceMotion ? CGFloat(1) : max(6, bodyHeight * 0.045)
+            let settle = designLength(reduceMotion ? 1 : 7)
             sequence = .sequence([
-                .group([
+                eased(.group([
                     .moveBy(x: 0, y: -settle, duration: medium),
-                    .scaleX(to: 1.025, y: 0.94, duration: medium),
-                ]),
-                .wait(forDuration: reduceMotion ? 0.01 : 0.46),
-                .group([
+                    .scaleX(
+                        to: reduceMotion ? 1.005 : 1.025,
+                        y: reduceMotion ? 0.99 : 0.94,
+                        duration: medium
+                    ),
+                ])),
+                .wait(forDuration: reduceMotion ? 0.08 : 0.32),
+                eased(.group([
                     .moveBy(x: 0, y: settle, duration: medium),
                     .scaleX(to: 1, y: 1, duration: medium),
-                ]),
+                ])),
             ])
         }
         actor.run(sequence, withKey: "contextualAction")
     }
 
     func cancelContextualAction() {
-        rootNode.removeAction(forKey: "contextualAction")
-        rootNode.zRotation = 0
-        rootNode.xScale = 1
-        rootNode.yScale = 1
-        if vector == nil {
-            layout()
-        } else {
-            rootNode.position = .zero
-        }
+        contextualActionNode.removeAction(forKey: "contextualAction")
+        contextualActionNode.removeAction(forKey: "squash")
+        contextualActionNode.position = .zero
+        contextualActionNode.zRotation = 0
+        contextualActionNode.xScale = 1
+        contextualActionNode.yScale = 1
+    }
+
+    private func eased(_ action: SKAction) -> SKAction {
+        action.timingMode = .easeInEaseOut
+        return action
+    }
+
+    private func designLength(_ value: CGFloat) -> CGFloat {
+        guard let scene else { return value }
+        return value * ForestLayoutMapper(sceneSize: scene.size).scale
     }
 
     func playFoodObservation(onRight: Bool) {
@@ -622,7 +692,7 @@ final class PiboCharacterRenderer {
                   data: data
               ) else { return false }
         vector = built
-        rootNode.addChild(built.rootNode)
+        characterContentNode.addChild(built.rootNode)
 
         let driver = PiboStateTransition(data: data, stateID: built.currentStateID)
         let animator = PiboIdleAnimator(data: data)
@@ -656,7 +726,20 @@ final class PiboCharacterRenderer {
             x: center.x - rootNode.position.x,
             y: center.y - rootNode.position.y
         )
+        let pivotInScene = mapper.point(CGPoint(
+            x: authored.midX,
+            y: authored.minY + authored.height * 0.8
+        ))
+        setInteractionPivot(CGPoint(
+            x: pivotInScene.x - rootNode.position.x,
+            y: pivotInScene.y - rootNode.position.y
+        ))
         rootNode.zPosition = player.zPosition
+    }
+
+    private func setInteractionPivot(_ pivot: CGPoint) {
+        interactionPivotNode.position = pivot
+        characterContentNode.position = CGPoint(x: -pivot.x, y: -pivot.y)
     }
 
     private func updateVector(
@@ -737,7 +820,7 @@ final class PiboCharacterRenderer {
     }
 
     private func rebuildBody() {
-        rootNode.removeAllChildren()
+        characterContentNode.removeAllChildren()
         bodyNode = nil
         bodySprite = nil
         bodyArtwork = nil
@@ -755,9 +838,9 @@ final class PiboCharacterRenderer {
             let body = SKSpriteNode(texture: texture)
             body.zPosition = 10
             bodySprite = body
-            rootNode.addChild(body)
+            characterContentNode.addChild(body)
             headNode.zPosition = 12
-            rootNode.addChild(headNode)
+            characterContentNode.addChild(headNode)
             return
         }
 
@@ -789,16 +872,16 @@ final class PiboCharacterRenderer {
             foot.lineWidth = 1.5
             foot.position = CGPoint(x: CGFloat(sign) * width * 0.20, y: -height * 0.46)
             foot.zPosition = 9.5
-            rootNode.addChild(foot)
+            characterContentNode.addChild(foot)
         }
-        rootNode.addChild(shadow)
-        rootNode.addChild(body)
+        characterContentNode.addChild(shadow)
+        characterContentNode.addChild(body)
         buildFace()
-        rootNode.addChild(blush)
-        rootNode.addChild(leftEye)
-        rootNode.addChild(rightEye)
+        characterContentNode.addChild(blush)
+        characterContentNode.addChild(leftEye)
+        characterContentNode.addChild(rightEye)
         headNode.zPosition = 12
-        rootNode.addChild(headNode)
+        characterContentNode.addChild(headNode)
     }
 
     private func buildFace() {
@@ -865,6 +948,7 @@ final class PiboCharacterRenderer {
         bodySprite?.size = placement.body.size
         rootNode.position = placement.body.position
         rootNode.zPosition = placement.characterZ
+        setInteractionPivot(CGPoint(x: 0, y: -placement.body.size.height * 0.3))
         if let head = placement.head {
             headNode.position = head.position
             headNode.size = head.size

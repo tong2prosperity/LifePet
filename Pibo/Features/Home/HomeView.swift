@@ -44,6 +44,12 @@ struct HomeView: View {
     @State private var recognizer = FoodRecognitionService()
     @State private var stageCommands = PiboStageCommandController()
     @State private var contextualActions = HomeContextualActionCoordinator()
+    @State private var ornamentDiscovery = OrnamentDiscoveryStore()
+    @State private var discoveryTask: Task<Void, Never>?
+    @State private var walkEchoCoordinates: [DoodleCoordinate] = []
+    @State private var walkEchoProgress: CGFloat = 0
+    @State private var walkEchoOpacity = 0.0
+    @State private var walkEchoTask: Task<Void, Never>?
     /// 发芽 close-up trigger + phase (Figma 74:6102: workout detected → 特写
     /// pibo头顶动画 → 运动记录同步 pop). See `EnergySproutFlow.swift`.
     @State private var sproutFlow = HomeSproutFlowController()
@@ -388,6 +394,9 @@ struct HomeView: View {
                 handlers: stageInteractions.stageHandlers
             )
 
+            walkEchoOverlay
+                .zIndex(5)
+
             chromeContent
                 .accessibilityHidden(stagePaused)
 
@@ -569,7 +578,7 @@ struct HomeView: View {
     var body: some View {
         homeScene
             .accessibilityHidden(stagePaused)
-            .onChange(of: animationPresentation.state) { _, state in
+            .onChange(of: animationPresentation.patState) { _, state in
                 contextualActions.cancelIfStateChanged(
                     to: state,
                     stageCommands: stageCommands
@@ -597,6 +606,8 @@ struct HomeView: View {
                 shadowLightBannerTask?.cancel()
                 shadowLightBannerTask = nil
                 shadowLightBanner = nil
+                discoveryTask?.cancel()
+                walkEchoTask?.cancel()
             }
             .onChange(of: health.dataAvailability) { _, _ in
                 refreshAnimationState()
@@ -608,6 +619,17 @@ struct HomeView: View {
                 presentBoProgressFeedbackIfPossible()
                 shadowSync.setSnapshotDraft(shadowSnapshotDraft)
                 reconcileShadowFriendFlow()
+                soundscape.setCoLightCount(ornamentLights.lit[.lantern]?.count ?? 0)
+                resumeOrnamentDiscoveryIfNeeded()
+            }
+            .onChange(of: ornamentUnlocks.owned) { oldValue, newValue in
+                guard newValue.count > oldValue.count,
+                      let next = ornamentUnlocks.nextLocked else { return }
+                ornamentDiscovery.markPending(next.id, petID: store.identity.currentPetId)
+                stageCommands.prepareOrnamentDiscovery(next.id)
+            }
+            .onChange(of: ornamentLights.lit) { _, lights in
+                soundscape.setCoLightCount(lights[.lantern]?.count ?? 0)
             }
             .modifier(homeTaskModifier)
             .modifier(homeLifecycleModifier)
@@ -642,8 +664,10 @@ struct HomeView: View {
                     onDismiss: {
                         if !presentation.presentQueuedCameraIfNeeded() {
                             presentationFlow.resumePendingFlows()
+                            resumeOrnamentDiscoveryIfNeeded()
                         }
                     },
+                    replayWalkEcho: playWalkEcho,
                     startMealCapture: { meal in
                         Analytics.track(
                             .cameraOpen,
@@ -776,6 +800,7 @@ struct HomeView: View {
             HStack(alignment: .top, spacing: 0) {
                 WellnessObserverCard(
                     presentation: statusObserverCardData,
+                    trend: statusObserverTrend,
                     expanded: statusObserverPresentation.expanded,
                     onToggleExpanded: {
                         statusObserverPresentation.setExpanded(
@@ -795,6 +820,18 @@ struct HomeView: View {
         .padding(.top, 56)
     }
 
+    private var statusObserverTrend: [WellnessObserverCard.TrendDay] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        return (-6...0).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: today) else { return nil }
+            return WellnessObserverCard.TrendDay(
+                date: date,
+                score: history.record(on: date)?.wellnessSnapshot?.readinessScore?.value
+            )
+        }
+    }
+
     private func toggleStatusObserver() {
         let isPinned = statusObserverPinned
         let animation: Animation? = if reduceMotion {
@@ -804,8 +841,78 @@ struct HomeView: View {
         } else {
             .easeOut(duration: 0.20)
         }
-        withAnimation(animation) {
+        _ = withAnimation(animation) {
             statusObserverPresentation.togglePinned(petID: store.identity.currentPetId)
+        }
+    }
+
+    @ViewBuilder
+    private var walkEchoOverlay: some View {
+        if walkEchoCoordinates.count >= 2 {
+            GeometryReader { proxy in
+                let scale = min(proxy.size.width / 390, proxy.size.height / 852)
+                WalkDoodleShape(coordinates: walkEchoCoordinates, inset: 8)
+                    .trim(from: 0, to: walkEchoProgress)
+                    .stroke(
+                        PiboMoss.Color.foundationTeal.opacity(0.92),
+                        style: StrokeStyle(lineWidth: 5 * scale, lineCap: .round, lineJoin: .round)
+                    )
+                    .shadow(color: .white.opacity(0.58), radius: 3 * scale)
+                    .frame(width: 188 * scale, height: 118 * scale)
+                    .position(x: 196 * scale, y: 647 * scale)
+                    .opacity(walkEchoOpacity)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func playWalkEcho(_ record: WalkDoodleRecord) {
+        guard record.coordinates.count >= 2 else { return }
+        walkEchoTask?.cancel()
+        walkEchoCoordinates = record.coordinates
+        walkEchoProgress = reduceMotion ? 1 : 0
+        walkEchoOpacity = 0
+        walkEchoTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard !Task.isCancelled else { return }
+            AccessibilityNotification.Announcement("正在重播风铃中的散步回声").post()
+            if reduceMotion {
+                walkEchoOpacity = 0.92
+                try? await Task.sleep(for: .milliseconds(1_400))
+            } else {
+                withAnimation(.easeOut(duration: 0.22)) { walkEchoOpacity = 0.92 }
+                withAnimation(.linear(duration: 1.6)) { walkEchoProgress = 1 }
+                try? await Task.sleep(for: .milliseconds(1_900))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.28)) { walkEchoOpacity = 0 }
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+            guard !Task.isCancelled else { return }
+            walkEchoCoordinates = []
+            walkEchoProgress = 0
+            walkEchoOpacity = 0
+        }
+    }
+
+    private func resumeOrnamentDiscoveryIfNeeded() {
+        guard scenePhase == .active,
+              presentation.activeSheet == nil,
+              !fullScreenFeaturePresented,
+              let id = ornamentDiscovery.pending(petID: store.identity.currentPetId),
+              ornamentUnlocks.nextLocked?.id == id else { return }
+        discoveryTask?.cancel()
+        stageCommands.prepareOrnamentDiscovery(id)
+        discoveryTask = Task { @MainActor in
+            if !reduceMotion { try? await Task.sleep(for: .milliseconds(500)) }
+            guard !Task.isCancelled,
+                  presentation.activeSheet == nil,
+                  !fullScreenFeaturePresented else { return }
+            stageCommands.playOrnamentDiscovery(id) {
+                ornamentDiscovery.complete(id, petID: store.identity.currentPetId)
+                let name = PiboOrnament.ornament(id)?.localizedName ?? "共同物件"
+                AccessibilityNotification.Announcement("发现新的共同物件：\(name)").post()
+            }
         }
     }
 

@@ -1,31 +1,34 @@
 import Foundation
 import os
 
-/// Bridges the on-device HealthKit pipeline to the server economy. It reads
-/// today's persisted `HealthDayRecord` (kept fresh by `HealthDataService` on
-/// device, DEBUG-seeded on the simulator), turns it into upload-ready samples,
-/// and pushes them through `EconomyService.sync` — the server then
-/// authoritatively scores energy and mints bo.
-///
-/// Why the history store and not raw `HealthEvent`s: the record is the already-
-/// windowed daily truth (hourly steps + last-night sleep) and exists on both
-/// real devices and the simulator, so the same path demos everywhere. Per-hour
-/// step samples carry stable dedup keys, so re-syncing the same day never
-/// double-counts (server-side layer-B dedup).
+/// Relays the local-first ledger between the signed-in user's devices. Core has
+/// already scored the on-device HealthKit day before records reach this seam;
+/// the server authenticates, stores, deduplicates and pages immutable records,
+/// but never becomes the user's local behavior/display source of truth.
 @MainActor
 @Observable
 final class EconomySyncCoordinator {
-    private(set) var lastResult: SyncResponse?
+    private(set) var lastResult: BoLedgerSyncResponse?
     private(set) var lastError: APIError?
 
     private let auth: AuthService
     private let economy: EconomyService
     private let history: HealthHistoryStore
+    private let ledger: BoLedgerStore
+    private let ornaments: OrnamentUnlockStore
 
-    init(auth: AuthService, economy: EconomyService, history: HealthHistoryStore) {
+    init(
+        auth: AuthService,
+        economy: EconomyService,
+        history: HealthHistoryStore,
+        ledger: BoLedgerStore,
+        ornaments: OrnamentUnlockStore
+    ) {
         self.auth = auth
         self.economy = economy
         self.history = history
+        self.ledger = ledger
+        self.ornaments = ornaments
     }
 
     /// Builds today's health samples from the persisted record. Only COMPLETE
@@ -59,20 +62,35 @@ final class EconomySyncCoordinator {
         return samples
     }
 
-    /// Uploads today's health samples and applies the authoritative result.
-    /// No-op (returns nil) when logged out.
+    /// Uploads the frozen local batch, applies monotonic Core-backed merges and
+    /// pages at most eight responses. No-op (returns nil) when logged out.
     @discardableResult
-    func syncToday() async -> SyncResponse? {
+    func syncToday() async -> BoLedgerSyncResponse? {
         guard auth.phase == .loggedIn else {
             lastError = .unauthorized
             return nil
         }
-        let samples = todaySamples()
-        LPLog.economySync.debug("syncToday: \(samples.count) samples")
-        let resp = await economy.sync(samples: samples)
-        lastResult = resp
-        lastError = economy.lastError
-        return resp
+        var latest: BoLedgerSyncResponse?
+        for page in 0..<8 {
+            let request = ledger.syncRequest()
+            let uploadCount = request.healthRecords.count
+                + request.domainEvents.count
+                + request.ledgerEvents.count
+            LPLog.economySync.debug(
+                "ledger sync page=\(page + 1) upload=\(uploadCount) cursor=\(request.cursor)"
+            )
+            guard let response = await economy.syncLedger(request) else {
+                lastError = economy.lastError
+                return latest
+            }
+            latest = response
+            lastResult = response
+            let bitmask = ledger.acknowledgeSync(response)
+            ornaments.reconcileUnlockedBitmask(bitmask)
+            if !response.hasMore, !ledger.hasPendingSyncRecords() { break }
+        }
+        lastError = nil
+        return latest
     }
 
     /// Reports an in-app behaviour event (photo / game / pat) immediately, the
@@ -81,7 +99,6 @@ final class EconomySyncCoordinator {
     func recordAction(_ actionType: String, eventId: String = UUID().uuidString) async -> SyncResponse? {
         guard auth.phase == .loggedIn else { return nil }
         let resp = await economy.sync(actions: [EconomyActionDTO(eventId: eventId, actionType: actionType)])
-        lastResult = resp
         lastError = economy.lastError
         return resp
     }

@@ -17,18 +17,39 @@ nonisolated struct PiboWidgetSnapshot: Codable, Hashable, Sendable {
     var updatedAt: Date
     var pendingWorkoutTitle: String?
     var pendingWorkoutGain: Int?
+    /// Real Activity facts only. nil means unavailable, never a synthetic zero.
+    var activeEnergy: Double?
+    var exerciseMinutes: Int?
+    var standHours: Int?
+    var moveGoal: Double?
+    var exerciseGoal: Double?
+    var standGoal: Double?
+    var moveProgress: Double?
+    var exerciseProgress: Double?
+    var standProgress: Double?
+    var sceneID: PiboFlatWorldScene?
 
     static let fallback = PiboWidgetSnapshot(
         petName: "Pibo",
         dayCount: 1,
-        stateTag: "idle",
-        stateLabel: "发呆",
+        stateTag: "dataUnknown",
+        stateLabel: "等待数据",
         vitality: 0,
         energy: 0,
         mood: 0,
         updatedAt: Date(),
         pendingWorkoutTitle: nil,
-        pendingWorkoutGain: nil
+        pendingWorkoutGain: nil,
+        activeEnergy: nil,
+        exerciseMinutes: nil,
+        standHours: nil,
+        moveGoal: nil,
+        exerciseGoal: nil,
+        standGoal: nil,
+        moveProgress: nil,
+        exerciseProgress: nil,
+        standProgress: nil,
+        sceneID: .rainGorge
     )
 }
 
