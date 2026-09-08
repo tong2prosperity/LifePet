@@ -1,5 +1,7 @@
 # P0 首版改造工程状态
 
+> 2026-09-09 MVP 收口：[决定 051](../narrative-rebuild/decisions/051-单人陪伴MVP边界与停止条件.md) 冻结两周单人陪伴范围、两轮 polish 与停止条件；Shadow、风铃、铃兰灯和会员入口延后，真实完成状态见 Harmony-first。
+
 > 2026-09-09 范围覆盖：[决定 050：散步涂鸦退出当前 MVP](../narrative-rebuild/decisions/050-散步涂鸦延后至MVP之后.md)。保留代码和数据；HarmonyOS 隐藏，iOS 入口待补齐。旧首发开放描述仅为历史检查点。
 
 > 更新时间：2026-09-05（Apple Watch 实施与验证见第 12 项；其他项目沿用各自检查点）
