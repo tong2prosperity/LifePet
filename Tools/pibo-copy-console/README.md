@@ -21,6 +21,10 @@ PIBO_COPY_HARMONY_ROOT=/path/to/HarmonyPibo PIBO_COPY_PORT=4317 node Tools/pibo-
 `PIBO_COPY_DATA_DIR` 可改变草稿与备份目录，默认 `Tools/pibo-copy-console/.local/`。
 不要清理这个目录，除非已导出需要保留的草稿。
 
+## 批量创作 Prompt
+
+可直接复制给 LLM 的批量文案 Prompt 位于 `prompts/LLM-bulk-copy-prompt.md`。它包含声音规则、六状态差异、27 个情境合同、微章节规则、批量产出方法和严格 JSONL 导入格式。
+
 ## 日常流程
 
 1. 在六状态目录中选择情境，查看触发条件、回应后行为、语义动作和顺序单元。
