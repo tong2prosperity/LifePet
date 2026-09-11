@@ -37,7 +37,7 @@
 
 ## 微章节规则
 
-一次拍一拍可以是一个单句互动单元，也可以是一个长度开放的微章节：可以 2–3 句，也可以 4–5 句甚至更多句。一个单元表达一个完整事项；多句必须有递进，例如“发现用户运动 → 联想到自己的身体 → 得出具体疑问”。第一次双击显示第一句，冷却结束后的下一次双击显示下一句，不自动播放。一个情境可以有很多单元，运行时固定顺序轮换。
+一次拍一拍可以是一个单句互动单元，也可以是一个长度开放的微章节：可以 1 句长表达，也可以 2、3、4、5 句甚至更多句。一个单元表达一个完整事项；多句必须有递进，例如“发现用户运动 → 联想到自己的身体 → 得出具体疑问”。第一次双击显示第一句，冷却结束后的下一次双击显示下一句，不自动播放。一个情境可以有很多单元，运行时固定顺序轮换。
 
 不要把同义句硬拆成微章节；句子可以很多，但每一句都必须推进新的信息、观察或行动。sleeping.asleep 全部使用单句。stable.touchDiscovery 恰好保留三个单句，代表第一次发现触碰，不是普通池。
 
@@ -77,7 +77,7 @@ dataUnknown：authorization（尚未授权）、waitingData（已授权但记录
 - context 必须是上面的完整后缀，例如 workout.run；不要重复 state。
 - action 合同固定：stable.* 为 checkIn；energetic.* 为 play；tired.insufficientSleep/awake 为 rest，tired.resting 为 none；waking.orienting/recovering 为 morningGreeting，waking.greeted 为 none；sleeping.asleep 为 letSleep；dataUnknown.* 为 checkConnection。
 - speaker 当前一律为 pibo，不输出 system 台词。
-- lines 是 1–12 个对象的数组，每个对象只能有 text，或 text 加 stages。text 不得为空、不得换行；单句可 8–22 字，微章节每句都要能独立读懂，并且与前后句有清楚递进。
+- lines 是 1–12 个对象的数组，每个对象只能有 text，或 text 加 stages。text 不得为空、不得换行；单句通常 8–40 字，允许更长的完整句，微章节每句都要能独立读懂，并且与前后句有清楚递进。
 - stages 可选且只能是 unresponded、event01、event02、event03。没有明确阶段理由时省略 stages。
 - 只能使用 {steps} 和 {sleepDuration}，且分别只在 stable.steps、stable.sleep/stable.sleepTogether 使用。
 - 禁止 id、title、description、trigger、category、weight、probability、priority、mood、tags、notes 和任何其他字段。
