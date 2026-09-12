@@ -109,6 +109,17 @@ export function createConsole(options = {}) {
         atomic(target, next);
       }
       save({ ...draft, baseHash: hash(next) });
+    } else if (route === '/api/import-draft') {
+      if (typeof body.source !== 'string' || body.source.length > 5_000_000) throw failure(422, '导入内容为空或超过 5 MB');
+      let clean = body.source.replace(/^\uFEFF/, '').trim();
+      clean = clean.replace(/^```(?:json|jsonl)?\s*/i, '').replace(/\s*```$/, '').trim();
+      let imported;
+      try { imported = parseCatalog(clean); } catch (error) { throw failure(422, `JSONL 解析失败：${error.message}`); }
+      if (!imported.length) throw failure(422, '导入内容没有互动单元');
+      const next = body.mode === 'replace' ? imported : [...draft.records, ...imported];
+      checked(next, draft.outline);
+      snapshot('导入前草稿', draft);
+      save({ records: next, outline: draft.outline, baseHash: draft.baseHash });
     } else if (route === '/api/import-live') {
       snapshot('载入前草稿', draft);
       const source = read(target);
