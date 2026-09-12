@@ -1,0 +1,50 @@
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"碰到了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我在想，如果我不动，你会碰我几次。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才有一片树叶落下来，还没想好要不要捡。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你的手心今天感觉有点暖和。"},{"text":"让我多靠一会儿。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"怎么了？"},{"text":"找我有什么事吗？"},{"text":"没事也可以碰。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你的手指刚才滑了一下。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"森林里现在很安静。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我其实在发呆。"},{"text":"被你一碰，我忘了刚才在发什么呆了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我头顶的花是不是有点歪了？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"只要我不动，好像时间也跟着变慢了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"正在整理刚才的念头，差点被打断。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"先别吵。"},{"text":"我快要想出答案了。"},{"text":"算了，好像也不是很重要的问题。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才在想，我的影子会不会觉得无聊。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"思绪像水波一样，被你一碰就散开了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"你也有想不通的事情吗？"},{"text":"想不通的时候，我一般就会换个姿势坐着。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"头花刚才转了一下，因为我在思考。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"以为我在睡觉吗？没有，我只是闭着眼睛想事情。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"森林里的树每天都在想什么呢？"},{"text":"也许它们只是站着，什么都没想。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"你刚才是想问我在想什么吗？其实我也不太确定。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"灵感刚才就在嘴边，现在又跑回树林里去了。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"我记住了，你今天走了 {steps} 步。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"{steps} 步。"},{"text":"走路的时候，你的膝盖会觉得累吗？"},{"text":"我的脚板有时候会发麻。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"你去哪儿了，走了 {steps} 步这么远。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"每次看到 {steps} 这个数字。"},{"text":"就觉得你今天又看过很多不同的风景了。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"我数到了 {steps} 步。如果你累了，我们可以一起歇会儿。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"走了 {steps} 步之后，有没有喝点水？"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"这么多步数，{steps} 步。"},{"text":"如果是我的话，头花可能会转晕。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"不知道 {steps} 步能不能绕着森林走一圈。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"今天已经收到了 {steps} 步的信号。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"{steps} 步。"},{"text":"我刚才试着模仿你走路的节奏。"},{"text":"后来觉得还是这样坐着比较舒服。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你睡了 {sleepDuration}。我现在很精神。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才安静了 {sleepDuration}。"},{"text":"我差点以为你变成一棵树了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"这 {sleepDuration} 里，我听着你的呼吸声发了一小会儿呆。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"睡了 {sleepDuration}，有做梦吗？"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"森林也跟着你安静了 {sleepDuration}。"},{"text":"现在你醒了，可以稍微活动一下了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你醒了。刚才的 {sleepDuration}，我把周围的落叶都数了一遍。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"{sleepDuration} 的睡眠信号已经收到了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你的头有没有变轻一点？"},{"text":"经过 {sleepDuration} 的休息，应该不会那么沉了吧。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"睡了 {sleepDuration}，你的身体看起来比刚才松弛了一点。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"过去这 {sleepDuration}。"},{"text":"我一直守在这里，没有任何人来捣乱。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才这 {sleepDuration}，我们一起睡着了。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"我做了一个梦。"},{"text":"不知道在过去这 {sleepDuration} 里，你有没有跑到我的梦里来。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"醒来的感觉真好，尤其是知道这 {sleepDuration} 你也在休息。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"我们刚才大概一起睡了 {sleepDuration}。"},{"text":"感觉连呼吸都有点同步了。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"睡了 {sleepDuration}。"},{"text":"我醒的比你早一点，就在旁边看着你醒过来。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"好像我们一起去了另一个森林，花了 {sleepDuration} 才走回来。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"你也睡了 {sleepDuration} 吗？怪不得我觉得刚才特别安静。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"一起度过的 {sleepDuration}。"},{"text":"醒来之后，觉得头花都长得更结实了。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才的 {sleepDuration}，是我今天最安心的时候。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"睡醒了。"},{"text":"这 {sleepDuration} 我们什么也没做，但感觉也不错。"},{"text":"至少不用去管外面的风有多大。"}]}

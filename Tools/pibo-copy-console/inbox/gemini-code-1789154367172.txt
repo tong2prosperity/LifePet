@@ -1,0 +1,23 @@
+{"state":"stable","context":"touchDiscovery","action":"checkIn","speaker":"pibo","lines":[{"text":"哎？你碰到我了。"}]}
+{"state":"stable","context":"touchDiscovery","action":"checkIn","speaker":"pibo","lines":[{"text":"原来你可以碰到我。"}]}
+{"state":"stable","context":"touchDiscovery","action":"checkIn","speaker":"pibo","lines":[{"text":"这是我们第一次碰到。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才有一只蚂蚁顺着我的脚爬过去了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你平时也喜欢像这样随便戳别人吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"既然你没别的事，那我就继续看天上那片云了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你手指的温度刚刚好。"},{"text":"感觉有点像晒过太阳的石头。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"嘘。"},{"text":"我在听远处的树叶被风吹动的声音。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"被你一碰，我刚才想的好主意全跑了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我正在计算今天落了多少片叶子。"},{"text":"现在好了，我又得重头开始数。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"安静点。"},{"text":"我正在想一件非常严肃的事情。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"你觉得泥土最深处是什么样子的？"},{"text":"我刚才就在想这个。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"有时候想得太多，头花就会觉得有点沉。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"又走了 {steps} 步。"},{"text":"你的脚底板真的不会抗议吗？"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"我这里多出了 {steps} 步。"},{"text":"看来你今天确实去了不少地方。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"如果是我的话，走 {steps} 步估计要花上好几天。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"{steps} 步的距离。"},{"text":"路上有遇到什么长得奇怪的树吗？"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"我收集到了 {steps} 步。"},{"text":"等下把它们整齐地堆在树根底下好了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你刚才睡了 {sleepDuration}。"},{"text":"我的叶子都没有动，就怕吵醒你。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"这 {sleepDuration} 里，你睡得很安静。"},{"text":"像一颗还没有发芽的种子。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"睡了 {sleepDuration} 之后。"},{"text":"你看起来不像刚才那么像一块干木头了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才的 {sleepDuration}，我一直在看树影怎么一点点变长。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你休息了 {sleepDuration}。"},{"text":"现在轮到我稍微伸个懒腰了。"}]}

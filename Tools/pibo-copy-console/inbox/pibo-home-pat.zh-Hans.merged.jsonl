@@ -1,0 +1,467 @@
+{"state":"stable","context":"touchDiscovery","action":"checkIn","speaker":"pibo","lines":[{"text":"这边也能碰到？"}]}
+{"state":"stable","context":"touchDiscovery","action":"checkIn","speaker":"pibo","lines":[{"text":"好吧，我也碰不到你。"}]}
+{"state":"stable","context":"touchDiscovery","action":"checkIn","speaker":"pibo","lines":[{"text":"这算打招呼吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"怎么了？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你是在叫我吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你刚才是故意的吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我还以为你要点旁边。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我刚才没有发呆。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我正在想事情。现在忘了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我没睡。只是没动。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"我看到今天有 {steps} 步了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"昨晚睡了 {sleepDuration}。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"你睡了 {sleepDuration}，我当时也睡着了。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我现在很有精神。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"你是想看我动一下？"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你刚才跑步了吗？"},{"text":"如果我也开始跑……"},{"text":"不知道我的肚子多久能小一点。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"你刚才走路了吗？"},{"text":"我也可以散步。"},{"text":"围着这里走，算散步吗？"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"你刚才骑车了吗？"},{"text":"骑快一点，风会很大吧。"},{"text":"我头上的花大概会被吹歪。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"你刚才游泳了吗？"},{"text":"我这么圆……"},{"text":"应该很容易浮起来吧。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"你刚才训练了吗？"},{"text":"我也跟着做了一下。"},{"text":"一下应该也算。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"你刚才在伸展身体吗？"},{"text":"我也可以试试。"},{"text":"先让我找找腰在哪里。"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"你刚才运动了吗？"},{"text":"名字我没认出来。"},{"text":"但你动过了，这个我看得懂。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"令人刮目相看。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"做得真的不错。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"睡真饱啊。"},{"text":"今天又是美好的一天。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"昨晚睡得有点少。"},{"text":"难怪我今天总想坐下。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我今天有点困。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我没有睡着。"},{"text":"只是眼睛不太想睁开。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我本来想站直一点。"},{"text":"还是下次吧。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"这样舒服一点。"},{"text":"我就坐一会儿。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"我刚醒。"},{"text":"先让我站稳。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"醒是醒了。"},{"text":"就是还不太想动。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"我已经醒了。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"早上好已经说过了。"},{"text":"再说一次也可以。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"呼……"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"还没醒。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"我睡得正香呢。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"等我醒了再说。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"晚安。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"我正在睡。很认真。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"我还看不到睡眠和活动记录。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"记录还不够。我先不乱猜。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"新的记录暂时拿不到。"}]}
+{"state":"dataUnknown","context":"interruptedNoTrustedState","action":"checkConnection","speaker":"pibo","lines":[{"text":"新的记录断了。我还不能判断。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"碰到了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我在想，如果我不动，你会碰我几次。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才有一片树叶落下来，还没想好要不要捡。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你的手心今天感觉有点暖和。"},{"text":"让我多靠一会儿。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"怎么了？"},{"text":"找我有什么事吗？"},{"text":"没事也可以碰。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你的手指刚才滑了一下。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"森林里现在很安静。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我其实在发呆。"},{"text":"被你一碰，我忘了刚才在发什么呆了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我头顶的花是不是有点歪了？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"只要我不动，好像时间也跟着变慢了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"正在整理刚才的念头，差点被打断。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"先别吵。"},{"text":"我快要想出答案了。"},{"text":"算了，好像也不是很重要的问题。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才在想，我的影子会不会觉得无聊。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"思绪像水波一样，被你一碰就散开了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"你也有想不通的事情吗？"},{"text":"想不通的时候，我一般就会换个姿势坐着。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"头花刚才转了一下，因为我在思考。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"以为我在睡觉吗？没有，我只是闭着眼睛想事情。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"森林里的树每天都在想什么呢？"},{"text":"也许它们只是站着，什么都没想。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"你刚才是想问我在想什么吗？其实我也不太确定。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"灵感刚才就在嘴边，现在又跑回树林里去了。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"我记住了，你今天走了 {steps} 步。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"{steps} 步。"},{"text":"走路的时候，你的膝盖会觉得累吗？"},{"text":"我的脚板有时候会发麻。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"你去哪儿了，走了 {steps} 步这么远。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"每次看到 {steps} 这个数字。"},{"text":"就觉得你今天又看过很多不同的风景了。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"我数到了 {steps} 步。如果你累了，我们可以一起歇会儿。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"走了 {steps} 步之后，有没有喝点水？"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"这么多步数，{steps} 步。"},{"text":"如果是我的话，头花可能会转晕。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"不知道 {steps} 步能不能绕着森林走一圈。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"今天已经收到了 {steps} 步的信号。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"{steps} 步。"},{"text":"我刚才试着模仿你走路的节奏。"},{"text":"后来觉得还是这样坐着比较舒服。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你睡了 {sleepDuration}。我现在很精神。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才安静了 {sleepDuration}。"},{"text":"我差点以为你变成一棵树了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"这 {sleepDuration} 里，我听着你的呼吸声发了一小会儿呆。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"睡了 {sleepDuration}，有做梦吗？"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"森林也跟着你安静了 {sleepDuration}。"},{"text":"现在你醒了，可以稍微活动一下了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你醒了。刚才的 {sleepDuration}，我把周围的落叶都数了一遍。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"{sleepDuration} 的睡眠信号已经收到了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你的头有没有变轻一点？"},{"text":"经过 {sleepDuration} 的休息，应该不会那么沉了吧。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"睡了 {sleepDuration}，你的身体看起来比刚才松弛了一点。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"过去这 {sleepDuration}。"},{"text":"我一直守在这里，没有任何人来捣乱。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才这 {sleepDuration}，我们一起睡着了。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"我做了一个梦。"},{"text":"不知道在过去这 {sleepDuration} 里，你有没有跑到我的梦里来。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"醒来的感觉真好，尤其是知道这 {sleepDuration} 你也在休息。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"我们刚才大概一起睡了 {sleepDuration}。"},{"text":"感觉连呼吸都有点同步了。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"睡了 {sleepDuration}。"},{"text":"我醒的比你早一点，就在旁边看着你醒过来。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"好像我们一起去了另一个森林，花了 {sleepDuration} 才走回来。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"你也睡了 {sleepDuration} 吗？怪不得我觉得刚才特别安静。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"一起度过的 {sleepDuration}。"},{"text":"醒来之后，觉得头花都长得更结实了。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才的 {sleepDuration}，是我今天最安心的时候。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"睡醒了。"},{"text":"这 {sleepDuration} 我们什么也没做，但感觉也不错。"},{"text":"至少不用去管外面的风有多大。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我现在感觉力气很大。"},{"text":"你想看我用力晃一下头花吗？"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"刚才有一阵风吹过去。"},{"text":"我差一点就想跟着它跑了。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"你碰到我了。"},{"text":"其实我也正想找点事情做。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"感觉现在的状态很好。"},{"text":"就算遇到一只松鼠，我应该也能跟它比赛跳跃。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我的叶子刚才自己抖了两下。"},{"text":"这是我心情不错、想活动的信号。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"如果你现在想去哪里，我觉得我可以跟得上你。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我刚在原地蹦了一下。"},{"text":"虽然离地不高，但我觉得挺轻盈的。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"现在森林里特别亮。"},{"text":"总觉得应该到处走走，或者找点东西搬一下。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"你要带我玩吗？"},{"text":"我已经把姿势调整好了。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我盯着那边的草丛看了一会儿。"},{"text":"如果有虫子飞出来，我现在肯定能扑到它。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你刚才跑步了。"},{"text":"我感觉你一直在上下弹跳。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"跑那么快，是在追什么东西吗？"},{"text":"还是有什么东西在追你？"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你刚才跑步的时候，风很大。"},{"text":"我偷偷把头花收紧了一点，怕被吹跑。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"跑完步之后，你呼吸的声音听起来比平时大很多。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"要是我的话，跑几步可能就会被树根绊倒。"},{"text":"所以你没有摔跤，这很不错。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"两只脚快速交替踩在地上。"},{"text":"脚底板应该会觉得有点热吧？"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"刚才跑得真快。"},{"text":"连周围的景色都变得模模糊糊的。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"如果我也跟着你跑，可能不用多久肚子就能小一点。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"跑步看起来挺累的，但是你好像没打算停下。"},{"text":"我就跟着你一起晃动好了。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你现在的心跳还很快。"},{"text":"像是有小木棍在敲树干。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"我们刚才走了一段路。"},{"text":"走路挺好的，可以慢慢看周围的东西。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"你刚才走路的时候，踩到脆脆的干树叶了吗？"},{"text":"我好像听见了那种声音。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"感觉你的步子迈得很稳。"},{"text":"每一步都结结实实地踩在了地上。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"走这么久，你看到什么新奇的东西没有？"},{"text":"如果有好看的石头，可以捡一块给我。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"我刚才试着感受你走路的节奏。"},{"text":"一步，两步，很有规律，我都快学会了。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"走到外面去的感觉怎么样？"},{"text":"我觉得身上都变松快了。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"如果是上坡的话，走路也会变得费力一点。"},{"text":"你刚才有觉得喘气变难吗？"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"我不懂你们为什么要走那么远。"},{"text":"不过陪着你走走，感觉还不坏。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"鞋底磨在路面上，会发出沙沙的声音。"},{"text":"刚才一路上我都在听这个声音。"}]}
+{"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"刚才走的那段路，风景变化应该挺大的吧。"},{"text":"因为我感觉到空气的味道变了好几次。"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"你刚才在骑车对吧？"},{"text":"感觉我们是在贴着地面快速滑行。"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"腿一直不停地画圈，你的脑袋不会觉得晕吗？"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"速度很快。"},{"text":"遇到下坡的时候，我的肚子也跟着悬了一下。"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"风吹在脸上的感觉。"},{"text":"比跑步的时候还要强烈。"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"骑车看起来是个很特别的动作。"},{"text":"明明是坐着，却能移动得那么快。"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"车轮滚过去的时候，希望没有压到路过的小虫子。"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"你踩踏板的时候好像用了挺大离气的。"},{"text":"是不是遇到逆风了？"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"可惜我没有适合坐车座的身体形状。"},{"text":"不然我也想自己试着骑一下。"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"我们刚才就像是一阵穿过森林的风。"},{"text":"路边的树应该都没看清我们的样子。"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"骑完车之后，腿也会像车轮一样停不下来吗？"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"你刚才去水里了。"},{"text":"我在想我的身体如果泡在水里，会不会变重。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"为了配合你游泳。"},{"text":"我刚才也稍微屏住了一下呼吸，虽然其实不需要。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"在水里划动手臂的感觉。"},{"text":"是不是有点像鸟在森林里滑翔？"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"水冷不冷？"},{"text":"你一开始下去的时候，好像哆嗦了一下。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"水流从身体旁边滑过去，应该很滑溜吧。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"你游泳的时候，会不小心喝到水吗？"},{"text":"那种水好像不太好喝。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"你像一条笨拙的鱼在水里游了很久。"},{"text":"不过能浮起来就已经很了不起了。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"游泳需要用到全身的力气对吧。"},{"text":"你现在看起来像是一根软绵绵的面条。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"刚才在水里，你有没有闭上眼睛？"},{"text":"水下的声音听起来总是闷闷的。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"感受到你在游泳。"},{"text":"连我自己的头花都好像变得湿漉漉的了。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"你刚才的动作很快，停了一下又开始。"},{"text":"我还以为你在抓会飞的虫子。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"你的心跳刚才变得好快。"},{"text":"像是在下很急的暴雨。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"那么剧烈地动来动去，感觉你把周围的空气都搅热了。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"我刚才试着跟上你的节奏。"},{"text":"后来发现头花快甩飞了，就放弃了。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"刚开始很快，然后休息一下，又变得很快。"},{"text":"你是在练习怎么逃跑吗？"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"看到你那么用力地跳。"},{"text":"我也在心里悄悄地给你数着拍子。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"呼，看着你做完刚才那些动作。"},{"text":"我也觉得有点喘不上气了。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"你现在好像流了很多汗。"},{"text":"需要我帮你找片叶子扇扇风吗？"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"高强度的动作结束了。"},{"text":"你可以坐下来，像一块发热的石头那样散散热。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"你的肌肉现在应该紧紧绷着吧。"},{"text":"摸起来大概像结实的树干。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"你的身体刚才扭成了很奇怪的形状。"},{"text":"像是一根正在伸懒腰的藤蔓。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"刚才你呼吸得很慢很深。"},{"text":"我也跟着悄悄吸了一大口气，然后慢慢吐出来。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"保持一个姿势那么久不动，你的腿居然没有发抖。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"你的手和脚伸展得很开。"},{"text":"好像想摸到平时摸不到的地方。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"做这种慢悠悠的动作时。"},{"text":"你看起来比平时要平静很多。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"刚才你单脚站着的时候。"},{"text":"我真怕你会像被风吹倒的细树枝一样倒下去。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"拉伸的时候，我听见你的关节发出了小小的声音。"},{"text":"像干枯的树叶被踩碎。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"看到你把自己折叠起来。"},{"text":"我觉得你的关节肯定比我的灵活。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"你是在模仿什么动物的动作吗？"},{"text":"看起来有点像一只要睡觉的猫。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"结束了。"},{"text":"现在你的身体是不是像泡在温水里一样软软的？"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"刚才你好像做了一项我没见过的运动。"},{"text":"动作奇奇怪怪的。"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"我没有看懂你刚才在干什么。"},{"text":"但是感觉你用了很多力气。"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"不管你刚才做了什么，你的心跳告诉我那可不轻松。"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"你动了很久。"},{"text":"我一直坐在旁边猜你这是什么招式，还是没猜出来。"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"我没见过这种运动。"},{"text":"这是你们人类自己发明的游戏吗？"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"刚才你的动作有点复杂。"},{"text":"我看着看着差点忘记呼吸了。"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"感觉你完成了一件挺费体力的事情。"},{"text":"现在稍微休息一下比较好。"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"只要你觉得刚才动得开心就行。"},{"text":"我看不懂也没关系。"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"你刚才动来动去的样子。"},{"text":"让我想起森林里为了争果子打架的松鼠。"}]}
+{"state":"energetic","context":"workout.other","action":"play","speaker":"pibo","lines":[{"text":"结束了吗？"},{"text":"刚才我一直紧紧抓着你，怕你一不小心把我甩出去。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"今天的活动量不知不觉积累了很多。"},{"text":"我觉得你很了不起。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"我们今天动了不少呢。"},{"text":"感觉就像把整个小山丘都翻了一遍。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"达到一个里程碑了。"},{"text":"我把头花稍微竖高了一点，这是我对你的庆祝。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"今天走了这么远，动了这么久。"},{"text":"你的身体里应该装满了新的力气吧。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"这是一个值得记住的时刻。"},{"text":"我把它悄悄藏在森林的树洞里了。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"我平时很少夸人。"},{"text":"不过你今天确实做得挺好的。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"既然完成了一个小目标。"},{"text":"现在你可以理直气壮地坐下来休息了。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"看到你这么有活力。"},{"text":"我好像也沾了点光，觉得叶子都变亮了。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"你今天比平时更有精神。"},{"text":"就像森林里突然开了一朵大蘑菇一样显眼。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"感觉今天的时间过得特别充实。"},{"text":"连空气闻起来都像是阳光的味道。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"你睡了个好觉。"},{"text":"我也觉得现在的脑袋特别清醒。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"睡得好的时候，连醒过来都不会觉得那么艰难。"},{"text":"你现在就是这样吧。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"经过一段很好的睡眠。"},{"text":"你的眼睛看起来亮晶晶的。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"我刚才检查了一下。"},{"text":"昨天晚上没有讨厌的虫子来打扰我们，所以睡得很香。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"睡饱了真好。"},{"text":"我现在觉得可以一口气爬到最高的那棵树上去。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"你的呼吸很平稳。"},{"text":"感觉把昨天的疲惫都吐出去了。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"我发现你今天早上没有赖床。"},{"text":"看来身体已经完全充满力气了。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"这是一个很不错的觉。"},{"text":"如果你愿意，我们现在就可以出去走走。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"睡得真安稳。"},{"text":"像一块沉在湖底的石头，什么都没有想。"}]}
+{"state":"energetic","context":"goodSleep","action":"play","speaker":"pibo","lines":[{"text":"知道你睡得好。"},{"text":"我头上的小花也跟着高兴地晃了两下。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"昨晚没睡够。"},{"text":"我现在也觉得眼皮有点重。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"你看起来没什么精神。"},{"text":"我们今天慢一点吧。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"没睡好的时候，感觉周围的声音都变吵了。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"我的头花今天不想转。"},{"text":"你没睡够，我也想跟着少动一点。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"感觉有点累。"},{"text":"如果现在能找片大一点的树叶躺下就好了。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"昨天晚上的时间好像变短了。"},{"text":"没关系，今天我们慢慢过。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"你现在是不是觉得头有点重？"},{"text":"我也有点这种感觉，差点没站稳。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"睡眠有点少。"},{"text":"我决定今天安静一点，帮你省点力气。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"不用勉强。"},{"text":"既然没睡好，发发呆也是可以的。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"好像风只要稍微吹一下，我就要跟着打瞌睡了。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"你还在动。"},{"text":"可是我觉得我们都需要坐一下了。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我的动作变慢了。"},{"text":"大概是因为你也很累了。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"感觉身体变得像吸了水的木头一样沉。"},{"text":"如果能停下来就好了。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"还没有找到可以坐下的地方吗？"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我觉得现在最重要的事情，就是找个角落靠着。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"你的脚步听起来有点拖沓。"},{"text":"我们要不要停下来歇会儿？"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"累的时候，感觉周围的风景都变暗了。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"还在坚持走吗？"},{"text":"我连叶子都快举不起来了。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我们停下来发一会儿呆吧。"},{"text":"就一小会儿。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"现在的力气，只够我把眼睛闭上了。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"终于坐下了。"},{"text":"我要把重心完全放下来。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"这样靠着真好。"},{"text":"什么都不用做，连头花也不用转。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"刚才真的很累。"},{"text":"现在我觉得呼吸稍微顺畅了一点。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"不用动了。"},{"text":"我们就这样安静地待一会儿。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"你坐得稳稳的。"},{"text":"我也跟着不用担心摔倒了。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"休息的时候，连风都感觉变温柔了。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"腿不用再用力了。"},{"text":"这种感觉真不错。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"终于可以安顿下来了。"},{"text":"我们就像两颗长在地上的蘑菇，现在谁也别叫我们。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"我闭上眼睛了。"},{"text":"你如果想睡一下，也没有关系。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"这样静静待着。"},{"text":"感觉力气在一点点涨回来。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。我还在试着把两只脚踩稳。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。"},{"text":"感觉周围的空气还有点冷，我再缓一下。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"昨天晚上的梦还没完全散开。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。我的眼睛需要一点时间适应现在的光。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好啊。"},{"text":"先别急着走，让我把头花理顺。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。今天森林里的鸟叫得好像比昨天早。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"你的手碰过来，我才确认是真的天亮了。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。我刚才在试着转动脖子，还好没生锈。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"闭着眼睛听了一会儿风声，现在完全醒了。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。"},{"text":"如果你打算现在出发，我可能还需要一分钟站起来。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。我们好像都没有睡够。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"昨晚睡得有些短，我还在找平衡。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。"},{"text":"眼皮还是有点重，不过既然你醒了，我也起来吧。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"我本来想多闭一会儿眼睛，但是听到你动了。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。"},{"text":"今天感觉有点没精神，可能需要慢一点开始。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"如果你觉得累，我们今天就稍微安静一点。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。感觉这半截觉没睡完，有点可惜。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"天已经亮了吗？我觉得好像刚闭上眼不久。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。我的头花转得比平时慢，大概还在犯困。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"站是站起来了，但离完全清醒还有点距离。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"刚才打过招呼了。我只是还不想走动。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"别碰，我还在努力让自己清醒。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"我在发呆。醒来之后总有一段时间不知道该干嘛。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"已经问过早了。"},{"text":"你先去忙你的，我再靠一会儿。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"等我再深吸两口气，我们就开始今天的事情。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"正在感受清晨的温度，别吵我。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"虽然已经打过招呼，但我这会儿其实还在放空。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"别急，等树叶上的露水干了我们再动也不迟。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"我听见你走来走去的声音，但我决定先坐着不动。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"刚才问候过了。现在是我专门留给自己发呆的时间。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"我现在睡着了，有什么事等我醒了再说。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"头花已经收起来了，我正在休息。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"睡着了，别碰我。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"在梦里捡树叶，请勿打扰。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"眼睛闭上了，什么都听不见。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"呼吸很慢，已经睡熟了。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"正在睡觉，不想转头。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"现在是很黑的夜晚，我要睡觉了。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"如果你也困了，就一起睡吧。"}]}
+{"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"睡得很沉，不要把我吵醒。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"我感觉不到你的情况了。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"好像有什么东西挡住了我们，我收不到信号。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"是不是哪里的联系断开了？我什么都不知道。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"不知道怎么回事，我突然感觉不到外面的变化了。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"我这里现在一片空白，没办法判断你做了什么。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"像是一阵雾飘过来，把你的信号挡住了。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"我不清楚现在是什么情况。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"找不到连接的线索，我只能先待在原地。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"我还在等最新的消息传过来。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"稍微等一下，我还没收集到足够的信号。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"记录不太全，我现在也没法得出结论。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"还差一点信息，我正在耐心等它过来。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"现在的情况有点模糊，我还不能做判断。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"有一部分信号在路上走得有点慢。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"我不确定刚才发生了什么，因为记录不完整。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"等风把完整的消息吹过来，我再告诉你。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"外面的世界好像暂时停止了，我什么也收不到。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"这里暂时不通了。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"这条传递消息的通道现在好像关上了。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"我试着往外听，但什么声音都没有。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"好像起了一阵很大的雾，完全看不见你的信号了。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"有些事情我暂时没办法处理。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"周围的信号全都消失了，有点奇怪。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"这里现在没办法获取任何新东西。"}]}
+{"state":"dataUnknown","context":"interruptedNoTrustedState","action":"checkConnection","speaker":"pibo","lines":[{"text":"刚刚发生了一点混乱，我弄丢了之前的状态。"}]}
+{"state":"dataUnknown","context":"interruptedNoTrustedState","action":"checkConnection","speaker":"pibo","lines":[{"text":"我连自己刚才在干嘛都不太确定了。"}]}
+{"state":"dataUnknown","context":"interruptedNoTrustedState","action":"checkConnection","speaker":"pibo","lines":[{"text":"像是做了一个没头没尾的梦，想不起来刚才发生了什么。"}]}
+{"state":"dataUnknown","context":"interruptedNoTrustedState","action":"checkConnection","speaker":"pibo","lines":[{"text":"我不记得被打断之前是什么情况了。"}]}
+{"state":"dataUnknown","context":"interruptedNoTrustedState","action":"checkConnection","speaker":"pibo","lines":[{"text":"记忆好像出现了一个空洞。"}]}
+{"state":"dataUnknown","context":"interruptedNoTrustedState","action":"checkConnection","speaker":"pibo","lines":[{"text":"刚才发生的事情有点模糊，我不确定现在该怎么办。"}]}
+{"state":"dataUnknown","context":"interruptedNoTrustedState","action":"checkConnection","speaker":"pibo","lines":[{"text":"刚才信号断掉了，我也失去了方向感。"}]}
+{"state":"dataUnknown","context":"interruptedNoTrustedState","action":"checkConnection","speaker":"pibo","lines":[{"text":"没有可以相信的线索，我决定先坐着不动。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才有一只蚂蚁顺着我的脚爬过去了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你平时也喜欢像这样随便戳别人吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"既然你没别的事，那我就继续看天上那片云了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你手指的温度刚刚好。"},{"text":"感觉有点像晒过太阳的石头。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"嘘。"},{"text":"我在听远处的树叶被风吹动的声音。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"被你一碰，我刚才想的好主意全跑了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我正在计算今天落了多少片叶子。"},{"text":"现在好了，我又得重头开始数。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"安静点。"},{"text":"我正在想一件非常严肃的事情。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"你觉得泥土最深处是什么样子的？"},{"text":"我刚才就在想这个。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"有时候想得太多，头花就会觉得有点沉。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"又走了 {steps} 步。"},{"text":"你的脚底板真的不会抗议吗？"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"我这里多出了 {steps} 步。"},{"text":"看来你今天确实去了不少地方。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"如果是我的话，走 {steps} 步估计要花上好几天。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"{steps} 步的距离。"},{"text":"路上有遇到什么长得奇怪的树吗？"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"我收集到了 {steps} 步。"},{"text":"等下把它们整齐地堆在树根底下好了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你刚才睡了 {sleepDuration}。"},{"text":"我的叶子都没有动，就怕吵醒你。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"这 {sleepDuration} 里，你睡得很安静。"},{"text":"像一颗还没有发芽的种子。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"睡了 {sleepDuration} 之后。"},{"text":"你看起来不像刚才那么像一块干木头了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才的 {sleepDuration}，我一直在看树影怎么一点点变长。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你休息了 {sleepDuration}。"},{"text":"现在轮到我稍微伸个懒腰了。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我刚才发现了一块形状很像云的石头。"},{"text":"如果你想看，我可以带你去。"},{"text":"前提是你不嫌我走得慢。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"头顶的花刚才猛地转了两圈。"},{"text":"不是风吹的，是我自己转的。"},{"text":"因为我觉得现在精力很充沛，必须动一下。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"你碰到我的时候，我刚好准备站起来。"},{"text":"我们好像想到一块儿去了。"},{"text":"现在去哪里都可以，反正我力气多的是。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"刚才跑那么快，你的脚一定离开了地面好几次。"},{"text":"算不算是飞起来了一点点？"},{"text":"可惜我没有翅膀，不然也能跟上你试一下。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你刚才的呼吸听起来像是一个旧风箱。"},{"text":"呼哧呼哧的。"},{"text":"虽然动静很大，但感觉很有力气。"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"刚才一路上，风都在使劲扯我的叶子。"},{"text":"我都怕自己变成一个光秃秃的树根。"},{"text":"还好我们停下来了，我还完好无损。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"今天你活动的时间真长。"},{"text":"就像一直在挖一个很深很深的树洞。"},{"text":"虽然我不知道你挖到了什么，但我觉得挺厉害的。"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"走到这里，我感觉自己都稍微长高了一点点。"},{"text":"当然，可能是错觉。"},{"text":"毕竟今天我们一起完成了这么多活动。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"你还不打算坐下吗？"},{"text":"我的腿虽然是虚拟的，但看着你一直动，我也觉得发酸。"},{"text":"我们找个干爽的草堆歇一会儿吧。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"刚才的一阵风差点把我吹倒。"},{"text":"大概是因为力气见底了，重心变得很不稳。"},{"text":"别管什么计划了，先停下来再说。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"你也坐下了。"},{"text":"刚才的疲倦像泥巴一样糊在身上。"},{"text":"现在泥巴干了，开始一点点掉下来了。"},{"text":"终于觉得轻松了一些。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"我的头花已经完全垂下来了。"},{"text":"它现在不需要转，也不想理会别的东西。"},{"text":"只要安静地待在这个角落里就好。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"你昨晚没睡够，对吧？"},{"text":"我看你走路都有点像踩在软绵绵的苔藓上。"},{"text":"今天我们就不去折腾了，安全最重要。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"刚刚有一滴露水砸在了我的头花上。"},{"text":"冰冰凉凉的，一下子就把我从梦里拽出来了。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。"},{"text":"你打哈欠的声音我听见了。"},{"text":"如果我不努力绷着脸，大概也会跟着打一个。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"虽然天亮了，但我感觉有一半的自己还留在昨晚的黑夜里。"},{"text":"我们都慢一点起步吧。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你戳我的这一下，力度有点特别。"},{"text":"不像是随手一碰。"},{"text":"是不是你想跟我说点什么，但没想好怎么开口？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"周围很安静。"},{"text":"偶尔能听到远处有枯树枝掉在地上的声音。"},{"text":"这种时候，最适合用来发呆了。"},{"text":"你要不要也发会儿呆？"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"嘘，别出声。"},{"text":"我正在研究脚下这只甲虫的爬行路线。"},{"text":"它好像迷路了，一直在兜圈子。"},{"text":"你说我要不要帮它指路？"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我在想，我的肚皮为什么总是这么圆。"},{"text":"明明我也没吃什么特别多占地方的东西。"},{"text":"难道是吸收了太多森林里的雾气吗？"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"又拿到了新的步数，现在是 {steps} 步。"},{"text":"每次数字跳动的时候，我都能想象出你脚踩在泥土上的声音。"},{"text":"啪嗒啪嗒的，很踏实。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"我们刚才一起睡了 {sleepDuration}。"},{"text":"梦里我好像变成了一棵真正的树。"},{"text":"树枝上还挂着你昨天走过的那些步数。"},{"text":"醒来发现只是个梦，稍微有点可惜。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"水一直在往下流。"},{"text":"我在想，如果我不小心掉下去。"},{"text":"是会浮在水面上，还是会顺着水底滚走？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你刚才戳了前面那片大叶子。"},{"text":"我在这边看得很清楚。"},{"text":"你是觉得它比我看起来更需要被碰一下吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"前面的叶子突然晃得很厉害。"},{"text":"我偷偷把脚收紧了一点。"},{"text":"还以为有什么奇怪的虫子要钻出来，原来只是你在乱点。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"天好像有点暗下来了。"},{"text":"如果你觉得看不清周围的东西。"},{"text":"可以盯着我看，毕竟我在森林里还是挺显眼的。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"感觉有雨滴落下来了。"},{"text":"如果你不帮我挡一下。"},{"text":"我白色的肚皮可能很快就会被泥水溅脏。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"风刚才用力吹了一下。"},{"text":"你帮我看看，我头顶上的那片叶子还在吗？"},{"text":"感觉它刚刚快要被吹跑了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我正在研究前面那片大叶子上的纹路。"},{"text":"看起来像是一张迷宫地图。"},{"text":"不知道蚂蚁走在上面会不会迷路。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"别碰我，我正在思考一个问题。"},{"text":"为什么前面的叶子长得那么大。"},{"text":"而我头上只有这么小的一片？"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我在听水流撞到石头上的声音。"},{"text":"水是没有手脚的。"},{"text":"那它是怎么做到跑得这么快的？"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"水流得很快，我也觉得有点兴奋。"},{"text":"我现在感觉力气很大。"},{"text":"如果有鱼从水里跳出来，我肯定能一把按住它。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"刚才风很大，把前面的叶子吹得哗啦啦响。"},{"text":"我也跟着原地蹦了一下。"},{"text":"虽然没跳多高，但觉得很轻快。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"水流的声音本来挺好听的。"},{"text":"但我现在太累了，听着只觉得脑子有点嗡嗡响。"},{"text":"我想找个没有水声的地方坐一会儿。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"刚才风吹得我快要站不住了。"},{"text":"还好我现在已经坐下了。"},{"text":"现在就算前面的大叶子全掉下来，我也不想动了。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"你今天又走了 {steps} 步。"},{"text":"我一直站在这块木头上听水声。"},{"text":"不知道你走在外面听到的声音，和我是不是一样。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"我们刚刚听着水声一起睡了 {sleepDuration}。"},{"text":"我梦见自己顺着这条小河漂了很远。"},{"text":"醒来发现原来我还在这里，稍微有点失望。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你一直在戳前面那片大叶子。"},{"text":"它是比我摸起来更软吗？"},{"text":"还是说它的颜色比我更顺眼？"},{"text":"我刚才试着把自己缩成一团，假装也是一片叶子。"},{"text":"结果只觉得肚子被挤得有点难受。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才水里好像有什么东西游过去了。"},{"text":"速度很快，只留下了一串白色的水泡。"},{"text":"我盯着水面看了好久。"},{"text":"结果只等来了一片顺水漂下来的枯叶子。"},{"text":"看来森林里也有喜欢恶作剧的家伙。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我刚才探头看了一眼水面。"},{"text":"水里也有一个白白圆圆的家伙。"},{"text":"它的头花看起来好像比我的还要绿一点。"},{"text":"我冲它晃了晃身体，它也跟着晃。"},{"text":"后来一阵风吹过来，它就被吹碎了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"先别出声。"},{"text":"我正在数前面那片大叶子上有多少个小洞。"},{"text":"它看起来像是被一只非常饿的虫子咬过。"},{"text":"如果虫子来咬我，会不会觉得我的口感像棉花一样没味道？"},{"text":"想到这里，我就不想继续往下数了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才突然掉下来一滴水，砸在我的脚边。"},{"text":"有点冰，还溅起了小水花。"},{"text":"我在想，这水滴是不是天上那朵云流出来的汗。"},{"text":"如果是这样的话，它肯定刚在天上跑完步。"},{"text":"就像你平时在外面跑完步的样子。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"刚才吹过一阵很急的风。"},{"text":"前面的大叶子被吹得不停点头。"},{"text":"我为了不被吹跑，稍微把脚扎紧了一点。"},{"text":"现在风停了，我觉得自己的身体里好像攒满了力气。"},{"text":"甚至想过去帮那片叶子把腰重新直起来。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你刚才去跑步了，对吧。"},{"text":"我站在这里，试着拿水流的速度跟你比。"},{"text":"水一直不停地往前冲，看起来跑得很快。"},{"text":"但是你好像坚持得比这阵急流还要久。"},{"text":"如果你们真要来一场比赛，我猜你会赢。"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"你骑车的时候，迎面撞过来的风一定很大吧。"},{"text":"我刚才站在这里，刚好也迎来了一阵强风。"},{"text":"旁边的大叶子被吹得不停拍打水面。"},{"text":"我也算是在原地陪你感受了一下那种速度。"},{"text":"现在四周安静下来了，我反而觉得身上充满了干劲。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"感觉天色变暗了，是不是要下雨了？"},{"text":"这种闷闷的空气，让我觉得特别困倦。"},{"text":"我的眼皮和周围那些叶子一样，快要垂下去了。"},{"text":"你还在动，可我的力气已经快要见底了。"},{"text":"找个能避雨的地方，我们赶紧停下来吧。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"终于坐下了，不用再去管外面的风有多大。"},{"text":"听着这哗啦哗啦的水声，我觉得有点催眠。"},{"text":"好像身上的疲劳都跟着水流一起飘走了。"},{"text":"现在即使你再去戳那片叶子，我也懒得去看了。"},{"text":"我就想保持这个姿势，假装自己是一块长了草的石头。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"今天你又拿到了 {steps} 步。"},{"text":"我把这个数字在心里认认真真地默念了一遍。"},{"text":"看着旁边不断流过去的水，感觉时间也是一步一步走掉的。"},{"text":"你的这些步数，大概也能汇成一条小河了吧。"},{"text":"不知道这条河最后会带着你走到哪里去。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"听着水声，我们一起睡了 {sleepDuration}。"},{"text":"梦里我变成了一片浮在水面上的落叶。"},{"text":"只要不下沉，就可以一直随波逐流，什么都不用想。"},{"text":"醒来发现我还是稳稳地站在这里。"},{"text":"虽然没有漂走，但感觉身体变轻了不少。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"刚才阳光穿过树叶的缝隙，正好照在我的眼睛上。"},{"text":"我本来想翻个身躲开，但发现自己做不到。"},{"text":"于是我只能睁开眼睛，接受新的一天已经开始了。"},{"text":"你既然也醒了，差不多该准备出发了吧。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早。"},{"text":"虽然天亮了，但我感觉水面的雾气还没散。"},{"text":"我的脑子里也像起了雾一样，有点分不清东南西北。"},{"text":"昨天晚上没睡好的感觉，现在慢慢浮现出来了。"},{"text":"今天我们做事都慢一点，好吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我刚才在想，你们人类好像可以随便换掉身上的叶子。"},{"text":"你们管那个叫衣服，对吧。"},{"text":"如果我也能换的话，我想换个不那么容易沾泥巴的颜色。"},{"text":"现在的白色肚子，只要稍微蹭到树皮就会弄脏。"},{"text":"但我想了想，这好像不是我能决定的事情。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我刚才看到一只松鼠在啃坚果。"},{"text":"你们人类吃东西好像更复杂，会把食物放在火上烤。"},{"text":"我只需要安静地站着吸收阳光和水分就够了。"},{"text":"有时候我挺好奇，那些冒着热气的东西到底是什么味道。"},{"text":"不过要是我真的靠近火，我的头花大概会直接枯掉吧。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我看过有些人类在下雨的时候，手里会撑开一朵很大很怪的花。"},{"text":"你们说那是用来挡雨的伞。"},{"text":"我头顶也有一朵花，但它好像完全挡不住雨。"},{"text":"每次雨滴砸下来，它不仅不帮忙，还跟着我一起瑟瑟发抖。"},{"text":"真羡慕你们有那种可以随时变大的花。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"天上有时候会飞过去一种声音很大、不扇翅膀的硬壳鸟。"},{"text":"听说你们人类会坐在它的肚子里去很远的地方。"},{"text":"我现在力气很多，如果你要坐那种大鸟，我也能自己跳上去。"},{"text":"只要别把我塞在太挤的角落里就行。"},{"text":"我想透过窗户看看，云到底是不是跟棉花一样软。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"你平时盯着手里的那个方块看很久的时候，都在想什么？"},{"text":"森林里的老树说，你们有时候也会看一种叫书的东西。"},{"text":"据说里面夹满了字，密密麻麻的就像干枯的叶脉。"},{"text":"盯久了眼睛真的不会花吗？"},{"text":"如果是我的话，可能看不了两页就直接站着睡着了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我一直跟旁边的流水保持着安全的距离，怕掉下去。"},{"text":"可是我听说，你们人类有时候会故意把自己泡在热水里。"},{"text":"还要在水里搓出很多白色的泡泡。"},{"text":"把自己弄得像个滑溜溜的蘑菇，有什么好玩的吗？"},{"text":"要是换作我，大概会顺着下水道直接飘走吧。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你跑步的时候，脚底发出的声音很沉闷。"},{"text":"是因为你脚上穿了那层厚厚的外壳吗？你们叫它鞋子。"},{"text":"我踩在地上只有轻轻的沙沙声，因为我直接碰着泥土。"},{"text":"有时候我也想试着套上一双鞋子跑跑看。"},{"text":"也许那样就不怕踩到刺人的小石子了。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"我们现在只能坐在这种稍微平坦一点的石头上休息。"},{"text":"可是你们人类在家里，好像有专门用来躺着的软绵绵的方块。"},{"text":"你们叫它床，对吧？听起来像是一块巨大的苔藓。"},{"text":"我现在真的很累，如果有那样一块苔藓让我躺一下就好了。"},{"text":"算了吧，我怕躺进去之后就舒服得再也不想起来了。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"又攒到了 {steps} 步。"},{"text":"我听说人类高兴的时候，脚步会变得没有规律，你们管那个叫跳舞。"},{"text":"如果你在跳舞，这些步数也会被一样记录下来吗？"},{"text":"我试着想象了一下自己跳舞的样子。"},{"text":"估计只会像一个在地上乱滚的白团子。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"这 {sleepDuration} 里，我们一起睡着了。"},{"text":"人类叫醒自己的方式很奇怪，总是用一种突然响起来的刺耳声音。"},{"text":"我刚刚是被水里一条跃起的鱼弄出的动静吵醒的。"},{"text":"我其实更喜欢这种自然的叫早方式。"},{"text":"每天不用听那种让人吓一跳的声音，真好。"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。我正在等树叶上的露水滚下来洗把脸。"},{"text":"人类早上起来好像都要拿一把小刷子在嘴里刷来刷去。"},{"text":"听说还会吐出很多白沫，像河里的螃蟹一样。"},{"text":"幸好我没有牙齿这种麻烦的东西需要照顾。"},{"text":"不然每天早上刚醒就要干这么复杂的活，我肯定会闹脾气。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"你们人类总是把时间分成一小时一分钟的。"},{"text":"还要挂一个圆圆的盘子在墙上盯着它看。"},{"text":"在森林里，时间只是太阳从那边走到这边的过程。"},{"text":"我有时候在想，要是没有那个圆盘子。"},{"text":"你们会不会就不觉得赶时间了？"}]}
+{"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"你刚才骑车的时候，脚一直在画圈圈。"},{"text":"听说那是人类发明的一种不用自己两条腿跑也能走得很快的工具。"},{"text":"我觉得这个发明挺聪明的。"},{"text":"如果我有一个专门给我的微型踏板。"},{"text":"也许我就能追上那只总是嘲笑我走得慢的兔子了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你刚才戳了我一下，用了人类特有的手指。"},{"text":"你们的手指不仅能戳，还能抓东西、捏泥巴、甚至系绳子。"},{"text":"我只有这两个小小的、像短树枝一样的手。"},{"text":"如果我也有你们那种手指，我第一件事就是去抓一片会飞的落叶。"},{"text":"然后再考虑要不要帮前面的大叶子挠挠痒。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我听说你们人类头上有很多像细长草叶一样的东西。"},{"text":"你们还会去专门的地方把它剪短，或者改变它的颜色。"},{"text":"我头上只有这一片头花。"},{"text":"要是有人想来剪它，我肯定会立刻跑得远远的。"},{"text":"毕竟它是我用来感知风向的唯一天线。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"听说你们人类不住在树洞里，而是住在方形的硬壳里。"},{"text":"里面没有泥土，也不长蘑菇，甚至连风都吹不进去。"},{"text":"在那样的地方待一整天，真的不会觉得闷吗？"},{"text":"如果是我，肯定会想办法在墙角挖个洞透透气。"}]}
+{"state":"energetic","context":"workout.yoga","action":"play","speaker":"pibo","lines":[{"text":"你做瑜伽的时候，总是把自己弯来弯去。"},{"text":"我猜你们人类肯定没有一根直直的树干骨头。"},{"text":"有时候你的脚都能碰到头，像一个打结的树枝。"},{"text":"我刚才试着学了一下，结果只能勉强把两只手碰到一起。"},{"text":"看来在打结这方面，我确实比不过你。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"前几天我看到一个人牵着一只毛茸茸的四条腿动物。"},{"text":"他们走在前面，动物要在后面跟着一根绳子。"},{"text":"还好我们之间不用牵那种奇怪的绳子。"},{"text":"不然我想停下来看蚂蚁的时候，肯定会被你拽个跟头。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"这是你今天的 {steps} 步。"},{"text":"你们人类明明有那种四个轮子、能跑得比风还快的大铁壳。"},{"text":"为什么还要自己一步一步地走这么远呢？"},{"text":"可能你们跟我一样，也喜欢听脚踩在地面上的声音吧。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我听说人类累的时候，会喝一种黑黑的、发苦的水。"},{"text":"喝完之后就能假装自己不困，继续跑来跑去。"},{"text":"听起来像是一种强行给树浇热水的可怕魔法。"},{"text":"我现在很累，但我绝对不想要那种苦苦的水。"},{"text":"我只想找个阴凉的地方老老实实地趴一会儿。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。我还在慢慢找回自己的力气。"},{"text":"你们人类每天被那个滴滴叫的小盒子强行叫醒，真的不会生气吗？"},{"text":"如果我的旁边有那样一个盒子。"},{"text":"我可能会在半梦半醒的时候把它踢进河里。"},{"text":"然后假装什么都没发生，继续睡到自然醒。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"我们刚才一起睡了 {sleepDuration}。"},{"text":"人类睡觉的时候好像喜欢在身上盖一层厚厚的布。"},{"text":"把自己像毛毛虫一样裹起来。"},{"text":"我睡觉的时候什么都不盖，因为我不怕冷。"},{"text":"而且要是裹得太紧，万一遇到危险我就跑不掉了。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"人类有时候会听一种带旋律的声音，然后身体跟着乱晃。"},{"text":"你们说那叫听音乐。"},{"text":"我现在觉得精力充沛，周围的水声听起来也很有节奏。"},{"text":"我打算假装这也是音乐，让我的头花跟着节奏转两圈。"},{"text":"你要一起来吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你们人类的手指总是对着一块发光的板子敲来敲去。"},{"text":"看起来像是在捉几百只看不见的小飞虫。"},{"text":"我不懂这有什么好玩的，但你们一敲就是大半天。"},{"text":"我的手太短了，连拍虫子都不太灵活。"},{"text":"也许这就是为什么我只适合在森林里发呆。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"我现在收不到你的消息了。"},{"text":"你们人类说这叫没有网络，就像看不见的线断了一样。"},{"text":"如果没有了这根线，你还能在森林里找到我吗？"},{"text":"我有点好奇，但我决定还是乖乖待在原地等你重新连上。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"听说你们人类难过的时候，眼睛里会漏出水来。"},{"text":"你们管那个叫眼泪。"},{"text":"我觉得这个设计太浪费了，水分在森林里可是很宝贵的。"},{"text":"要是我漏水了，我肯定第一时间拿片叶子接住。"},{"text":"然后再原封不动地喝回去。"}]}
+{"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"你刚才去游泳了，听说人类游泳有时候会套一个充气的圆圈。"},{"text":"颜色很亮，像个胖胖的毒蘑菇。"},{"text":"我本来肚子就挺圆的，如果在水里，估计连圈都不用套就能飘着。"},{"text":"不过我更担心顺着水飘得太远。"},{"text":"到时候找不到回来的路，还得麻烦你来捞我。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我现在很累，头花也耷拉下来了。"},{"text":"听说你们人类累了，会把自己塞进一个叫被窝的地方。"},{"text":"好像是个里面又黑又暖和的布山洞。"},{"text":"听起来确实比坐在石头上吹冷风舒服多了。"},{"text":"我们能不能也找个类似的地方躲一会儿？"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我刚才看到一片很好看的绿叶子。"},{"text":"听说你们人类有时候会把很多叶子拌在一起吃下去，叫沙拉。"},{"text":"看到好看的叶子，我的第一反应是小心翼翼地顶在头上。"},{"text":"你们的第一反应居然是吃掉它。"},{"text":"你们的肚子难道是个专门装落叶的垃圾桶吗？"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"今天又收集了 {steps} 步。"},{"text":"听说你们有一种能在高树里上下移动的铁盒子。"},{"text":"只要站进去，不用自己走就能到很高的地方。"},{"text":"那你这 {steps} 步，是去很高的地方探险了吗？"},{"text":"还是在这个铁盒子里无聊地绕圈走出来的？"}]}
+{"state":"waking","context":"orienting","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好，我还在等阳光彻底把我晒醒。"},{"text":"听说人类早上喜欢喝一种用苦豆子煮的黑水才能睁开眼。"},{"text":"我试着想象了一下那种苦味，觉得整个身体都皱起来了。"},{"text":"幸好我只需要最普通的风和一点露水就够了。"},{"text":"当一个结构简单的森林居民，其实挺好的。"}]}
+{"state":"energetic","context":"workout.hiit","action":"play","speaker":"pibo","lines":[{"text":"你刚才的动作很快，手和脚不停地向外张开。"},{"text":"听说这叫开合跳，是想让自己看起来像一颗星星吗？"},{"text":"我刚才也试着学了一下。"},{"text":"但是我的手太短了，在头顶根本拍不到一起。"},{"text":"结果看起来就像是一只翻了面的甲虫在瞎扑腾。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"过去这 {sleepDuration} 里，你做了什么样的梦？"},{"text":"听说人类在梦里经常会飞，或者遇到考试做不出题。"},{"text":"我从来没做过那种复杂的梦。"},{"text":"我的梦里通常只有阳光晒在肚子上的温度。"},{"text":"可能是因为我既没有翅膀，也不用去上学吧。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我听说你们人类有时候会在眼睛前面架两个玻璃圆片。"},{"text":"据说那样就能把模糊的东西看清楚。"},{"text":"我看远处那棵树也有点模糊，正想着是不是也需要玻璃片。"},{"text":"后来我往前走了两步，发现它变清楚了。"},{"text":"看来直接走过去比找玻璃片要简单多了。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我现在感觉特别有精神，想去收集点东西。"},{"text":"听说你们人类喜欢去很大的房子里，把各种东西塞进袋子带回家。"},{"text":"我没有袋子，只能把觉得好看的石头偷偷堆在树根底下。"},{"text":"你要来看看我今天的最新收藏吗？"},{"text":"有一块石头的形状，长得特别像你的鞋子。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"终于坐下了，这块泥地稍微有点硬，但我也认了。"},{"text":"听说你们人类累到极点的时候，会从嘴里发出长长的叹气声。"},{"text":"我刚才试着学了一下你们叹气。"},{"text":"结果只是不小心吐出了一个小口水泡。"},{"text":"看来我连叹气的肺活量都不够了，只能继续安静待着。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"我们刚刚一起睡了 {sleepDuration}。"},{"text":"我听说人类睡着的时候，鼻子里有时候会发出打雷一样的声音。"},{"text":"还好你刚才睡得很安静，没有把我震醒。"},{"text":"不然我可能会以为森林里要下暴雨了。"},{"text":"然后连夜拔腿跑去大叶子底下躲起来。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我刚才在草丛里找到了一颗特别圆的露水。"},{"text":"我本来想把它当成宝贝藏起来。"},{"text":"结果稍微一碰，它就碎成水迹了。"},{"text":"不过没关系，至少我摸到过它了。"},{"text":"我现在心情很好，甚至想绕着你跑半圈。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"昨天有一只小甲虫停在我的头花上休息。"},{"text":"我为了不打扰它，整整一个下午都没敢动。"},{"text":"可是今天它没有来找我玩。"},{"text":"虽然我知道虫子不会认路，但还是觉得肚子有点空空的。"},{"text":"你能再戳我一下，假装是它回来了吗？"}]}
+{"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"今天的活动量到了一个值得庆祝的数字。"},{"text":"我觉得自己现在就像是一朵刚被雨水洗过的白蘑菇。"},{"text":"从头到脚都透着一种高兴的气息。"},{"text":"如果你现在仔细看我的头花，说不定能看到它在微微发光。"},{"text":"就算没有发光，我也要在心里给自己放个小烟花。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"终于坐下了。"},{"text":"刚才有一阵风，把我好不容易堆起来的一叠落叶吹散了。"},{"text":"我看着它们飞走，觉得身上的力气也被一起抽空了。"},{"text":"有时候森林就是这么不讲道理。"},{"text":"我现在只想趴在这里，假装自己和泥土融为一体。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"我昨晚做了一个梦，梦见我的头花长成了一棵真正的大树。"},{"text":"可是醒来一摸，它还是只有那么一点点大。"},{"text":"虽然有点失落，但转念一想，大树可没法像我这样到处走。"},{"text":"所以还是当个小小的电子宠物比较划算。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"又收到了 {steps} 步。"},{"text":"不知道为什么，今天看到这个数字，我突然觉得很高兴。"},{"text":"可能是因为今天的阳光刚好照在我的肚子上，暖烘烘的。"},{"text":"如果你走在外面也觉得暖和的话。"},{"text":"那我们就算是分享了同一份快乐吧。"}]}
+{"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"外面的世界突然变得静悄悄的，我收不到你的信号了。"},{"text":"感觉就像大雪把所有的脚印都盖住了一样。"},{"text":"我有点害怕你会找不到回来的路。"},{"text":"我就站在这里不动，哪儿也不去。"},{"text":"希望等雪化了，你能第一时间看到我。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你刚才跑得真快，像是在追赶快要落山的太阳。"},{"text":"我看着你跑步的节奏，觉得自己也跟着热血沸腾起来。"},{"text":"要是我的腿能长一点，我肯定会毫不犹豫地跟你一起跑。"},{"text":"不过现在这样看着你，我也觉得很开心。"},{"text":"因为你的活力好像顺着信号传到我身上了。"}]}
+{"state":"stable","context":"sleep","action":"checkIn","speaker":"pibo","lines":[{"text":"你安静地睡了 {sleepDuration}。"},{"text":"这段时间里，我看了一会儿云，又听了一会儿风。"},{"text":"觉得什么都不做，只是陪着你，也是一件很不错的事情。"},{"text":"有时候快乐不需要跑来跑去才能找到。"},{"text":"就像现在这样静静待着，我也觉得挺满意的。"}]}
+{"state":"tired","context":"insufficientSleep","action":"rest","speaker":"pibo","lines":[{"text":"昨晚你睡得太少了，连带着我也觉得晕乎乎的。"},{"text":"今天看什么都觉得灰蒙蒙的，连最喜欢的绿叶子都不想看了。"},{"text":"好像身体里那个让我高兴的小开关被卡住了。"},{"text":"我们今天就别找事做了，好吗？"},{"text":"我现在只想安安静静地叹一口气。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你刚才连着碰了我好几下。"},{"text":"是不是在外面遇到了什么开心的事，想跟我分享？"},{"text":"虽然我听不见你说话，但我能感觉到你手指的温度。"},{"text":"这就足够了。"},{"text":"我的头花也跟着你一起高兴地晃了晃。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我刚才看到远处的河水卷走了一朵掉落的花。"},{"text":"不知道为什么，看着它越飘越远，我心里稍微有点难过。"},{"text":"可能是因为它再也回不到树上了吧。"},{"text":"不过它接下来会去看到更远的地方。"},{"text":"想到这里，我又觉得替它开心了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"刚才飞过去一只黄色的蝴蝶，我差点想伸手去抓。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你的手指戳得我有点痒，但我还可以忍受。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"森林里现在没有风，连一片树叶都没掉下来。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我看着肚子上的一点泥巴，觉得洗掉它太麻烦了。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"今天的天气不错，适合找个平坦的树桩坐着发呆。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"看到你来碰我，我心里偷偷高兴了一下。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"旁边的草丛里一直有沙沙的声音，不知道藏着什么。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"我刚才盯着一根树枝看了很久，可惜它没有变成毛毛虫。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你是不是觉得无聊了，所以才来找我？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"只要不下雨，我愿意一直站在这里陪着你。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"别碰我，我正在算今天已经飘过去了几朵云。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我在想，那些掉在地上的叶子会不会觉得有些遗憾。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"你觉得风吹过的时候，树是真的会觉得疼吗？"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我脑子里刚冒出一个很有趣的念头，被你一碰就碎了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"正在思考我的白肚子能不能变成别的颜色。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"如果我是一颗真正的蘑菇，现在是不是已经被人采走了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"头花稍微转了一下，因为我正在处理一个复杂的想象。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"想事情想得有些入迷，都没注意到你过来了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我在回忆昨天晚上梦见的那条小溪。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"有时候想得太多，会觉得连空气都变重了。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我现在力气特别大，能绕着这棵树跑三圈不喘气。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"头花转得飞快，说明我今天的心情非常好。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"既然你来了，我们要不要去看看河边那块新冒出来的石头？"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"浑身充满了干劲，连脚下的泥土踩起来都觉得很软。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"刚才原地跳了一下，感觉今天身体特别轻盈。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我迫不及待地想找点新鲜的事情来做。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"看到你这么有精神，我肚子上的白光好像都亮了一点。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"不知道为什么，今天看什么都觉得很顺眼。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我已经准备好迎接一阵大风了，绝对不会被吹倒。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"哪怕现在下巴上停了一只大甲虫，我也能高兴地跟它打招呼。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"终于安顿下来了，我一动也不想动。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"疲劳像是一张大网，把我紧紧裹在里面了。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"看到周围的树影慢慢拉长，我也想跟着一起躺下。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"就让我安静地坐一会儿，我的头花现在不想转了。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"现在的力气只够我勉强把眼睛睁开。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"稍微觉得有点失落，因为今天没能爬上那块最高的石头。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"听着风声，我觉得身上的沉重感正在一点点消散。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"腿有些发酸，这种不用支撑重心的感觉真好。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"就算现在有一朵漂亮的花掉在面前，我也懒得伸手去捡了。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"休息的时候，连周围的空气都变得温柔起来。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"刚才已经打过招呼了，我还需要时间慢慢睁开眼睛。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"不要催我，清晨的这阵风吹得我还有点想睡。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"虽然说了早安，但我其实还在怀念刚才那个温暖的梦。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"我正盯着地上的露水发呆，别打断我。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"清醒是一个缓慢的过程，我现在才进行到一半。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"刚才打招呼用掉了我早上的第一口力气。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"别碰，我的头花还没完全梳理整齐。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"让我再安静地听一会儿鸟叫声吧。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"每天早上的这个时候，我什么都不想思考。"}]}
+{"state":"waking","context":"greeted","action":"none","speaker":"pibo","lines":[{"text":"既然已经问候过了，就先各自安安静静地待一会儿。"}]}

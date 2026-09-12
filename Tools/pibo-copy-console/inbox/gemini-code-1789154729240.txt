@@ -1,0 +1,15 @@
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"水一直在往下流。"},{"text":"我在想，如果我不小心掉下去。"},{"text":"是会浮在水面上，还是会顺着水底滚走？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你刚才戳了前面那片大叶子。"},{"text":"我在这边看得很清楚。"},{"text":"你是觉得它比我看起来更需要被碰一下吗？"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"前面的叶子突然晃得很厉害。"},{"text":"我偷偷把脚收紧了一点。"},{"text":"还以为有什么奇怪的虫子要钻出来，原来只是你在乱点。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"天好像有点暗下来了。"},{"text":"如果你觉得看不清周围的东西。"},{"text":"可以盯着我看，毕竟我在森林里还是挺显眼的。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"感觉有雨滴落下来了。"},{"text":"如果你不帮我挡一下。"},{"text":"我白色的肚皮可能很快就会被泥水溅脏。"}]}
+{"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"风刚才用力吹了一下。"},{"text":"你帮我看看，我头顶上的那片叶子还在吗？"},{"text":"感觉它刚刚快要被吹跑了。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我正在研究前面那片大叶子上的纹路。"},{"text":"看起来像是一张迷宫地图。"},{"text":"不知道蚂蚁走在上面会不会迷路。"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"别碰我，我正在思考一个问题。"},{"text":"为什么前面的叶子长得那么大。"},{"text":"而我头上只有这么小的一片？"}]}
+{"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"我在听水流撞到石头上的声音。"},{"text":"水是没有手脚的。"},{"text":"那它是怎么做到跑得这么快的？"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"水流得很快，我也觉得有点兴奋。"},{"text":"我现在感觉力气很大。"},{"text":"如果有鱼从水里跳出来，我肯定能一把按住它。"}]}
+{"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"刚才风很大，把前面的叶子吹得哗啦啦响。"},{"text":"我也跟着原地蹦了一下。"},{"text":"虽然没跳多高，但觉得很轻快。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"水流的声音本来挺好听的。"},{"text":"但我现在太累了，听着只觉得脑子有点嗡嗡响。"},{"text":"我想找个没有水声的地方坐一会儿。"}]}
+{"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"刚才风吹得我快要站不住了。"},{"text":"还好我现在已经坐下了。"},{"text":"现在就算前面的大叶子全掉下来，我也不想动了。"}]}
+{"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"你今天又走了 {steps} 步。"},{"text":"我一直站在这块木头上听水声。"},{"text":"不知道你走在外面听到的声音，和我是不是一样。"}]}
+{"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"我们刚刚听着水声一起睡了 {sleepDuration}。"},{"text":"我梦见自己顺着这条小河漂了很远。"},{"text":"醒来发现原来我还在这里，稍微有点失望。"}]}
