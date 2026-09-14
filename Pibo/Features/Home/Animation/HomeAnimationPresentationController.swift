@@ -13,6 +13,10 @@ final class HomeAnimationPresentationController {
     private(set) var decision: PiboCoreStateAdapter.Decision?
     private var lifecycleSnapshot: PiboCoreStateSnapshot
     private var hasHammock = false
+    var stableThinking = false
+    private(set) var attentionRevision = 0
+    func noteAttention() { stableThinking = false; attentionRevision += 1 }
+    private var semanticAmbientStateID = PiboAnimationResourceID.stable
 
     /// The semantic state used by pat interactions. Production always follows
     /// Core; Debug may mirror the animation picker so copy and reactions can be
@@ -91,7 +95,9 @@ final class HomeAnimationPresentationController {
         lifecycleSnapshot = resolved.snapshot
         PiboStateLifecyclePersistence.save(lifecycleSnapshot)
         let resolution = HomeAnimationStateResolver.resolve(resolved.input)
+        if state != resolution.state { stableThinking = false }
         state = resolution.state
+        semanticAmbientStateID = resolution.stateID
         decision = resolution.decision
         store.publishPiboState(resolution.state)
         let presentedStateID = PiboAnimationStateMap.presentedAmbientStateID(
@@ -110,6 +116,19 @@ final class HomeAnimationPresentationController {
         )
         #else
         stateID = presentedStateID
+        #endif
+    }
+
+    func refreshExpression(behavior: PiboCorePatBehavior) {
+        let presented = PiboAnimationStateMap.presentedAmbientStateID(
+            semanticStateID: semanticAmbientStateID, state: state, hasHammock: hasHammock,
+            needsWakingRecovery: decision?.pendingState == .tired && decision?.pendingCause == .insufficientSleep,
+            behavior: behavior)
+        #if DEBUG
+        coreStateID = presented
+        stateID = Self.presentedStateID(coreStateID: presented, forcedStateID: forcedStateID)
+        #else
+        stateID = presented
         #endif
     }
 

@@ -341,7 +341,7 @@ final class PiboPatConversationStore {
         )
     }
 
-    private func behavior(for input: PiboPatConversationInput) -> PiboCorePatBehavior {
+    func behavior(for input: PiboPatConversationInput) -> PiboCorePatBehavior {
         if input.state == .tired, snapshot.tiredRestingEpisodeKey == input.episodeKey {
             return .tiredResting
         }

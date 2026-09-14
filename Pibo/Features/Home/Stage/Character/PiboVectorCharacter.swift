@@ -99,6 +99,14 @@ final class PiboVectorCharacter {
         let basePath: CGPath
     }
 
+    private let expressionPlayer = PiboExpressionPlayer()
+    private var expressionClock = 0.0
+    private var expressionFrame: PiboExpressionFrame?
+    private var expressionBasePaths: [String: CGPath] = [:]
+    private var expressionDesignPaths: [String: CGPath] = [:]
+    private var expressionWeights: [Double] = []
+    private var expressionEyePaths: PiboExpressionEyePaths?
+
     private let data: PiboCharacterData
     private let projectionStyle: ProjectionStyle?
     private let projectionGrainShader: SKShader?
@@ -190,27 +198,80 @@ final class PiboVectorCharacter {
         presentationNode.yScale = y
     }
 
-    /// A deliberately small look-toward gesture for the verified food sticker.
-    /// It rotates the authored presentation container around Pibo's standing
-    /// anchor, so every state keeps its own silhouette and resource set.
+    /// Face, eyes and upper-body attention from the approved directional clips.
+    /// Closed sleep eyes and the current resting pose are preserved by the media.
     func playFoodObservation(onRight: Bool, reduceMotion: Bool) {
         cancelFoodObservation()
         guard !reduceMotion else { return }
-        let angle: CGFloat = onRight ? -0.045 : 0.045
-        presentationNode.run(
-            .sequence([
+        if targetStateID == PiboAnimationResourceID.wakingHammock {
+            // The approved hammock artwork keeps its own hanging pose.
+            presentationNode.run(.sequence([
                 .wait(forDuration: 0.32),
-                .rotate(toAngle: angle, duration: 0.42, shortestUnitArc: true),
+                .rotate(toAngle: onRight ? -0.045 : 0.045, duration: 0.42, shortestUnitArc: true),
                 .wait(forDuration: 4.18),
-                .rotate(toAngle: 0, duration: 0.32, shortestUnitArc: true),
-            ]),
-            withKey: "foodObservation"
-        )
+                .rotate(toAngle: 0, duration: 0.32, shortestUnitArc: true)
+            ]), withKey: "foodObservation")
+        } else { expressionPlayer.observe(onRight: onRight, time: expressionClock) }
     }
 
     func cancelFoodObservation() {
+        expressionPlayer.cancelObservation()
         presentationNode.removeAction(forKey: "foodObservation")
         presentationNode.zRotation = 0
+    }
+    func restartExpressionPat() { expressionPlayer.restartPat() }
+    func cancelExpressionPat() { expressionPlayer.cancelPat() }
+
+    @discardableResult
+    func updateExpression(stateID: String, deltaTime: Double, reduceMotion: Bool, captureClip: String? = nil, captureTime: Double = 0) -> Bool {
+        expressionClock += max(0, min(0.1, deltaTime))
+        guard let library = PiboExpressionLibrary.shared,
+              let profile = library.bindings.first(where: { $0.value == stateID })?.key else {
+            expressionPlayer.select("", time: expressionClock)
+            expressionFrame = nil
+            expressionDesignPaths = [:]
+            return false
+        }
+        expressionPlayer.select(profile, time: expressionClock)
+        guard let frame = captureClip.flatMap({ library.clips[$0]?.sample(captureTime) })
+            ?? expressionPlayer.sample(library, time: expressionClock, reduced: reduceMotion) else { return false }
+        expressionFrame = frame
+        if expressionEyePaths == nil { expressionEyePaths = PiboExpressionEyePaths(library.fatigueEye) }
+        if expressionWeights != frame.weights {
+            for part in library.parts { expressionBasePaths[part.id] = part.path(weights: frame.weights) }
+            expressionWeights = frame.weights
+        }
+        for (i, part) in library.parts.enumerated() {
+            var path = expressionBasePaths[part.id]
+            if frame.fatigue > 0.5, part.id.hasSuffix("eye") {
+                path = expressionEyePaths?.path(openness: frame.eyes[part.id == "lefteye" ? 0 : 1])
+            }
+            var matrix = PiboExpressionFrame.matrix(frame.transforms[i])
+            expressionDesignPaths[part.id] = path?.copy(using: &matrix)
+        }
+        for entry in elementNodes.values {
+            guard entry.element.isShared || entry.stateID == stateID else { entry.node.alpha = 0; continue }
+            guard let i = library.parts.firstIndex(where: { $0.id == entry.element.id }),
+                  let designPath = expressionDesignPaths[entry.element.id] else { continue }
+            let part = library.parts[i], isSprout = Self.sproutElementIDs.contains(part.id)
+            var matrix = isSprout ? sproutTransform : bodyTransform
+            guard let path = designPath.copy(using: &matrix) else { continue }
+            let strokeScale = isSprout ? scale * Self.sproutSupersample : scale
+            let style = ElementStyle(element: entry.element, strokeScale: strokeScale, lighting: lighting)
+            let drawn = style.apply(to: entry.node, path: path)
+            if part.id.hasSuffix("under") {
+                let u = frame.weights[3]
+                entry.node.fillColor = lighting.applied(to: UIColor(red: (205 - 14*u)/255,
+                    green: (191 + 22*u)/255, blue: (219 + 8*u)/255, alpha: 1))
+            }
+            projectionStyle?.apply(to: entry.node, elementID: part.id, scale: strokeScale, grainShader: projectionGrainShader)
+            entry.node.alpha = frame.transforms[i][6]
+            if part.id == "bo", projectionStyle == nil {
+                configureBoContainer(path: drawn, element: entry.element, contentNode: entry.node)
+            }
+            // Keep the existing node identity, paint and health-driven crop.
+        }
+        return true
     }
 
     private func applyPulseAnchor() {
@@ -354,6 +415,9 @@ final class PiboVectorCharacter {
     /// bends root → tip, and `awake` hangs out of the coconut hole with its root
     /// *above* its tip, so an axis is required rather than a canvas-aligned box.
     var sproutAxis: (root: CGPoint, tip: CGPoint)? {
+        if let f = expressionFrame {
+            return (CGPoint(x: f.sprout[0], y: f.sprout[1]), CGPoint(x: f.sprout[2], y: f.sprout[3]))
+        }
         guard let from = data.states[currentStateID]?.sprout,
               let to = data.states[targetStateID]?.sprout else { return nil }
         func blend(_ a: CGPoint, _ b: CGPoint) -> CGPoint {
@@ -375,6 +439,7 @@ final class PiboVectorCharacter {
     /// weather system's impact sampling, so the visible shape and the
     /// interactive shape cannot drift apart.
     func bodyPath() -> CGPath? {
+        if let path = expressionDesignPaths["body"] { var t = bodyTransform; return path.copy(using: &t) }
         guard let morph = data.morph["body"] else { return nil }
         return interpolatedPath(id: "body", morph: morph, transform: bodyTransform)
     }
@@ -388,6 +453,7 @@ final class PiboVectorCharacter {
     }
 
     func sproutPath() -> CGPath? {
+        if let path = expressionDesignPaths["bo"] { var t = bodyTransform; return path.copy(using: &t) }
         guard let morph = data.morph["bo"] else { return nil }
         return interpolatedPath(id: "bo", morph: morph, transform: bodyTransform)
     }
@@ -893,11 +959,13 @@ final class PiboVectorCharacter {
     }
 
     var bodyDesignPath: CGPath? {
+        if let path = expressionDesignPaths["body"] { return path }
         guard let morph = data.morph["body"] else { return nil }
         return interpolatedPath(id: "body", morph: morph, transform: .identity)
     }
 
     var boDesignPath: CGPath? {
+        if let path = expressionDesignPaths["bo"] { return path }
         guard let morph = data.morph["bo"] else { return nil }
         return interpolatedPath(id: "bo", morph: morph, transform: .identity)
     }

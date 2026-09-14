@@ -5,6 +5,12 @@ import XCTest
 final class HomeIdleSpeechContextResolverTests: XCTestCase {
     func testEveryShippedAnimationStateKeepsItsIdleSpeechContext() {
         let expectations: [String: PiboCoreHomeSpeechContext?] = [
+            PiboAnimationResourceID.dataUnknown: .missingDataPibo,
+            PiboAnimationResourceID.stableThinking: .idle,
+            PiboAnimationResourceID.tiredResting: .lowSleep,
+            PiboAnimationResourceID.wakingGround: .waking,
+            PiboAnimationResourceID.wakingGreeted: .waking,
+            PiboAnimationResourceID.wakingRecoveringGreeted: .waking,
             "pibo-state-stable-forest-idle": .idle,
             "pibo-state-energetic-forest-idle": .idle,
             "pibo-event-activity-milestone-celebrate": .idle,

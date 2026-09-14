@@ -7,12 +7,15 @@ enum HomeIdleSpeechContextResolver {
     ) -> PiboCoreHomeSpeechContext? {
         if PiboAnimationResourceID.sleeping.contains(animationStateID) { return nil }
         return switch animationStateID {
+        case PiboAnimationResourceID.dataUnknown:
+            .missingDataPibo
         case "angry":
             nil
-        case PiboAnimationResourceID.wakingHammock,
+        case PiboAnimationResourceID.wakingHammock, PiboAnimationResourceID.wakingGround,
+             PiboAnimationResourceID.wakingGreeted, PiboAnimationResourceID.wakingRecoveringGreeted,
              PiboAnimationResourceID.wakingGroundRecovering:
             .waking
-        case PiboAnimationResourceID.tired:
+        case PiboAnimationResourceID.tired, PiboAnimationResourceID.tiredResting:
             .lowSleep
         default:
             hasRealHealthData() ? .idle : .missingDataPibo

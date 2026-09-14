@@ -380,8 +380,9 @@ final class PiboCharacterRenderer {
     }
 
     func playContextualAction(_ action: PiboCoreAnimationAdapter.ContextualAction) {
-        if action == .checkIn, animationStateID == PiboAnimationResourceID.stable,
+        if action == .checkIn, [PiboAnimationResourceID.stable, PiboAnimationResourceID.stableThinking].contains(animationStateID),
            vector != nil, vectorTransition?.isRunning == false {
+            vector?.restartExpressionPat()
             vectorIdle?.restartAuthoredPat()
             return
         }
@@ -446,13 +447,13 @@ final class PiboCharacterRenderer {
                 ])),
             ])
         case .rest:
-            let settle = designLength(reduceMotion ? 1 : 7)
+            let settle = designLength(1)
             sequence = .sequence([
                 eased(.group([
                     .moveBy(x: 0, y: -settle, duration: medium),
                     .scaleX(
-                        to: reduceMotion ? 1.005 : 1.025,
-                        y: reduceMotion ? 0.99 : 0.94,
+                        to: 1,
+                        y: 1,
                         duration: medium
                     ),
                 ])),
@@ -467,6 +468,7 @@ final class PiboCharacterRenderer {
     }
 
     func cancelContextualAction() {
+        vector?.cancelExpressionPat()
         vectorIdle?.cancelAuthoredPat()
         contextualActionNode.removeAction(forKey: "contextualAction")
         contextualActionNode.removeAction(forKey: "squash")
@@ -763,10 +765,11 @@ final class PiboCharacterRenderer {
         }
         vectorPlaybook?.update(deltaTime: deltaTime)
         transition.update(deltaTime: deltaTime)
+        let hasExpression = PiboExpressionLibrary.shared?.bindings.values.contains(transition.toStateID) == true
         vector.setTransition(
-            from: transition.fromStateID,
+            from: hasExpression ? transition.toStateID : transition.fromStateID,
             to: transition.toStateID,
-            progress: transition.progress
+            progress: hasExpression ? 1 : transition.progress
         )
         vector.setSettleScale(transition.settleScale * transition.introScale)
         vector.setPresentationScale(
@@ -781,7 +784,9 @@ final class PiboCharacterRenderer {
         // 永远从一份干净的基准出发，不需要自己缓存「静止形状」。
         vector.resetIdleTransforms()
         // 亮相是定格 pose：登场期间常规连招暂停。
-        if !transition.suppressesIdle {
+        let expressionPlaying = vector.updateExpression(stateID: transition.toStateID,
+            deltaTime: deltaTime, reduceMotion: reduceMotion)
+        if !transition.suppressesIdle && !expressionPlaying {
             // 成果姿势留在首页时只呼吸，不继续演连招 —— 连招属于成果 Modal。
             var holdIdle = vectorPlaybook?.isPlaying == true
                 ? nil

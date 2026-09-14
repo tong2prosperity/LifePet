@@ -11,6 +11,9 @@ struct PiboAnimationIntegrationTests {
     @Test func shippedCharacterDataCoversAllStatesZonesAndRuntimePrimitives() throws {
         let data = try PiboCharacterData.load()
         let expectedStates: Set<String> = [
+            PiboAnimationResourceID.dataUnknown, PiboAnimationResourceID.wakingGround,
+            PiboAnimationResourceID.stableThinking, PiboAnimationResourceID.tiredResting,
+            PiboAnimationResourceID.wakingGreeted, PiboAnimationResourceID.wakingRecoveringGreeted,
             PiboAnimationResourceID.energetic,
             "pibo-state-stable-forest-idle", "pibo-state-waking-hammock-idle", "pibo-state-tired-forest-idle", "boring", "weak", "pibo-event-workout-celebrate",
             "pibo-event-activity-milestone-celebrate", "angry", "dive", "coolhide", "pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b",
@@ -25,13 +28,15 @@ struct PiboAnimationIntegrationTests {
 
         let expectedZones: [String: Set<String>] = [
             "ground": [
+                PiboAnimationResourceID.dataUnknown, PiboAnimationResourceID.wakingGround,
+                PiboAnimationResourceID.stableThinking, PiboAnimationResourceID.wakingGreeted,
+                PiboAnimationResourceID.wakingRecoveringGreeted, PiboAnimationResourceID.wakingGroundRecovering,
                 PiboAnimationResourceID.energetic,
                 "pibo-state-stable-forest-idle", "pibo-state-tired-forest-idle",
                 "pibo-event-workout-celebrate", "pibo-event-activity-milestone-celebrate", "angry",
             ],
             "groundRest": [
-                "pibo-state-sleeping-ground-idle-a",
-                "pibo-state-waking-ground-behavior-recovering",
+                "pibo-state-sleeping-ground-idle-a", PiboAnimationResourceID.tiredResting,
             ],
             "nest": ["pibo-state-waking-hammock-idle", "pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"],
             "treeTraverse": ["boring"],
@@ -48,8 +53,8 @@ struct PiboAnimationIntegrationTests {
         }
 
         let requiredPrimitives: Set<String> = [
-            "sampled-pose",
-            "sigh-sequence", "bring-to-front", "pop-loop", "bubble-breathe",
+            "expression",
+            "bring-to-front", "pop-loop", "bubble-breathe",
             "wink-morph", "blink", "path-wiggle", "shake", "bob", "sway",
         ]
         let shippedPrimitives = Set(data.states.values.flatMap { state in
@@ -72,32 +77,15 @@ struct PiboAnimationIntegrationTests {
 
     @Test func groundSleepAndRecoveringWakeUseReviewedRuntimeChoreography() throws {
         let data = try PiboCharacterData.load()
-
-        let groundSleep = try #require(
-            data.states[PiboAnimationResourceID.sleepingGroundA]?.idle
-        )
-        let sleepPart = try #require(groundSleep.resolvedParts.first)
-        #expect(groundSleep.resolvedParts.count == 1)
-        #expect(sleepPart.kind == "breathe-y")
-        #expect(sleepPart.duration == 4.8)
-        #expect(sleepPart.amplitude == 0.018)
-        #expect(sleepPart.origin == "156px 241px")
-
-        let recovering = try #require(
-            data.states[PiboAnimationResourceID.wakingGroundRecovering]?.idle
-        )
-        #expect(recovering.resolvedParts.map(\.kind) == [
-            "sigh-sequence", "blink", "rotate-around-point", "rotate-around-point",
-        ])
-        let sigh = recovering.resolvedParts[0]
-        let duration = (sigh.swellDuration ?? 0)
-            + (sigh.flattenDuration ?? 0)
-            + (sigh.recoverDuration ?? 0)
-            + (sigh.pauseDuration ?? 0)
-        #expect(abs(duration - 7.2) < 0.0001)
-        #expect(recovering.resolvedParts[1].period == 7.2)
-        #expect(recovering.resolvedParts[2].gateCycle == 7.2)
-        #expect(recovering.resolvedParts[3].gateCycle == 7.2)
+        let library = try PiboExpressionLibrary.load()
+        for (profile, resource) in library.bindings {
+            let idle = try #require(data.states[resource]?.idle)
+            #expect(idle.kind == "expression")
+            #expect(idle.resolvedParts.first?.clip == profile)
+            #expect(library.clips[profile]?.duration == 12)
+        }
+        #expect(library.clips["wakeNormal"]?.duration == 5.4)
+        #expect(library.clips["wakeRecovering"]?.duration == 6.2)
     }
 
     @Test func everyShippedStateExposesAPresentedSproutRootAnchor() throws {
@@ -221,7 +209,7 @@ struct PiboAnimationIntegrationTests {
             "weak": CGRect(x: 43, y: 57, width: 214, height: 185),
             "pibo-event-workout-celebrate": CGRect(x: 44, y: 6, width: 212, height: 287),
             "pibo-event-activity-milestone-celebrate": CGRect(x: 37, y: 9, width: 226, height: 277),
-            "pibo-state-tired-forest-idle": CGRect(x: 50, y: 39, width: 200, height: 220),
+            "pibo-state-tired-forest-idle": CGRect(x: 49.5, y: 66.5, width: 201, height: 215.5),
             "angry": CGRect(x: 42, y: 67, width: 217, height: 167),
             "dive": CGRect(x: 48, y: 82, width: 203, height: 136),
             "boring": CGRect(x: 42, y: 42, width: 216, height: 217),
@@ -665,37 +653,19 @@ struct PiboAnimationIntegrationTests {
     /// Whole-body idle scales about the authored `transform-origin` — almost
     /// always the character's contact point. Pivoting on the artboard centre
     /// instead slides the feet up and down with every breath.
-    @Test func wholeBodyIdlePivotsOnTheAuthoredOrigin() throws {
-        let data = try PiboCharacterData.load()
-        let part = try #require(data.states["pibo-state-tired-forest-idle"]?.idle?.resolvedParts.first)
-        #expect(part.kind == "breathe-y")
-        #expect(part.origin == "150px 259px")
-        #expect(part.duration == 4.2)
-
-        let character = try #require(PiboVectorCharacter(stateID: "pibo-state-tired-forest-idle", data: data))
-        let animator = PiboIdleAnimator(data: data)
-        let pivot = presented(CGPoint(x: 150, y: 259), of: character)
-        let crown = presented(CGPoint(x: 150, y: 60), of: character)
-
-        func advance(to time: TimeInterval) {
-            character.resetIdleTransforms()
-            animator.apply(
-                idle: data.states["pibo-state-tired-forest-idle"]?.idle,
-                stateID: "pibo-state-tired-forest-idle",
-                character: character,
-                time: time,
-                amplitude: 1
-            )
+    @Test func tiredUpperBodyMovesWhileFeetStayPlanted() throws {
+        let library = try PiboExpressionLibrary.load()
+        let clip = try #require(library.clips["tired"])
+        let feet = library.parts.indices.filter { ["leftleg", "rightleg", "leftlegline", "rightlegline"].contains(library.parts[$0].id) }
+        let body = try #require(library.parts.firstIndex { $0.id == "body" })
+        let rest = clip.sample(0)
+        var maxBodyMovement = 0.0
+        for step in 0...720 {
+            let frame = clip.sample(Double(step)/60)
+            for i in feet { #expect(frame.transforms[i] == rest.transforms[i]) }
+            maxBodyMovement = max(maxBodyMovement, abs(frame.transforms[body][5]-rest.transforms[body][5]))
         }
-
-        advance(to: 0)
-        // A quarter period in is the peak of the breath.
-        advance(to: 4.2 / 4)
-        let movedPivot = presented(CGPoint(x: 150, y: 259), of: character)
-        let movedCrown = presented(CGPoint(x: 150, y: 60), of: character)
-
-        #expect(hypot(movedPivot.x - pivot.x, movedPivot.y - pivot.y) < 0.0001)
-        #expect(hypot(movedCrown.x - crown.x, movedCrown.y - crown.y) > 0.5)
+        #expect(maxBodyMovement > 0.5)
     }
 
     /// `breathe` is a half wave — it only ever swells outward from the rest

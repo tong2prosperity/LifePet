@@ -578,6 +578,15 @@ struct HomeView: View {
     var body: some View {
         homeScene
             .accessibilityHidden(stagePaused)
+            .task(id: thinkingClockToken) {
+                animationPresentation.stableThinking = false
+                refreshExpressionBehavior()
+                guard thinkingEligible else { return }
+                try? await Task.sleep(for: .seconds(PiboCoreExpression.stableThinkingDelaySeconds))
+                guard !Task.isCancelled, thinkingEligible else { return }
+                animationPresentation.stableThinking = true
+                refreshExpressionBehavior()
+            }
             .onChange(of: animationPresentation.patState) { _, state in
                 contextualActions.cancelIfStateChanged(
                     to: state,
@@ -941,6 +950,23 @@ struct HomeView: View {
             hasReliableHealthData: health.dataAvailability.hasReliableData,
             now: now
         )
+        refreshExpressionBehavior()
+    }
+
+    private var thinkingEligible: Bool {
+        animationPresentation.state == .stable && scenePhase == .active && !stagePaused
+            && speechPresentation.line == nil && presentation.foodProjection == nil
+    }
+
+    private var thinkingClockToken: String {
+        "\(animationPresentation.patEpisodeKey):\(animationPresentation.attentionRevision):\(thinkingEligible)"
+    }
+
+    private func refreshExpressionBehavior() {
+        let input = HomePatInputProvider(store: store, history: history,
+            animationPresentation: animationPresentation,
+            healthAvailability: health.dataAvailability, storyStage: speechInput.storyStage).input()
+        animationPresentation.refreshExpression(behavior: piboSpeech.patBehavior(for: input))
     }
 
     private func reconcileShadowFriendFlow() {

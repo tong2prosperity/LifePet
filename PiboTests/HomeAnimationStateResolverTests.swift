@@ -5,7 +5,7 @@ import XCTest
 @MainActor
 final class HomeAnimationStateResolverTests: XCTestCase {
     func testResolverMapsOnlyTheCoreStateToAmbientArtwork() {
-        XCTAssertEqual(resolve(.dataUnknown).stateID, "pibo-state-stable-forest-idle")
+        XCTAssertEqual(resolve(.dataUnknown).stateID, PiboAnimationResourceID.dataUnknown)
         XCTAssertEqual(resolve(.stable).stateID, "pibo-state-stable-forest-idle")
         XCTAssertEqual(resolve(.waking).stateID, "pibo-state-waking-hammock-idle")
         XCTAssertEqual(resolve(.energetic).stateID, PiboAnimationResourceID.energetic)
@@ -13,7 +13,7 @@ final class HomeAnimationStateResolverTests: XCTestCase {
         XCTAssertTrue(["pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b"].contains(resolve(.sleeping).stateID))
     }
 
-    func testGroundSleepShipsWhileGenericGroundWakeStillFallsBack() {
+    func testGroundSleepAndGroundWakeKeepTheirPhysicalLocation() {
         let semantic = resolve(.sleeping)
         XCTAssertEqual(
             PiboAnimationStateMap.presentedAmbientStateID(
@@ -38,7 +38,7 @@ final class HomeAnimationStateResolverTests: XCTestCase {
                 state: waking.state,
                 hasHammock: false
             ),
-            PiboAnimationResourceID.stable
+            PiboAnimationResourceID.wakingGround
         )
     }
 

@@ -107,7 +107,9 @@ final class PiboShadowRenderer {
             y: transition.presentationScaleY
         )
         vector.resetIdleTransforms()
-        if !transition.suppressesIdle {
+        let expression = vector.updateExpression(stateID: transition.toStateID,
+            deltaTime: deltaTime, reduceMotion: reduceMotion)
+        if !transition.suppressesIdle && !expression {
             idle?.apply(
                 idle: PiboCharacterData.shared?.states[transition.toStateID]?.idle,
                 stateID: transition.toStateID,

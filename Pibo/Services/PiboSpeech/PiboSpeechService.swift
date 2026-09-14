@@ -127,6 +127,10 @@ final class PiboSpeechService: PiboSpeechProviding {
         patConversation.resolve(input, at: date)
     }
 
+    func patBehavior(for input: PiboPatConversationInput) -> PiboCorePatBehavior {
+        patConversation.behavior(for: input)
+    }
+
     func patStateChanged(_ state: PiboActivityState, episodeKey: String) {
         patConversation.stateChanged(state, episodeKey: episodeKey)
     }

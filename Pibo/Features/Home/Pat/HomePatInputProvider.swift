@@ -14,7 +14,7 @@ struct HomePatInputProvider {
         return PiboPatConversationInput(
             state: state,
             episodeKey: animationPresentation.patEpisodeKey,
-            stableThinking: false,
+            stableThinking: animationPresentation.stableThinking,
             ambientEvent: ambientEvent(for: state),
             dataUnknownReason: dataUnknownReason,
             storyStage: storyStageKey,

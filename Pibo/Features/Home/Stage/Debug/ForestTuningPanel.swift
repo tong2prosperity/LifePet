@@ -13,6 +13,7 @@ struct ForestTuningPanel: View {
     @Binding var playsAchievementCombo: Bool
     let onSelectAnimationState: (String?) -> Void
     let onReplayAnimation: () -> Void
+    let onObserveFood: (Bool) -> Void
     @State private var playbackTask: Task<Void, Never>?
     @State private var isPlayingDay = false
 
@@ -164,6 +165,13 @@ struct ForestTuningPanel: View {
             .buttonStyle(.plain)
             .accessibilityLabel("从头重播当前状态的登场与连招")
 
+            HStack {
+                Button("观察左侧") { isExpanded = false; onObserveFood(false) }
+                Button("观察右侧") { isExpanded = false; onObserveFood(true) }
+            }
+            .buttonStyle(.bordered)
+            .lpText(LP.Typography.c2Medium)
+
             Toggle("成果态演完整连招", isOn: $playsAchievementCombo)
                 .lpText(LP.Typography.c1Regular)
                 .tint(LP.Fill.foundationAccent)
@@ -218,7 +226,23 @@ struct ForestTuningPanel: View {
 
     /// 睡眠三态的 ID 太长，四列放不下。
     private func shortStateLabel(_ stateID: String) -> String {
-        stateID.replacingOccurrences(of: "sleep-", with: "睡")
+        switch stateID {
+        case PiboAnimationResourceID.dataUnknown: "等待数据"
+        case PiboAnimationResourceID.stable: "安稳"
+        case PiboAnimationResourceID.energetic: "精神很好"
+        case PiboAnimationResourceID.tired: "疲倦·清醒"
+        case PiboAnimationResourceID.stableThinking: "安稳·思考"
+        case PiboAnimationResourceID.tiredResting: "疲倦·休息"
+        case PiboAnimationResourceID.sleepingGroundA: "睡眠·苔藓"
+        case PiboAnimationResourceID.wakingGround: "初醒·苔藓"
+        case PiboAnimationResourceID.wakingGroundRecovering: "初醒·恢复不足"
+        case PiboAnimationResourceID.wakingGreeted: "初醒·问候后"
+        case PiboAnimationResourceID.wakingRecoveringGreeted: "困倦·问候后"
+        case PiboAnimationResourceID.sleepingHammockA: "吊床睡眠 A"
+        case PiboAnimationResourceID.sleepingHammockB: "吊床睡眠 B"
+        case PiboAnimationResourceID.wakingHammock: "吊床初醒"
+        default: stateID
+        }
     }
 
     private func isAchievementState(_ stateID: String) -> Bool {

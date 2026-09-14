@@ -1,8 +1,14 @@
 import Foundation
+import PiboCore
 
 /// Stable runtime IDs shared by the generated character data and both Apps.
 /// Product state names stay separate from concrete art clips.
 enum PiboAnimationResourceID {
+    static let dataUnknown = "pibo-state-data-unknown-forest-idle"
+    static let stableThinking = "pibo-state-stable-forest-behavior-thinking"
+    static let tiredResting = "pibo-state-tired-ground-behavior-resting"
+    static let wakingGreeted = "pibo-state-waking-ground-behavior-greeted"
+    static let wakingRecoveringGreeted = "pibo-state-waking-ground-behavior-recovering-greeted"
     static let stable = "pibo-state-stable-forest-idle"
     static let energetic = "pibo-state-energetic-forest-idle"
     static let activityMilestoneCelebrate = "pibo-event-activity-milestone-celebrate"
@@ -47,6 +53,12 @@ enum PiboAnimationStateMap {
 
     /// Stable semantic IDs and reviewed key poses shipped by pibo-media 0.5.0.
     static let available: Set<String> = [
+        PiboAnimationResourceID.dataUnknown,
+        PiboAnimationResourceID.wakingGround,
+        PiboAnimationResourceID.stableThinking,
+        PiboAnimationResourceID.tiredResting,
+        PiboAnimationResourceID.wakingGreeted,
+        PiboAnimationResourceID.wakingRecoveringGreeted,
         PiboAnimationResourceID.stable,
         PiboAnimationResourceID.energetic,
         PiboAnimationResourceID.activityMilestoneCelebrate,
@@ -60,26 +72,18 @@ enum PiboAnimationStateMap {
         "weak", "angry", "boring", "dive", "coolhide",
     ]
 
-    /// Resource availability never mutates the semantic Core state. Ground
-    /// sleep and the recovery-specific ground waking behavior ship; generic
-    /// ground waking still falls back until its base clip is approved.
+    /// Core chooses expression intent; item ownership only changes the physical
+    /// sleep/wake location. Behavior variants never introduce a health state.
     static func presentedAmbientStateID(
         semanticStateID: String,
         state: PiboActivityState,
         hasHammock: Bool,
-        needsWakingRecovery: Bool = false
+        needsWakingRecovery: Bool = false,
+        behavior: PiboCorePatBehavior = .default
     ) -> String {
-        guard !hasHammock else { return semanticStateID }
-        if state == .waking, needsWakingRecovery {
-            return PiboAnimationResourceID.wakingGroundRecovering
-        }
-        let groundID: String? = switch state {
-        case .sleeping: PiboAnimationResourceID.sleepingGroundA
-        case .waking: PiboAnimationResourceID.wakingGround
-        default: nil
-        }
-        guard let groundID else { return semanticStateID }
-        return available.contains(groundID) ? groundID : fallback
+        if hasHammock && (state == .sleeping || state == .waking) { return semanticStateID }
+        let expression = PiboCoreExpression.resolve(state: state.core, behavior: behavior, recovering: needsWakingRecovery)
+        return PiboExpressionLibrary.shared?.bindings[expression.contentID] ?? fallback
     }
 
     /// The ambient pose for a condition.

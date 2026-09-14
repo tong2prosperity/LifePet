@@ -32,7 +32,9 @@ enum PiboCoreAnimationAdapter {
         postPluckSleep: Bool = false
     ) -> String {
         switch state {
-        case .dataUnknown, .stable:
+        case .dataUnknown:
+            PiboAnimationResourceID.dataUnknown
+        case .stable:
             PiboAnimationResourceID.stable
         case .sleeping:
             switch PiboCoreAnimation.sleepVariant(
@@ -143,9 +145,11 @@ enum PiboCoreAnimationAdapter {
             return .energetic
         }
         return switch stateID {
-        case PiboAnimationResourceID.wakingHammock,
+        case PiboAnimationResourceID.dataUnknown: .dataUnknown
+        case PiboAnimationResourceID.wakingHammock, PiboAnimationResourceID.wakingGround,
+             PiboAnimationResourceID.wakingGreeted, PiboAnimationResourceID.wakingRecoveringGreeted,
              PiboAnimationResourceID.wakingGroundRecovering: .waking
-        case PiboAnimationResourceID.tired, "weak": .tired
+        case PiboAnimationResourceID.tired, PiboAnimationResourceID.tiredResting, "weak": .tired
         default: .stable
         }
     }

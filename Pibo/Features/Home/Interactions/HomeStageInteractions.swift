@@ -44,14 +44,19 @@ struct HomeStageInteractions {
             healthAvailability: healthAvailability(),
             storyStage: storyStage()
         ).input()
+        animationPresentation.noteAttention()
         HomePatInteractionCoordinator.run(
             input: input,
             speech: speech,
             contextualActions: contextualActions,
             stageCommands: stageCommands,
             presentHealthStatus: { presentSheet(.healthDataStatus) },
-            show: showAnimationLine
+            show: { line in
+                if input.state == .stable { animationPresentation.stableThinking = false }
+                showAnimationLine(line)
+            }
         )
+        animationPresentation.refreshExpression(behavior: input.state == .stable ? .default : speech.patBehavior(for: input))
     }
 
     private func handleSproutTouch() {

@@ -71,7 +71,7 @@ final class CharacterLabScene: SKScene {
             PiboAnimationResourceID.sleepingHammockB,
             PiboAnimationResourceID.wakingHammock,
         ]
-        stateIDs = preferred.filter { data.states[$0] != nil }
+        stateIDs = preferred.filter { data.states[$0] != nil } + PiboAnimationStateMap.available.subtracting(preferred).sorted()
 
         let built = PiboVectorCharacter(stateID: currentStateID, data: data)
         built?.setScale(baseScale * zoom)
@@ -164,7 +164,10 @@ final class CharacterLabScene: SKScene {
         // 干净的基准出发，不需要自己缓存「静止形状」—— Web 引擎那个「变形尾段
         // 启动的原语把中间帧缓存成基准、角色永久走形」的坑在这个结构下不成立。
         character.resetIdleTransforms()
-        if idleEnabled, !transition.suppressesIdle {
+        let expression = character.updateExpression(stateID: transition.toStateID,
+            deltaTime: idleEnabled ? delta : 0, reduceMotion: !idleEnabled,
+            captureClip: captureMotionClip, captureTime: captureMotionTime)
+        if idleEnabled, !transition.suppressesIdle, !expression {
             idle?.apply(
                 idle: data?.states[transition.toStateID]?.idle,
                 stateID: transition.toStateID,
@@ -173,7 +176,7 @@ final class CharacterLabScene: SKScene {
                 amplitude: transition.idleAmplitude
             )
         }
-        if let clipID = captureMotionClip, let clip = data?.authoredClips?[clipID] {
+        if !expression, let clipID = captureMotionClip, let clip = data?.authoredClips?[clipID] {
             PiboSampledMotionPlayer.apply(clip.pose(at: captureMotionTime), to: character,
                 stateID: transition.toStateID)
         }

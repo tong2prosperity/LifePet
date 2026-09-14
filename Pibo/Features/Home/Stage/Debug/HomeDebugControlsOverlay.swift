@@ -37,7 +37,8 @@ struct HomeDebugControlsOverlay: View {
                         }
                     ),
                     onSelectAnimationState: onSelectAnimationState,
-                    onReplayAnimation: { stageCommands.replayAnimationIntro() }
+                    onReplayAnimation: { stageCommands.replayAnimationIntro() },
+                    onObserveFood: { stageCommands.playFoodObservation(onRight: $0) }
                 )
                 Spacer(minLength: 0)
             }
