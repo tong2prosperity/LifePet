@@ -1,184 +1,171 @@
 import Foundation
+import PiboCore
 
-/// A rolling summary of recent nights, shared by the morning card's compact
-/// weekly strip and the history page's full weekly card. Aggregation is pure
-/// over persisted `HealthDayRecord`s.
+/// A rolling summary of recent nights for the sleep detail sheet and the
+/// (currently unlisted) history weekly card.
 ///
-/// Product rule: the UI shows only facts (durations, clock times, trend). Any
-/// derived *score* (sleep quality, routine regularity) stays here as a private
-/// input to neutral guidance and is never displayed as a number.
+/// The platform only attributes persisted records to local days. Every
+/// aggregate, score, regularity threshold and guidance decision comes from
+/// `pibo-core` (`PiboCoreSleep.weeklyReport`); nothing is re-derived in Swift.
+/// Scores stay background inputs to guidance and are never displayed.
 struct SleepWeeklyReport {
     let nightsWithData: Int
     let averageDuration: TimeInterval?
-    /// Average bedtime / wake time as minutes-of-day (0..<1440), circular-mean so
-    /// times either side of midnight average correctly. Displayed as a clock time.
+    /// Minutes-of-day (0..<1440), Core's circular mean.
     let averageBedtimeMinutes: Int?
     let averageWakeMinutes: Int?
-    /// Background-only signals (never shown as a number) that shape `suggestions`.
     let averageScore: Int?
     let regularity: Int?
-    /// Neutral, product-replaceable guidance (no tsundere voice on this surface).
+    /// Neutral, product-replaceable guidance copy mapped from Core flags.
     let suggestions: [String]
-    /// 7-day sleep-hours series for the sparkline (today blended live).
+    /// Seven real dates ending on the report's end day; missing nights keep
+    /// `hasData == false` instead of borrowing a neighbour.
     let trend: [FootprintsTrendPoint]
 
     var hasData: Bool { nightsWithData > 0 }
 
     /// minutes-of-day → "H:mm".
     nonisolated static func timeText(_ minutes: Int) -> String {
-        String(format: "%d:%02d", minutes / 60, minutes % 60)
+        let normalized = ((minutes % 1440) + 1440) % 1440
+        return String(format: "%d:%02d", normalized / 60, normalized % 60)
+    }
+
+    /// One night the caller already holds (e.g. a morning summary that has not
+    /// landed in history yet). It replaces the end day's record.
+    struct LiveNight {
+        let total: TimeInterval
+        let deep: TimeInterval
+        let rem: TimeInterval
+        let awake: TimeInterval
+        let start: Date?
+        let end: Date?
     }
 
     @MainActor
     static func make(
-        store: PetStateStore,
         history: HealthHistoryStore,
+        endDay: Date,
+        live: LiveNight? = nil,
         calendar: Calendar = .current
     ) -> SleepWeeklyReport {
-        let today = calendar.startOfDay(for: .now)
-        let weekStart = calendar.date(byAdding: .day, value: -6, to: today) ?? today
-        let twoWeekStart = calendar.date(byAdding: .day, value: -13, to: today) ?? today
+        let end = calendar.startOfDay(for: endDay)
+        let start = calendar.date(byAdding: .day, value: -13, to: end) ?? end
+        return report(
+            records: history.records(from: start, to: end).map(Night.init(record:)),
+            endDay: end,
+            live: live,
+            calendar: calendar
+        )
+    }
 
-        let weekRecords = history.records(from: weekStart, to: today).filter { $0.sleepTotal > 0 }
-        let regularityRecords = history.records(from: twoWeekStart, to: today)
-            .filter { $0.sleepStart != nil && $0.sleepEnd != nil }
+    /// Plain night evidence, decoupled from SwiftData for tests.
+    struct Night {
+        let date: Date
+        let total: TimeInterval
+        let deep: TimeInterval
+        let rem: TimeInterval
+        let awake: TimeInterval
+        let start: Date?
+        let end: Date?
 
-        let durations = weekRecords.map(\.sleepTotal)
-        let averageDuration = durations.isEmpty
-            ? nil
-            : durations.reduce(0, +) / Double(durations.count)
+        init(date: Date, total: TimeInterval, deep: TimeInterval = 0, rem: TimeInterval = 0,
+             awake: TimeInterval = 0, start: Date? = nil, end: Date? = nil) {
+            self.date = date
+            self.total = total
+            self.deep = deep
+            self.rem = rem
+            self.awake = awake
+            self.start = start
+            self.end = end
+        }
 
-        let bedtimeMinutes = regularityRecords.compactMap(\.sleepStart)
-            .map { minuteOfDay($0, calendar: calendar) }
-        let wakeMinutes = regularityRecords.compactMap(\.sleepEnd)
-            .map { minuteOfDay($0, calendar: calendar) }
-        let averageBedtimeMinutes = bedtimeMinutes.count >= 2
-            ? circularMeanMinutes(bedtimeMinutes)
-            : nil
-        let averageWakeMinutes = wakeMinutes.count >= 2
-            ? circularMeanMinutes(wakeMinutes)
-            : nil
-
-        let scores = weekRecords.map { record in
-            SleepScore.score(
-                total: record.sleepTotal,
-                deep: record.sleepDeep,
-                rem: record.sleepREM,
-                continuity: record.sleepAwake > 0
-                    ? record.sleepTotal / (record.sleepTotal + record.sleepAwake)
-                    : nil
+        @MainActor
+        init(record: HealthDayRecord) {
+            self.init(
+                date: record.date, total: record.sleepTotal, deep: record.sleepDeep,
+                rem: record.sleepREM, awake: record.sleepAwake,
+                start: record.sleepStart, end: record.sleepEnd
             )
         }
-        let averageScore = scores.isEmpty
-            ? nil
-            : Int((Double(scores.reduce(0, +)) / Double(scores.count)).rounded())
+    }
 
-        let regularity = routineRegularity(
-            bedtimes: regularityRecords.compactMap(\.sleepStart),
-            waketimes: regularityRecords.compactMap(\.sleepEnd),
-            calendar: calendar
-        )
+    static func report(
+        records: [Night],
+        endDay: Date,
+        live: LiveNight?,
+        calendar: Calendar = .current
+    ) -> SleepWeeklyReport {
+        let end = calendar.startOfDay(for: endDay)
+        var byDay: [Date: Night] = [:]
+        for night in records {
+            let offset = dayOffset(night.date, from: end, calendar: calendar)
+            guard (-13...0).contains(offset) else { continue }
+            byDay[calendar.startOfDay(for: night.date)] = night
+        }
+        if let live {
+            byDay[end] = Night(
+                date: end, total: live.total, deep: live.deep, rem: live.rem,
+                awake: live.awake, start: live.start, end: live.end
+            )
+        }
 
-        let trend = FootprintsTrendPoint.make(
-            range: .sevenDays,
-            store: store,
-            history: history,
-            calendar: calendar
-        )
+        let coreNights = byDay.values.map { night in
+            PiboCoreSleepWeeklyNight(
+                totalSeconds: max(0, night.total),
+                deepSeconds: max(0, night.deep),
+                remSeconds: max(0, night.rem),
+                awakeSeconds: max(0, night.awake),
+                bedtimeMinutes: night.start.map { minuteOfDay($0, calendar: calendar) },
+                wakeMinutes: night.end.map { minuteOfDay($0, calendar: calendar) },
+                dayOffset: dayOffset(night.date, from: end, calendar: calendar)
+            )
+        }
+        let core = PiboCoreSleep.weeklyReport(nights: coreNights)
+
+        let trend: [FootprintsTrendPoint] = (-6...0).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: end) else { return nil }
+            let seconds = max(0, byDay[date]?.total ?? 0)
+            return FootprintsTrendPoint(
+                date: date,
+                steps: 0,
+                sleep: seconds / 3600,
+                activeEnergy: 0,
+                hrv: 0,
+                hasData: seconds > 0
+            )
+        }
 
         return SleepWeeklyReport(
-            nightsWithData: weekRecords.count,
-            averageDuration: averageDuration,
-            averageBedtimeMinutes: averageBedtimeMinutes,
-            averageWakeMinutes: averageWakeMinutes,
-            averageScore: averageScore,
-            regularity: regularity,
-            suggestions: suggestions(
-                duration: averageDuration,
-                score: averageScore,
-                regularity: regularity
-            ),
+            nightsWithData: core.nightsWithData,
+            averageDuration: core.averageDurationSeconds,
+            averageBedtimeMinutes: core.averageBedtimeMinutes,
+            averageWakeMinutes: core.averageWakeMinutes,
+            averageScore: core.averageScore,
+            regularity: core.regularity,
+            suggestions: core.guidance.map(guidanceText),
             trend: trend
         )
     }
 
-    /// Circular-statistics regularity so a 23:50 / 00:10 pair reads as *close*,
-    /// not 24h apart. Returns nil with fewer than 4 nights.
-    nonisolated static func routineRegularity(
-        bedtimes: [Date],
-        waketimes: [Date],
-        calendar: Calendar = .current
-    ) -> Int? {
-        guard bedtimes.count >= 4, waketimes.count >= 4 else { return nil }
-        guard
-            let bedStd = circularStdMinutes(bedtimes.map { minuteOfDay($0, calendar: calendar) }),
-            let wakeStd = circularStdMinutes(waketimes.map { minuteOfDay($0, calendar: calendar) })
-        else { return nil }
-        // ~30 min combined night-to-night dispersion costs ≈ 15 points.
-        let penalty = 0.5 * (bedStd + wakeStd)
-        return min(100, max(0, Int((100 - penalty).rounded())))
+    private static func guidanceText(_ guidance: PiboCoreSleepWeeklyGuidance) -> String {
+        switch guidance {
+        case .irregular: "最近入睡和起床时间波动较大，尽量固定作息。"
+        case .shortDuration: "最近平均睡眠不足 7 小时，试着早点休息。"
+        case .goodQuality: "最近睡眠质量不错，保持下去。"
+        case .accumulating: "睡眠数据还在积累，先坚持记录几晚。"
+        }
     }
 
-    private nonisolated static func minuteOfDay(_ date: Date, calendar: Calendar) -> Double {
-        let c = calendar.dateComponents([.hour, .minute], from: date)
-        return Double((c.hour ?? 0) * 60 + (c.minute ?? 0))
+    private static func minuteOfDay(_ date: Date, calendar: Calendar) -> Int {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        return (components.hour ?? 0) * 60 + (components.minute ?? 0)
     }
 
-    /// Circular mean of times-of-day (minutes 0..<1440), returned as minutes-of-day
-    /// so bedtimes either side of midnight (23:50 / 00:10) average to ~00:00.
-    private nonisolated static func circularMeanMinutes(_ minutes: [Double]) -> Int? {
-        guard !minutes.isEmpty else { return nil }
-        let twoPi = 2 * Double.pi
-        var cosSum = 0.0
-        var sinSum = 0.0
-        for minute in minutes {
-            let angle = twoPi * (minute / 1440)
-            cosSum += cos(angle)
-            sinSum += sin(angle)
-        }
-        guard abs(cosSum) > 1e-9 || abs(sinSum) > 1e-9 else { return nil }
-        var angle = atan2(sinSum, cosSum)
-        if angle < 0 { angle += twoPi }
-        let minute = angle / twoPi * 1440
-        return Int(minute.rounded()) % 1440
-    }
-
-    /// Circular standard deviation of times-of-day (minutes 0..<1440), in minutes.
-    private nonisolated static func circularStdMinutes(_ minutes: [Double]) -> Double? {
-        guard !minutes.isEmpty else { return nil }
-        let twoPi = 2 * Double.pi
-        var cosSum = 0.0
-        var sinSum = 0.0
-        for minute in minutes {
-            let angle = twoPi * (minute / 1440)
-            cosSum += cos(angle)
-            sinSum += sin(angle)
-        }
-        let n = Double(minutes.count)
-        let r = (cosSum * cosSum + sinSum * sinSum).squareRoot() / n
-        guard r > 0 else { return 1440 / 4 }   // maximally dispersed
-        let stdRadians = (-2 * log(min(1, r))).squareRoot()
-        return stdRadians * (1440 / twoPi)
-    }
-
-    private nonisolated static func suggestions(
-        duration: TimeInterval?,
-        score: Int?,
-        regularity: Int?
-    ) -> [String] {
-        var out: [String] = []
-        if let regularity, regularity < 60 {
-            out.append("最近入睡和起床时间波动较大，尽量固定作息。")
-        }
-        if let duration, duration < 7 * 3600 {
-            out.append("最近平均睡眠不足 7 小时，试着早点休息。")
-        }
-        if out.isEmpty, let score, score >= 80 {
-            out.append("最近睡眠质量不错，保持下去。")
-        }
-        if out.isEmpty {
-            out.append("睡眠数据还在积累，先坚持记录几晚。")
-        }
-        return Array(out.prefix(2))
+    private static func dayOffset(_ date: Date, from end: Date, calendar: Calendar) -> Int {
+        calendar.dateComponents(
+            [.day],
+            from: end,
+            to: calendar.startOfDay(for: date)
+        ).day ?? 0
     }
 }

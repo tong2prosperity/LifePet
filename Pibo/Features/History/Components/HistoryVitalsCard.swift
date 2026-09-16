@@ -1,33 +1,40 @@
 import SwiftUI
 
-/// 体征 card — a 2×2 grid of vital tiles: 实时心率 / 静息心率 / HRV(RMSSD) /
-/// 血氧(SpO2), each a tinted tile with a qualitative word + value (Figma
-/// `body status content` 1405:4320).
+/// 体征 card — a 2×2 grid: 心率 / 静息心率 / HRV(RMSSD) / 血氧(SpO2).
+///
+/// History values are day aggregates, not live readings, so the tiles carry no
+/// 「实时」 wording and no hard-coded 偏快/偏低 categories. The HRV qualifier is
+/// supplied by the caller (today's Core baseline tier, or 当日中位数).
 struct HistoryVitalsCard: View {
-    let heartRate: Double      // bpm
-    let restingHR: Double      // bpm
-    /// **Our own** RMSSD (`HRVAnalysis`), not Apple's `heartRateVariabilitySDNN`.
-    /// The tile used to show SDNN under a 「压力水平」 label while the 压力卡 right
-    /// below showed the RMSSD-derived index — two different numbers both
-    /// presented as "压力". SDNN reads systematically higher than RMSSD and the
-    /// gap widens as HRV rises, so they can never be reconciled by eye.
-    let rmssd: Double          // ms
-    /// Tier for `rmssd`, judged against the personal baseline by the caller.
-    /// Passed in rather than derived here so the scoring thresholds stay in
-    /// `pibo-core` — this view owns presentation only.
-    let stressLevel: StressLevel?
-    let oxygen: Double         // fraction 0–1
+    let heartRate: Double?      // bpm, the day's average
+    let restingHR: Double?      // bpm
+    /// **Our own** RMSSD for the day (`HRVAnalysis`), not Apple's SDNN.
+    let rmssd: Double?          // ms
+    let rmssdQualifier: String
+    let oxygen: Double?         // fraction 0–1
 
     var body: some View {
         HistoryCard(title: "体征", background: { LP.Fill.bgContainer }) {
             VStack(spacing: LP.Spacing.s) {
                 HStack(spacing: LP.Spacing.s) {
-                    heartTile
-                    restingTile
+                    VitalTile(icon: "heart.fill", title: "心率",
+                              qualifier: Self.recordWord(heartRate),
+                              value: heartRate.map { "\(Int($0.rounded()))" } ?? "—", unit: "bpm",
+                              tint: LP.Colorful.red500, bg: LP.Colorful.red100)
+                    VitalTile(icon: "heart.circle.fill", title: "静息心率",
+                              qualifier: Self.recordWord(restingHR),
+                              value: restingHR.map { "\(Int($0.rounded()))" } ?? "—", unit: "bpm",
+                              tint: LP.Colorful.orange500, bg: LP.Colorful.orange100)
                 }
                 HStack(spacing: LP.Spacing.s) {
-                    stressTile
-                    oxygenTile
+                    VitalTile(icon: "figure.mind.and.body", title: "HRV",
+                              qualifier: rmssd == nil ? "暂无" : rmssdQualifier,
+                              value: rmssd.map { String(format: "%.0f", $0) } ?? "—", unit: "ms",
+                              tint: LP.Colorful.yellow500, bg: LP.Colorful.yellow100)
+                    VitalTile(icon: "lungs.fill", title: "血氧",
+                              qualifier: Self.recordWord(oxygen),
+                              value: oxygen.map { "\(Int(($0 * 100).rounded()))" } ?? "—", unit: "%",
+                              tint: LP.Colorful.purple500, bg: LP.Colorful.purple100)
                 }
             }
             .padding(.horizontal, LP.Spacing.s)
@@ -35,30 +42,8 @@ struct HistoryVitalsCard: View {
         }
     }
 
-    private var heartTile: VitalTile {
-        VitalTile(icon: "heart.fill", title: "实时心率",
-                  qualifier: heartRate <= 0 ? "暂无" : (heartRate > 100 ? "偏快" : (heartRate < 60 ? "偏慢" : "平稳")),
-                  value: heartRate > 0 ? "\(Int(heartRate))" : "—", unit: "bpm",
-                  tint: LP.Colorful.red500, bg: LP.Colorful.red100)
-    }
-    private var restingTile: VitalTile {
-        VitalTile(icon: "heart.circle.fill", title: "静息心率",
-                  qualifier: restingHR <= 0 ? "暂无" : (restingHR > 70 ? "偏高" : (restingHR < 50 ? "偏低" : "正常")),
-                  value: restingHR > 0 ? "\(Int(restingHR))" : "—", unit: "bpm",
-                  tint: LP.Colorful.orange500, bg: LP.Colorful.orange100)
-    }
-    private var stressTile: VitalTile {
-        VitalTile(icon: "figure.mind.and.body", title: "HRV",
-                  qualifier: rmssd > 0 ? (stressLevel?.displayName ?? "建立个人参考中") : "暂无",
-                  value: rmssd > 0 ? String(format: "%.0f", rmssd) : "—", unit: "ms",
-                  tint: LP.Colorful.yellow500, bg: LP.Colorful.yellow100)
-    }
-    private var oxygenTile: VitalTile {
-        let pct = Int((oxygen * 100).rounded())
-        return VitalTile(icon: "lungs.fill", title: "血氧",
-                         qualifier: oxygen <= 0 ? "暂无" : (pct >= 95 ? "正常" : "偏低"),
-                         value: oxygen > 0 ? "\(pct)" : "—", unit: "%",
-                         tint: LP.Colorful.purple500, bg: LP.Colorful.purple100)
+    private static func recordWord(_ value: Double?) -> String {
+        value == nil ? "暂无" : "已同步记录"
     }
 }
 

@@ -43,6 +43,16 @@ struct MorningSleepSummary: Codable, Equatable, Identifiable, Sendable {
     /// present when an in-bed envelope exists and the value is in a sane range;
     /// otherwise nil (shown as a placeholder). See the builder's guardrails.
     let sleepLatency: TimeInterval?
+    /// Added 2026-09-16 (all optional, so older archives still decode).
+    /// `true` only when the body fields above were queried inside this
+    /// session's sleep window. A cached summary without the flag shows its
+    /// night body records as 未记录 instead of risking daytime values.
+    var nightSignalsScoped: Bool? = nil
+    /// Longest in-bed envelope overlapping the session, physically bounded.
+    var sleepInBed: TimeInterval? = nil
+    /// Wake count reported by the provider. HealthKit exposes none, so this
+    /// stays nil on iOS; `awakeningCount` above is a local inference.
+    var providerAwakeningCount: Int? = nil
 
     /// Avoid turning a short incidental sample into the once-a-day morning
     /// experience, and never treat a still-growing session as a finished night.
@@ -116,31 +126,6 @@ enum MorningSleepCopy {
     static let cardPiboCatchUpLine = "这是那天的睡眠记录。"
 }
 
-/// Pure 0–100 sleep score for **background use only** — it must never be shown
-/// to the user as a number (product rule: surface facts, not grades). Currently
-/// it only feeds the weekly report's neutral guidance (`SleepWeeklyReport`).
-enum SleepScore {
-    /// Duration (8h → full 50) + deep (1.5h → 25) + REM (1.5h → 15) +
-    /// continuity (10). `continuity` is the real total/(total+awake) ratio when
-    /// known; falls back to a duration proxy when a night has no awake signal.
-    static func score(
-        total: TimeInterval,
-        deep: TimeInterval,
-        rem: TimeInterval,
-        continuity: Double?
-    ) -> Int {
-        let totalH = total / 3600
-        let deepH = deep / 3600
-        let remH = rem / 3600
-        let durationTerm = min(1, totalH / 8) * 50
-        let deepTerm = min(1, deepH / 1.5) * 25
-        let remTerm = min(1, remH / 1.5) * 15
-        let continuityRatio = continuity ?? min(1, totalH / 6)
-        let continuityTerm = min(1, max(0, continuityRatio)) * 10
-        return min(100, max(0, Int((durationTerm + deepTerm + remTerm + continuityTerm).rounded())))
-    }
-}
-
 #if DEBUG
 extension MorningSleepSummary {
     static func debugFixture(now: Date = .now) -> MorningSleepSummary {
@@ -185,7 +170,9 @@ extension MorningSleepSummary {
             oxygenSaturation: nil,
             sleepHeartRateAverage: 57,
             sleepHeartRateMin: 49,
-            sleepLatency: 12 * 60
+            sleepLatency: 12 * 60,
+            nightSignalsScoped: true,
+            sleepInBed: 412 * 60
         )
     }
 }
@@ -220,6 +207,8 @@ struct MorningSleepSessionValue: Sendable {
     /// Earliest in-bed envelope start covering this session's onset, when one
     /// exists. Kept so the caller can estimate sleep latency (onset − in-bed).
     let inBedStart: Date?
+    /// Longest physically plausible in-bed envelope overlapping the session.
+    var inBedDuration: TimeInterval? = nil
 }
 
 enum MorningSleepSessionBuilder {
@@ -350,7 +339,12 @@ enum MorningSleepSessionBuilder {
             hasTerminalAwakeSignal: terminalAwake,
             awakeningCount: detailed ? internalAwake.count : nil,
             continuity: detailed && total + awake > 0 ? total / (total + awake) : nil,
-            inBedStart: inBedStart
+            inBedStart: inBedStart,
+            inBedDuration: sourceSamples
+                .filter { $0.isInBed && $0.end > start && $0.start < end }
+                .map { $0.end.timeIntervalSince($0.start) }
+                .filter { $0.isFinite && $0 > 0 && $0 <= 24 * 60 * 60 }
+                .max()
         )
     }
 

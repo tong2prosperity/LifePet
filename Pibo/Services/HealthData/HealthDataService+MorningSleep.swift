@@ -218,7 +218,10 @@ extension HealthDataService {
             oxygenSaturation: await oxygenSaturation,
             sleepHeartRateAverage: sleepHeartRateAverage,
             sleepHeartRateMin: sleepHeartRateMin,
-            sleepLatency: sleepLatency
+            sleepLatency: sleepLatency,
+            // Every body value above was queried inside the session window.
+            nightSignalsScoped: true,
+            sleepInBed: session.inBedDuration
         )
         LPLog.sleep.info(
             "Morning summary wakeDay=\(summary.wakeDayKey, privacy: .public) total=\(Int(summary.total / 60), privacy: .public)min detailed=\(summary.hasDetailedStages, privacy: .public)"
