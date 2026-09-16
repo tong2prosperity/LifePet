@@ -339,7 +339,10 @@ final class PiboCharacterRenderer {
             return
         }
         if headRig.isEnabled {
-            headRig.setInteraction(horizontalDisplacement: dx, upwardDisplacement: up)
+            // Normalise by the forest scale so the bend feels the same on
+            // every screen size (2026-09-06 sprout drag continuity).
+            let unit = max(0.5, designUnitScale)
+            headRig.setInteraction(horizontalDisplacement: dx / unit, upwardDisplacement: up / unit)
             return
         }
         headNode.zRotation = -0.55 * Self.rubberBand(dx, limit: 110) / 110
