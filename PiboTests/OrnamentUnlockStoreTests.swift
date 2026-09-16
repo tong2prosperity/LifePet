@@ -30,7 +30,7 @@ struct OrnamentUnlockStoreTests {
         #expect(PiboOrnament.ordered.map(\.cost) == [1, 3, 6, 10])
         #expect(PiboOrnament.ordered.allSatisfy { PiboOrnament.coreDefinition($0.id).initiallyEligible })
         let observer = PiboOrnament.ornament(.statusObserver)?.placement
-        #expect(observer?.frame == CGRect(x: 24, y: 606, width: 76, height: 96))
+        #expect(observer?.frame == CGRect(x: 24, y: 493, width: 76, height: 43))
         #expect(observer?.zPosition == 30)
     }
 

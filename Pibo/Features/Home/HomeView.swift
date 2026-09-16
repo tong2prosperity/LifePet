@@ -73,6 +73,7 @@ struct HomeView: View {
     @State private var boBalanceTarget: CGPoint?
     /// Current pose's bo container top (global), for the speech bubble.
     @State private var speechAnchor: CGPoint?
+    @AccessibilityFocusState private var statusObserverHeadingFocused: Bool
     #if DEBUG
     @State private var debugControls = HomeDebugControlsState()
     #endif
@@ -113,21 +114,22 @@ struct HomeView: View {
         presentationPolicy.fullScreenFeaturePresented
     }
 
-    private var statusObserverPinned: Bool {
-        #if DEBUG
-        if HomeDebugLaunchOptions.current.showsStatusObserver { return true }
-        #endif
-        return statusObserverPresentation.isPinned(petID: store.identity.currentPetId)
+    private var statusObserverOpen: Bool {
+        statusObserverPresentation.isOpen
+    }
+
+    private var statusObserverUsesSample: Bool {
+        statusObserverPresentation.usesSample
     }
 
     private var statusObserverOwnsHealthStatus: Bool {
-        statusObserverPinned && ornamentUnlocks.grants(.recoveryStatus)
+        statusObserverCardVisible
     }
 
     private var statusObserverCardVisible: Bool {
         presentationPolicy.statusObserverCardVisible(
-            isPinned: statusObserverPinned,
-            recoveryStatusGranted: ornamentUnlocks.grants(.recoveryStatus),
+            isOpen: statusObserverOpen,
+            recoveryStatusGranted: statusObserverUsesSample || ornamentUnlocks.grants(.recoveryStatus),
             foodProjectionPresented: presentation.foodProjection != nil,
             transientNoticePresented: presentation.transientNotice != nil,
             shadowLightBannerPresented: shadowLightBanner != nil
@@ -136,16 +138,18 @@ struct HomeView: View {
 
     private var statusObserverCardData: WellnessObserverPresentation {
         #if DEBUG
-        if HomeDebugLaunchOptions.current.showsStatusObserver {
+        if statusObserverUsesSample {
+            // Sample fixture only: detached from health history, Core scoring,
+            // rewards and ownership. The panel labels it as sample data.
             return .init(content: .available(.init(
-                score: 78,
+                score: 82,
                 band: .personalNormal,
-                sleepSufficiency: 86,
+                sleepSufficiency: 94,
                 load: .usual,
                 primaryReason: .sleepSufficient,
                 secondaryReason: .hrvUsual,
-                calibrationDays: 18,
-                generatedAt: Date(timeIntervalSince1970: 1_777_013_400)
+                calibrationDays: 21,
+                generatedAt: atmosphereClock.now
             )))
         }
         #endif
@@ -414,14 +418,21 @@ struct HomeView: View {
                 .zIndex(5)
 
             chromeContent
-                .accessibilityHidden(stagePaused)
+                .accessibilityHidden(stagePaused || statusObserverCardVisible)
+                .opacity(statusObserverCardVisible ? 0 : 1)
+                .allowsHitTesting(!statusObserverCardVisible)
 
             if statusObserverCardVisible {
-                statusObserverCard
+                statusObserverPanel
                     .zIndex(20)
                     .transition(reduceMotion
                         ? .identity
-                        : .move(edge: .top).combined(with: .opacity))
+                        : .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
+                                .animation(.easeOut(duration: 0.24)),
+                            removal: .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
+                                .animation(.easeOut(duration: 0.16))
+                        ))
             }
 
             HomeStoryRecoveryOverlay(
@@ -630,7 +641,29 @@ struct HomeView: View {
             .onChange(of: shadowAutomationToken) { _, _ in
                 reconcileShadowFriendFlow()
             }
+            .onChange(of: scenePhase) { _, phase in
+                // Decision 047: backgrounding ends the transient observer view,
+                // and so does any sheet or full-screen feature taking over Home.
+                if phase != .active { statusObserverPresentation.close() }
+            }
+            .onChange(of: presentation.activeSheet == nil && !fullScreenFeaturePresented) { _, homeClear in
+                if !homeClear { statusObserverPresentation.close() }
+            }
+            #if DEBUG
+            .onReceive(NotificationCenter.default.publisher(for: HomeDebugRequest.notification)) { note in
+                guard let raw = note.object as? String,
+                      let request = HomeDebugRequest(rawValue: raw) else { return }
+                presentation.showSettings = false
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(600))
+                    handleDebugRequest(request)
+                }
+            }
+            #endif
             .onDisappear {
+                statusObserverPresentation.close()
+                boBalanceHintTask?.cancel()
+                boBalanceHint = nil
                 piboSpeech.leaveHome()
                 speechPresentation.dismiss()
                 stageCommands.cancelFoodObservation()
@@ -651,6 +684,11 @@ struct HomeView: View {
                 presentBoProgressFeedbackIfPossible()
             }
             .onAppear {
+                #if DEBUG
+                if HomeDebugLaunchOptions.current.showsStatusObserver {
+                    statusObserverPresentation.open(sample: true)
+                }
+                #endif
                 presentBoProgressFeedbackIfPossible()
                 shadowSync.setSnapshotDraft(shadowSnapshotDraft)
                 reconcileShadowFriendFlow()
@@ -872,34 +910,123 @@ struct HomeView: View {
         )
     }
 
-    private var statusObserverCard: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 0) {
-                WellnessObserverCard(
-                    presentation: statusObserverCardData,
-                    trend: statusObserverTrend,
-                    expanded: statusObserverPresentation.expanded,
-                    onToggleExpanded: {
-                        statusObserverPresentation.setExpanded(
-                            !statusObserverPresentation.expanded
-                        )
-                    },
-                    onOpenHealthStatus: {
-                        speechPresentation.dismiss()
-                        presentation.activeSheet = .healthDataStatus
+    /// Decision 047 floating view. The forest keeps running behind a
+    /// transparent dismissal surface; hammock poses move the panel below Pibo.
+    private var statusObserverPanel: some View {
+        GeometryReader { proxy in
+            let width = min(340, max(240, proxy.size.width - 32))
+            let raisedPose = [
+                PiboAnimationResourceID.sleepingHammockA,
+                PiboAnimationResourceID.sleepingHammockB,
+                PiboAnimationResourceID.wakingHammock,
+            ].contains(animationPresentation.stateID)
+            let maxCardHeight = max(180, proxy.size.height * 0.40)
+            let top: CGFloat = raisedPose
+                ? max(72, proxy.size.height - maxCardHeight - 76 - 60)
+                : 72
+            ZStack(alignment: .topTrailing) {
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: closeStatusObserver)
+                    .accessibilityHidden(true)
+                VStack(spacing: 0) {
+                    HStack(spacing: 8) {
+                        Image(uiImage: UIImage(named: "forest_status_observer_floating") ?? UIImage())
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 88, height: 52)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(AppLocalization.text("状态观测仪"))
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(PiboMoss.Color.forestInk)
+                                .accessibilityAddTraits(.isHeader)
+                                .accessibilityFocused($statusObserverHeadingFocused)
+                            Text(AppLocalization.text(statusObserverUsesSample
+                                ? "示例数据 · 不代表你的健康状态"
+                                : "查看已有健康记录"))
+                                .font(.system(size: 12))
+                                .foregroundStyle(PiboMoss.Color.secondaryInk)
+                        }
+                        Spacer(minLength: 0)
+                        Button(action: closeStatusObserver) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(PiboMoss.Color.forestInk)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(AppLocalization.text("关闭状态观测仪"))
                     }
-                )
-                Spacer(minLength: 0)
+                    .padding(.leading, 8)
+                    .padding(.trailing, 4)
+                    .background(RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(PiboMoss.Color.raisedNeutral.opacity(0.96)))
+                    ScrollView {
+                        WellnessObserverCard(
+                            presentation: statusObserverCardData,
+                            trend: statusObserverTrend,
+                            expanded: statusObserverPresentation.expanded,
+                            onToggleExpanded: {
+                                statusObserverPresentation.setExpanded(
+                                    !statusObserverPresentation.expanded
+                                )
+                            },
+                            onOpenHealthStatus: {
+                                closeStatusObserver()
+                                speechPresentation.dismiss()
+                                presentation.activeSheet = .healthDataStatus
+                            }
+                        )
+                    }
+                    .frame(maxHeight: maxCardHeight)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                }
+                .frame(width: width)
+                .padding(.top, top)
+                .padding(.trailing, 16)
             }
-            Spacer(minLength: 0)
+            .accessibilityAction(.escape) { closeStatusObserver() }
         }
-        .padding(.horizontal, LP.Spacing.l)
-        .padding(.top, 56)
+        .onAppear { statusObserverHeadingFocused = true }
+    }
+
+    #if DEBUG
+    private func handleDebugRequest(_ request: HomeDebugRequest) {
+        switch request {
+        case .statusObserverSample:
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) {
+                statusObserverPresentation.open(sample: true)
+            }
+        case .boRipePreview:
+            stageCommands.debugPlayBoRipePreview()
+        case .boGrowthHint:
+            stageCommands.debugPlayBoGrowthHint()
+        }
+    }
+    #endif
+
+    private func closeStatusObserver() {
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
+            statusObserverPresentation.close()
+        }
     }
 
     private var statusObserverTrend: [WellnessObserverCard.TrendDay] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
+        #if DEBUG
+        if statusObserverUsesSample {
+            let scores: [Double?] = [68, 72, nil, 75, 71, 79, 82]
+            return (-6...0).compactMap { offset in
+                calendar.date(byAdding: .day, value: offset, to: today).map {
+                    WellnessObserverCard.TrendDay(date: $0, score: scores[offset + 6])
+                }
+            }
+        }
+        #endif
         return (-6...0).compactMap { offset in
             guard let date = calendar.date(byAdding: .day, value: offset, to: today) else { return nil }
             return WellnessObserverCard.TrendDay(
@@ -909,17 +1036,16 @@ struct HomeView: View {
         }
     }
 
+    /// Tapping the instrument toggles the transient view (the entry region
+    /// counts as a close path too). The view never changes Pibo or its episode.
     private func toggleStatusObserver() {
-        let isPinned = statusObserverPinned
-        let animation: Animation? = if reduceMotion {
-            nil
-        } else if isPinned {
-            .easeIn(duration: 0.14)
-        } else {
-            .easeOut(duration: 0.20)
+        if statusObserverPresentation.isOpen {
+            closeStatusObserver()
+            return
         }
-        _ = withAnimation(animation) {
-            statusObserverPresentation.togglePinned(petID: store.identity.currentPetId)
+        speechPresentation.dismiss()
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) {
+            statusObserverPresentation.open()
         }
     }
 
@@ -1118,7 +1244,8 @@ struct HomeView: View {
     }
 
     private func performReset() {
-        statusObserverPresentation.reset()
+        statusObserverPresentation.close()
+        UserDefaults.standard.removeObject(forKey: PiboPersistenceKeys.Defaults.wellnessObserverPinnedPetIDs)
         HomeResetCoordinator.run(
             speech: piboSpeech,
             store: store,

@@ -65,6 +65,11 @@ final class PiboStageCommandController {
         return scene.playBoProgressFeedback(presentation)
     }
 
+    #if DEBUG
+    func debugPlayBoRipePreview() { scene?.debugPlayBoRipePreview() }
+    func debugPlayBoGrowthHint() { scene?.debugPlayBoGrowthHint() }
+    #endif
+
     func playSproutGrowth(from start: Double, to target: Double) {
         scene?.playSproutGrowth(from: start, to: target)
     }

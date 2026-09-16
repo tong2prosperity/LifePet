@@ -129,14 +129,15 @@ struct PiboOrnament: Identifiable, Equatable, Sendable {
                 id: .statusObserver,
                 name: "状态观测仪",
                 entryKey: "ornament.status_observer.entry",
-                thumbnailImage: "forest_status_observer",
-                // 左下岩石前、前景叶片后。它是环境里的观测装置，不跟随 Pibo，
-                // 也不会凭空显示一个健康分数。
+                thumbnailImage: "forest_status_observer_floating",
+                // 决定 047：浅色机身、青绿横向镜片的浮空观测仪，已拥有时下方
+                // 标「查看状态」。它是环境里的观测装置，不跟随 Pibo，也不会凭空
+                // 显示一个健康分数。1672×940 素材按比例落在 76 宽的格子里。
                 placement: Placement(
-                    frame: CGRect(x: 24, y: 606, width: 76, height: 96),
+                    frame: CGRect(x: 24, y: 493, width: 76, height: 43),
                     zPosition: 30,
                     lightingGroup: .foreground,
-                    image: "forest_status_observer"
+                    image: "forest_status_observer_floating"
                 )
             ),
             Presentation(

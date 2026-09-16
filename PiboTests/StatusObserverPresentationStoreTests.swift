@@ -4,62 +4,33 @@ import Testing
 
 @MainActor
 struct StatusObserverPresentationStoreTests {
-    @Test func pinnedChoicePersistsPerPetWhileExpansionDoesNot() throws {
-        let suite = "StatusObserverPresentationStoreTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let key = "test.status-observer"
-        let firstPet = UUID()
-        let secondPet = UUID()
-
-        let firstStore = StatusObserverPresentationStore(
-            defaults: defaults,
-            persistenceKey: key
-        )
-        #expect(firstStore.togglePinned(petID: firstPet))
-        firstStore.setExpanded(true)
-        #expect(firstStore.isPinned(petID: firstPet))
-        #expect(!firstStore.isPinned(petID: secondPet))
-        #expect(firstStore.expanded)
-
-        let restored = StatusObserverPresentationStore(
-            defaults: defaults,
-            persistenceKey: key
-        )
-        #expect(restored.isPinned(petID: firstPet))
-        #expect(!restored.isPinned(petID: secondPet))
-        #expect(!restored.expanded)
-    }
-
-    @Test func unpinCollapsesAndResetRemovesAllPersistedChoices() throws {
-        let suite = "StatusObserverPresentationStoreReset.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let key = "test.status-observer"
-        let pet = UUID()
-        let store = StatusObserverPresentationStore(defaults: defaults, persistenceKey: key)
-
-        store.togglePinned(petID: pet)
+    @Test func viewingIsTransientAndResetsExpansion() {
+        let store = StatusObserverPresentationStore()
+        #expect(!store.isOpen)
+        store.open()
         store.setExpanded(true)
-        #expect(!store.togglePinned(petID: pet))
-        #expect(!store.expanded)
-
-        store.togglePinned(petID: pet)
-        store.reset()
-        #expect(!store.isPinned(petID: pet))
-        #expect(defaults.object(forKey: key) == nil)
+        #expect(store.isOpen && store.expanded && !store.usesSample)
+        store.close()
+        #expect(!store.isOpen && !store.expanded)
+        store.open()
+        #expect(!store.expanded, "reopening never restores the previous expansion")
     }
 
-    @Test func invalidPersistedIdentifiersAreIgnored() throws {
-        let suite = "StatusObserverPresentationStoreInvalid.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let key = "test.status-observer"
-        let pet = UUID()
-        defaults.set(["not-a-uuid", pet.uuidString], forKey: key)
+    @Test func sampleModeEndsWithTheView() {
+        let store = StatusObserverPresentationStore()
+        store.open(sample: true)
+        #if DEBUG
+        #expect(store.usesSample)
+        #endif
+        store.close()
+        #expect(!store.usesSample)
+    }
 
-        let store = StatusObserverPresentationStore(defaults: defaults, persistenceKey: key)
-
-        #expect(store.isPinned(petID: pet))
+    @Test func freshStoreIgnoresTheLegacyPin() throws {
+        let key = PiboPersistenceKeys.Defaults.wellnessObserverPinnedPetIDs
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(previous, forKey: key) }
+        UserDefaults.standard.set([UUID().uuidString], forKey: key)
+        #expect(!StatusObserverPresentationStore().isOpen)
     }
 }

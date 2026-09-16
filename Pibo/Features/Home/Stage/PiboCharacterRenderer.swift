@@ -1329,6 +1329,46 @@ final class PiboCharacterRenderer {
         LPLog.bo.notice("maturity motion started")
     }
 
+    #if DEBUG
+    /// Presentation-only replay from 90%: never reads or writes the ledger and
+    /// restores the real fill when it ends.
+    func debugPlayBoRipePreview() {
+        cancelBoProgressFeedback()
+        playBoRipe(BoProgressPresentation(
+            milestone: .minted,
+            message: AppLocalization.text("DEBUG · bo 成熟预览"),
+            fact: "",
+            previousProgress: 0.9,
+            currentProgress: 1,
+            previousMature: false,
+            mature: true
+        ))
+    }
+
+    func debugPlayBoGrowthHint() {
+        cancelBoProgressFeedback()
+        let real = boFillProgress
+        let ripe = hasRipeBo
+        playBoGrowthHint(BoProgressPresentation(
+            milestone: .nearMint,
+            message: AppLocalization.text("bo 快形成了"),
+            fact: "",
+            previousProgress: 0.62,
+            currentProgress: 0.9,
+            previousMature: false,
+            mature: false
+        ))
+        boProgressHost.run(.sequence([
+            .wait(forDuration: 2.4),
+            .run { [weak self] in
+                guard let self, !ripe else { return }
+                self.boFillProgress = real
+                self.vector?.setBoFillProgress(real)
+            },
+        ]), withKey: "debugGrowthHintRestore")
+    }
+    #endif
+
     private func finishBoRipe() {
         boRipeElapsed = nil
         vector?.boGlow = 0

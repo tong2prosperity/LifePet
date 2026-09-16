@@ -1,59 +1,37 @@
 import Foundation
 import Observation
 
-/// Owns only the status observer's platform presentation state. The pinned
-/// choice is per Pibo and durable; expansion is deliberately session-only.
+/// Decision 047: viewing the status observer is transient. Tapping the forest
+/// instrument opens a floating panel over the running forest; closing it,
+/// leaving Home or backgrounding ends the view. Nothing is persisted and the
+/// legacy per-Pibo pin (`wellnessObserverPinnedPetIDs`) is never read again,
+/// so launching Home can never reopen private health information by itself.
 @MainActor
 @Observable
 final class StatusObserverPresentationStore {
+    private(set) var isOpen = false
     private(set) var expanded = false
+    /// DEBUG sample panel: labeled as sample data and never touches real
+    /// health, Core scoring, rewards or ownership.
+    private(set) var usesSample = false
 
-    @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let persistenceKey: String
-    @ObservationIgnored private var pinnedPetIDs: Set<String>
-
-    init(
-        defaults: UserDefaults = .standard,
-        persistenceKey: String = PiboPersistenceKeys.Defaults.wellnessObserverPinnedPetIDs
-    ) {
-        self.defaults = defaults
-        self.persistenceKey = persistenceKey
-        pinnedPetIDs = Set(
-            (defaults.stringArray(forKey: persistenceKey) ?? [])
-                .filter { UUID(uuidString: $0) != nil }
-        )
+    func open(sample: Bool = false) {
+        #if DEBUG
+        usesSample = sample
+        #else
+        usesSample = false
+        #endif
+        expanded = false
+        isOpen = true
     }
 
-    func isPinned(petID: UUID) -> Bool {
-        pinnedPetIDs.contains(petID.uuidString)
-    }
-
-    @discardableResult
-    func togglePinned(petID: UUID) -> Bool {
-        let key = petID.uuidString
-        let isNowPinned: Bool
-        if pinnedPetIDs.remove(key) != nil {
-            expanded = false
-            isNowPinned = false
-        } else {
-            pinnedPetIDs.insert(key)
-            isNowPinned = true
-        }
-        persist()
-        return isNowPinned
+    func close() {
+        isOpen = false
+        expanded = false
+        usesSample = false
     }
 
     func setExpanded(_ expanded: Bool) {
         self.expanded = expanded
-    }
-
-    func reset() {
-        pinnedPetIDs.removeAll()
-        expanded = false
-        defaults.removeObject(forKey: persistenceKey)
-    }
-
-    private func persist() {
-        defaults.set(pinnedPetIDs.sorted(), forKey: persistenceKey)
     }
 }

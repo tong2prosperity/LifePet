@@ -43,6 +43,8 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     private var unlockedOrnaments: Set<PiboOrnament.ID> = []
     private var presentedOrnaments: Set<PiboOrnament.ID> = []
     private var ornamentNodes: [PiboOrnament.ID: SKSpriteNode] = [:]
+    /// Decision 047 "查看状态" / "观测仪" caption under the instrument.
+    private var ornamentCaptionNodes: [PiboOrnament.ID: SKNode] = [:]
     private var constructionModeEnabled = false
     private var constructionSelection: PiboOrnament.ID?
     private var constructionNode: SKNode?
@@ -606,6 +608,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         // 能跑，但读的人得先想明白这一点才敢确认它是对的。
         for id in ornamentNodes.keys.filter({ !presentedOrnaments.contains($0) }) {
             ornamentNodes.removeValue(forKey: id)?.removeFromParent()
+            ornamentCaptionNodes.removeValue(forKey: id)?.removeFromParent()
             // 发光层也得摘掉。只把引用置 nil 会把节点孤儿化在场景里：
             // `refreshOrnamentLights` 再也看不见它，于是它冻在最后一次的 alpha 上，
             // 夜里就成了一片没有灯的加色光斑。
@@ -645,6 +648,18 @@ final class ForestThemeRenderer: PiboThemeRenderer {
             guard let node = ornamentNodes[ornament.id], let placement = ornament.placement else { continue }
             let isUnlocked = unlockedOrnaments.contains(ornament.id)
             node.alpha = revealPending.contains(ornament.id) ? 0 : (isUnlocked ? 1 : 0.52)
+            if ornament.id == .statusObserver {
+                ornamentCaptionNodes.removeValue(forKey: ornament.id)?.removeFromParent()
+                let caption = makeOrnamentCaption(
+                    AppLocalization.text(isUnlocked ? "查看状态" : "观测仪"),
+                    below: placement.frame,
+                    mapper: mapper
+                )
+                caption.zPosition = placement.zPosition + 0.5
+                caption.alpha = node.alpha
+                context.layers.background.addChild(caption)
+                ornamentCaptionNodes[ornament.id] = caption
+            }
             node.shader = isUnlocked
                 ? materialShader(for: placement.lightingGroup)
                 : lockedOrnamentShader(for: placement.lightingGroup)
@@ -853,6 +868,28 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         node.run(.sequence(steps), withKey: Self.lightActionKey)
     }
 
+    private func makeOrnamentCaption(_ text: String, below frame: CGRect, mapper: ForestLayoutMapper) -> SKNode {
+        let root = SKNode()
+        let label = SKLabelNode(fontNamed: "PingFangSC-Regular")
+        label.text = text
+        label.fontSize = 12 * mapper.scale
+        label.fontColor = SKColor(red: 0x17 / 255, green: 0x3F / 255, blue: 0x38 / 255, alpha: 1)
+        label.verticalAlignmentMode = .center
+        label.horizontalAlignmentMode = .center
+        let size = CGSize(
+            width: label.frame.width + 16 * mapper.scale,
+            height: 22 * mapper.scale
+        )
+        let background = SKShapeNode(rectOf: size, cornerRadius: 11 * mapper.scale)
+        background.fillColor = SKColor(red: 0xED / 255, green: 0xF5 / 255, blue: 0xEA / 255, alpha: 1)
+        background.strokeColor = .clear
+        root.addChild(background)
+        root.addChild(label)
+        root.position = mapper.point(CGPoint(x: frame.midX, y: frame.maxY + 18))
+        root.name = "ornament-caption"
+        return root
+    }
+
     func handleTap(at point: CGPoint) -> PiboThemeTapResult? {
         var best: (id: PiboOrnament.ID, index: Int, distance: CGFloat)?
         for (id, lights) in ornamentLights {
@@ -879,6 +916,13 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         // 铃兰则只保留点灯。
         let tappable = presentedOrnaments.subtracting(unlockedOrnaments)
             .union([.hammock, .statusObserver])
+        if tappable.contains(.statusObserver),
+           let caption = ornamentCaptionNodes[.statusObserver], caption.alpha > 0.01,
+           let parent = caption.parent, let scene = context?.scene,
+           caption.calculateAccumulatedFrame().insetBy(dx: -6, dy: -8)
+               .contains(parent.convert(point, from: scene)) {
+            return .ornament(.statusObserver)
+        }
         let hit = ornamentNodes
             .filter { tappable.contains($0.key) && !$0.value.isHidden && $0.value.alpha > 0.01 }
             .filter { _, node in
@@ -894,6 +938,7 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         layerNodes.removeAll(keepingCapacity: true)
         foliageNodes.removeAll(keepingCapacity: true)
         ornamentNodes.removeAll(keepingCapacity: true)
+        ornamentCaptionNodes.removeAll(keepingCapacity: true)
         ornamentLights.removeAll(keepingCapacity: true)
         constructionNode = nil
         previewNode = nil

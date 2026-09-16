@@ -91,14 +91,14 @@ struct HomePresentationPolicy {
     }
 
     func statusObserverCardVisible(
-        isPinned: @autoclosure () -> Bool,
+        isOpen: @autoclosure () -> Bool,
         recoveryStatusGranted: @autoclosure () -> Bool,
         foodProjectionPresented: @autoclosure () -> Bool,
         transientNoticePresented: @autoclosure () -> Bool,
         shadowLightBannerPresented: @autoclosure () -> Bool
     ) -> Bool {
         sceneIsActive()
-            && isPinned()
+            && isOpen()
             && recoveryStatusGranted()
             && !stagePaused
             && !sheetDismissalInProgress()

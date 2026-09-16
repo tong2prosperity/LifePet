@@ -364,6 +364,30 @@ struct DebugSettingsView: View {
                 .accessibilityIdentifier("pibo.debug.onboarding-preview")
                 Divider().overlay(LP.Separator.primary)
                 Button {
+                    LPHaptics.tap()
+                    HomeDebugRequest.statusObserverSample.post()
+                } label: {
+                    debugRow("状态观测仪 · 示例数据")
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                Button {
+                    LPHaptics.tap()
+                    HomeDebugRequest.boRipePreview.post()
+                } label: {
+                    debugRow("bo 成熟效果预览（不写账本）")
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                Button {
+                    LPHaptics.tap()
+                    HomeDebugRequest.boGrowthHint.post()
+                } label: {
+                    debugRow("播放 bo 成长提示（不写账本）")
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                Button {
                     guard !schedulingSleepMock else { return }
                     LPHaptics.tap()
                     schedulingSleepMock = true

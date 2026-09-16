@@ -396,6 +396,18 @@ final class PiboStageScene: SKScene {
         return character.playBoProgressFeedback(presentation)
     }
 
+    #if DEBUG
+    func debugPlayBoRipePreview() {
+        guard built else { return }
+        character.debugPlayBoRipePreview()
+    }
+
+    func debugPlayBoGrowthHint() {
+        guard built else { return }
+        character.debugPlayBoGrowthHint()
+    }
+    #endif
+
     func setHasRipeBo(_ ripe: Bool) {
         character.hasRipeBo = ripe
     }
