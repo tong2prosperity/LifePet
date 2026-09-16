@@ -20,6 +20,7 @@ struct HomeStageSurface: View {
         let tuning: StageRenderTuning
         let isPaused: Bool
         let isObscured: Bool
+        let balanceTarget: CGPoint?
 
         init(
             store: PetStateStore,
@@ -31,11 +32,21 @@ struct HomeStageSurface: View {
             tuning: StageRenderTuning,
             isPaused: Bool,
             isObscured: Bool,
-            shadowPresentation: ShadowPiboStagePresentation = .hidden
+            shadowPresentation: ShadowPiboStagePresentation = .hidden,
+            harvestActive: Bool = false,
+            balanceTarget: CGPoint? = nil
         ) {
             theme = store.currentTheme
             activityState = animationPresentation.state
-            animationStateID = animationPresentation.stateID
+            // Decision 048: a ripe container (or a collection still playing out)
+            // overrides the presentation with the one normal standing pose. The
+            // health state itself is untouched.
+            animationStateID = Self.presentedStateID(
+                semantic: animationPresentation.stateID,
+                hasRipeBo: boLedger.hasRipeBo,
+                harvestActive: harvestActive
+            )
+            self.balanceTarget = balanceTarget
             // The forest head now represents the real `bo` ledger. The old
             // workout-driven mystery/sprouted field remains only for migration.
             growth = .sprouted
@@ -61,6 +72,9 @@ struct HomeStageSurface: View {
     struct Handlers {
         let pat: () -> Void
         let sproutTouch: () -> Void
+        var collectBo: () -> Bool = { false }
+        var harvestActiveChanged: (Bool) -> Void = { _ in }
+        var harvestHint: (String) -> Void = { _ in }
         let ornamentLightTap: (PiboOrnament.ID, Int) -> Void
         let ornamentTap: (PiboOrnament.ID) -> Void
         let shadowTap: () -> Void
@@ -90,6 +104,10 @@ struct HomeStageSurface: View {
             onOrnamentLightTapped: handlers.ornamentLightTap,
             onOrnamentTapped: handlers.ornamentTap,
             onShadowTapped: handlers.shadowTap,
+            onCollectBo: handlers.collectBo,
+            onHarvestActiveChanged: handlers.harvestActiveChanged,
+            onHarvestHint: handlers.harvestHint,
+            balanceTarget: input.balanceTarget,
             isPaused: input.isPaused,
             isObscured: input.isObscured
         )
@@ -97,5 +115,22 @@ struct HomeStageSurface: View {
         .ignoresSafeArea()
         .allowsHitTesting(!input.isObscured)
         .accessibilityHidden(input.isPaused || input.isObscured)
+    }
+
+    #if DEBUG
+    /// Debug character previews may bypass the collection pose.
+    static var debugBypassesCollectionPose = false
+    #endif
+}
+
+extension HomeStageSurface.Input {
+    static func presentedStateID(semantic: String, hasRipeBo: Bool, harvestActive: Bool) -> String {
+        #if DEBUG
+        if HomeStageSurface.debugBypassesCollectionPose { return semantic }
+        #endif
+        guard PiboBoContainer.usesCollectionPose(ripe: hasRipeBo ? 1 : 0, collecting: harvestActive) else {
+            return semantic
+        }
+        return PiboAnimationResourceID.stable
     }
 }

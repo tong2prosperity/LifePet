@@ -460,7 +460,13 @@ struct PiboApp: App {
                 .onChange(of: identity.petName) { _, _ in publishWatchSnapshot() }
                 .onChange(of: identity.currentPetId) { _, _ in publishWatchSnapshot() }
                 .onChange(of: boLedger.growthProgress) { _, _ in publishWatchSnapshot() }
-                .onChange(of: boLedger.state.ripeCount) { _, _ in publishWatchSnapshot() }
+                .onChange(of: boLedger.state.ripeCount) { _, ripe in
+                    publishWatchSnapshot()
+                    BoMaturityNotifier.shared.reconcile(
+                        ripe: ripe > 0,
+                        cycle: boLedger.lifetimeCollected + 1
+                    )
+                }
                 .onChange(of: ornamentUnlocks.unlocked) { _, _ in publishWatchSnapshot() }
                 .onChange(of: health.dataAvailability) { _, _ in publishWatchSnapshot() }
                 .onChange(of: auth.phase) { _, phase in

@@ -25,6 +25,33 @@ final class PiboCharacterRenderer {
     let effectsNode = SKNode()
 
     var onSproutTouched: () -> Void = {}
+    /// Decision 048: the ledger's ripe fact. Only a ripe container can release.
+    var hasRipeBo = false
+    /// Commits one collection. Returns whether the ledger really collected.
+    var onCollectBo: () -> Bool = { false }
+    /// True from the committed release until its presentation ends, so the
+    /// SwiftUI layer can keep the unified collection pose on screen.
+    var onHarvestActiveChanged: (Bool) -> Void = { _ in }
+    /// Short text beside the balance ("已收取 1 bo" / failure).
+    var onHarvestHint: (String) -> Void = { _ in }
+    /// Where collected energy lands (the balance chip), in scene space.
+    var balanceTargetInScene: CGPoint?
+    private var harvest = PiboBoHarvestTimeline()
+    private let harvestSound = OrnamentUnlockSoundService()
+    private let energyFlightNode: SKShapeNode = {
+        let node = SKShapeNode(ellipseOf: CGSize(width: 15, height: 18))
+        node.fillColor = SKColor(red: 0xD7 / 255, green: 0xF4 / 255, blue: 0xA3 / 255, alpha: 1)
+        node.strokeColor = SKColor(red: 0xCD / 255, green: 0xEB / 255, blue: 0x98 / 255, alpha: 0.55)
+        node.glowWidth = 5
+        node.zPosition = 60
+        node.alpha = 0
+        return node
+    }()
+    private var energyFlightStart: CGPoint = .zero
+    /// Seconds into the maturity motion, nil when it is not playing.
+    private var boRipeElapsed: Double?
+    private var boRipeFrom: CGFloat = 0
+    var isHarvesting: Bool { harvest.isReleasing }
     private weak var scene: SKScene?
     private weak var camera: SKCameraNode?
     private var theme: PiboTheme = .forest
@@ -101,6 +128,7 @@ final class PiboCharacterRenderer {
         effectsNode.zPosition = 55
         boProgressHost.zPosition = 8
         effectsNode.addChild(boProgressHost)
+        effectsNode.addChild(energyFlightNode)
     }
 
     func apply(
@@ -283,7 +311,9 @@ final class PiboCharacterRenderer {
     }
 
     func beginHairDrag(at point: CGPoint) {
+        guard !harvest.isReleasing else { return }
         hairDragOrigin = point
+        harvest.beginDrag()
         headNode.removeAction(forKey: "headIdle")
         headNode.removeAction(forKey: "hairSettle")
         headRig.beginInteraction()
@@ -293,6 +323,15 @@ final class PiboCharacterRenderer {
         guard let origin = hairDragOrigin else { return }
         let dx = point.x - origin.x
         let up = max(0, point.y - origin.y)
+        let result = harvest.drag(upward: up, ripe: hasRipeBo)
+        if result.armed {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            harvestSound.playHarvest(.ready)
+        }
+        if result.shouldRelease {
+            releaseBoEnergy()
+            return
+        }
         if headRig.isEnabled {
             headRig.setInteraction(horizontalDisplacement: dx, upwardDisplacement: up)
             return
@@ -304,18 +343,16 @@ final class PiboCharacterRenderer {
     func endHairDrag(at point: CGPoint, cancelled: Bool) {
         guard let origin = hairDragOrigin else { return }
         hairDragOrigin = nil
-        let pulled = !cancelled && hypot(point.x - origin.x, point.y - origin.y) > 30
+        let travelled = hypot(point.x - origin.x, point.y - origin.y)
+        if travelled < 8 { harvest.tap() } else { harvest.cancelDrag() }
         if headRig.isEnabled {
-            headRig.endInteraction(pulled: pulled)
-            if pulled {
-                emitSparkles(at: CGPoint(
-                    x: rootNode.position.x + headNode.position.x,
-                    y: rootNode.position.y + headNode.position.y
-                ), count: 10)
-            }
+            // Below the release threshold the container springs back and nothing
+            // is collected; the pull never detaches or spends anything.
+            headRig.endInteraction(pulled: false)
             if !cancelled { onSproutTouched() }
             return
         }
+        let pulled = !cancelled && travelled > 30
         let releaseAngle = headNode.zRotation
         let settle: SKAction
         if pulled {
@@ -343,6 +380,46 @@ final class PiboCharacterRenderer {
             .run { [weak self] in self?.startHeadIdle() },
         ]), withKey: "hairSettle")
         if !cancelled { onSproutTouched() }
+    }
+
+    /// Commits one collection. Also the VoiceOver path, which needs no drag.
+    func releaseBoEnergy() {
+        guard !harvest.isReleasing, hasRipeBo else { return }
+        if hairDragOrigin != nil {
+            hairDragOrigin = nil
+            headRig.endInteraction(pulled: false)
+        }
+        guard onCollectBo() else {
+            harvest.cancelDrag()
+            onHarvestHint(AppLocalization.text("暂时没有收好，请再试一次"))
+            return
+        }
+        cancelBoProgressFeedback()
+        harvest.beginRelease()
+        onHarvestActiveChanged(true)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        harvestSound.playHarvest(.release)
+        onHarvestHint(AppLocalization.text("已收取 1 bo"))
+        if let root = sproutAnchorInScene() {
+            let lift = 95 * designUnitScale
+            energyFlightStart = CGPoint(x: root.x, y: root.y + lift)
+        }
+    }
+
+    /// Drops any in-flight collection presentation (theme swap, debug reset).
+    func cancelHarvest() {
+        let wasReleasing = harvest.isReleasing
+        harvest.reset()
+        headRig.stretch = 1
+        vector?.expressionOverlay = .identity
+        energyFlightNode.alpha = 0
+        harvestSound.stop()
+        if wasReleasing { onHarvestActiveChanged(false) }
+    }
+
+    private var designUnitScale: CGFloat {
+        guard let scene else { return 1 }
+        return ForestLayoutMapper(sceneSize: scene.size).scale
     }
 
     func playSproutTouch() {
@@ -550,8 +627,22 @@ final class PiboCharacterRenderer {
         return true
     }
 
+    /// Invalidates queued and playing progress presentations and restores the
+    /// real fill (a collection or the last spend makes them stale).
+    func cancelBoProgressFeedback() {
+        pendingBoProgress = nil
+        boProgressHost.removeAllActions()
+        boProgressHost.removeAllChildren()
+        boRipeElapsed = nil
+        vector?.boGlow = 0
+        headRig.presentationTilt = 0
+        vector?.setBoFillProgress(boFillProgress)
+    }
+
     func setBoFillProgress(_ progress: CGFloat) {
         boFillProgress = PiboBoContainerProgress.normalized(progress)
+        // The maturity motion owns the visible fill until it ends.
+        guard boRipeElapsed == nil else { return }
         if let vector {
             vector.setBoFillProgress(boFillProgress)
             // The rig now bends the complete container; it no longer reveals the
@@ -1124,10 +1215,12 @@ final class PiboCharacterRenderer {
         reduceMotion: Bool
     ) {
         if vector != nil {
+            composePresentation(deltaTime: deltaTime, reduceMotion: reduceMotion)
             updateVector(time: time, deltaTime: deltaTime, wind: wind, reduceMotion: reduceMotion)
             updateBoProgressFeedback()
             return
         }
+        composePresentation(deltaTime: deltaTime, reduceMotion: reduceMotion)
         headRig.update(
             time: time,
             deltaTime: deltaTime,
@@ -1147,7 +1240,8 @@ final class PiboCharacterRenderer {
 
     private func attemptBoProgressFeedback() {
         guard let presentation = pendingBoProgress else { return }
-        guard !isCloseupActive, vectorTransition?.isRunning != true else { return }
+        guard !isCloseupActive, vectorTransition?.isRunning != true,
+              !harvest.isReleasing, boRipeElapsed == nil else { return }
         pendingBoProgress = nil
         guard visible, let anchor = sproutAnchorInScene(), isVisibleInCamera(anchor) else {
             LPLog.bo.debug("progress feedback ignored — sprout anchor is not visible")
@@ -1157,70 +1251,158 @@ final class PiboCharacterRenderer {
         boProgressHost.removeAllChildren()
         boProgressHost.position = anchor
 
+        // Only a bo that actually ripened now (re-checked against the ledger at
+        // play time, not just when queued) earns the reviewed maturity motion.
+        // Fractional milestones — and extra energy flowing into the reserve
+        // behind a bo that is already ripe — get the light growth hint.
+        if hasRipeBo, presentation.mature, !presentation.previousMature {
+            playBoRipe(presentation)
+        } else {
+            playBoGrowthHint(presentation)
+        }
+    }
+
+    /// Decision 2026-09-16: the container fills, one short halo and eight motes
+    /// at the root, and a single line naming what happened.
+    private func playBoGrowthHint(_ presentation: BoProgressPresentation) {
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
         let previous = CGFloat(min(1, max(0, presentation.previousProgress)))
         let current = CGFloat(min(1, max(0, presentation.currentProgress)))
-        if let vector {
-            vector.setBoFillProgress(previous)
-            headRig.setGrowthProgress(1)
-        } else {
-            headRig.setGrowthProgress(previous)
+        // A ripe bo already fills the container; never draw it smaller.
+        if !hasRipeBo {
+            if let vector {
+                vector.setBoFillProgress(previous)
+                vector.animateBoFill(from: previous, to: current, duration: reduceMotion ? 0.15 : 0.9)
+                headRig.setGrowthProgress(1)
+            } else {
+                headRig.animateGrowth(from: previous, to: current, duration: reduceMotion ? 0.15 : 0.9)
+            }
+            boFillProgress = current
         }
+        if !reduceMotion {
+            let ring = SKShapeNode(circleOfRadius: 7)
+            ring.strokeColor = SKColor(theme.scene.groundAccent)
+            ring.lineWidth = 2
+            ring.fillColor = .clear
+            ring.alpha = 0
+            ring.setScale(0.6)
+            boProgressHost.addChild(ring)
+            ring.run(.sequence([
+                .group([.fadeAlpha(to: 0.85, duration: 0.18), .scale(to: 1.2, duration: 0.18)]),
+                .group([.fadeOut(withDuration: 0.42), .scale(to: 1.7, duration: 0.42)]),
+                .removeFromParent(),
+            ]))
+            if let anchor = sproutAnchorInScene() { emitSparkles(at: anchor, count: 8) }
+        }
+        buildBoProgressLabel(
+            presentation.message,
+            y: 108,
+            startDelay: 0,
+            visibleDuration: reduceMotion ? 1.16 : 1.96
+        )
+        LPLog.bo.notice(
+            "growth hint played milestone=\(presentation.milestone.rawValue, privacy: .public)"
+        )
+    }
 
+    /// The reviewed 6.8 s maturity motion. The frame clock in `update` drives
+    /// fill, halo and pose; pausing the scene pauses it with no catch-up.
+    private func playBoRipe(_ presentation: BoProgressPresentation) {
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled
+        boRipeFrom = CGFloat(min(1, max(0, presentation.previousProgress)))
+        boRipeElapsed = 0
+        vector?.setBoFillProgress(boRipeFrom)
         if !presentation.fact.isEmpty {
             buildBoProgressLabel(
                 presentation.fact,
                 y: 116,
                 startDelay: reduceMotion ? 0 : 0.30,
-                visibleDuration: reduceMotion ? 0.22 : 4.05
+                visibleDuration: reduceMotion ? 0.22 : 3.6
             )
         }
-        if !reduceMotion {
-            buildBoProgressParticles(
-                color: SKColor(theme.scene.groundAccent),
-                source: presentation.fact.isEmpty ? nil : CGPoint(x: 0, y: 104),
-                startDelay: 1.10
-            )
-        }
-        boProgressHost.run(.sequence([
-            .wait(forDuration: reduceMotion ? 0.08 : 2.40),
-            .run { [weak self] in
-                guard let self, self.state != .sleeping else { return }
-                self.headRig.addImpulse(reduceMotion ? 0.22 : 0.55)
-            },
-            .wait(forDuration: reduceMotion ? 0.08 : 1.00),
-            .run { [weak self] in
-                guard let self else { return }
-                if let vector = self.vector {
-                    vector.animateBoFill(
-                        from: previous,
-                        to: current,
-                        duration: reduceMotion ? 0.12 : 1.05
-                    )
-                    self.headRig.setGrowthProgress(1)
-                } else {
-                    self.headRig.animateGrowth(
-                        from: previous,
-                        to: current,
-                        duration: reduceMotion ? 0.12 : 1.05
-                    )
-                }
-                self.boFillProgress = current
-            },
-        ]), withKey: "boProgressCausality")
         buildBoProgressLabel(
             presentation.message,
-            y: 42,
-            startDelay: reduceMotion ? 0.24 : 4.60,
-            visibleDuration: reduceMotion ? 0.18 : 0.40
+            y: 108,
+            startDelay: reduceMotion ? 0.12 : 2.7,
+            visibleDuration: reduceMotion ? 0.2 : 3.4
         )
-        boProgressHost.run(.sequence([
-            .wait(forDuration: reduceMotion ? 0.42 : 5.20),
-            .run { [weak self] in self?.boProgressHost.removeAllChildren() },
-        ]), withKey: "boProgressLifetime")
-        LPLog.bo.notice(
-            "progress feedback played milestone=\(presentation.milestone.rawValue, privacy: .public)"
-        )
+        LPLog.bo.notice("maturity motion started")
+    }
+
+    private func finishBoRipe() {
+        boRipeElapsed = nil
+        vector?.boGlow = 0
+        headRig.presentationTilt = 0
+        boFillProgress = hasRipeBo ? 1 : boFillProgress
+        vector?.setBoFillProgress(boFillProgress)
+        attemptBoProgressFeedback()
+    }
+
+    /// One writer for everything layered on top of the authored expression:
+    /// the pull-to-collect pose and the maturity motion.
+    private func composePresentation(deltaTime: TimeInterval, reduceMotion: Bool) {
+        let events = harvest.advance(deltaTime: deltaTime, reduceMotion: reduceMotion)
+        var overlay = PiboVectorCharacter.ExpressionOverlay.identity
+
+        if var elapsed = boRipeElapsed {
+            elapsed += max(0, min(deltaTime, 0.05))
+            boRipeElapsed = elapsed
+            let pose = PiboBoRipeMotion.pose(
+                seconds: elapsed,
+                participation: PiboBoRipeMotion.participation(stateID: animationStateID),
+                reduced: reduceMotion
+            )
+            vector?.setBoFillProgress(boRipeFrom + (1 - boRipeFrom) * pose.fill)
+            vector?.boGlow = pose.glow
+            headRig.presentationTilt = pose.sprout * .pi / 180
+            overlay.bodyScale = CGSize(width: 1 / pose.bodyScaleY, height: pose.bodyScaleY)
+            overlay.bodyPivotY = 282
+            overlay.faceOffset = CGPoint(x: 0, y: pose.faceY)
+            overlay.eyeScale = CGSize(width: 1, height: pose.eye)
+            overlay.leftHandRaiseDegrees = -pose.arm
+            if elapsed >= (reduceMotion ? PiboBoRipeMotion.reducedDuration : PiboBoRipeMotion.duration) {
+                finishBoRipe()
+                overlay = .identity
+            }
+        }
+
+        let pull = reduceMotion ? 0 : harvest.pull
+        headRig.stretch = 1 + 1.12 * pull
+        if pull > 0 || harvest.gaze > 0 || harvest.blink < 1 {
+            overlay.bodyScale = CGSize(
+                width: overlay.bodyScale.width * (1 - 0.018 * pull),
+                height: overlay.bodyScale.height * (1 + 0.025 * pull)
+            )
+            overlay.bodyPivotY = 280
+            overlay.faceOffset = CGPoint(
+                x: overlay.faceOffset.x + harvest.gaze * -3,
+                y: overlay.faceOffset.y - 4 * max(pull, harvest.gaze)
+            )
+            overlay.eyeScale = CGSize(
+                width: overlay.eyeScale.width * (1 + pull * 0.12),
+                height: overlay.eyeScale.height * harvest.blink * (1 + pull * 0.12)
+            )
+            overlay.handSwingDegrees = pull * 18
+        }
+        vector?.expressionOverlay = overlay
+
+        if let progress = harvest.flightProgress, let end = balanceTargetInScene {
+            energyFlightNode.position = PiboBoHarvestTimeline.flightPoint(
+                start: energyFlightStart, end: end, progress: progress
+            )
+            energyFlightNode.alpha = harvest.flightOpacity
+        } else {
+            energyFlightNode.alpha = 0
+        }
+        for event in events {
+            switch event {
+            case .received:
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                harvestSound.playHarvest(.receive)
+            case .finished:
+                onHarvestActiveChanged(false)
+            }
+        }
     }
 
     private func sproutAnchorInScene() -> CGPoint? {

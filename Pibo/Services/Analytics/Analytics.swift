@@ -35,6 +35,8 @@ enum Analytics {
         case energyCollected = "energy_collected"
         /// 打开共同物件面板（首页左上角 bo 存量）。
         case boPanelOpen = "bo_panel_open"
+        /// Decision 048: a ripe container pulled into the spendable balance.
+        case boCollect = "bo_collect"
         /// 解锁一件森林物件，扣掉 bo。
         case boUnlock = "bo_unlock"
         case boUnlockItemSelect = "bo_unlock_item_select"

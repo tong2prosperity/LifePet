@@ -4,6 +4,7 @@ import SwiftUI
 /// remain sibling layers so their existing z-order stays explicit in Home.
 struct HomePrimaryChrome: View {
     let presentation: HomePresentationState
+    var balanceChip: AnyView? = nil
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
     let dismissSpeech: () -> Void
@@ -13,6 +14,7 @@ struct HomePrimaryChrome: View {
         VStack(spacing: 0) {
             HomeHeader(
                 presentation: presentation,
+                balanceChip: balanceChip,
                 cameraEnabled: cameraEnabled,
                 walkDoodleEnabled: walkDoodleEnabled,
                 dismissSpeech: dismissSpeech
@@ -27,16 +29,18 @@ struct HomePrimaryChrome: View {
     }
 }
 
-/// Top-row Home chrome. `bo` stays embodied in Pibo's head sprout; there is no
-/// separate currency counter or inventory window competing with the forest.
+/// Top-row Home chrome. Decision 048: the left shows only collected,
+/// spendable `bo`; ripe energy still on Pibo's head is not counted.
 struct HomeHeader: View {
     let presentation: HomePresentationState
+    var balanceChip: AnyView? = nil
     let cameraEnabled: Bool
     let walkDoodleEnabled: Bool
     let dismissSpeech: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: LP.Spacing.s) {
+            if let balanceChip { balanceChip }
             Spacer(minLength: 0)
 
             HomeCornerActions(
@@ -184,4 +188,59 @@ struct HomeBottomControls: View {
         .accessibilityLabel(AppLocalization.text("足迹"))
     }
 
+}
+
+
+/// Always-visible collected balance with the short collection hint to its right.
+struct HomeBoBalanceChip: View {
+    let balance: Int
+    let hint: String?
+    let onTap: () -> Void
+    let onCenterChange: (CGPoint) -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: LP.Spacing.s) {
+            Button(action: onTap) {
+                HStack(spacing: 7) {
+                    PiboBoGlyph()
+                        .frame(width: 15, height: 24)
+                        .accessibilityHidden(true)
+                    Text(AppLocalization.format("%d bo", balance))
+                        .font(.system(size: 17, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(Color(red: 0x24 / 255, green: 0x53 / 255, blue: 0x43 / 255))
+                        .contentTransition(.numericText())
+                }
+                .padding(.horizontal, 13)
+                .padding(.vertical, 8)
+                .frame(minHeight: 44)
+                .background(
+                    Capsule().fill(Color(red: 0xF4 / 255, green: 0xEB / 255, blue: 0xDD / 255).opacity(0.93))
+                )
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(AppLocalization.format("已收取 %d bo", balance))
+            .onGeometryChange(for: CGPoint.self) { proxy in
+                let frame = proxy.frame(in: .global)
+                return CGPoint(x: frame.midX, y: frame.midY)
+            } action: { onCenterChange($0) }
+
+            if let hint {
+                Text(hint)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(red: 0x34 / 255, green: 0x5D / 255, blue: 0x49 / 255))
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color(red: 0xE8 / 255, green: 0xF1 / 255, blue: 0xE3 / 255).opacity(0.91))
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 150, alignment: .leading)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+        }
+    }
 }

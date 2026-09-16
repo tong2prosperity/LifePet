@@ -62,6 +62,14 @@ final class OrnamentUnlockSoundService {
         play(Self.completionAssetName(for: id))
     }
 
+    /// Decision 048 pull-to-collect cues: armed (ready), released, received.
+    enum HarvestCue: String { case ready, release, receive }
+
+    func playHarvest(_ cue: HarvestCue) {
+        play("bo_harvest_\(cue.rawValue)", subdirectory: "Audio/BoHarvest",
+             volume: cue == .release ? 0.5 : 0.34)
+    }
+
     func stop() {
         player?.stop()
         player = nil
@@ -71,14 +79,18 @@ final class OrnamentUnlockSoundService {
         enabled && !interrupted && !externalAudioSuppressed
     }
 
-    private func play(_ name: String) {
+    private func play(
+        _ name: String,
+        subdirectory: String = "Audio/OrnamentUnlock",
+        volume: Float = 0.72
+    ) {
         guard canPlay else { return }
         player?.stop()
         player = nil
         guard let url = bundle.url(
             forResource: name,
             withExtension: "m4a",
-            subdirectory: "Audio/OrnamentUnlock"
+            subdirectory: subdirectory
         ) ?? bundle.url(forResource: name, withExtension: "m4a") else {
             if missingAssets.insert(name).inserted {
                 LPLog.audio.error("ornament sound missing: \(name, privacy: .public).m4a")
@@ -90,7 +102,7 @@ final class OrnamentUnlockSoundService {
             try session.setActive(true)
             let next = try AVAudioPlayer(contentsOf: url)
             next.numberOfLoops = 0
-            next.volume = 0.72
+            next.volume = volume
             next.prepareToPlay()
             next.play()
             player = next

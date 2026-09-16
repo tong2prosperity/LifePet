@@ -213,7 +213,7 @@ struct OrnamentAwakeningSheet: View {
             ])
             dismiss()
         case .insufficientBalance:
-            failureMessage = AppLocalization.text("bo 数量不足，成熟后再回来。")
+            failureMessage = AppLocalization.text("bo 余额不足。头顶的 bo 充满后，向上拉收进余额再来。")
         case .prerequisiteMissing:
             failureMessage = AppLocalization.text("需要先唤醒前一件共同物件。")
         case .unavailable:

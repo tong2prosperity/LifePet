@@ -137,15 +137,13 @@ struct BoLedgerTests {
             days: [(day: today, metrics: goodDay()), (day: tomorrow, metrics: goodDay())],
             now: day(2, from: today)
         )
-        let expected = PiboCoreBoEconomy.applyEnergy(
-            energyPool: 0,
-            grantedEnergy: dailyEnergy * 2
-        )
-
-        #expect(ledger.state.ripeCount == expected.mintedCount)
-        #expect(ledger.state.ripeCount >= 2)
-        #expect(abs(ledger.state.energyPool - expected.newEnergyPool) < 0.001)
-        #expect(ledger.state.lifetimeMinted == ledger.state.ripeCount)
+        // Decision 048: a ripe container reserves the rest instead of freezing it.
+        let perBo = PiboCoreBoEconomy.energyPerBo
+        #expect(ledger.state.ripeCount == 1)
+        #expect(abs(ledger.state.energyPool - (dailyEnergy * 2 - perBo)) < 0.001)
+        #expect(ledger.state.lifetimeMinted == 1)
+        #expect(ledger.collect(eventID: "reserve-drain"))
+        #expect(ledger.hasRipeBo, "the reserve forms the next unit on collection")
         #expect(ledger.state.grantedEnergyByDay.count == 2)
     }
 
@@ -295,18 +293,19 @@ struct BoLedgerTests {
         #expect(ledger.lifetimeCollected == lifetime)
     }
 
-    @Test func investmentUsesRipeBoWithoutAPluckInventoryStep() throws {
+    @Test func investmentSpendsOnlyTheCollectedBalance() throws {
         let today = Calendar.current.startOfDay(for: .now)
         let (ledger, defaults, suite) = try makeLedger(startedOn: today)
         defer { defaults.removePersistentDomain(forName: suite) }
         ledger.debugSet(balance: 1, ripe: 2)
 
-        #expect(ledger.availableBo == 3)
-        #expect(ledger.spend(2))
-        #expect(ledger.state.ripeCount == 0)
-        #expect(ledger.balance == 1)
+        // Decision 048: ripe bo on the head must be collected first.
         #expect(ledger.availableBo == 1)
-        #expect(ledger.state.spentTotal == 2)
+        #expect(!ledger.spend(2))
+        #expect(ledger.spend(1))
+        #expect(ledger.state.ripeCount == 2)
+        #expect(ledger.balance == 0)
+        #expect(ledger.state.spentTotal == 1)
     }
 
     @Test func walkDoodleBonusEnergyIsIdempotentAndUsesTheSharedPool() throws {
@@ -408,9 +407,9 @@ struct BoLedgerTests {
         defaults.set(try JSONEncoder().encode(snapshot), forKey: "test.ledger")
 
         let restored = BoLedgerStore(defaults: defaults, persistenceKey: "test.ledger")
-        #expect(restored.state.ripeCount == 2)
-        #expect(restored.state.energyPool >= 0)
-        #expect(restored.state.energyPool < perBo)
+        // One unit forms on the empty container; the rest stays reserved.
+        #expect(restored.state.ripeCount == 1)
+        #expect(abs(restored.state.energyPool - perBo * 1.4) < 0.001)
         #expect(restored.state.grantedEnergyByDay == ["valid": 12])
     }
 

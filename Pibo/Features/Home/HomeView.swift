@@ -66,6 +66,11 @@ struct HomeView: View {
     @State private var shadowLightBanner: String?
     @State private var shadowManifestTask: Task<Void, Never>?
     @State private var shadowLightBannerTask: Task<Void, Never>?
+    /// Decision 048: collection presentation in flight (keeps the collection pose).
+    @State private var boHarvestActive = false
+    @State private var boBalanceHint: String?
+    @State private var boBalanceHintTask: Task<Void, Never>?
+    @State private var boBalanceTarget: CGPoint?
     #if DEBUG
     @State private var debugControls = HomeDebugControlsState()
     #endif
@@ -395,10 +400,12 @@ struct HomeView: View {
                     tuning: forestTuning,
                     isPaused: stageRenderingPaused,
                     isObscured: stageObscured,
-                    shadowPresentation: shadowStagePresentation
+                    shadowPresentation: shadowStagePresentation,
+                    harvestActive: boHarvestActive,
+                    balanceTarget: boBalanceTarget
                 ),
                 commandController: stageCommands,
-                handlers: stageInteractions.stageHandlers
+                handlers: stageHandlers
             )
 
             walkEchoOverlay
@@ -783,6 +790,7 @@ struct HomeView: View {
 
             HomePrimaryChrome(
                 presentation: presentation,
+                balanceChip: AnyView(boBalanceChip),
                 cameraEnabled: featureAccess.cameraEnabled,
                 walkDoodleEnabled: featureAccess.walkDoodleEnabled,
                 dismissSpeech: speechPresentation.dismiss,
@@ -811,6 +819,42 @@ struct HomeView: View {
         }
         .opacity(sproutPhase.obscuresHomeChrome ? 0 : 1)
         .allowsHitTesting(!sproutPhase.obscuresHomeChrome)
+    }
+
+    private var stageHandlers: HomeStageSurface.Handlers {
+        var handlers = stageInteractions.stageHandlers
+        let interactions = stageInteractions
+        handlers.collectBo = {
+            speechPresentation.dismiss()
+            return interactions.collectBo()
+        }
+        handlers.harvestActiveChanged = { active in boHarvestActive = active }
+        handlers.harvestHint = showBoBalanceHint
+        return handlers
+    }
+
+    /// "已收取 1 bo" / "可用余额 N bo" beside the balance chip; 2.2 s, replaces
+    /// the previous hint and clears when Home leaves the foreground.
+    private func showBoBalanceHint(_ text: String) {
+        boBalanceHintTask?.cancel()
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { boBalanceHint = text }
+        boBalanceHintTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(2_200))
+            guard !Task.isCancelled else { return }
+            withAnimation(reduceMotion ? nil : .easeIn(duration: 0.18)) { boBalanceHint = nil }
+        }
+    }
+
+    private var boBalanceChip: some View {
+        HomeBoBalanceChip(
+            balance: boLedger.availableBo,
+            hint: boBalanceHint,
+            onTap: {
+                LPHaptics.tap()
+                showBoBalanceHint(AppLocalization.format("可用余额 %d bo", boLedger.availableBo))
+            },
+            onCenterChange: { boBalanceTarget = $0 }
+        )
     }
 
     private var statusObserverCard: some View {
@@ -927,9 +971,18 @@ struct HomeView: View {
                   presentation.activeSheet == nil,
                   !fullScreenFeaturePresented else { return }
             stageCommands.playOrnamentDiscovery(id) {
-                ornamentDiscovery.complete(id, petID: store.identity.currentPetId)
+                let petID = store.identity.currentPetId
+                ornamentDiscovery.complete(id, petID: petID)
                 let name = PiboOrnament.ornament(id)?.localizedName ?? "共同物件"
                 AccessibilityNotification.Announcement("发现新的共同物件：\(name)").post()
+                // Decision 048: the revealed target explains itself once.
+                if ornamentDiscovery.needsIntroduction(id, petID: petID),
+                   presentation.activeSheet == nil,
+                   !fullScreenFeaturePresented {
+                    ornamentDiscovery.completeIntroduction(id, petID: petID)
+                    speechPresentation.dismiss()
+                    presentation.activeSheet = .ornamentUnlock(id)
+                }
             }
         }
     }

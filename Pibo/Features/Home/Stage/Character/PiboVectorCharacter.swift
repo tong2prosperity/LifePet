@@ -99,6 +99,75 @@ final class PiboVectorCharacter {
         let basePath: CGPath
     }
 
+    /// Platform presentation layered on top of the authored expression frame —
+    /// the decision 048 pull pose, the bo-ripe motion and the energetic rhythm.
+    /// Values are design units (300 artboard, Y-down) and mirror the HarmonyOS
+    /// canvas composition: part-local tweaks run before the part matrix, the
+    /// whole-body transform after it. Written by the renderer every frame.
+    struct ExpressionOverlay: Equatable {
+        /// Whole-character scale about `(150, bodyPivotY)`.
+        var bodyScale = CGSize(width: 1, height: 1)
+        var bodyPivotY: CGFloat = 280
+        /// Whole-character translation (e.g. a hop). Y-down.
+        var bodyOffset = CGPoint.zero
+        /// Eyes, pupils, lids, under-eyes and nose.
+        var faceOffset = CGPoint.zero
+        /// Scale of each eye about its own centre (x, y); y < 1 reads as a blink.
+        var eyeScale = CGSize(width: 1, height: 1)
+        /// Hand swing in degrees; left hand turns negative, right positive.
+        var handSwingDegrees: CGFloat = 0
+        /// Left-hand-only raise in degrees (bo-ripe acknowledgement).
+        var leftHandRaiseDegrees: CGFloat = 0
+        /// Feet tuck toward the body, design units.
+        var legLift: CGFloat = 0
+
+        static let identity = ExpressionOverlay()
+    }
+
+    var expressionOverlay = ExpressionOverlay.identity
+    /// Transient maturity halo around the container (0 = none). Maturity keeps
+    /// the full bo, never a permanent glow.
+    var boGlow: CGFloat = 0
+
+    private static let faceParts: Set<String> = [
+        "lefteye", "righteye", "leftdot", "rightdot", "leftlid", "rightlid",
+        "leftunder", "rightunder", "nose",
+    ]
+
+    private func overlayTransforms(partID: String) -> (local: CGAffineTransform, body: CGAffineTransform) {
+        let overlay = expressionOverlay
+        guard overlay != .identity else { return (.identity, .identity) }
+        var local = CGAffineTransform.identity
+        if Self.faceParts.contains(partID) {
+            if partID == "lefteye" || partID == "righteye" || partID.hasSuffix("lid") || partID.hasSuffix("dot") {
+                let cx: CGFloat = partID.hasPrefix("left") ? 134.71 : 181.71
+                local = CGAffineTransform(translationX: -cx, y: -149.5)
+                    .concatenating(CGAffineTransform(scaleX: overlay.eyeScale.width, y: overlay.eyeScale.height))
+                    .concatenating(CGAffineTransform(translationX: cx, y: 149.5))
+            }
+            local = local.concatenating(CGAffineTransform(
+                translationX: overlay.faceOffset.x, y: overlay.faceOffset.y
+            ))
+        } else if partID == "lefthand" || partID == "righthand" {
+            let isLeft = partID == "lefthand"
+            let degrees = (isLeft ? -1 : 1) * overlay.handSwingDegrees
+                + (isLeft ? -overlay.leftHandRaiseDegrees : 0)
+            if degrees != 0 {
+                let cx: CGFloat = isLeft ? 110 : 205
+                local = CGAffineTransform(translationX: -cx, y: -175)
+                    .concatenating(CGAffineTransform(rotationAngle: degrees * .pi / 180))
+                    .concatenating(CGAffineTransform(translationX: cx, y: 175))
+            }
+        } else if overlay.legLift != 0, partID.contains("leg") {
+            local = CGAffineTransform(translationX: 0, y: -overlay.legLift)
+        }
+        let pivotY = overlay.bodyPivotY
+        let body = CGAffineTransform(translationX: -150, y: -pivotY)
+            .concatenating(CGAffineTransform(scaleX: overlay.bodyScale.width, y: overlay.bodyScale.height))
+            .concatenating(CGAffineTransform(translationX: 150 + overlay.bodyOffset.x, y: pivotY + overlay.bodyOffset.y))
+        return (local, body)
+    }
+
     private let expressionPlayer = PiboExpressionPlayer()
     private var expressionClock = 0.0
     private var expressionFrame: PiboExpressionFrame?
@@ -246,7 +315,10 @@ final class PiboVectorCharacter {
             if frame.fatigue > 0.5, part.id.hasSuffix("eye") {
                 path = expressionEyePaths?.path(openness: frame.eyes[part.id == "lefteye" ? 0 : 1])
             }
-            var matrix = PiboExpressionFrame.matrix(frame.transforms[i])
+            let overlay = overlayTransforms(partID: part.id)
+            var matrix = overlay.local
+                .concatenating(PiboExpressionFrame.matrix(frame.transforms[i]))
+                .concatenating(overlay.body)
             expressionDesignPaths[part.id] = path?.copy(using: &matrix)
         }
         for entry in elementNodes.values {
@@ -797,6 +869,12 @@ final class PiboVectorCharacter {
             dy: -1.2 * scale * Self.sproutSupersample
         )
         configureBoRootConnector(fill: source.fillColor, source: source)
+        if boGlow > 0 {
+            boGhostOutlineNode.strokeColor = UIColor(red: 1, green: 0.99, blue: 0.67, alpha: 0.9 * boGlow)
+            boGhostOutlineNode.glowWidth = 10 * boGlow * scale * Self.sproutSupersample
+        } else if boGhostOutlineNode.glowWidth != 0 {
+            boGhostOutlineNode.glowWidth = 0
+        }
         boGhostNode.zPosition = source.zPosition - 0.2
         boRootGhostNode.zPosition = source.zPosition - 0.1
         boRootContentNode.zPosition = source.zPosition - 0.1

@@ -51,6 +51,16 @@ final class PiboStageScene: SKScene {
     /// Fired when a forest common item is itself an interaction entry.
     var onOrnamentTapped: ((PiboOrnament.ID) -> Void)?
     var onShadowTapped: (() -> Void)?
+    /// Decision 048 collection. The closure returns whether the ledger collected.
+    var onCollectBo: (() -> Bool)? {
+        didSet { configureCharacterCallbacks() }
+    }
+    var onHarvestActiveChanged: ((Bool) -> Void)? {
+        didSet { configureCharacterCallbacks() }
+    }
+    var onHarvestHint: ((String) -> Void)? {
+        didSet { configureCharacterCallbacks() }
+    }
 
     // — Nodes —
     private let backdrop = SKNode()
@@ -382,6 +392,27 @@ final class PiboStageScene: SKScene {
         return character.playBoProgressFeedback(presentation)
     }
 
+    func setHasRipeBo(_ ripe: Bool) {
+        character.hasRipeBo = ripe
+    }
+
+    /// Balance chip centre in SwiftUI view coordinates (top-left origin).
+    func setBalanceTarget(viewPoint: CGPoint?) {
+        character.balanceTargetInScene = viewPoint.map {
+            CGPoint(x: $0.x, y: size.height - $0.y)
+        }
+    }
+
+    /// VoiceOver / accessibility collection without a drag.
+    func collectBoFromAccessibility() {
+        guard built else { return }
+        character.releaseBoEnergy()
+    }
+
+    func cancelBoProgressFeedback() {
+        character.cancelBoProgressFeedback()
+    }
+
     func setBoFillProgress(_ progress: Double) {
         character.setBoFillProgress(CGFloat(progress))
     }
@@ -506,6 +537,12 @@ final class PiboStageScene: SKScene {
         if let t = hairTouch, touches.contains(t) {
             let p = t.location(in: self)
             character.moveHairDrag(to: p)
+            if character.isHarvesting {
+                // Crossing the release threshold commits the collection; the
+                // rest of this touch no longer drives the container.
+                hairTouch = nil
+                onDirectManipulationChanged?(false)
+            }
             return
         }
         if let t = themeTouch, touches.contains(t) {
@@ -731,6 +768,9 @@ final class PiboStageScene: SKScene {
 
     private func configureCharacterCallbacks() {
         character.onSproutTouched = { [weak self] in self?.onSproutTouched?() }
+        character.onCollectBo = { [weak self] in self?.onCollectBo?() ?? false }
+        character.onHarvestActiveChanged = { [weak self] active in self?.onHarvestActiveChanged?(active) }
+        character.onHarvestHint = { [weak self] hint in self?.onHarvestHint?(hint) }
     }
 
     private func applyTuning(visibilityChanged: Bool) {

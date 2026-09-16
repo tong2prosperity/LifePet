@@ -1,3 +1,4 @@
+import os
 import PiboCore
 
 /// Adapts Home's live services and presentation state to the interaction
@@ -62,15 +63,27 @@ struct HomeStageInteractions {
         animationPresentation.refreshExpression(behavior: input.state == .stable ? .default : speech.patBehavior(for: input))
     }
 
+    /// Decision 048: touching the container only answers the finger. Ripe
+    /// energy is collected by pulling it up into the balance; common objects
+    /// are woken from their own grey form, spending only that balance.
     private func handleSproutTouch() {
         stageCommands.playSproutTouch()
-        guard ledger.hasRipeBo,
-              canPresentOrnament(),
-              let next = ornamentUnlocks.nextLocked
-        else { return }
-        dismissSpeech()
-        LPHaptics.tap()
-        presentSheet(.ornamentUnlock(next.id))
+    }
+
+    /// Commits one pulled collection into the spendable balance.
+    func collectBo() -> Bool {
+        let before = ledger.availableBo
+        guard ledger.collect() else { return false }
+        BoMaturityNotifier.shared.collected(
+            nextRipe: ledger.hasRipeBo,
+            nextCycle: ledger.lifetimeCollected + 1
+        )
+        Analytics.track(.boCollect, screen: "home", [
+            "balance": .int(ledger.availableBo),
+            "remaining_ripe": .int(ledger.state.ripeCount),
+        ])
+        LPLog.bo.notice("pulled collection \(before, privacy: .public)→\(ledger.availableBo, privacy: .public)")
+        return true
     }
 
     private func handleOrnamentLightTap(_ id: PiboOrnament.ID, index: Int) {

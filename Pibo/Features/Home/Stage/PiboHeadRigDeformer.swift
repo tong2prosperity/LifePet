@@ -37,6 +37,20 @@ final class PiboHeadRigDeformer {
     private var growthElapsed: TimeInterval = 0
     private var growthDuration: TimeInterval = 0
 
+    /// Decision 048 pull: the container lengthens upward from its pinned root
+    /// while the user pulls. 1 = authored length. Written every frame by the
+    /// renderer's harvest timeline; it never touches path data.
+    var stretch: CGFloat = 1 {
+        didSet {
+            stretch = stretch.isFinite ? min(max(stretch, 1), 2.2) : 1
+            if stretch != oldValue { applyGeometry() }
+        }
+    }
+
+    /// Presentation tilt (radians) added to every bone's target — the bo-ripe
+    /// acknowledgement and energetic hop drag the sprout without a drag.
+    var presentationTilt: CGFloat = 0
+
     private(set) var isEnabled = false
     /// 0 is a rigid sprout and 1 is a soft, flag-like sprout.
     var flexibility: CGFloat = 0.68 {
@@ -99,7 +113,9 @@ final class PiboHeadRigDeformer {
             return
         }
 
-        let motionScale: CGFloat = reduceMotion ? 0.16 : 1
+        // Reduce Motion turns the ambient wind sway off entirely; direct drag
+        // feedback still follows the finger.
+        let motionScale: CGFloat = reduceMotion ? 0 : 1
         let strength = min(max(wind.strength, 0), 1.5) * motionScale
         let gustiness = min(max(wind.gustiness, 0), 1.5)
         let direction = min(max(wind.direction.dx, -1), 1)
@@ -118,7 +134,7 @@ final class PiboHeadRigDeformer {
                 * sin(t * 1.91 - phase * 1.6)
                 * 0.105
             let interaction = (dragTarget ?? 0) * influence
-            let target = (idle + steady + gust) * influence + interaction
+            let target = (idle + steady + gust + presentationTilt) * influence + interaction
 
             // The root is comparatively rigid while the tip is deliberately
             // soft and under-damped, creating visible propagation and recoil.
@@ -207,7 +223,7 @@ final class PiboHeadRigDeformer {
     }
 
     private func destinationPositions() -> [SIMD2<Float>] {
-        let segmentLength = 1 / CGFloat(Self.rowCount)
+        let segmentLength = stretch / CGFloat(Self.rowCount)
         var centers = [CGPoint(x: pivotFraction, y: 0)]
         for (index, bone) in bones.enumerated() {
             let activation = segmentActivation(index)

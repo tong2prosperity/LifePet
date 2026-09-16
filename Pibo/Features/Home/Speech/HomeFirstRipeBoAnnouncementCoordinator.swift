@@ -32,9 +32,9 @@ enum HomeFirstRipeBoAnnouncementCoordinator {
                         text: AppLocalization.narrative("home.bo.firstRipe")
                     ))
                 },
-                notify: {
-                    Task { await WorkoutCompletionNotifier.shared.notifyFirstBoRipened() }
-                }
+                // Decision 048: `BoMaturityNotifier` owns every real maturity
+                // reminder (once per cycle), including the first one.
+                notify: {}
             )
         )
     }

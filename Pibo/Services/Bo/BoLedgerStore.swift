@@ -82,14 +82,10 @@ final class BoLedgerStore {
     }
 
     var balance: Int { state.balance }
-    /// Every formed `bo` is immediately usable. `balance` remains only as a
-    /// migration bucket for assets collected by builds that still had a pluck
-    /// inventory; new product flows never require that intermediate step.
+    /// Decision 048: only collected, spendable `bo` count. A ripe unit still on
+    /// Pibo's head must be pulled into the balance before it can be invested.
     var availableBo: Int {
-        PiboCoreBoEconomy.availableBo(
-            ripeCount: state.ripeCount,
-            storedCount: state.balance
-        )
+        PiboCoreBoEconomy.availableBo(ripeCount: 0, storedCount: state.balance)
     }
     var hasRipeBo: Bool { state.ripeCount > 0 }
     var lifetimeMinted: Int { state.lifetimeMinted }
@@ -189,16 +185,10 @@ final class BoLedgerStore {
                 acceptedAt: state.acceptedAt,
                 payload: BoLedgerSyncPayload(targetEnergy: target)
             )
-            let result = PiboCoreBoEconomy.applyEnergy(
-                energyPool: state.energyPool,
-                grantedEnergy: delta
-            )
-            state.energyPool = result.newEnergyPool
-            if result.mintedCount > 0 {
-                state.ripeCount += result.mintedCount
-                state.lifetimeMinted += result.mintedCount
+            let minting = applyContainerGrant(delta)
+            if minting > 0 {
                 if state.firstBoMintedAt == nil { state.firstBoMintedAt = now }
-                minted += result.mintedCount
+                minted += minting
             }
             changed = true
         }
@@ -216,15 +206,27 @@ final class BoLedgerStore {
         }
     }
 
+    /// Decision 048: releases one ripe container into the spendable balance.
+    /// The container stays on Pibo's head; reserved energy immediately forms the
+    /// next unit through Core. Idempotent per event ID.
     @discardableResult
-    func pluck(eventID: String = UUID().uuidString, at date: Date = .now) -> Bool {
+    func collect(eventID: String = UUID().uuidString, at date: Date = .now) -> Bool {
         guard !eventID.isEmpty,
               !state.processedCollectionEventIDs.contains(eventID),
               state.ripeCount > 0 else {
             return false
         }
-        state.ripeCount -= 1
-        state.balance += 1
+        let result = PiboBoContainer.step(
+            pool: state.energyPool,
+            ripe: UInt32(clamping: state.ripeCount),
+            stored: UInt32(clamping: state.balance),
+            collect: true
+        )
+        guard result.collected else { return false }
+        state.energyPool = result.energyPool
+        state.ripeCount = Int(result.ripeCount)
+        state.balance = Int(result.storedCount)
+        state.lifetimeMinted += Int(result.mintedCount)
         state.lifetimeCollected += 1
         if state.firstBoCollectedAt == nil { state.firstBoCollectedAt = date }
         state.processedCollectionEventIDs.insert(eventID)
@@ -235,31 +237,39 @@ final class BoLedgerStore {
             payload: BoLedgerSyncPayload(amount: 1, eventID: eventID)
         )
         commit()
-        LPLog.bo.notice("plucked → balance=\(self.state.balance, privacy: .public)")
+        LPLog.bo.notice("collected → balance=\(self.state.balance, privacy: .public) ripe=\(self.state.ripeCount, privacy: .public)")
         return true
+    }
+
+    /// Legacy name kept for existing call sites and tests.
+    @discardableResult
+    func pluck(eventID: String = UUID().uuidString, at date: Date = .now) -> Bool {
+        collect(eventID: eventID, at: date)
     }
 
     @discardableResult
     func spend(_ cost: Int) -> Bool {
         guard cost > 0 else { return false }
-        let result = PiboCoreBoEconomy.applyInvestment(
-            ripeCount: state.ripeCount,
-            storedCount: state.balance,
-            cost: cost
+        // Only the collected balance is spendable; the head container is untouched.
+        let result = PiboBoContainer.invest(
+            ripe: UInt32(clamping: state.ripeCount),
+            stored: UInt32(clamping: state.balance),
+            cost: UInt32(clamping: cost)
         )
         guard result.succeeded else { return false }
-        state.ripeCount = result.newRipeCount
-        state.balance = result.newStoredCount
-        state.spentTotal += result.spentCount
+        state.ripeCount = Int(result.ripe)
+        let spent = state.balance - Int(result.stored)
+        state.balance = Int(result.stored)
+        state.spentTotal += spent
         appendSyncRecord(
             kind: .ledgerEvent,
             semanticKey: "bo.spend",
             occurredAt: .now,
-            payload: BoLedgerSyncPayload(amount: Double(result.spentCount))
+            payload: BoLedgerSyncPayload(amount: Double(spent))
         )
         commit()
         LPLog.bo.notice(
-            "invested=\(result.spentCount, privacy: .public) → available=\(self.availableBo, privacy: .public)"
+            "invested=\(spent, privacy: .public) → available=\(self.availableBo, privacy: .public)"
         )
         return true
     }
@@ -286,22 +296,14 @@ final class BoLedgerStore {
         else { return false }
 
         let previousEnergyPool = state.energyPool
-        let result = PiboCoreBoEconomy.applyEnergy(
-            energyPool: previousEnergyPool,
-            grantedEnergy: grantedEnergy
-        )
-        state.energyPool = result.newEnergyPool
+        let mintedCount = applyContainerGrant(grantedEnergy)
         state.processedBonusEnergyEventIDs.insert(eventID)
         if state.processedBonusEnergyEventIDs.count > 512 {
             state.processedBonusEnergyEventIDs = Set(
                 state.processedBonusEnergyEventIDs.sorted().suffix(512)
             )
         }
-        if result.mintedCount > 0 {
-            state.ripeCount += result.mintedCount
-            state.lifetimeMinted += result.mintedCount
-            if state.firstBoMintedAt == nil { state.firstBoMintedAt = date }
-        }
+        if mintedCount > 0, state.firstBoMintedAt == nil { state.firstBoMintedAt = date }
         appendSyncRecord(
             kind: .domainEvent,
             semanticKey: "bo.bonus.energy",
@@ -312,10 +314,10 @@ final class BoLedgerStore {
         progressFeedback?.recordLedgerUpdate(
             previousEnergyPool: previousEnergyPool,
             newEnergyPool: state.energyPool,
-            mintedCount: result.mintedCount
+            mintedCount: mintedCount
         )
         LPLog.bo.notice(
-            "bonus energy=\(grantedEnergy, privacy: .public) source=walk-doodle minted=\(result.mintedCount, privacy: .public)"
+            "bonus energy=\(grantedEnergy, privacy: .public) source=walk-doodle minted=\(mintedCount, privacy: .public)"
         )
         return true
     }
@@ -372,19 +374,13 @@ final class BoLedgerStore {
         guard scoredEnergy.isFinite, scoredEnergy > 0 else { return growthProgress }
 
         let previousEnergyPool = state.energyPool
-        let result = PiboCoreBoEconomy.applyEnergy(
-            energyPool: previousEnergyPool,
-            grantedEnergy: scoredEnergy
-        )
-        state.energyPool = result.newEnergyPool
-        state.ripeCount += result.mintedCount
-        state.lifetimeMinted += result.mintedCount
-        if result.mintedCount > 0, state.firstBoMintedAt == nil { state.firstBoMintedAt = .now }
+        let mintedCount = applyContainerGrant(scoredEnergy)
+        if mintedCount > 0, state.firstBoMintedAt == nil { state.firstBoMintedAt = .now }
         commit()
         progressFeedback?.recordLedgerUpdate(
             previousEnergyPool: previousEnergyPool,
             newEnergyPool: state.energyPool,
-            mintedCount: result.mintedCount
+            mintedCount: mintedCount
         )
         return growthProgress
     }
@@ -393,18 +389,29 @@ final class BoLedgerStore {
     private static let scanWindowDays = 400
 
     private func repairOversizedEnergyPoolIfNeeded() {
-        let result = PiboCoreBoEconomy.applyEnergy(
-            energyPool: state.energyPool,
-            grantedEnergy: 0
-        )
-        guard result.mintedCount > 0 else { return }
-        state.energyPool = result.newEnergyPool
-        state.ripeCount += result.mintedCount
-        state.lifetimeMinted += result.mintedCount
+        // An empty container forms its single unit from any full reserve.
+        let minted = applyContainerGrant(0)
+        guard minted > 0 else { return }
         if state.firstBoMintedAt == nil { state.firstBoMintedAt = .now }
         LPLog.bo.notice(
-            "repaired oversized persisted pool; recovered=\(result.mintedCount, privacy: .public)"
+            "formed container from persisted reserve; minted=\(minted, privacy: .public)"
         )
+    }
+
+    /// Decision 048 container: at most one newly formed unit waits on the head;
+    /// the rest of the energy stays reserved in the pool. Legacy ripe queues are
+    /// preserved. Core owns the arithmetic; returns the number minted (0 or 1).
+    private func applyContainerGrant(_ energy: Double) -> Int {
+        let result = PiboBoContainer.step(
+            pool: state.energyPool,
+            ripe: UInt32(clamping: state.ripeCount),
+            stored: UInt32(clamping: state.balance),
+            grant: energy.isFinite ? max(0, energy) : 0
+        )
+        state.energyPool = result.energyPool
+        state.ripeCount = Int(result.ripeCount)
+        state.lifetimeMinted += Int(result.mintedCount)
+        return Int(result.mintedCount)
     }
 
     private func scanCutoff(now: Date) -> Date {
@@ -546,13 +553,7 @@ final class BoLedgerStore {
         )
         guard target > existing else { return }
         state.grantedEnergyByDay[day] = target
-        let result = PiboCoreBoEconomy.applyEnergy(
-            energyPool: state.energyPool,
-            grantedEnergy: target - existing
-        )
-        state.energyPool = result.newEnergyPool
-        state.ripeCount += result.mintedCount
-        state.lifetimeMinted += result.mintedCount
+        _ = applyContainerGrant(target - existing)
     }
 
     private func commit() {

@@ -48,6 +48,12 @@ struct PiboStageView: View, Equatable {
     /// Fired when a tappable common item in the forest is selected.
     var onOrnamentTapped: (PiboOrnament.ID) -> Void = { _ in }
     var onShadowTapped: () -> Void = {}
+    /// Decision 048 pull-to-collect. Returns whether the ledger collected one bo.
+    var onCollectBo: () -> Bool = { false }
+    var onHarvestActiveChanged: (Bool) -> Void = { _ in }
+    var onHarvestHint: (String) -> Void = { _ in }
+    /// Balance chip centre in this view's coordinates; energy flies there.
+    var balanceTarget: CGPoint?
     /// Suspend the stage when an opaque feature covers Home. The `SpriteView`
     /// itself is detached below; `isPaused` alone does not reliably stop
     /// `SKView`'s display-link/render callbacks while a full-screen cover keeps
@@ -113,6 +119,7 @@ struct PiboStageView: View, Equatable {
             .onChange(of: boFillProgress) { _, value in
                 scene.setBoFillProgress(value)
             }
+
             .onChange(of: environment) { _, value in scene.setEnvironment(value) }
             .onChange(of: presentedOrnaments) { _, _ in applyOrnaments() }
             .onChange(of: unlockedOrnaments) { _, _ in applyOrnaments() }
@@ -126,6 +133,11 @@ struct PiboStageView: View, Equatable {
             .onDisappear {
                 commandController.detach(scene: scene)
             }
+            .modifier(BoContainerSceneSync(
+                scene: scene,
+                boGrowthStage: boGrowthStage,
+                balanceTarget: balanceTarget
+            ))
         }
         .accessibilityRepresentation {
             commonItemAccessibilityControls
@@ -141,11 +153,17 @@ struct PiboStageView: View, Equatable {
                 onPat()
             }
             .accessibilityValue(boGrowthAccessibilityValue)
-            Button(AppLocalization.text("查看 bo")) {
-                onSproutTouched()
+            Button(AppLocalization.text(boGrowthStage == .ripe ? "收取 bo" : "查看 bo")) {
+                if boGrowthStage == .ripe {
+                    scene.collectBoFromAccessibility()
+                } else {
+                    onSproutTouched()
+                }
             }
             .accessibilityValue(boGrowthAccessibilityValue)
-            .accessibilityHint(AppLocalization.text("成熟后可投入共同物件"))
+            .accessibilityHint(AppLocalization.text(
+                boGrowthStage == .ripe ? "把头顶的能量收进 bo 余额" : "充满后可以向上拉，收进 bo 余额"
+            ))
             ForEach(PiboOrnament.ordered.filter {
                 presentedOrnaments.contains($0.id) && !unlockedOrnaments.contains($0.id)
             }) { ornament in
@@ -190,6 +208,9 @@ struct PiboStageView: View, Equatable {
         scene.onOrnamentLightTapped = onOrnamentLightTapped
         scene.onOrnamentTapped = onOrnamentTapped
         scene.onShadowTapped = onShadowTapped
+        scene.onCollectBo = onCollectBo
+        scene.onHarvestActiveChanged = onHarvestActiveChanged
+        scene.onHarvestHint = onHarvestHint
         scene.onDirectManipulationChanged = { [weak renderController] active in
             renderController?.setDirectManipulation(
                 active: active,
@@ -198,6 +219,8 @@ struct PiboStageView: View, Equatable {
         }
         applySceneState()
         scene.setBoFillProgress(boFillProgress)
+        scene.setHasRipeBo(boGrowthStage == .ripe)
+        scene.setBalanceTarget(viewPoint: balanceTarget)
         scene.setEnvironment(environment)
         applyOrnaments()
         scene.setLitOrnamentLights(litOrnamentLights)
@@ -237,6 +260,7 @@ struct PiboStageView: View, Equatable {
             && lhs.growth == rhs.growth
             && lhs.boGrowthStage == rhs.boGrowthStage
             && lhs.boFillProgress == rhs.boFillProgress
+            && lhs.balanceTarget == rhs.balanceTarget
             && lhs.environment == rhs.environment
             && lhs.presentedOrnaments == rhs.presentedOrnaments
             && lhs.unlockedOrnaments == rhs.unlockedOrnaments
@@ -246,5 +270,22 @@ struct PiboStageView: View, Equatable {
             && lhs.isPaused == rhs.isPaused
             && lhs.isObscured == rhs.isObscured
             && lhs.commandController === rhs.commandController
+    }
+}
+
+/// Decision 048 inputs, split out so the main bridge stays type-checkable.
+private struct BoContainerSceneSync: ViewModifier {
+    let scene: PiboStageScene
+    let boGrowthStage: PiboCoreBoGrowthStage
+    let balanceTarget: CGPoint?
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: boGrowthStage) { _, stage in
+                scene.setHasRipeBo(stage == .ripe)
+            }
+            .onChange(of: balanceTarget) { _, point in
+                scene.setBalanceTarget(viewPoint: point)
+            }
     }
 }
