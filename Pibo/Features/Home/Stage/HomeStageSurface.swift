@@ -21,6 +21,7 @@ struct HomeStageSurface: View {
         let isPaused: Bool
         let isObscured: Bool
         let balanceTarget: CGPoint?
+        let companionHotspots: PiboStageScene.CompanionHotspots
 
         init(
             store: PetStateStore,
@@ -34,15 +35,27 @@ struct HomeStageSurface: View {
             isObscured: Bool,
             shadowPresentation: ShadowPiboStagePresentation = .hidden,
             harvestActive: Bool = false,
-            balanceTarget: CGPoint? = nil
+            balanceTarget: CGPoint? = nil,
+            moodStateID: String? = nil,
+            companionHotspots: PiboStageScene.CompanionHotspots = .none
         ) {
             theme = store.currentTheme
             activityState = animationPresentation.state
             // Decision 048: a ripe container (or a collection still playing out)
             // overrides the presentation with the one normal standing pose. The
             // health state itself is untouched.
+            // Decision 054 moods layer over the durable expression, except when
+            // the hammock owns a sleeping/waking pose.
+            let hammockPose = [
+                PiboAnimationResourceID.sleepingHammockA,
+                PiboAnimationResourceID.sleepingHammockB,
+                PiboAnimationResourceID.wakingHammock,
+            ].contains(animationPresentation.stateID)
+            let semantic = hammockPose ? animationPresentation.stateID
+                : (moodStateID ?? animationPresentation.stateID)
+            self.companionHotspots = companionHotspots
             animationStateID = Self.presentedStateID(
-                semantic: animationPresentation.stateID,
+                semantic: semantic,
                 hasRipeBo: boLedger.hasRipeBo,
                 harvestActive: harvestActive
             )
@@ -76,6 +89,7 @@ struct HomeStageSurface: View {
         var harvestActiveChanged: (Bool) -> Void = { _ in }
         var harvestHint: (String) -> Void = { _ in }
         var speechAnchorChanged: (CGPoint?) -> Void = { _ in }
+        var companionHotspot: (PiboStageScene.CompanionHotspot) -> Void = { _ in }
         let ornamentLightTap: (PiboOrnament.ID, Int) -> Void
         let ornamentTap: (PiboOrnament.ID) -> Void
         let shadowTap: () -> Void
@@ -109,6 +123,8 @@ struct HomeStageSurface: View {
             onHarvestActiveChanged: handlers.harvestActiveChanged,
             onHarvestHint: handlers.harvestHint,
             onSpeechAnchorChanged: handlers.speechAnchorChanged,
+            companionHotspots: input.companionHotspots,
+            onCompanionHotspot: handlers.companionHotspot,
             balanceTarget: input.balanceTarget,
             isPaused: input.isPaused,
             isObscured: input.isObscured

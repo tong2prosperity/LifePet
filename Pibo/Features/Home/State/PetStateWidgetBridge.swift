@@ -39,6 +39,8 @@ enum PetStateWidgetBridge {
         merged.moveProgress = previous.moveProgress
         merged.exerciseProgress = previous.exerciseProgress
         merged.standProgress = previous.standProgress
+        merged.companionStatusLabel = previous.companionStatusLabel
+        merged.companionStatusExpiresAt = previous.companionStatusExpiresAt
         merged.sceneID = PiboFlatWorldScene.recommended(
             petName: merged.petName,
             choices: PiboFlatWorldScene.widgetCycle
@@ -52,6 +54,12 @@ enum PetStateWidgetBridge {
         WidgetCenter.shared.reloadTimelines(
             ofKind: PiboWidgetConstants.homeWidgetKind
         )
+        #endif
+    }
+
+    static func reloadHomeWidget() {
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadTimelines(ofKind: PiboWidgetConstants.homeWidgetKind)
         #endif
     }
 

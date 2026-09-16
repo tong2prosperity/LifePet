@@ -14,6 +14,8 @@ final class HomeSpeechPresentationController {
     ) -> Task<Void, Never>
 
     private(set) var line: PiboSpeechLine?
+    /// Unix seconds of the latest shown line (companion budget input).
+    @ObservationIgnored private(set) var lastShownAt: Double?
 
     @ObservationIgnored private var clearTask: Task<Void, Never>?
     @ObservationIgnored private let scheduleClear: ClearScheduler
@@ -38,6 +40,7 @@ final class HomeSpeechPresentationController {
 
     func show(_ line: PiboSpeechLine) {
         clearTask?.cancel()
+        lastShownAt = Date().timeIntervalSince1970
         withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) {
             self.line = line
         }

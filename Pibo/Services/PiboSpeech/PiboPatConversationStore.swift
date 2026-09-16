@@ -431,7 +431,7 @@ final class PiboPatConversationStore {
     }
 }
 
-private extension PiboCorePatContext {
+extension PiboCorePatContext {
     var catalogKey: String? {
         switch self {
         case .stableTouchDiscovery: "stable.touchDiscovery"

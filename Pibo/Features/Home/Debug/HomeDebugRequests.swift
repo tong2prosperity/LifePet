@@ -10,6 +10,21 @@ enum HomeDebugRequest: String {
     case boRipePreview
     /// Plays the light growth hint without touching the ledger.
     case boGrowthHint
+    /// Decision 054 companion tools (still governed by Core budgets).
+    case companionPatReady
+    case companionAbsenceShort
+    case companionAbsenceLong
+    case companionReset
+
+    var companionCommand: String {
+        switch self {
+        case .companionPatReady: "pat-ready"
+        case .companionAbsenceShort: "absence-short"
+        case .companionAbsenceLong: "absence-long"
+        case .companionReset: "reset"
+        default: ""
+        }
+    }
 
     static let notification = Notification.Name("pibo.debug.homeRequest")
 

@@ -53,6 +53,8 @@ struct PiboStageView: View, Equatable {
     var onHarvestActiveChanged: (Bool) -> Void = { _ in }
     var onHarvestHint: (String) -> Void = { _ in }
     var onSpeechAnchorChanged: (CGPoint?) -> Void = { _ in }
+    var companionHotspots: PiboStageScene.CompanionHotspots = .none
+    var onCompanionHotspot: (PiboStageScene.CompanionHotspot) -> Void = { _ in }
     /// Balance chip centre in this view's coordinates; energy flies there.
     var balanceTarget: CGPoint?
     /// Suspend the stage when an opaque feature covers Home. The `SpriteView`
@@ -137,7 +139,8 @@ struct PiboStageView: View, Equatable {
             .modifier(BoContainerSceneSync(
                 scene: scene,
                 boGrowthStage: boGrowthStage,
-                balanceTarget: balanceTarget
+                balanceTarget: balanceTarget,
+                companionHotspots: companionHotspots
             ))
         }
         .accessibilityRepresentation {
@@ -172,6 +175,14 @@ struct PiboStageView: View, Equatable {
                     onOrnamentTapped(ornament.id)
                 }
                 .accessibilityHint(AppLocalization.text("查看功能和唤醒所需的 bo"))
+            }
+            if companionHotspots.findsHiddenPibo {
+                Button(AppLocalization.text("草丛里好像有动静")) { onCompanionHotspot(.grass) }
+            } else if companionHotspots.grass {
+                Button(AppLocalization.text("草丛")) { onCompanionHotspot(.grass) }
+            }
+            if companionHotspots.river {
+                Button(AppLocalization.text("河面")) { onCompanionHotspot(.river) }
             }
             if unlockedOrnaments.contains(.hammock) {
                 Button(AppLocalization.text("打开睡眠回顾")) {
@@ -213,6 +224,8 @@ struct PiboStageView: View, Equatable {
         scene.onHarvestActiveChanged = onHarvestActiveChanged
         scene.onHarvestHint = onHarvestHint
         scene.onSpeechAnchorChanged = onSpeechAnchorChanged
+        scene.onCompanionHotspot = onCompanionHotspot
+        scene.setCompanionHotspots(companionHotspots)
         scene.onDirectManipulationChanged = { [weak renderController] active in
             renderController?.setDirectManipulation(
                 active: active,
@@ -263,6 +276,7 @@ struct PiboStageView: View, Equatable {
             && lhs.boGrowthStage == rhs.boGrowthStage
             && lhs.boFillProgress == rhs.boFillProgress
             && lhs.balanceTarget == rhs.balanceTarget
+            && lhs.companionHotspots == rhs.companionHotspots
             && lhs.environment == rhs.environment
             && lhs.presentedOrnaments == rhs.presentedOrnaments
             && lhs.unlockedOrnaments == rhs.unlockedOrnaments
@@ -280,9 +294,13 @@ private struct BoContainerSceneSync: ViewModifier {
     let scene: PiboStageScene
     let boGrowthStage: PiboCoreBoGrowthStage
     let balanceTarget: CGPoint?
+    let companionHotspots: PiboStageScene.CompanionHotspots
 
     func body(content: Content) -> some View {
         content
+            .onChange(of: companionHotspots) { _, value in
+                scene.setCompanionHotspots(value)
+            }
             .onChange(of: boGrowthStage) { _, stage in
                 scene.setHasRipeBo(stage == .ripe)
             }

@@ -26,6 +26,7 @@ struct HomeStageInteractions {
     let showAnimationLine: (PiboSpeechLine) -> Void
     let showResolvedSpeech: (PiboSpeech) -> Void
     let presentSheet: (HomeSheetDestination) -> Void
+    var companion: HomeCompanionController? = nil
 
     var stageHandlers: HomeStageSurface.Handlers {
         HomeStageSurface.Handlers(
@@ -66,7 +67,8 @@ struct HomeStageInteractions {
             show: { line in
                 if input.state == .stable { animationPresentation.stableThinking = false }
                 showAnimationLine(line)
-            }
+            },
+            companion: isDailyGuidePat ? nil : companion
         )
         animationPresentation.refreshExpression(behavior: input.state == .stable ? .default : speech.patBehavior(for: input))
     }
@@ -90,6 +92,7 @@ struct HomeStageInteractions {
             "balance": .int(ledger.availableBo),
             "remaining_ripe": .int(ledger.state.ripeCount),
         ])
+        companion?.onBoCollected()
         LPLog.bo.notice("pulled collection \(before, privacy: .public)→\(ledger.availableBo, privacy: .public)")
         return true
     }
@@ -106,6 +109,7 @@ struct HomeStageInteractions {
     }
 
     private func handleOrnamentTap(_ id: PiboOrnament.ID) {
+        if id == .hammock, ornamentUnlocks.isUnlocked(.hammock) { companion?.onHammockTapped() }
         HomeOrnamentInteractionCoordinator.handleTap(
             ornamentID: id,
             canPresent: canPresentOrnament,

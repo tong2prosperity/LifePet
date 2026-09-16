@@ -51,6 +51,31 @@ final class PiboStageScene: SKScene {
     /// Fired when a forest common item is itself an interaction entry.
     var onOrnamentTapped: ((PiboOrnament.ID) -> Void)?
     var onShadowTapped: (() -> Void)?
+
+    /// Decision 054 forest hotspots. Rects are forest design coordinates.
+    enum CompanionHotspot: Equatable { case grass, river }
+    struct CompanionHotspots: Equatable {
+        var grass = false
+        var river = false
+        /// Hide-and-seek: Pibo's body in the grass becomes a single-tap "found".
+        var findsHiddenPibo = false
+        static let none = CompanionHotspots()
+    }
+    static let grassHotspotDesignRect = CGRect(x: 271.3, y: 416.1, width: 150.6, height: 114.2)
+    static let riverHotspotDesignRect = CGRect(x: 122, y: 664, width: 128, height: 70)
+    private(set) var companionHotspots = CompanionHotspots.none
+    var onCompanionHotspot: ((CompanionHotspot) -> Void)?
+
+    func setCompanionHotspots(_ hotspots: CompanionHotspots) {
+        companionHotspots = hotspots
+    }
+
+    private func companionHotspot(at point: CGPoint) -> CompanionHotspot? {
+        let mapper = ForestLayoutMapper(sceneSize: size)
+        if companionHotspots.grass, mapper.rect(Self.grassHotspotDesignRect).contains(point) { return .grass }
+        if companionHotspots.river, mapper.rect(Self.riverHotspotDesignRect).contains(point) { return .river }
+        return nil
+    }
     /// Decision 048 collection. The closure returns whether the ledger collected.
     var onCollectBo: (() -> Bool)? {
         didSet { configureCharacterCallbacks() }
@@ -536,6 +561,13 @@ final class PiboStageScene: SKScene {
             character.beginHairDrag(at: p)
             return
         }
+        // Companion hotspots sit above the draggable foreground foliage, so a
+        // tap on the river or grass is not swallowed by a leaf drag.
+        if piboRegion == .none, companionHotspot(at: p) != nil {
+            tapTouch = t
+            tapOrigin = p
+            return
+        }
         if themeRenderer?.beginInteraction(at: p, timestamp: t.timestamp) == true {
             themeTouch = t
             onDirectManipulationChanged?(true)
@@ -668,10 +700,18 @@ final class PiboStageScene: SKScene {
             onShadowTapped?()
             return
         }
+        if companionHotspots.findsHiddenPibo, character.hitRegion(at: p, in: self) != .none {
+            onCompanionHotspot?(.grass)
+            return
+        }
         if character.hitRegion(at: p, in: self) == .body {
             if HomePatGesturePolicy.accepts(tapCount: tapCount) {
                 onPat?()
             }
+            return
+        }
+        if let hotspot = companionHotspot(at: p) {
+            onCompanionHotspot?(hotspot)
             return
         }
         // Pibo 先判、主题后判，顺序是有意的。铃兰灯的左侧铃铛落在 Pibo 身体范围

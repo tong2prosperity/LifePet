@@ -73,6 +73,8 @@ struct HomeView: View {
     @State private var boBalanceTarget: CGPoint?
     /// Current pose's bo container top (global), for the speech bubble.
     @State private var speechAnchor: CGPoint?
+    /// Decision 054 companion prompts, echoes and moods (local-only memory).
+    @State private var companion = HomeCompanionController.shared
     @AccessibilityFocusState private var statusObserverHeadingFocused: Bool
     #if DEBUG
     @State private var debugControls = HomeDebugControlsState()
@@ -186,7 +188,7 @@ struct HomeView: View {
             input: speechInput,
             speech: piboSpeech,
             currentPolicy: { presentationPolicy },
-            currentStageIsPaused: { stagePaused },
+            currentStageIsPaused: { stagePaused || companion.holdsSpeech || companion.active != nil },
             currentWeather: { weather.condition },
             currentHasRipeBo: { boLedger.hasRipeBo }
         )
@@ -238,7 +240,8 @@ struct HomeView: View {
             dismissSpeech: speechPresentation.dismiss,
             showAnimationLine: speechPresentation.show,
             showResolvedSpeech: speechPresentation.show,
-            presentSheet: { presentation.activeSheet = $0 }
+            presentSheet: { presentation.activeSheet = $0 },
+            companion: companion
         )
     }
 
@@ -408,7 +411,9 @@ struct HomeView: View {
                     isObscured: stageObscured,
                     shadowPresentation: shadowStagePresentation,
                     harvestActive: boHarvestActive,
-                    balanceTarget: boBalanceTarget
+                    balanceTarget: boBalanceTarget,
+                    moodStateID: companion.moodAnimationID,
+                    companionHotspots: companionHotspots
                 ),
                 commandController: stageCommands,
                 handlers: stageHandlers
@@ -421,6 +426,18 @@ struct HomeView: View {
                 .accessibilityHidden(stagePaused || statusObserverCardVisible)
                 .opacity(statusObserverCardVisible ? 0 : 1)
                 .allowsHitTesting(!statusObserverCardVisible)
+
+            if companion.replySheetOpen {
+                CompanionReplyPanel(
+                    question: companion.promptQuestion,
+                    maxScalars: companion.maxReplyScalars,
+                    countScalars: { companion.replyScalarCount($0) },
+                    onCancel: { companion.cancelReply() },
+                    onSubmit: { companion.submitReply($0) }
+                )
+                .zIndex(90)
+                .transition(.opacity)
+            }
 
             if statusObserverCardVisible {
                 statusObserverPanel
@@ -476,6 +493,7 @@ struct HomeView: View {
                         stageCommands.cancelFoodObservation()
                         presentation.foodProjection = nil
                         presentBoProgressFeedbackIfPossible()
+                        companion.onMealObserved()
                     }
                 )
                 .zIndex(30)
@@ -645,6 +663,8 @@ struct HomeView: View {
                 // Decision 047: backgrounding ends the transient observer view,
                 // and so does any sheet or full-screen feature taking over Home.
                 if phase != .active { statusObserverPresentation.close() }
+                bindCompanion()
+                if phase == .active { companion.enterHome() } else { companion.leaveHome() }
             }
             .onChange(of: presentation.activeSheet == nil && !fullScreenFeaturePresented) { _, homeClear in
                 if !homeClear { statusObserverPresentation.close() }
@@ -664,6 +684,7 @@ struct HomeView: View {
                 statusObserverPresentation.close()
                 boBalanceHintTask?.cancel()
                 boBalanceHint = nil
+                companion.leaveHome()
                 piboSpeech.leaveHome()
                 speechPresentation.dismiss()
                 stageCommands.cancelFoodObservation()
@@ -680,6 +701,15 @@ struct HomeView: View {
             .onChange(of: health.dataAvailability) { _, _ in
                 refreshAnimationState()
             }
+            .task(id: scenePhase == .active) {
+                guard scenePhase == .active else { return }
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard !Task.isCancelled else { return }
+                    bindCompanion()
+                    companion.tick()
+                }
+            }
             .onChange(of: boProgressReconcileToken) { _, _ in
                 presentBoProgressFeedbackIfPossible()
             }
@@ -690,6 +720,15 @@ struct HomeView: View {
                 }
                 #endif
                 presentBoProgressFeedbackIfPossible()
+                bindCompanion()
+                if scenePhase == .active { companion.enterHome() }
+                #if DEBUG
+                if let command = ProcessInfo.processInfo.arguments
+                    .first(where: { $0.hasPrefix("-PiboCompanion=") })?
+                    .dropFirst("-PiboCompanion=".count) {
+                    _ = companion.debugRun(String(command))
+                }
+                #endif
                 shadowSync.setSnapshotDraft(shadowSnapshotDraft)
                 reconcileShadowFriendFlow()
                 soundscape.setCoLightCount(coLightCount(ornamentLights.lit))
@@ -829,11 +868,17 @@ struct HomeView: View {
         ZStack {
             // Speech bubble floats just above Pibo's head (~30% down).
             if let speech = speechPresentation.line {
-                HomeSpeechOverlay.make(line: speech, anchorY: speechAnchor?.y) {
-                    speechPresentation.dismiss()
-                    Analytics.track(.historyOpen, screen: "home_speech")
-                    presentation.showHistory = true
-                }
+                HomeSpeechOverlay.make(
+                    line: speech,
+                    anchorY: speechAnchor?.y,
+                    onDetail: {
+                        speechPresentation.dismiss()
+                        Analytics.track(.historyOpen, screen: "home_speech")
+                        presentation.showHistory = true
+                    },
+                    onChoice: speech.interaction == nil ? nil : { companion.choose($0) },
+                    onCustomReply: speech.interaction == nil ? nil : { companion.openReply() }
+                )
             }
 
             HomePrimaryChrome(
@@ -878,6 +923,12 @@ struct HomeView: View {
         }
         handlers.harvestActiveChanged = { active in boHarvestActive = active }
         handlers.harvestHint = showBoBalanceHint
+        handlers.companionHotspot = { hotspot in
+            switch hotspot {
+            case .grass: companion.onGrassTapped()
+            case .river: companion.onRiverTapped()
+            }
+        }
         handlers.speechAnchorChanged = { point in
             if speechAnchor != point { speechAnchor = point }
         }
@@ -1002,6 +1053,10 @@ struct HomeView: View {
             stageCommands.debugPlayBoRipePreview()
         case .boGrowthHint:
             stageCommands.debugPlayBoGrowthHint()
+        case .companionPatReady, .companionAbsenceShort, .companionAbsenceLong, .companionReset:
+            bindCompanion()
+            let message = companion.debugRun(request.companionCommand)
+            if !message.isEmpty { showBoBalanceHint(message) }
         }
     }
     #endif
@@ -1241,7 +1296,50 @@ struct HomeView: View {
         HomeAnimationRefreshToken(store: store, history: history)
     }
 
+    /// Re-binds the companion to Home's current stores; facts are read lazily.
+    private func bindCompanion() {
+        companion.environment = HomeCompanionController.Environment(
+            appActive: { scenePhase == .active },
+            state: { animationPresentation.state },
+            patBehavior: {
+                let input = HomePatInputProvider(
+                    store: store, history: history, animationPresentation: animationPresentation,
+                    healthAvailability: health.dataAvailability, storyStage: speechInput.storyStage
+                ).input()
+                return piboSpeech.patBehavior(for: input)
+            },
+            isThinking: { animationPresentation.stableThinking },
+            patEpisodeKey: { animationPresentation.patEpisodeKey },
+            overlayOpen: {
+                presentation.activeSheet != nil || fullScreenFeaturePresented
+                    || statusObserverPresentation.isOpen || presentation.showSettings
+            },
+            foodProjectionVisible: { presentation.foodProjection != nil },
+            achievementVisible: { store.animationExperience.pendingAchievement != nil },
+            sproutBusy: { sproutPhase != .idle || boHarvestActive },
+            hasRipeBo: { boLedger.hasRipeBo },
+            dailyGuideActive: { onboarding.dailyHomeGuide != .none },
+            speechVisible: { speechPresentation.line != nil },
+            currentLine: { speechPresentation.line },
+            lastSpeechAt: { speechPresentation.lastShownAt },
+            weather: { weather.condition },
+            speechValues: { speechInput.values },
+            show: { speechPresentation.show($0) },
+            dismiss: { speechPresentation.dismiss() }
+        )
+    }
+
+    private var companionHotspots: PiboStageScene.CompanionHotspots {
+        guard companion.enabled, !stagePaused else { return .none }
+        return PiboStageScene.CompanionHotspots(
+            grass: companion.grassHotspotEnabled,
+            river: companion.riverHotspotEnabled,
+            findsHiddenPibo: companion.mood.hidesBody
+        )
+    }
+
     private func performReset() {
+        companion.store.reset()
         statusObserverPresentation.close()
         UserDefaults.standard.removeObject(forKey: PiboPersistenceKeys.Defaults.wellnessObserverPinnedPetIDs)
         HomeResetCoordinator.run(

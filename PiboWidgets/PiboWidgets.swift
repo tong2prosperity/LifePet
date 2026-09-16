@@ -11,11 +11,18 @@ struct PiboWidgetProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<PiboWidgetEntry>) -> Void) {
         let now = Date()
         let calendar = Calendar.current
+        let stored = PiboWidgetSnapshotStore.load()
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
             ?? now.addingTimeInterval(86_400)
         let rollover = calendar.date(byAdding: .minute, value: 5, to: tomorrow)
             ?? tomorrow.addingTimeInterval(300)
-        completion(Timeline(entries: [entry(at: now), entry(at: rollover)], policy: .after(rollover.addingTimeInterval(86_400))))
+        var entries = [entry(at: now)]
+        // A companion mood phrase falls back to the state label when it expires.
+        if let expiry = stored.companionStatusExpiresAt, expiry > now, expiry < rollover {
+            entries.append(entry(at: expiry))
+        }
+        entries.append(entry(at: rollover))
+        completion(Timeline(entries: entries, policy: .after(rollover.addingTimeInterval(86_400))))
     }
 
     private func entry(at date: Date) -> PiboWidgetEntry {
@@ -25,6 +32,7 @@ struct PiboWidgetProvider: TimelineProvider {
             date: date,
             choices: PiboFlatWorldScene.widgetCycle
         )
+        snapshot.stateLabel = snapshot.displayStateLabel(at: date)
         return PiboWidgetEntry(date: date, snapshot: snapshot)
     }
 }

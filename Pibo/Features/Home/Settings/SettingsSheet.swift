@@ -371,6 +371,21 @@ struct DebugSettingsView: View {
                 }
                 .buttonStyle(.plain)
                 Divider().overlay(LP.Separator.primary)
+                ForEach([
+                    (HomeDebugRequest.companionPatReady, "陪伴 · 下次拍一拍"),
+                    (.companionAbsenceShort, "陪伴 · 离开 4 小时"),
+                    (.companionAbsenceLong, "陪伴 · 离开 25 小时"),
+                    (.companionReset, "陪伴 · 清空记忆"),
+                ], id: \.0.rawValue) { request, title in
+                    Button {
+                        LPHaptics.tap()
+                        request.post()
+                    } label: {
+                        debugRow(title)
+                    }
+                    .buttonStyle(.plain)
+                    Divider().overlay(LP.Separator.primary)
+                }
                 Button {
                     LPHaptics.tap()
                     HomeDebugRequest.boRipePreview.post()

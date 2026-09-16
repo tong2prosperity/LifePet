@@ -37,6 +37,12 @@ enum Analytics {
         case boPanelOpen = "bo_panel_open"
         /// Decision 048: a ripe container pulled into the spendable balance.
         case boCollect = "bo_collect"
+        /// Decision 054 companion prompts. Custom reply text is never tracked.
+        case companionPromptShown = "companion_prompt_shown"
+        case companionPromptAnswered = "companion_prompt_answered"
+        case companionPromptIgnored = "companion_prompt_ignored"
+        case companionEchoShown = "companion_echo_shown"
+        case companionMoodShown = "companion_mood_shown"
         /// 解锁一件森林物件，扣掉 bo。
         case boUnlock = "bo_unlock"
         case boUnlockItemSelect = "bo_unlock_item_select"

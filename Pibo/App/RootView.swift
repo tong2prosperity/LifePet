@@ -195,6 +195,7 @@ struct RootView: View {
             ornamentLights: ornamentLights
         )
         walkDoodleProgress.reset()
+        HomeCompanionController.shared.store.reset()
         do {
             try modelContext.delete(model: HealthDayRecord.self)
             try modelContext.delete(model: WorkoutRecord.self)

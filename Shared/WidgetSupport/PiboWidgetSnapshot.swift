@@ -28,6 +28,19 @@ nonisolated struct PiboWidgetSnapshot: Codable, Hashable, Sendable {
     var exerciseProgress: Double?
     var standProgress: Double?
     var sceneID: PiboFlatWorldScene?
+    /// Decision 054: short mood phrase ("躲在草丛里") shown instead of the state
+    /// label until it expires. Never user-written text.
+    var companionStatusLabel: String? = nil
+    var companionStatusExpiresAt: Date? = nil
+
+    /// The label a widget should show at `date`.
+    func displayStateLabel(at date: Date) -> String {
+        if let label = companionStatusLabel, !label.isEmpty,
+           let expiry = companionStatusExpiresAt, date < expiry {
+            return label
+        }
+        return stateLabel
+    }
 
     static let fallback = PiboWidgetSnapshot(
         petName: "Pibo",
