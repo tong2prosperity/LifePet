@@ -920,9 +920,19 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         }
         let hit = ornamentNodes
             .filter { tappable.contains($0.key) && !$0.value.isHidden && $0.value.alpha > 0.01 }
-            .filter { _, node in
+            .filter { id, node in
                 guard let parent = node.parent, let scene = context?.scene else { return false }
-                return node.contains(parent.convert(point, from: scene))
+                let local = parent.convert(point, from: scene)
+                guard node.contains(local) else { return false }
+                // Only painted pixels answer; transparent PNG margins pass through.
+                guard let image = PiboOrnament.ornament(id)?.placement?.image,
+                      let mask = ForestAlphaHitMask.mask(named: image),
+                      node.frame.width > 0, node.frame.height > 0 else { return true }
+                let unit = CGPoint(
+                    x: (local.x - node.frame.minX) / node.frame.width,
+                    y: (local.y - node.frame.minY) / node.frame.height
+                )
+                return mask.contains(unitPoint: unit)
             }
             .max { lhs, rhs in lhs.value.zPosition < rhs.value.zPosition }
         return hit.map { .ornament($0.key) }

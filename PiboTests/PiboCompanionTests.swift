@@ -93,3 +93,14 @@ struct HomeDebugToolCatalogTests {
     }
 }
 #endif
+
+@MainActor
+struct ForestAlphaHitMaskTests {
+    @Test func transparentHammockCornersDoNotAnswerTaps() throws {
+        let image = try #require(PiboOrnament.ornament(.hammock)?.placement?.image)
+        let mask = try #require(ForestAlphaHitMask.mask(named: image))
+        #expect(!mask.contains(unitPoint: CGPoint(x: 0.01, y: 0.01), radius: 0))
+        #expect(!mask.contains(unitPoint: CGPoint(x: 0.99, y: 0.99), radius: 0))
+        #expect(mask.contains(unitPoint: CGPoint(x: 0.5, y: 0.5)))
+    }
+}
