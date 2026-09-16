@@ -175,6 +175,13 @@ final class PiboPatConversationStore {
         }
     }
 
+    #if DEBUG
+    /// DEBUG pat rehearsal: pretend the first-touch discovery is (not) done.
+    func debugSetTouchDiscoveryCompleted(_ count: Int) {
+        snapshot.touchDiscoveryCompleted = min(Self.touchDiscoveryCount, max(0, count))
+    }
+    #endif
+
     func leaveHome() {
         active = nil
         lastSpeechAt = nil

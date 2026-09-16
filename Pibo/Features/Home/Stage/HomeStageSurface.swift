@@ -37,7 +37,8 @@ struct HomeStageSurface: View {
             harvestActive: Bool = false,
             balanceTarget: CGPoint? = nil,
             moodStateID: String? = nil,
-            companionHotspots: PiboStageScene.CompanionHotspots = .none
+            companionHotspots: PiboStageScene.CompanionHotspots = .none,
+            boOverride: BoOverride? = nil
         ) {
             theme = store.currentTheme
             activityState = animationPresentation.state
@@ -56,15 +57,15 @@ struct HomeStageSurface: View {
             self.companionHotspots = companionHotspots
             animationStateID = Self.presentedStateID(
                 semantic: semantic,
-                hasRipeBo: boLedger.hasRipeBo,
+                hasRipeBo: boOverride?.hasRipe ?? boLedger.hasRipeBo,
                 harvestActive: harvestActive
             )
             self.balanceTarget = balanceTarget
             // The forest head now represents the real `bo` ledger. The old
             // workout-driven mystery/sprouted field remains only for migration.
             growth = .sprouted
-            boGrowthStage = boLedger.growthStage
-            boFillProgress = boLedger.growthProgress
+            boGrowthStage = boOverride?.stage ?? boLedger.growthStage
+            boFillProgress = boOverride?.progress ?? boLedger.growthProgress
             self.environment = environment
             let unlocked = ornamentUnlocks.presentableUnlocked
             unlockedOrnaments = unlocked
@@ -139,6 +140,13 @@ struct HomeStageSurface: View {
     /// Debug character previews may bypass the collection pose.
     static var debugBypassesCollectionPose = false
     #endif
+}
+
+/// DEBUG temporary container presentation; production passes nil.
+struct BoOverride: Equatable {
+    let stage: PiboCoreBoGrowthStage
+    let progress: Double
+    let hasRipe: Bool
 }
 
 extension HomeStageSurface.Input {

@@ -11,6 +11,8 @@ final class HomeDebugControlsState {
     var isPanelExpanded: Bool
     var usesBounceCut: Bool
     var playsAchievementCombo: Bool
+    /// The detailed forest panel is reached from the DEV dock only.
+    var showsForestPanel = false
 
     init(
         tuning: StageRenderTuning = .standard,

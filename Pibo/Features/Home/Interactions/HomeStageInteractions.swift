@@ -27,6 +27,8 @@ struct HomeStageInteractions {
     let showResolvedSpeech: (PiboSpeech) -> Void
     let presentSheet: (HomeSheetDestination) -> Void
     var companion: HomeCompanionController? = nil
+    /// DEBUG pat rehearsal: an isolated scenario input and resolution.
+    var debugPat: (input: () -> PiboPatConversationInput, resolve: () -> PiboPatResolution)? = nil
 
     var stageHandlers: HomeStageSurface.Handlers {
         HomeStageSurface.Handlers(
@@ -42,6 +44,20 @@ struct HomeStageInteractions {
     }
 
     private func handlePat() {
+        if let debugPat {
+            let input = debugPat.input()
+            HomePatInteractionCoordinator.run(input: input, handlers: .init(
+                react: { action, state in
+                    LPHaptics.tap()
+                    contextualActions.restart(action: action, state: state, stageCommands: stageCommands)
+                },
+                resolveSpeech: debugPat.resolve,
+                presentHealthStatus: {},
+                show: showAnimationLine,
+                trackSpeech: { _ in }
+            ))
+            return
+        }
         let input = HomePatInputProvider(
             store: store,
             history: history,

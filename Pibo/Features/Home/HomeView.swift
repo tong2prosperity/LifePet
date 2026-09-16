@@ -77,6 +77,12 @@ struct HomeView: View {
     @State private var companion = HomeCompanionController.shared
     @AccessibilityFocusState private var statusObserverHeadingFocused: Bool
     #if DEBUG
+    @State private var debugBoSession: HomeDebugBoSession?
+    @State private var debugPatSession: HomePatDebugSession?
+    @State private var debugDayTask: Task<Void, Never>?
+    @State private var debugOnboardingPreview: DailySetupStep?
+    #endif
+    #if DEBUG
     @State private var debugControls = HomeDebugControlsState()
     #endif
     @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled) private var ambientSoundEnabled = true
@@ -241,7 +247,8 @@ struct HomeView: View {
             showAnimationLine: speechPresentation.show,
             showResolvedSpeech: speechPresentation.show,
             presentSheet: { presentation.activeSheet = $0 },
-            companion: companion
+            companion: companion,
+            debugPat: debugPatHooks
         )
     }
 
@@ -413,7 +420,8 @@ struct HomeView: View {
                     harvestActive: boHarvestActive,
                     balanceTarget: boBalanceTarget,
                     moodStateID: companion.moodAnimationID,
-                    companionHotspots: companionHotspots
+                    companionHotspots: companionHotspots,
+                    boOverride: debugBoOverride
                 ),
                 commandController: stageCommands,
                 handlers: stageHandlers
@@ -670,6 +678,9 @@ struct HomeView: View {
                 if !homeClear { statusObserverPresentation.close() }
             }
             #if DEBUG
+            .fullScreenCover(item: $debugOnboardingPreview) { step in
+                DailyOnboardingPreviewHost(startingAt: step)
+            }
             .onReceive(NotificationCenter.default.publisher(for: HomeDebugRequest.notification)) { note in
                 guard let raw = note.object as? String,
                       let request = HomeDebugRequest(rawValue: raw) else { return }
@@ -901,13 +912,21 @@ struct HomeView: View {
             }
 
             #if DEBUG
-            HomeDebugControlsOverlay(
-                controls: debugControls,
-                store: store,
-                animationPresentation: animationPresentation,
-                stageCommands: stageCommands,
-                onSelectAnimationState: debugInteractions.selectAnimationState
+            if debugControls.showsForestPanel {
+                HomeDebugControlsOverlay(
+                    controls: debugControls,
+                    store: store,
+                    animationPresentation: animationPresentation,
+                    stageCommands: stageCommands,
+                    onSelectAnimationState: debugInteractions.selectAnimationState
+                )
+            }
+            HomeDebugDock(
+                status: debugDockStatus,
+                onRun: runDebugTool,
+                onExitAll: exitAllDebug
             )
+            .zIndex(95)
             #endif
         }
         .opacity(sproutPhase.obscuresHomeChrome ? 0 : 1)
@@ -919,6 +938,9 @@ struct HomeView: View {
         let interactions = stageInteractions
         handlers.collectBo = {
             speechPresentation.dismiss()
+            #if DEBUG
+            if let session = debugBoSession { return session.collect() }
+            #endif
             return interactions.collectBo()
         }
         handlers.harvestActiveChanged = { active in boHarvestActive = active }
@@ -949,7 +971,7 @@ struct HomeView: View {
 
     private var boBalanceChip: some View {
         HomeBoBalanceChip(
-            balance: boLedger.availableBo,
+            balance: displayedBoBalance,
             hint: boBalanceHint,
             onTap: {
                 LPHaptics.tap()
@@ -1042,7 +1064,179 @@ struct HomeView: View {
         .onAppear { statusObserverHeadingFocused = true }
     }
 
+    private var displayedBoBalance: Int {
+        #if DEBUG
+        if let session = debugBoSession { return Int(session.balance) }
+        #endif
+        return boLedger.availableBo
+    }
+
+    private var debugBoOverride: BoOverride? {
+        #if DEBUG
+        guard let session = debugBoSession else { return nil }
+        return BoOverride(stage: session.growthStage, progress: session.progress, hasRipe: session.hasRipe)
+        #else
+        return nil
+        #endif
+    }
+
+    private var debugPatHooks: (input: () -> PiboPatConversationInput, resolve: () -> PiboPatResolution)? {
+        #if DEBUG
+        guard let session = debugPatSession else { return nil }
+        return (input: { session.input() }, resolve: { session.resolve() })
+        #else
+        return nil
+        #endif
+    }
+
     #if DEBUG
+    private var debugDockStatus: String {
+        var parts: [String] = []
+        if debugBoSession != nil { parts.append("临时 bo") }
+        if let session = debugPatSession { parts.append("拍一拍 · \(session.scenario.title)") }
+        if animationPresentation.forcedStateID != nil { parts.append("动画覆盖") }
+        if weather.debugCondition != nil { parts.append("天气覆盖") }
+        if store.debugForestHour != nil { parts.append("时间覆盖") }
+        if presentation.activeSheet != nil || fullScreenFeaturePresented { parts.append("有浮层打开，场景命令可能被阻挡") }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Routes one DEV dock command. Returns a short status line.
+    private func runDebugTool(_ id: String) -> String {
+        if id.hasPrefix("state:"), let state = PiboActivityState(rawValue: String(id.dropFirst(6))) {
+            HomeStageSurface.debugBypassesCollectionPose = true
+            debugInteractions.selectAnimationState(PiboAnimationStateMap.ambientStateID(for: state))
+            return "角色表现：\(state.displayName)"
+        }
+        if id.hasPrefix("animation:") {
+            let stateID = String(id.dropFirst("animation:".count))
+            if stateID == "auto" {
+                HomeStageSurface.debugBypassesCollectionPose = false
+                debugInteractions.selectAnimationState(nil)
+                return "已恢复当前真实表现"
+            }
+            HomeStageSurface.debugBypassesCollectionPose = true
+            debugInteractions.selectAnimationState(nil)
+            debugInteractions.selectAnimationState(stateID)
+            return HomeDebugToolCatalog.animationTitles[stateID]?.title ?? stateID
+        }
+        if id.hasPrefix("companion:") {
+            bindCompanion()
+            return companion.debugRun(String(id.dropFirst("companion:".count)))
+        }
+        if id.hasPrefix("bo:") {
+            let preset = String(id.dropFirst(3))
+            switch preset {
+            case "effect":
+                stageCommands.debugPlayBoRipePreview()
+                return "播放成熟效果（不写账本）"
+            case "growth-hint":
+                stageCommands.debugPlayBoGrowthHint()
+                return "播放成长提示（不写账本）"
+            default:
+                debugBoSession = HomeDebugBoSession(preset: preset)
+                return "临时 bo 场景 · 余额不写盘，不能投入真实物件"
+            }
+        }
+        if id.hasPrefix("item:"), let ornament = PiboOrnament.ID(rawValue: String(id.dropFirst(5))) {
+            stageCommands.prepareOrnamentDiscovery(ornament)
+            stageCommands.playOrnamentDiscovery(ornament) {}
+            return "显影预览（未解锁真实物件）"
+        }
+        if id.hasPrefix("weather:") {
+            switch id.dropFirst(8) {
+            case "rain": weather.setDebugCondition(.rain)
+            case "storm": weather.setDebugCondition(.thunderstorm)
+            default: weather.setDebugCondition(nil)
+            }
+            return HomeDebugToolCatalog.tool(id)?.title ?? id
+        }
+        if id.hasPrefix("hour:"), let hour = Double(id.dropFirst(5)) {
+            debugDayTask?.cancel()
+            store.debugForestHour = hour
+            return "光影 \(HomeDebugToolCatalog.tool(id)?.title ?? id)"
+        }
+        switch id {
+        case "onboarding":
+            debugOnboardingPreview = .welcome
+            return "首启预览 · 不申请权限、不写入数据"
+        case "pat":
+            if let session = debugPatSession {
+                session.advanceScenario()
+            } else {
+                debugPatSession = HomePatDebugSession()
+            }
+            return "拍一拍场景：\(debugPatSession?.scenario.title ?? "")（双击 Pibo，或再点切到下一个）"
+        case "pat-again":
+            guard let session = debugPatSession else { return "先选择拍一拍场景" }
+            stageInteractions.stageHandlers.pat()
+            return "拍一次 · \(session.scenario.title)"
+        case "pat-reset":
+            guard let session = debugPatSession else { return "先选择拍一拍场景" }
+            session.reset()
+            speechPresentation.dismiss()
+            return "已重开 \(session.scenario.title)"
+        case "food-left", "food-right":
+            stageCommands.playFoodObservation(onRight: id == "food-right")
+            return "观察动作"
+        case "day":
+            debugDayTask?.cancel()
+            debugDayTask = Task { @MainActor in
+                let start = Date()
+                while !Task.isCancelled {
+                    let elapsed = Date().timeIntervalSince(start)
+                    guard elapsed < 24 else { break }
+                    store.debugForestHour = elapsed.truncatingRemainder(dividingBy: 24)
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+            }
+            return "24 秒播放一天"
+        case "forest":
+            debugControls.showsForestPanel.toggle()
+            debugControls.isPanelExpanded = true
+            return debugControls.showsForestPanel ? "森林细节参数已打开" : "森林细节参数已收起"
+        case "observer":
+            handleDebugRequest(.statusObserverSample)
+            return "状态观测仪示例数据"
+        case "sleep":
+            morningSleep.debugPresentFixture()
+            return "晨间睡眠卡片示例"
+        case "notification":
+            Task { _ = await morningSleep.debugScheduleFixtureNotification() }
+            return "3 秒后发送睡眠通知（系统副作用）"
+        case "workout":
+            debugInteractions.simulateWorkout()
+            return "已写入测试运动"
+        case "history-data":
+            Task {
+                await history.seedSampleAllIfEmpty(forceMaintenance: true)
+                presentation.showHistory = true
+            }
+            return "写入足迹示例数据"
+        case "backend-meal":
+            debugInteractions.simulateMeal(.lunch)
+            return "后台餐食识别（真实网络请求）"
+        case "legacy":
+            presentation.showSettings = true
+            return "打开维护设置"
+        default:
+            return ""
+        }
+    }
+
+    private func exitAllDebug() {
+        HomeStageSurface.debugBypassesCollectionPose = false
+        debugInteractions.selectAnimationState(nil)
+        weather.setDebugCondition(nil)
+        debugDayTask?.cancel()
+        store.debugForestHour = nil
+        debugBoSession = nil
+        debugPatSession = nil
+        debugControls.showsForestPanel = false
+        statusObserverPresentation.close()
+        speechPresentation.dismiss()
+    }
+
     private func handleDebugRequest(_ request: HomeDebugRequest) {
         switch request {
         case .statusObserverSample:

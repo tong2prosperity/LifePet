@@ -57,3 +57,39 @@ struct PiboCompanionTests {
         #expect(HomeCompanionController.hash("ab") == 97 * 31 + 98)
     }
 }
+
+#if DEBUG
+@MainActor
+struct HomeDebugToolCatalogTests {
+    @Test func animationCatalogCoversEveryShippedResource() {
+        let ids = Set(HomeDebugToolCatalog.tools.filter { $0.group == "动画" }.map(\.id))
+        for resource in PiboAnimationStateMap.available {
+            #expect(ids.contains("animation:\(resource)"), "missing \(resource)")
+            #expect(HomeDebugToolCatalog.animationTitles[resource] != nil, "untitled \(resource)")
+        }
+        #expect(ids.contains("animation:auto"))
+        #expect(Set(HomeDebugToolCatalog.tools.map(\.id)).count == HomeDebugToolCatalog.tools.count)
+    }
+
+    @Test func patScenariosCoverAll27CoreContextsWithIsolatedStores() {
+        #expect(HomePatDebugScenario.all.count == 27)
+        let keys = Set(PiboCorePatContext.allCases.compactMap(\.catalogKey))
+        #expect(Set(HomePatDebugScenario.all.map(\.id)) == keys)
+    }
+
+    @Test func recentsKeepSixMostRecentUnique() {
+        var prefs = HomeDebugDockPreferences()
+        for id in ["a", "b", "c", "d", "e", "f", "g", "a"] { prefs.noteUsed(id) }
+        #expect(prefs.recents == ["a", "g", "f", "e", "d", "c"])
+    }
+
+    @Test func debugBoSessionUsesCoreContainerWithoutTheLedger() {
+        let session = HomeDebugBoSession(preset: "reserve")
+        #expect(session.hasRipe)
+        #expect(session.collect())
+        #expect(session.balance == 1)
+        #expect(session.hasRipe, "reserve refills the container")
+        #expect(!HomeDebugBoSession(preset: "charging").collect())
+    }
+}
+#endif
