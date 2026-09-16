@@ -1366,6 +1366,9 @@ final class PiboCharacterRenderer {
             }
         }
 
+        if boRipeElapsed == nil {
+            headRig.presentationTilt = (vector?.energeticSproutTilt ?? 0) * .pi / 180
+        }
         let pull = reduceMotion ? 0 : harvest.pull
         headRig.stretch = 1 + 1.12 * pull
         if pull > 0 || harvest.gaze > 0 || harvest.blink < 1 {

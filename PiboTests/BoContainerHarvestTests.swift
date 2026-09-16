@@ -119,3 +119,19 @@ struct BoContainerHarvestTests {
         #expect(HomeStageSurface.Input.presentedStateID(semantic: semantic, hasRipeBo: false, harvestActive: true) == PiboAnimationResourceID.stable)
     }
 }
+
+struct PiboEnergeticMotionTests {
+    @Test func stretchOnlyLivesInABeatAndTheCycleIsSeamless() {
+        let start = PiboEnergeticMotion.pose(seconds: 0, reduced: false)
+        let end = PiboEnergeticMotion.pose(seconds: PiboEnergeticMotion.cycleSeconds - 0.0001, reduced: false)
+        #expect(abs(start.scaleY - end.scaleY) < 0.001)
+        #expect(abs(start.lift - end.lift) < 0.001)
+        var tallFrames = 0
+        for frame in 0..<216 {
+            if PiboEnergeticMotion.pose(seconds: Double(frame) / 60, reduced: false).scaleY > 1.03 { tallFrames += 1 }
+        }
+        #expect(tallFrames < 20, "stretch must be a push-off accent, not a held posture")
+        let reduced = PiboEnergeticMotion.pose(seconds: 1.0, reduced: true)
+        #expect(reduced.lift == 0 && reduced.hand == 0 && reduced.sprout == 0)
+    }
+}

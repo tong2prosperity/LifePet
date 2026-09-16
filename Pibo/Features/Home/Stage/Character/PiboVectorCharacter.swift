@@ -128,11 +128,38 @@ final class PiboVectorCharacter {
     /// Transient maturity halo around the container (0 = none). Maturity keeps
     /// the full bo, never a permanent glow.
     var boGlow: CGFloat = 0
+    /// Sprout whip (degrees) of the energetic hop; the renderer feeds it to the rig.
+    private(set) var energeticSproutTilt: CGFloat = 0
+    /// Body path of the planted (non-hopping) energetic pose, so the pat target
+    /// does not jump with the hop.
+    private var groundedBodyDesignPath: CGPath?
 
     private static let faceParts: Set<String> = [
         "lefteye", "righteye", "leftdot", "rightdot", "leftlid", "rightlid",
         "leftunder", "rightunder", "nose",
     ]
+
+    /// Hands swing out, feet tuck and eyes widen/blink with the energetic hop.
+    private static func energeticLocal(partID: String, pose: PiboEnergeticMotion.Pose) -> CGAffineTransform {
+        if partID == "lefthand" || partID == "righthand" {
+            let isLeft = partID == "lefthand"
+            let cx: CGFloat = isLeft ? 110 : 205
+            let radians = (isLeft ? -1 : 1) * pose.hand * .pi / 180
+            return CGAffineTransform(translationX: -cx, y: -175)
+                .concatenating(CGAffineTransform(rotationAngle: radians))
+                .concatenating(CGAffineTransform(translationX: cx, y: 175))
+        }
+        if partID.contains("leg"), pose.leg > 0 {
+            return CGAffineTransform(translationX: 0, y: -pose.leg)
+        }
+        if ["lefteye", "righteye", "leftlid", "rightlid", "leftdot", "rightdot"].contains(partID) {
+            let cx: CGFloat = partID.hasPrefix("left") ? 134.71 : 181.71
+            return CGAffineTransform(translationX: -cx, y: -149.5)
+                .concatenating(CGAffineTransform(scaleX: 1 + (pose.eye - 1) * 0.45, y: pose.eye))
+                .concatenating(CGAffineTransform(translationX: cx, y: 149.5))
+        }
+        return .identity
+    }
 
     private func overlayTransforms(partID: String) -> (local: CGAffineTransform, body: CGAffineTransform) {
         let overlay = expressionOverlay
@@ -310,16 +337,43 @@ final class PiboVectorCharacter {
             for part in library.parts { expressionBasePaths[part.id] = part.path(weights: frame.weights) }
             expressionWeights = frame.weights
         }
+        // Energetic: undo the authored narrow/tall rest scale, then hop.
+        var energeticHop: CGAffineTransform?
+        var energeticPose: PiboEnergeticMotion.Pose?
+        var plant = CGAffineTransform.identity
+        if profile == "energetic",
+           let bodyIndex = library.parts.firstIndex(where: { $0.id == "body" }),
+           let rest = library.clips["energetic"]?.rest.transforms[bodyIndex] {
+            let pose = PiboEnergeticMotion.pose(seconds: expressionClock, reduced: reduceMotion)
+            let px = 1 / max(0.001, rest[0]), py = 1 / max(0.001, rest[3])
+            plant = PiboEnergeticMotion.bodyTransform(scaleX: px, scaleY: py, lift: 0)
+            energeticHop = PiboEnergeticMotion.bodyTransform(
+                scaleX: px * pose.scaleX, scaleY: py * pose.scaleY, lift: pose.lift
+            )
+            energeticPose = pose
+        }
+        energeticSproutTilt = energeticPose?.sprout ?? 0
+        groundedBodyDesignPath = nil
         for (i, part) in library.parts.enumerated() {
             var path = expressionBasePaths[part.id]
             if frame.fatigue > 0.5, part.id.hasSuffix("eye") {
                 path = expressionEyePaths?.path(openness: frame.eyes[part.id == "lefteye" ? 0 : 1])
             }
             let overlay = overlayTransforms(partID: part.id)
-            var matrix = overlay.local
-                .concatenating(PiboExpressionFrame.matrix(frame.transforms[i]))
+            var local = overlay.local
+            if let pose = energeticPose {
+                local = local.concatenating(Self.energeticLocal(partID: part.id, pose: pose))
+            }
+            let authored = PiboExpressionFrame.matrix(frame.transforms[i])
+            var matrix = local
+                .concatenating(authored)
+                .concatenating(energeticHop ?? .identity)
                 .concatenating(overlay.body)
             expressionDesignPaths[part.id] = path?.copy(using: &matrix)
+            if energeticHop != nil, part.id == "body" {
+                var grounded = authored.concatenating(plant)
+                groundedBodyDesignPath = path?.copy(using: &grounded)
+            }
         }
         for entry in elementNodes.values {
             guard entry.element.isShared || entry.stateID == stateID else { entry.node.alpha = 0; continue }
@@ -511,6 +565,7 @@ final class PiboVectorCharacter {
     /// weather system's impact sampling, so the visible shape and the
     /// interactive shape cannot drift apart.
     func bodyPath() -> CGPath? {
+        if let grounded = groundedBodyDesignPath { var t = bodyTransform; return grounded.copy(using: &t) }
         if let path = expressionDesignPaths["body"] { var t = bodyTransform; return path.copy(using: &t) }
         guard let morph = data.morph["body"] else { return nil }
         return interpolatedPath(id: "body", morph: morph, transform: bodyTransform)
