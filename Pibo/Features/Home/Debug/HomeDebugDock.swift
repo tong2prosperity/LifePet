@@ -33,9 +33,11 @@ struct HomeDebugDock: View {
                 }
                 if !lastResult.isEmpty || !status.isEmpty {
                     statusStrip
+                        // Beside the dot and pushed toward the edge so it never
+                        // covers Pibo's face in the middle of the stage.
                         .position(
-                            x: preferences.onRightEdge ? size.width - 150 : 150,
-                            y: dotY - 44
+                            x: preferences.onRightEdge ? size.width - 136 : 136,
+                            y: dotY + 42
                         )
                 }
                 dot

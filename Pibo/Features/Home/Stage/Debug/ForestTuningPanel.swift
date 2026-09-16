@@ -241,6 +241,9 @@ struct ForestTuningPanel: View {
         case PiboAnimationResourceID.sleepingHammockA: "吊床睡眠 A"
         case PiboAnimationResourceID.sleepingHammockB: "吊床睡眠 B"
         case PiboAnimationResourceID.wakingHammock: "吊床初醒"
+        // Core's 8,000-step milestone pose, not an asset resolution.
+        case PiboAnimationResourceID.activityMilestoneCelebrate: "8k·腹肌"
+        case PiboAnimationResourceID.workoutCelebrate: "运动·pigu"
         default: stateID
         }
     }
