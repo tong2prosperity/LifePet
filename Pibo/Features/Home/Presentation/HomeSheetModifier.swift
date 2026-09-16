@@ -31,11 +31,7 @@ struct HomeSheetModifier: ViewModifier {
                 .environment(history)
                 .environment(recognizer)
         case .morningSleep(let presentation, let consumesPending):
-            MorningSleepCard(
-                presentation: presentation,
-                appearance: store.appearance,
-                weekly: SleepWeeklyReport.make(store: store, history: history)
-            )
+            MorningSleepCard(presentation: presentation, history: history)
             .onAppear {
                 if consumesPending { morningSleep.markPresented(presentation) }
             }

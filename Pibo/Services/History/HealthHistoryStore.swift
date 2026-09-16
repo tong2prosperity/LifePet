@@ -133,15 +133,22 @@ final class HealthHistoryStore {
         for value in persistableValues {
             let key = calendar.startOfDay(for: value.date)
             let record: HealthDayRecord
+            let provenanceKey = Self.provenanceDayKey(key)
             if let existing = recordsByDay[key] {
                 record = existing
+                // Real values never inherit DEBUG sample metrics: a partial real
+                // day would otherwise keep synthetic fields looking verified.
+                if syntheticHealthDayKeys.contains(provenanceKey),
+                   !verifiedKeys.contains(provenanceKey) {
+                    clearHealthMetrics(on: record)
+                }
             } else {
                 record = HealthDayRecord(date: key)
                 context.insert(record)
                 recordsByDay[key] = record
             }
-            apply(value, to: record)
-            verifiedKeys.insert(Self.provenanceDayKey(key))
+            apply(value, to: record, isToday: calendar.isDateInToday(key))
+            verifiedKeys.insert(provenanceKey)
         }
         clearSyntheticMarkers(verifiedKeys)
         try? context.save()
@@ -158,51 +165,100 @@ final class HealthHistoryStore {
             record = HealthDayRecord(date: key)
             context.insert(record)
         }
-        apply(v, to: record)
+        apply(v, to: record, isToday: false)
     }
 
-    private func apply(_ v: HealthDayValues, to record: HealthDayRecord) {
-        record.steps = v.steps
-        record.hourlySteps = v.hourlySteps
-        record.activeEnergy = v.activeEnergy
-        record.exerciseMinutes = v.exerciseMinutes
-        record.standMinutes = v.standMinutes
-        record.distanceMeters = v.distanceMeters
-        record.flightsClimbed = v.flightsClimbed
-        record.moveGoal = v.moveGoal
-        record.exerciseGoal = v.exerciseGoal
-        record.standGoal = v.standGoal
-        record.restingHR = v.restingHR
-        record.heartRateAvg = v.heartRateAvg
-        record.heartRateMin = v.heartRateMin
-        record.heartRateMax = v.heartRateMax
-        record.hrv = v.hrv
-        record.oxygenSaturation = v.oxygenSaturation
-        record.sleepTotal = v.sleepTotal
-        record.sleepDeep = v.sleepDeep
-        record.sleepREM = v.sleepREM
-        record.sleepCore = v.sleepCore
-        record.sleepAwake = v.sleepAwake
-        record.sleepStart = v.sleepStart
-        record.sleepEnd = v.sleepEnd
-        record.sleepInBed = v.sleepInBed
-        record.sleepAwakeningCount = v.sleepAwakeningCount
-        record.sleepLatency = v.sleepLatency
-        record.sleepSegments = v.sleepSegments
-        record.overnightHRV = v.overnightHRV
-        record.sleepingHeartRateAverage = v.sleepingHeartRateAverage
-        record.sleepingHeartRateMinimum = v.sleepingHeartRateMinimum
-        record.sleepingWristTemperature = v.sleepingWristTemperature
-        record.sleepingRespiratoryRate = v.sleepingRespiratoryRate
-        record.sleepingOxygenSaturation = v.sleepingOxygenSaturation
-        record.sleepingBreathingDisturbances = v.sleepingBreathingDisturbances
-        record.vo2Max = v.vo2Max
-        record.recoveryIndexScore = v.recoveryIndexScore
-        record.mindfulMinutes = v.mindfulMinutes
-        record.workoutCount = v.workoutCount
-        record.workoutMinutes = v.workoutMinutes
-        record.workoutEnergy = v.workoutEnergy
+    /// Merge one backfill bucket into a row. Only metrics that actually arrived
+    /// are written, so an empty or failed HealthKit query never erases a value
+    /// the row already holds, and never stamps a fake zero.
+    ///
+    /// - Today's step total only moves forward: HealthKit statistics lag while
+    ///   the watch syncs, and a smaller re-read must not rewind the card.
+    /// - A sleep summary without stages keeps cached stage segments that
+    ///   belong to the same night instead of wiping the drawn timeline.
+    private func apply(_ v: HealthDayValues, to record: HealthDayRecord, isToday: Bool) {
+        if v.stepsArrived {
+            let regresses = isToday
+                && record.stepsRecorded == true
+                && v.steps < record.steps
+            if !regresses {
+                record.steps = max(0, v.steps)
+                if v.hourlySteps.count == 24 { record.hourlySteps = v.hourlySteps }
+            }
+            record.stepsRecorded = true
+        } else if v.hourlySteps.count == 24, record.hourlySteps.count != 24 {
+            record.hourlySteps = v.hourlySteps
+        }
+        if v.activeEnergyArrived {
+            record.activeEnergy = max(0, v.activeEnergy)
+            record.activeEnergyRecorded = true
+        }
+        if v.exerciseArrived {
+            record.exerciseMinutes = max(0, v.exerciseMinutes)
+            record.exerciseRecorded = true
+        }
+        if v.standArrived {
+            record.standMinutes = max(0, v.standMinutes)
+            record.standRecorded = true
+        }
+        if v.distanceMeters > 0 { record.distanceMeters = v.distanceMeters }
+        if v.flightsClimbed > 0 { record.flightsClimbed = v.flightsClimbed }
+        if v.moveGoal > 0 { record.moveGoal = v.moveGoal }
+        if v.exerciseGoal > 0 { record.exerciseGoal = v.exerciseGoal }
+        if v.standGoal > 0 { record.standGoal = v.standGoal }
+        if v.restingHR > 0 { record.restingHR = v.restingHR }
+        if v.heartRateAvg > 0 {
+            record.heartRateAvg = v.heartRateAvg
+            record.heartRateMin = v.heartRateMin
+            record.heartRateMax = v.heartRateMax
+        }
+        if v.hrv > 0 { record.hrv = v.hrv }
+        if v.oxygenSaturation > 0 { record.oxygenSaturation = v.oxygenSaturation }
+        if v.vo2Max != nil { record.vo2Max = v.vo2Max }
+
+        if v.sleepTotal > 0 {
+            let cachedSegments = record.sleepSegments
+            record.sleepTotal = v.sleepTotal
+            record.sleepDeep = v.sleepDeep
+            record.sleepREM = v.sleepREM
+            record.sleepCore = v.sleepCore
+            record.sleepAwake = v.sleepAwake
+            record.sleepStart = v.sleepStart
+            record.sleepEnd = v.sleepEnd
+            record.sleepInBed = v.sleepInBed
+            record.sleepAwakeningCount = v.sleepAwakeningCount
+            record.sleepLatency = v.sleepLatency
+            if !v.sleepSegments.isEmpty {
+                record.sleepSegments = v.sleepSegments
+            } else if !Self.segments(cachedSegments, overlapStart: v.sleepStart, end: v.sleepEnd) {
+                // Stages of a different night must not be drawn under this one.
+                record.sleepSegments = []
+            }
+            record.overnightHRV = v.overnightHRV
+            record.sleepingHeartRateAverage = v.sleepingHeartRateAverage
+            record.sleepingHeartRateMinimum = v.sleepingHeartRateMinimum
+            record.sleepingWristTemperature = v.sleepingWristTemperature
+            record.sleepingRespiratoryRate = v.sleepingRespiratoryRate
+            record.sleepingOxygenSaturation = v.sleepingOxygenSaturation
+            record.sleepingBreathingDisturbances = v.sleepingBreathingDisturbances
+            record.recoveryIndexScore = v.recoveryIndexScore
+        }
+        if v.mindfulMinutes > 0 { record.mindfulMinutes = v.mindfulMinutes }
+        if v.workoutCount > 0 {
+            record.workoutCount = v.workoutCount
+            record.workoutMinutes = v.workoutMinutes
+            record.workoutEnergy = v.workoutEnergy
+        }
         record.updatedAt = .now
+    }
+
+    private static func segments(
+        _ segments: [SleepSegmentValue],
+        overlapStart start: Date?,
+        end: Date?
+    ) -> Bool {
+        guard let start, let end, end > start, !segments.isEmpty else { return false }
+        return segments.contains { $0.end > start && $0.start < end }
     }
 
     private static func provenanceDayKey(_ date: Date) -> String {
@@ -367,6 +423,10 @@ final class HealthHistoryStore {
         record.moveGoal = 0
         record.exerciseGoal = 0
         record.standGoal = 0
+        record.stepsRecorded = nil
+        record.activeEnergyRecorded = nil
+        record.exerciseRecorded = nil
+        record.standRecorded = nil
         record.restingHR = 0
         record.heartRateAvg = 0
         record.heartRateMin = 0

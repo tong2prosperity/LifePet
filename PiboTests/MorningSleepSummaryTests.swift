@@ -2,52 +2,7 @@ import Foundation
 import Testing
 @testable import Pibo
 
-@Test func sleepTimelineUsesOneUncompressedTimeScale() {
-    let start = Date(timeIntervalSince1970: 1_700_000_000)
-    let end = start.addingTimeInterval(8 * 3_600)
-    let segment = SleepSegmentValue(
-        start: start.addingTimeInterval(2 * 3_600),
-        end: start.addingTimeInterval(4 * 3_600),
-        stage: .deep)
-
-    let x = SleepTimelineGeometry.midpointX(
-        segment: segment,
-        nightStart: start,
-        nightEnd: end,
-        width: 320)
-    let width = SleepTimelineGeometry.cloudWidth(
-        duration: segment.duration,
-        nightStart: start,
-        nightEnd: end,
-        width: 320)
-
-    #expect(abs(x - 120) < 0.001)
-    #expect(abs(width - 80) < 0.001)
-}
-
-@Test func sleepTimelineKeepsBriefIntervalsVisibleWithoutMovingTheirMidpoint() {
-    let start = Date(timeIntervalSince1970: 1_700_000_000)
-    let end = start.addingTimeInterval(8 * 3_600)
-    let segment = SleepSegmentValue(
-        start: start.addingTimeInterval(4 * 3_600),
-        end: start.addingTimeInterval(4 * 3_600 + 2 * 60),
-        stage: .awake)
-
-    let x = SleepTimelineGeometry.midpointX(
-        segment: segment,
-        nightStart: start,
-        nightEnd: end,
-        width: 320)
-    let expectedX = CGFloat(320) * CGFloat(4 * 3_600 + 60) / CGFloat(8 * 3_600)
-    let width = SleepTimelineGeometry.cloudWidth(
-        duration: segment.duration,
-        nightStart: start,
-        nightEnd: end,
-        width: 320)
-
-    #expect(abs(x - expectedX) < 0.001)
-    #expect(width == SleepTimelineGeometry.minimumCloudWidth)
-}
+// Trail geometry is pinned by `SleepCloudTrailGeometryTests`.
 
 @Test func morningSleepBuilderCalculatesContinuityAndAwakenings() {
     let base = Date(timeIntervalSince1970: 1_700_000_000)

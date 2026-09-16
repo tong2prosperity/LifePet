@@ -1,32 +1,32 @@
 import Foundation
 import SwiftUI
 
-/// 今日脚步 card — big step count over a plant landscape with a time ruler
-/// (Figma `activity card` 1374:529 / `walk data-v` 186:1023). The waking window
-/// **06:00–22:00** maps to 16 hourly columns; each grows a plant whose stage
-/// maps that hour's volume (石头 → 嫩芽 → 松树 → 高株) over the mint hills, with
-/// fireflies, a tick ruler and a peak-hour callout.
+/// 步数 card — step count over the plant landscape (Figma `activity card`
+/// 1374:529 / `walk data-v` 186:1023).
+///
+/// - Real 24-bucket hourly data covers the whole local day **00:00–24:00**:
+///   one plant per hour, tap / horizontal drag queries an hour, VoiceOver
+///   steps hour by hour, and selection clears on a new day or new data.
+/// - Only a day total (no hourly buckets) drives a single plant labelled
+///   「今日累计步数」/「当日累计步数」 — no fake hourly labels or distribution.
+/// - Not recorded → "—" and no landscape; a recorded 0 stays 0.
 struct HistoryStepsCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    let steps: Int
-    /// Per-hour step counts (index = hour 0–23). Empty → fall back to a
-    /// day-total pattern (legacy rows without hourly data).
-    let hourlySteps: [Int]
+    /// `nil` = no step record for the day.
+    let steps: Int?
+    /// Real 24 local-hour buckets, or `nil`.
+    let hourlySteps: [Int]?
     let isToday: Bool
-    let caption: String
-    /// 选中的那一天。拖动杆的选中只在**换天**时清掉 —— 用数据本身当信号是不行的：
-    /// 今天的 `hourlySteps` 每次前台刷新都会变，那样用户刚拖到的位置会被悄悄抹掉。
     let dayID: Date
 
-    /// Window shown by the landscape + ruler.
-    static let startHour = 6
-    static let endHour = 22
+    /// Window shown by the landscape + ruler: the full local day.
+    static let startHour = 0
+    static let endHour = 24
 
-    @State private var isVisible = false
     @State private var isRevealed = false
     @State private var revealGeneration = 0
-    /// 拖动杆选中的列（0 = startHour）。`nil` = 未选中，中间标签回落到峰值时段。
+    /// 拖动杆选中的列（0 = 00:00）。`nil` = 未选中，中间标签回落到峰值时段。
     @State private var selectedIndex: Int? = Self.debugInitialScrubIndex()
 
     /// 截图验证用：`-PiboStepsScrubIndex=5` 直接渲染选中态（模拟器上无法合成拖动手势）。
@@ -40,11 +40,20 @@ struct HistoryStepsCard: View {
         return nil
     }
 
+    /// Plant columns. Hourly → 24 real buckets; total only → one plant; else none.
+    static func columns(steps: Int?, hourlySteps: [Int]?) -> [Int] {
+        if let hourlySteps, hourlySteps.count == endHour - startHour { return hourlySteps }
+        if let steps, steps > 0 { return [steps] }
+        return []
+    }
+
+    private var hasHourly: Bool { hourlySteps?.count == Self.endHour - Self.startHour }
+
     var body: some View {
-        let cols = columns()
-        HistoryCard(title: "今日脚步", background: { background }) {
+        let cols = Self.columns(steps: steps, hourlySteps: hourlySteps)
+        HistoryCard(title: "步数", background: { LP.Fill.bgContainer }) {
             HStack(alignment: .bottom, spacing: LP.Spacing.s) {
-                Text("\(steps)")
+                Text(steps.map { "\($0)" } ?? "—")
                     .lpText(LP.Typography.uiH4)
                     .foregroundStyle(LP.Content.primary)
                     .monospacedDigit()
@@ -56,51 +65,60 @@ struct HistoryStepsCard: View {
             .frame(maxWidth: .infinity)
             .padding(.bottom, LP.Spacing.s)
 
-            VStack(spacing: 4) {
-                GrassField(
-                    columns: cols,
-                    isToday: isToday,
-                    isRevealed: isRevealed,
-                    selectedIndex: selectedIndex,
-                    onScrub: { index in
-                        guard index != selectedIndex else { return }
-                        LPHaptics.tap()
-                        selectedIndex = index
-                    })
-                    .frame(height: 114)
+            if cols.isEmpty {
+                Text(AppLocalization.text(steps == nil ? "暂无步数记录" : "已记录全天步数，暂无分时记录"))
+                    .lpText(LP.Typography.c1Regular)
+                    .foregroundStyle(LP.Content.secondary)
                     .frame(maxWidth: .infinity)
+                    .padding(.bottom, LP.Spacing.l)
+            } else {
                 VStack(spacing: 4) {
-                    TickRuler()
-                        .stroke(LP.Content.quarternary, lineWidth: 1)
-                        .frame(height: 8)
-                    axisLabels(peak: peakCallout(cols), selected: selectedCallout(cols))
+                    GrassField(
+                        columns: cols,
+                        isToday: isToday && hasHourly,
+                        isRevealed: isRevealed,
+                        selectedIndex: hasHourly ? selectedIndex : nil,
+                        onScrub: { index in
+                            guard hasHourly, index != selectedIndex else { return }
+                            LPHaptics.tap()
+                            selectedIndex = index
+                        })
+                        .frame(height: 114)
+                        .frame(maxWidth: .infinity)
+                    VStack(spacing: 4) {
+                        TickRuler()
+                            .stroke(LP.Content.quarternary, lineWidth: 1)
+                            .frame(height: 8)
+                        if hasHourly {
+                            axisLabels(peak: peakCallout(cols), selected: selectedCallout(cols))
+                        } else {
+                            Text(AppLocalization.text(isToday ? "今日累计步数" : "当日累计步数"))
+                                .lpText(LP.Typography.c1Medium)
+                                .foregroundStyle(LP.Content.secondary)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(.horizontal, 16)   // Figma 321-in-353 inset
                 }
-                .padding(.horizontal, 16)   // Figma 321-in-353 inset
             }
         }
-        // `VStack` eagerly builds every history card. Start only when this card
-        // actually enters the viewport, otherwise the grow-in finishes offscreen.
-        .onScrollVisibilityChange(threshold: 0.72) { visible in
-            isVisible = visible
-            guard visible, !isRevealed else { return }
-            startReveal()
-        }
-        .onChange(of: cols, initial: true) { _, _ in
+        .onAppear { startReveal() }
+        .onChange(of: cols) { _, _ in
+            selectedIndex = nil
             resetReveal()
         }
-        // 换了一天就把拖动杆的选中丢掉 —— 索引在新的一天依然合法，所以不清的话
-        // 中间那格会静悄悄显示新数据里同一小时的值，看着像"选中还在"，其实用户
-        // 从没在这一天点过。
+        // 换了一天就把拖动杆的选中丢掉 —— 索引在新的一天依然合法，不清的话中间那格会
+        // 静悄悄显示新数据里同一小时的值。
         .onChange(of: dayID) { _, _ in
             selectedIndex = nil
+            resetReveal()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(AppLocalization.text("今日脚步"))
+        .accessibilityLabel(AppLocalization.text("步数"))
         .accessibilityValue(accessibilityValue(cols))
-        // 拖动杆是纯手势控件，读屏用户碰不到它 —— 上下轻扫改为逐小时切换，
-        // 和睡眠卡切换睡眠片段是同一套动作（`selectAdjacent`）。
-        .accessibilityHint(AppLocalization.text("上下滑动逐小时查看"))
+        .accessibilityHint(hasHourly ? AppLocalization.text("上下轻扫逐小时查看") : "")
         .accessibilityAdjustableAction { direction in
+            guard hasHourly else { return }
             switch direction {
             case .increment: selectAdjacent(offset: 1, in: cols)
             case .decrement: selectAdjacent(offset: -1, in: cols)
@@ -109,24 +127,28 @@ struct HistoryStepsCard: View {
         }
     }
 
-    /// 读屏播报：没选中就报当天总数 + 文案，选中了就补上那一小时。
     private func accessibilityValue(_ cols: [Int]) -> String {
-        let base = AppLocalization.text("\(steps)步，\(caption)")
+        guard let steps else { return AppLocalization.text("暂无步数记录") }
+        let base = AppLocalization.format("%d 步", steps)
+        guard hasHourly else {
+            return "\(base)，\(AppLocalization.text(isToday ? "今日累计步数" : "当日累计步数"))"
+        }
         guard let callout = selectedCallout(cols) else { return base }
         return "\(base)，\(callout.range) \(callout.steps)步"
     }
 
-    /// 从当前选中列走一步；还没选过就从峰值那一列起步，落点和视觉一致。
+    /// 从当前选中列走一步；还没选过就从 00:00 起步。
     private func selectAdjacent(offset: Int, in cols: [Int]) {
         guard !cols.isEmpty else { return }
-        let start = selectedIndex ?? peakIndex(cols) ?? 0
-        selectedIndex = min(max(0, start + offset), cols.count - 1)
+        guard let current = selectedIndex else {
+            selectedIndex = offset >= 0 ? 0 : cols.count - 1
+            return
+        }
+        selectedIndex = min(max(0, current + offset), cols.count - 1)
     }
 
-    // MARK: Axis labels (06:00 · 峰值/选中 · 22:00)
+    // MARK: Axis labels (00:00 · 峰值/选中 · 24:00)
 
-    /// 中间那格默认是峰值时段；一旦拖动杆选了某一列，就改显示那一小时的真实数据
-    /// （与睡眠卡的 `selectionDetail` 同一套行为）。
     private func axisLabels(peak: (range: String, steps: Int)?,
                             selected: (range: String, steps: Int)?) -> some View {
         let callout = selected ?? peak
@@ -154,52 +176,20 @@ struct HistoryStepsCard: View {
         }
     }
 
-    /// 选中列的「HH:00-HH:00 N步」。越界返回 nil，回落到峰值。
+    static func hourLabel(_ index: Int) -> String {
+        let hour = startHour + index
+        return String(format: "%02d:00-%02d:00", hour, hour + 1)
+    }
+
     private func selectedCallout(_ cols: [Int]) -> (range: String, steps: Int)? {
-        guard let i = selectedIndex, cols.indices.contains(i) else { return nil }
-        let h = Self.startHour + i
-        return ("\(h):00-\(h + 1):00", cols[i])
+        guard hasHourly, let i = selectedIndex, cols.indices.contains(i) else { return nil }
+        return (Self.hourLabel(i), cols[i])
     }
 
-    // MARK: Data
-
-    /// Per-hour steps for the window [startHour, endHour) → 16 columns.
-    private func columns() -> [Int] {
-        guard hourlySteps.isEmpty else {
-            return (Self.startHour..<Self.endHour).map {
-                $0 < hourlySteps.count ? hourlySteps[$0] : 0
-            }
-        }
-        guard steps > 0 else {
-            return Array(repeating: 0, count: Self.endHour - Self.startHour)
-        }
-        // Legacy (no hourly data): spread the day total over a plausible curve.
-        let vigor = min(1.0, Double(steps) / 10_000)
-        return Self.legacyPattern.map { Int(Double($0) * vigor * 1500) }  // 1500 = full hour
-    }
-
-    /// The busiest hour in the window → the `8:00-9:00 200步` callout. Only for
-    /// real per-hour data (a synthesised legacy curve has no meaningful peak).
     private func peakCallout(_ cols: [Int]) -> (range: String, steps: Int)? {
-        guard let idx = peakIndex(cols) else { return nil }
-        let h = Self.startHour + idx
-        return ("\(h):00-\(h + 1):00", cols[idx])
-    }
-
-    /// 峰值那一列。只对真实的逐小时数据有意义 —— 合成的 legacy 曲线没有真峰值。
-    private func peakIndex(_ cols: [Int]) -> Int? {
-        guard !hourlySteps.isEmpty, let maxV = cols.max(), maxV > 0 else { return nil }
-        return cols.firstIndex(of: maxV)
-    }
-
-    /// Relative volume per hour 06:00–21:00 for legacy rows (morning / lunch /
-    /// evening emphasis).
-    private static let legacyPattern: [CGFloat] = [
-        0.3, 0.7, 1.0, 0.8, 0.5, 0.6, 0.9, 0.7, 0.4, 0.5, 0.6, 0.7, 1.0, 0.9, 0.5, 0.3,
-    ]
-
-    private var background: some View {
-        LP.Fill.bgContainer
+        guard hasHourly, let maxV = cols.max(), maxV > 0,
+              let idx = cols.firstIndex(of: maxV) else { return nil }
+        return (Self.hourLabel(idx), cols[idx])
     }
 
     private func resetReveal() {
@@ -209,11 +199,11 @@ struct HistoryStepsCard: View {
         withTransaction(transaction) {
             isRevealed = false
         }
-        if isVisible {
-            startReveal()
-        }
+        startReveal()
     }
 
+    /// Grow-in (hills sweep, plants pop, fireflies). Reduce Motion shows the
+    /// final state immediately.
     private func startReveal() {
         revealGeneration += 1
         let generation = revealGeneration
@@ -223,7 +213,7 @@ struct HistoryStepsCard: View {
         }
         Task { @MainActor in
             await Task.yield()
-            guard isVisible, revealGeneration == generation else { return }
+            guard revealGeneration == generation else { return }
             isRevealed = true
         }
     }
@@ -573,19 +563,15 @@ private enum StepsPreviewData {
     }
 }
 
-#Preview("今日脚步 · 各档位") {
+#Preview("步数 · 各档位") {
     ScrollView {
         VStack(spacing: LP.Spacing.l) {
             HistoryStepsCard(steps: 8234, hourlySteps: StepsPreviewData.day(8234),
-                             isToday: false, caption: "今天的步数记录已整理", dayID: .now)
-            HistoryStepsCard(steps: 16_500, hourlySteps: StepsPreviewData.day(16_500),
-                             isToday: false, caption: "今天的步数记录已整理", dayID: .now)
-            HistoryStepsCard(steps: 1_820, hourlySteps: StepsPreviewData.day(1_820),
-                             isToday: false, caption: "今天的步数记录已整理", dayID: .now)
-            HistoryStepsCard(steps: 4_300, hourlySteps: StepsPreviewData.day(9_000),
-                             isToday: true, caption: "今天才刚开始（未到的时段会变暗）", dayID: .now)
-            HistoryStepsCard(steps: 7_000, hourlySteps: [],
-                             isToday: false, caption: "老数据 · 无小时分布（兜底）", dayID: .now)
+                             isToday: false, dayID: .now)
+            HistoryStepsCard(steps: 4_300, hourlySteps: StepsPreviewData.day(4_300),
+                             isToday: true, dayID: .now)
+            HistoryStepsCard(steps: 7_000, hourlySteps: nil, isToday: false, dayID: .now)
+            HistoryStepsCard(steps: nil, hourlySteps: nil, isToday: false, dayID: .now)
         }
         .padding(LP.Spacing.xl)
     }

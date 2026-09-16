@@ -14,6 +14,13 @@ struct HealthDayValues: Sendable {
     var moveGoal = 0.0          // Apple Move ring goal, kcal (0 = unknown)
     var exerciseGoal = 0        // Exercise ring goal, min
     var standGoal = 0           // Stand ring goal, hours
+    /// Set only when HealthKit returned a statistic for the metric on this day
+    /// (a real 0 included). `nil` keeps the pre-flag meaning: positive values
+    /// are treated as recorded, zeros are not.
+    var stepsRecorded: Bool?
+    var activeEnergyRecorded: Bool?
+    var exerciseRecorded: Bool?
+    var standRecorded: Bool?
     var restingHR = 0.0
     var heartRateAvg = 0.0
     var heartRateMin = 0.0
@@ -45,8 +52,17 @@ struct HealthDayValues: Sendable {
     var workoutMinutes = 0
     var workoutEnergy = 0.0
 
+    var stepsArrived: Bool { stepsRecorded ?? (steps > 0) }
+    var activeEnergyArrived: Bool { activeEnergyRecorded ?? (activeEnergy > 0) }
+    var exerciseArrived: Bool { exerciseRecorded ?? (exerciseMinutes > 0) }
+    var standArrived: Bool { standRecorded ?? (standMinutes > 0) }
+
+    /// An empty HealthKit response must never create an all-zero day. A first
+    /// real 0 (flagged) is still evidence and does persist.
     var hasPersistableData: Bool {
-        steps > 0 || activeEnergy > 0 || exerciseMinutes > 0 || standMinutes > 0
+        stepsArrived || activeEnergyArrived || exerciseArrived || standArrived
+            || hourlySteps.count == 24
+            || steps > 0 || activeEnergy > 0 || exerciseMinutes > 0 || standMinutes > 0
             || distanceMeters > 0 || flightsClimbed > 0 || moveGoal > 0
             || exerciseGoal > 0 || standGoal > 0 || restingHR > 0
             || heartRateAvg > 0 || heartRateMin > 0 || heartRateMax > 0

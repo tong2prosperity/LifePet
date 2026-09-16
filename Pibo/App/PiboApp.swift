@@ -417,12 +417,11 @@ struct PiboApp: App {
                                 if morningSleep.pendingPresentation == nil {
                                     await health.requestMorningSleepEnrichmentAuthorizationIfNeeded()
                                 }
-                                // Keep today's hourly-step grass fresh; the full
-                                // history backfill only runs once at launch.
-                                let hourly = await health.fetchTodayHourlySteps()
-                                if !hourly.isEmpty {
-                                    history.upsert(day: .now) { $0.hourlySteps = hourly }
-                                }
+                                // Keep today's (and last night's) history row fresh:
+                                // the history page reads today from the record, not
+                                // from live store values. Ingest only writes metrics
+                                // that arrived and never rewinds today's steps.
+                                history.ingest(await health.fetchDailyHistory(days: 1))
                             }
                         } else {
                             morningSleep.presentLatestIfEligible()
