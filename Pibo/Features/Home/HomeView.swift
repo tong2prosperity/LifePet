@@ -420,6 +420,16 @@ struct HomeView: View {
                 presentation: presentation
             )
 
+            // Decision 049 one-time Home guide (pat → tools + optional notifications).
+            DailyHomeGuideOverlay(
+                isBlocked: speechPresentation.line != nil
+                    || presentation.activeSheet != nil
+                    || fullScreenFeaturePresented
+                    || sproutPhase != .idle
+                    || presentation.foodProjection != nil
+            )
+            .zIndex(35)
+
             HomeSproutOverlay(
                 phase: sproutPhase,
                 onDismissPop: dismissEnergyPop

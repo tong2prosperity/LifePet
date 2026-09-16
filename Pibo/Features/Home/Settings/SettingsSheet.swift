@@ -33,6 +33,7 @@ struct DebugSettingsView: View {
     @State private var showWaterLab = false
     @State private var showCharacterLab = false
     @State private var showOrnamentDiscoveryLab = false
+    @State private var showOnboardingPreview = false
     @State private var stressProbeText = ""
     @State private var schedulingSleepMock = false
     @State private var showSleepMockError = false
@@ -81,6 +82,10 @@ struct DebugSettingsView: View {
         }
         .fullScreenCover(isPresented: $showOrnamentDiscoveryLab) {
             OrnamentDiscoveryLab()
+        }
+        .fullScreenCover(isPresented: $showOnboardingPreview) {
+            // Fresh in-memory onboarding store: no permission, no writes.
+            DailyOnboardingPreviewHost()
         }
         #endif
         .confirmationDialog(
@@ -349,6 +354,15 @@ struct DebugSettingsView: View {
                 .foregroundStyle(LP.Content.tertiary)
 
             VStack(spacing: 0) {
+                Button {
+                    LPHaptics.tap()
+                    showOnboardingPreview = true
+                } label: {
+                    debugRow(DailyOnboardingCopy.previewEntry)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("pibo.debug.onboarding-preview")
+                Divider().overlay(LP.Separator.primary)
                 Button {
                     guard !schedulingSleepMock else { return }
                     LPHaptics.tap()

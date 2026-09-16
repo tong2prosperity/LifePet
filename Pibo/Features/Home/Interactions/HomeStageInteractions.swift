@@ -48,12 +48,20 @@ struct HomeStageInteractions {
             storyStage: storyStage()
         ).input()
         animationPresentation.noteAttention()
+        // Decision 049: the first guided pat uses the ordinary Core reaction,
+        // advances the one-time Home guide, and never chases it with an
+        // automatic "connect health" sheet.
+        let isDailyGuidePat = onboarding.dailyHomeGuide == .pat
+        if isDailyGuidePat { onboarding.acknowledgeDailyPat() }
         HomePatInteractionCoordinator.run(
             input: input,
             speech: speech,
             contextualActions: contextualActions,
             stageCommands: stageCommands,
-            presentHealthStatus: { presentSheet(.healthDataStatus) },
+            presentHealthStatus: {
+                guard !isDailyGuidePat else { return }
+                presentSheet(.healthDataStatus)
+            },
             show: { line in
                 if input.state == .stable { animationPresentation.stableThinking = false }
                 showAnimationLine(line)

@@ -109,16 +109,12 @@ final class StressNotifier {
         sleepSummaryPushEnabled = UserDefaults.standard.object(forKey: Self.sleepEnabledKey) as? Bool ?? true
     }
 
-    /// Called once at launch. Sets up quiet provisional authorization (so a
-    /// passive user is covered without a prompt) or just reflects current state
-    /// when the user has turned pushes off.
+    /// Called once at launch. Only restores the current authorization state:
+    /// decision 049 moves the notification choice to the optional Home guide
+    /// and explicit Settings toggles, so launch never requests permission.
     func start() async {
         AppNotificationRouter.shared.install()
-        if pushEnabled {
-            await requestAuthorization(provisional: true)
-        } else {
-            await refreshAuthState()
-        }
+        await refreshAuthState()
     }
 
     /// Request the system notification authorization. `provisional` grants

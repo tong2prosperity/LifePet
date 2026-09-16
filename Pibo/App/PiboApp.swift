@@ -315,8 +315,8 @@ struct PiboApp: App {
                     // Lifetime StoreKit transaction listener + entitlement hydrate.
                     membership.start()
                     weather.start()
-                    // Set up foreground presentation + quiet provisional auth so
-                    // passive users are covered without a prompt.
+                    // Restore notification authorization state only; launch
+                    // never requests permission (decision 049).
                     await StressNotifier.shared.start()
                     await WorkoutCompletionNotifier.shared.start()
                     morningSleep.setAppActive(scenePhase == .active)
