@@ -119,8 +119,17 @@ final class OrnamentUnlockStore {
         }
     }
 
+    /// Core 顺序里的下一个未拥有物件，再套本版发布可见性（决定 051）。被隐藏的物件
+    /// 不跳过：它之后的链也不露出，观测仪之后就没有灰态目标。
     var nextLocked: PiboOrnament? {
-        PiboOrnament.ordered.first { !isUnlocked($0.id) }
+        guard let next = PiboOrnament.ordered.first(where: { !isUnlocked($0.id) }),
+              PiboReleaseScope.allowsOrnament(next.id) else { return nil }
+        return next
+    }
+
+    /// 本版森林里实际展示的已拥有物件。旧用户拥有的风铃／灯权属保留，只是收起表现。
+    var presentableUnlocked: Set<PiboOrnament.ID> {
+        unlocked.filter(PiboReleaseScope.allowsOrnament)
     }
 
     var unlockedBitmask: UInt32 {
@@ -164,6 +173,8 @@ final class OrnamentUnlockStore {
     }
 
     func purchase(_ id: PiboOrnament.ID, using ledger: BoLedgerStore) -> OrnamentPurchaseResult {
+        // 本版隐藏的物件在读取／扣除余额之前就拒绝。
+        guard PiboReleaseScope.allowsOrnament(id) else { return .unavailable }
         switch state(id, balance: ledger.availableBo) {
         case .owned: return .alreadyOwned
         case .unavailable: return .unavailable

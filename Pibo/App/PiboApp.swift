@@ -303,11 +303,15 @@ struct PiboApp: App {
                 .preferredColorScheme(.light)   // LP palette is light-only paper
                 .task {
                     watchSync.activate()
-                    shadowSync.initialize()
+                    if PiboReleaseScope.shadow {
+                        shadowSync.initialize()
+                    }
                     _ = await auth.restoreSession()
                     watchIdentityReady = true
                     publishWatchSnapshot()
-                    shadowSync.setAppActive(scenePhase == .active)
+                    if PiboReleaseScope.shadow {
+                        shadowSync.setAppActive(scenePhase == .active)
+                    }
                     // Lifetime StoreKit transaction listener + entitlement hydrate.
                     membership.start()
                     weather.start()
@@ -374,7 +378,9 @@ struct PiboApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     LPLog.app.debug("scenePhase → \(String(describing: phase), privacy: .public)")
                     morningSleep.setAppActive(phase == .active)
-                    shadowSync.setAppActive(phase == .active)
+                    if PiboReleaseScope.shadow {
+                        shadowSync.setAppActive(phase == .active)
+                    }
                     // 打点: session boundaries (the SDK itself also flushes +
                     // persists its queue on backgrounding).
                     if phase == .active { Analytics.track(.appForeground) }
@@ -421,7 +427,8 @@ struct PiboApp: App {
                     }
                 }
                 .onOpenURL { url in
-                    guard shadow.handleInviteURL(url) else { return }
+                    // 决定 051：邀请链接被消费但不打开好友流程。
+                    guard PiboReleaseScope.shadow, shadow.handleInviteURL(url) else { return }
                     if auth.phase == .loggedIn {
                         Task { _ = await shadow.previewInvitation() }
                     }
@@ -505,7 +512,7 @@ struct PiboApp: App {
         watchSync.publish(
             store: store,
             record: history.record(on: .now),
-            shadowView: accountID.isEmpty ? nil : shadowStore.cachedView,
+            shadowView: accountID.isEmpty || !PiboReleaseScope.shadow ? nil : shadowStore.cachedView,
             shadowAccountID: accountID,
             shadowHidden: shadowStore.hideOnHome,
             ledger: boLedger,

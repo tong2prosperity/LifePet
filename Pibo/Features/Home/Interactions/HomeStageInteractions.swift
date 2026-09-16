@@ -32,7 +32,10 @@ struct HomeStageInteractions {
             sproutTouch: handleSproutTouch,
             ornamentLightTap: handleOrnamentLightTap,
             ornamentTap: handleOrnamentTap,
-            shadowTap: { presentSheet(.shadow(manifest: false)) }
+            shadowTap: {
+                guard PiboReleaseScope.shadow else { return }
+                presentSheet(.shadow(manifest: false))
+            }
         )
     }
 
@@ -71,6 +74,7 @@ struct HomeStageInteractions {
     }
 
     private func handleOrnamentLightTap(_ id: PiboOrnament.ID, index: Int) {
+        guard PiboReleaseScope.allowsOrnament(id) else { return }
         // Lighting is deliberately reward-free and one-way until dawn.
         HomeOrnamentInteractionCoordinator.handleLightTap(
             ornamentID: id,

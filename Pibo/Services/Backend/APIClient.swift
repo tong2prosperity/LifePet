@@ -96,7 +96,7 @@ actor APIClient {
     }
 
     private func perform(path: String, method: String, bodyData: Data?, bearer: String?, timeout: TimeInterval? = nil) async throws -> (Data, HTTPURLResponse) {
-        guard let url = URL(string: path, relativeTo: config.baseURL) else {
+        guard let url = config.url(for: path) else {
             throw APIError.invalidRequest
         }
         var req = URLRequest(url: url)

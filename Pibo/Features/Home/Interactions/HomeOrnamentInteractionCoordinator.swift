@@ -27,7 +27,7 @@ enum HomeOrnamentInteractionCoordinator {
         toggleStatusObserver: @escaping () -> Void,
         present: @escaping (HomeSheetDestination) -> Void
     ) {
-        guard canPresent() else { return }
+        guard canPresent(), PiboReleaseScope.allowsOrnament(ornamentID) else { return }
         if !unlocks.isUnlocked(ornamentID) {
             LPHaptics.tap()
             dismissSpeech()

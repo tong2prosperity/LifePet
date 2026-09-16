@@ -42,7 +42,7 @@ struct HomeStageSurface: View {
             boGrowthStage = boLedger.growthStage
             boFillProgress = boLedger.growthProgress
             self.environment = environment
-            let unlocked = ornamentUnlocks.unlocked
+            let unlocked = ornamentUnlocks.presentableUnlocked
             unlockedOrnaments = unlocked
             // Keep the forest legible: every owned item plus exactly the next
             // discoverable grey target. Later items stay absent until the chain

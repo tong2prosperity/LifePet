@@ -43,8 +43,9 @@ struct HomeStageSurfaceInputTests {
         #expect(input.boGrowthStage == ledger.growthStage)
         #expect(input.boFillProgress == ledger.growthProgress)
         #expect(input.environment == environment)
-        #expect(input.presentedOrnaments == Set(PiboOrnament.ID.allCases))
-        #expect(input.unlockedOrnaments == unlocks.unlocked)
+        // 决定 051：风铃／铃兰灯本版收起，即使（调试）已拥有也不进森林。
+        #expect(input.presentedOrnaments == [.hammock, .statusObserver])
+        #expect(input.unlockedOrnaments == unlocks.presentableUnlocked)
         #expect(input.litOrnamentLights == lights.lit)
         #expect(input.tuning == .standard)
         #expect(input.isPaused)

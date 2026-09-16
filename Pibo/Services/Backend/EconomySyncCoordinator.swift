@@ -66,6 +66,7 @@ final class EconomySyncCoordinator {
     /// pages at most eight responses. No-op (returns nil) when logged out.
     @discardableResult
     func syncToday() async -> BoLedgerSyncResponse? {
+        guard APIConfig.economySyncEnabled else { return nil }
         guard auth.phase == .loggedIn else {
             lastError = .unauthorized
             return nil

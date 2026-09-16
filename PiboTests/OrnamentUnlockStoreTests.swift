@@ -48,17 +48,17 @@ struct OrnamentUnlockStoreTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         ledger.debugSet(balance: 20)
 
-        #expect(inventory.purchase(.chime, using: ledger) == .prerequisiteMissing)
+        // 决定 051：风铃／铃兰灯本版隐藏，购买在读取余额之前就拒绝。
+        #expect(inventory.purchase(.chime, using: ledger) == .unavailable)
         #expect(inventory.purchase(.hammock, using: ledger) == .purchased)
         #expect(ledger.balance == 19)
         #expect(inventory.purchase(.hammock, using: ledger) == .alreadyOwned)
         #expect(inventory.purchase(.statusObserver, using: ledger) == .purchased)
         #expect(ledger.balance == 16)
-        #expect(inventory.purchase(.lantern, using: ledger) == .prerequisiteMissing)
-        #expect(inventory.purchase(.chime, using: ledger) == .purchased)
-        #expect(ledger.balance == 10)
-        #expect(inventory.purchase(.lantern, using: ledger) == .purchased)
-        #expect(ledger.balance == 0)
+        #expect(inventory.purchase(.lantern, using: ledger) == .unavailable)
+        #expect(inventory.purchase(.chime, using: ledger) == .unavailable)
+        #expect(ledger.balance == 16)
+        #expect(inventory.nextLocked == nil)
 
         let restored = OrnamentUnlockStore(
             defaults: defaults,
@@ -67,10 +67,21 @@ struct OrnamentUnlockStoreTests {
             pendingPurchaseKey: "test.pending",
             debugUnlockOverride: false
         )
-        #expect(restored.owned == Set(PiboOrnament.ID.allCases))
+        #expect(restored.owned == [.hammock, .statusObserver])
         restored.reset()
         #expect(restored.owned.isEmpty)
         #expect(restored.eligible == Set(PiboOrnament.ID.allCases))
+    }
+
+    @Test func hiddenLaterOrnamentsKeepOwnershipButLeaveTheForest() throws {
+        let (inventory, _, defaults, suite) = try fixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        #expect(inventory.nextLocked?.id == .hammock)
+        let bit = { (id: PiboOrnament.ID) in UInt32(1) << UInt32(id.coreID.rawValue) }
+        inventory.reconcileUnlockedBitmask(bit(.hammock) | bit(.statusObserver) | bit(.chime))
+        #expect(inventory.owned == [.hammock, .statusObserver, .chime])
+        #expect(inventory.presentableUnlocked == [.hammock, .statusObserver])
+        #expect(inventory.nextLocked == nil)
     }
 
     @Test func insufficientBalanceNeverMutatesInventoryOrLedger() throws {
@@ -115,12 +126,15 @@ struct OrnamentUnlockStoreTests {
 
         #expect(inventory.purchase(.statusObserver, using: ledger) == .purchased)
         #expect(inventory.grants(.recoveryStatus))
-        #expect(inventory.purchase(.chime, using: ledger) == .purchased)
+        // Capabilities still come from ownership (legacy owners keep them), even
+        // though 051 hides the later items from purchase in this release.
+        #expect(inventory.purchase(.chime, using: ledger) == .unavailable)
+        let bit = { (id: PiboOrnament.ID) in UInt32(1) << UInt32(id.coreID.rawValue) }
+        inventory.reconcileUnlockedBitmask(inventory.unlockedBitmask | bit(.chime) | bit(.lantern))
         #expect(inventory.grants(.walkEchoCollection))
         #expect(!inventory.grants(.dewCamera))
         #expect(!inventory.grants(.walkDoodle))
         #expect(!inventory.grants(.shadowPiboEligibility))
-        #expect(inventory.purchase(.lantern, using: ledger) == .purchased)
         #expect(inventory.grants(.lanternLighting))
     }
 

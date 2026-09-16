@@ -306,6 +306,7 @@ struct HomeView: View {
     }
 
     private var shadowStagePresentation: ShadowPiboStagePresentation {
+        guard PiboReleaseScope.shadow else { return .hidden }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-PiboShadowPreview") {
             return ShadowPiboStagePresentation(
@@ -336,6 +337,12 @@ struct HomeView: View {
             manifestSequence: shadowManifestSequence,
             lightReceiptSequence: shadowLightReceiptSequence
         )
+    }
+
+    /// 铃兰灯本版收起（决定 051），它的共光声景增益一并关闭。
+    private func coLightCount(_ lights: [PiboOrnament.ID: Set<Int>]) -> Int {
+        guard PiboReleaseScope.allowsOrnament(.lantern) else { return 0 }
+        return lights[.lantern]?.count ?? 0
     }
 
     private var shadowEntryState: ShadowFriendHomeEntryState {
@@ -628,7 +635,7 @@ struct HomeView: View {
                 presentBoProgressFeedbackIfPossible()
                 shadowSync.setSnapshotDraft(shadowSnapshotDraft)
                 reconcileShadowFriendFlow()
-                soundscape.setCoLightCount(ornamentLights.lit[.lantern]?.count ?? 0)
+                soundscape.setCoLightCount(coLightCount(ornamentLights.lit))
                 resumeOrnamentDiscoveryIfNeeded()
             }
             .onChange(of: ornamentUnlocks.owned) { oldValue, newValue in
@@ -638,7 +645,7 @@ struct HomeView: View {
                 stageCommands.prepareOrnamentDiscovery(next.id)
             }
             .onChange(of: ornamentLights.lit) { _, lights in
-                soundscape.setCoLightCount(lights[.lantern]?.count ?? 0)
+                soundscape.setCoLightCount(coLightCount(lights))
             }
             .modifier(homeTaskModifier)
             .modifier(homeLifecycleModifier)
@@ -785,9 +792,11 @@ struct HomeView: View {
                 }
             )
 
-            ShadowFriendHomeEntry(state: shadowEntryState) {
-                speechPresentation.dismiss()
-                presentation.activeSheet = .shadow(manifest: false)
+            if PiboReleaseScope.shadow {
+                ShadowFriendHomeEntry(state: shadowEntryState) {
+                    speechPresentation.dismiss()
+                    presentation.activeSheet = .shadow(manifest: false)
+                }
             }
 
             #if DEBUG
@@ -970,7 +979,7 @@ struct HomeView: View {
     }
 
     private func reconcileShadowFriendFlow() {
-        guard scenePhase == .active else { return }
+        guard PiboReleaseScope.shadow, scenePhase == .active else { return }
         shadowSync.setSnapshotDraft(shadowSnapshotDraft)
 
         if auth.phase == .loggedIn,

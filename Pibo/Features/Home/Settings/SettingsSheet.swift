@@ -42,7 +42,9 @@ struct DebugSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: LP.Spacing.xl) {
                 header
-                membershipSection
+                if PiboReleaseScope.membership {
+                    membershipSection
+                }
                 soundSection
                 notifySection
                 dangerSection

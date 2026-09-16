@@ -21,9 +21,9 @@ enum PiboReleaseScope {
     /// `handlePhotoSaved`，不受此开关影响 —— 它是验证识别链路的唯一通道。
     static var camera: Bool { on(true, "-PiboEnableCamera") }
 
-    /// Walk Doodle 是初版的独立步行创作工具，不属于小游戏。它必须能在
-    /// `miniGames == false` 时单独发布，避免再被游戏场范围误伤。
-    static var walkDoodle: Bool { on(true, "-PiboEnableWalkDoodle") }
+    /// 决定 050：散步涂鸦延后到 MVP 之后。Debug 与 Release 同样隐藏（不给启动参数
+    /// 旁路），保留实现与历史数据；重新开放需要新的产品决定。
+    static let walkDoodle = false
 
     /// 游戏场（`GameListView` 及其下除 Walk Doodle 外的工程存量）。
     /// 横向逛场景被删后 Release 本就没有入口，这个开关是把"关着"这件事写明，
@@ -42,6 +42,31 @@ enum PiboReleaseScope {
     /// 自定义 Pibo 形象页（`CustomPiboPage`）。此前是在 `HistoryFloorView` 里
     /// 注释掉 tab，现归口到这里。
     static var customizePibo: Bool { on(false, "-PiboEnableCustomize") }
+
+    // MARK: 决定 051：单人陪伴 MVP
+    //
+    // 以下开关只决定本版是否展示／允许发起操作，不改 Core 目录、成本、前置或持久权属，
+    // 也不删除好友关系、余额与历史。Debug 不旁路恢复，所以写成常量而不是 `on(...)`。
+
+    /// Shadow Pibo：首页入口、角色映照、好友 Sheet、收光横幅、邀请路由与同步。
+    static let shadow = false
+
+    /// 会员购买入口与会员浮层。已有权益读取与账号处理保留。
+    static let membership = false
+
+    /// 吊床与状态观测仪之后的物件（补梦风铃、铃兰灯）。
+    static let laterOrnaments = false
+
+    /// 决定 054：陪伴提问、记忆回响、心情与草丛／河面热点。
+    static let companionPrompts = true
+
+    /// 本版森林是否展示／允许操作这件物件。隐藏物件不跳过：它挡住的后续链一并不出现。
+    static func allowsOrnament(_ id: PiboOrnament.ID) -> Bool {
+        switch id {
+        case .hammock, .statusObserver: return true
+        default: return laterOrnaments
+        }
+    }
 
     /// `debugArguments` 里任意一个命中即视为打开；`-PiboOpenMiniGame=huarongRoad`
     /// 这类带值的写法按前缀匹配。
