@@ -63,6 +63,15 @@ final class HealthDayRecord {
     var moveGoal: Double = 0
     var exerciseGoal: Int = 0
     var standGoal: Int = 0
+    /// Source flags for the four activity aggregates. `true` means HealthKit
+    /// actually delivered a value for that metric on that day — including a
+    /// real 0. `nil` is a row written before the flag existed (or a metric that
+    /// never arrived); readers fall back to "positive means recorded" so an
+    /// ambiguous legacy 0 renders as missing instead of a confirmed zero.
+    var stepsRecorded: Bool?
+    var activeEnergyRecorded: Bool?
+    var exerciseRecorded: Bool?
+    var standRecorded: Bool?
 
     // — Heart —
     var restingHR: Double             // bpm
@@ -147,6 +156,10 @@ final class HealthDayRecord {
         self.moveGoal = moveGoal
         self.exerciseGoal = exerciseGoal
         self.standGoal = standGoal
+        self.stepsRecorded = nil
+        self.activeEnergyRecorded = nil
+        self.exerciseRecorded = nil
+        self.standRecorded = nil
         self.restingHR = restingHR
         self.heartRateAvg = heartRateAvg
         self.heartRateMin = heartRateMin
@@ -189,6 +202,29 @@ extension HealthDayRecord {
         guard let wellnessPayload else { return nil }
         return try? JSONDecoder().decode(DailyWellnessSnapshot.self, from: wellnessPayload)
     }
+
+    /// A recorded value, or `nil` when the metric never arrived. A flagged 0 is a
+    /// confirmed zero; an unflagged (legacy) 0 is ambiguous and reads as missing.
+    static func recordedValue<Value: Numeric & Comparable>(
+        _ value: Value,
+        flag: Bool?
+    ) -> Value? {
+        if flag == true { return max(.zero, value) }
+        return value > .zero ? value : nil
+    }
+
+    var recordedSteps: Int? {
+        if hourlySteps.count == 24, stepsRecorded != true, steps == 0 {
+            // A full hourly array is itself provider evidence for the day.
+            return hourlySteps.reduce(0, +)
+        }
+        return Self.recordedValue(steps, flag: stepsRecorded)
+    }
+    var recordedActiveEnergy: Double? { Self.recordedValue(activeEnergy, flag: activeEnergyRecorded) }
+    var recordedExerciseMinutes: Int? { Self.recordedValue(exerciseMinutes, flag: exerciseRecorded) }
+    var recordedStandMinutes: Int? { Self.recordedValue(standMinutes, flag: standRecorded) }
+    /// Real 24-bucket hourly steps, or `nil`. Never derived from the day total.
+    var recordedHourlySteps: [Int]? { hourlySteps.count == 24 ? hourlySteps : nil }
 
     /// Has any signal worth showing (filters all-zero placeholder days).
     var hasData: Bool {

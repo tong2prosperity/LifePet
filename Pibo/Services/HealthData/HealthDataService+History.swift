@@ -30,11 +30,22 @@ extension HealthDataService {
             byDay[k] = v
         }
 
-        await collectSum(.stepCount, unit: .count(), start: start, anchor: today) { d, v in mutate(d) { $0.steps = Int(v) } }
+        // `collectSum` only emits buckets for which HealthKit returned a sum, so
+        // each emit is real provider evidence — a first real 0 included. Days
+        // with no statistics never get a flag and never persist a fake zero.
+        await collectSum(.stepCount, unit: .count(), start: start, anchor: today) { d, v in
+            mutate(d) { $0.steps = Int(v); $0.stepsRecorded = true }
+        }
         await collectHourlySteps(start: start, anchor: today) { d, hourly in mutate(d) { $0.hourlySteps = hourly } }
-        await collectSum(.activeEnergyBurned, unit: .kilocalorie(), start: start, anchor: today) { d, v in mutate(d) { $0.activeEnergy = v } }
-        await collectSum(.appleExerciseTime, unit: .minute(), start: start, anchor: today) { d, v in mutate(d) { $0.exerciseMinutes = Int(v) } }
-        await collectSum(.appleStandTime, unit: .minute(), start: start, anchor: today) { d, v in mutate(d) { $0.standMinutes = Int(v) } }
+        await collectSum(.activeEnergyBurned, unit: .kilocalorie(), start: start, anchor: today) { d, v in
+            mutate(d) { $0.activeEnergy = v; $0.activeEnergyRecorded = true }
+        }
+        await collectSum(.appleExerciseTime, unit: .minute(), start: start, anchor: today) { d, v in
+            mutate(d) { $0.exerciseMinutes = Int(v); $0.exerciseRecorded = true }
+        }
+        await collectSum(.appleStandTime, unit: .minute(), start: start, anchor: today) { d, v in
+            mutate(d) { $0.standMinutes = Int(v); $0.standRecorded = true }
+        }
 
         let bpm = HKUnit.count().unitDivided(by: .minute())
         await collectAvg(.restingHeartRate, unit: bpm, start: start, anchor: today) { d, v in mutate(d) { $0.restingHR = v } }
@@ -461,10 +472,12 @@ extension HealthDataService {
                 let inBedCandidates = daySamples.filter {
                     HKCategoryValueSleepAnalysis(rawValue: $0.value) == .inBed
                 }
-                if let chosen = inBedCandidates.max(by: {
-                    $0.endDate.timeIntervalSince($0.startDate)
-                        < $1.endDate.timeIntervalSince($1.startDate)
-                }) {
+                if let chosen = inBedCandidates
+                    .filter({ Self.isPhysicalInBedDuration($0.endDate.timeIntervalSince($0.startDate)) })
+                    .max(by: {
+                        $0.endDate.timeIntervalSince($0.startDate)
+                            < $1.endDate.timeIntervalSince($1.startDate)
+                    }) {
                     night.inBed = chosen.endDate.timeIntervalSince(chosen.startDate)
                     if let sleepStart = night.start {
                         let latency = sleepStart.timeIntervalSince(chosen.startDate)
@@ -479,6 +492,12 @@ extension HealthDataService {
         } catch {
             LPLog.healthKit.error("collectSleep: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// A single in-bed envelope is physically bounded by one day. Anything
+    /// outside `(0, 24h]` is a corrupt sample and is dropped rather than drawn.
+    nonisolated static func isPhysicalInBedDuration(_ seconds: TimeInterval) -> Bool {
+        seconds.isFinite && seconds > 0 && seconds <= 24 * 60 * 60
     }
 
     private static func mean(_ values: [Double]) -> Double? {
