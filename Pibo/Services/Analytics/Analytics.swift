@@ -62,6 +62,7 @@ enum Analytics {
         case purchaseRestore = "purchase_restore"
         case login
         case logout
+        case accountDeleted = "account_deleted"
         case reset
     }
 

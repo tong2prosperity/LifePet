@@ -18,6 +18,12 @@ final class AuthService {
 
     private(set) var phase: Phase
     private(set) var userId: String?
+    /// Masked login phone for Settings (`159****5256`). `nil` while logged out
+    /// and for sessions created before the value was recorded (shown 已登录).
+    private(set) var accountPhone: String?
+    /// Bumps once per successful server-side account deletion so the app shell
+    /// can reset local state without a closure seam through the view tree.
+    private(set) var accountDeletionRevision = 0
     private(set) var isBusy = false
     private(set) var lastError: APIError?
 
@@ -30,6 +36,16 @@ final class AuthService {
         self.tokens = tokens
         self.phase = tokens.isLoggedIn ? .loggedIn : .loggedOut
         self.userId = tokens.userId
+        self.accountPhone = tokens.isLoggedIn ? tokens.maskedPhone : nil
+    }
+
+    /// Keeps the first 3 and last 4 digits of a mainland number. Anything that
+    /// is not 11 digits after dropping +86 is not shown at all (empty string).
+    nonisolated static func maskAccountPhone(_ phone: String) -> String {
+        var digits = phone.filter(\.isNumber)
+        if digits.count == 13, digits.hasPrefix("86") { digits.removeFirst(2) }
+        guard digits.count == 11 else { return "" }
+        return "\(digits.prefix(3))****\(digits.suffix(4))"
     }
 
     /// Restores the account identity after a cold launch. Tokens are opaque;
@@ -85,11 +101,14 @@ final class AuthService {
             let result: AuthResult = try await api.post("/auth/code-login/complete",
                                                         body: CodeLoginCompleteRequest(phoneNumber: phone, code: code),
                                                         authed: false)
+            let masked = Self.maskAccountPhone(phone)
             tokens.save(
                 access: result.tokens.accessToken,
                 refresh: result.tokens.refreshToken,
-                userId: result.user.userId
+                userId: result.user.userId,
+                maskedPhone: masked
             )
+            accountPhone = masked.isEmpty ? nil : masked
             publishLoggedIn(result.user.userId)
             LPLog.auth.notice("logged in as \(result.user.userId, privacy: .public)")
             Analytics.setUser(result.user.userId)
@@ -111,6 +130,28 @@ final class AuthService {
         Analytics.setUser(nil)
     }
 
+    /// Deletes the account server-side (`DELETE /api/v1/account/`, which revokes
+    /// every session and erases all modules atomically). Tokens are cleared only
+    /// after the server confirms; on failure they stay so the user can retry.
+    @discardableResult
+    func deleteAccount() async -> Bool {
+        isBusy = true; lastError = nil
+        defer { isBusy = false }
+        do {
+            try await api.deleteNoContent("/api/v1/account/", authed: true)
+        } catch {
+            lastError = .from(error)
+            LPLog.auth.error("deleteAccount failed: \(String(describing: error))")
+            return false
+        }
+        await api.clearTokens()
+        publishLoggedOut()
+        accountDeletionRevision += 1
+        Analytics.track(.accountDeleted)
+        Analytics.setUser(nil)
+        return true
+    }
+
     /// Back to the phone-entry step (e.g. user mistyped the number).
     func resetToPhoneEntry() {
         phase = .loggedOut
@@ -125,6 +166,7 @@ final class AuthService {
 
     private func publishLoggedOut() {
         userId = nil
+        accountPhone = nil
         phase = .loggedOut
         onSessionChanged?(nil)
     }

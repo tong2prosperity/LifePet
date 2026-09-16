@@ -63,6 +63,9 @@ struct PiboApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // Account deletion defers the local wipe to here: before any store,
+        // ModelContainer or defaults reader exists, so nothing re-flushes it.
+        LocalDataEraser.eraseIfScheduled()
         PiboPersistenceMigrator.runIfNeeded()
         LPLog.app.notice("App launched")
         Analytics.start()
