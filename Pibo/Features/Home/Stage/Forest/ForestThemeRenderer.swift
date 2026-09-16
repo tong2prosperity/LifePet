@@ -442,14 +442,9 @@ final class ForestThemeRenderer: PiboThemeRenderer {
 
     func precipitationImpact(in scene: SKScene) -> ThemePrecipitationImpact? {
         let roll = CGFloat.random(in: 0...1)
-        if roll < 0.48, let point = randomWaterPoint() {
-            return ThemePrecipitationImpact(
-                point: point,
-                splashScale: CGFloat.random(in: 0.75...1.15),
-                flatten: 0.35
-            )
-        }
-        if roll < 0.72, let leaf = foliage.randomElement() {
+        // The creek surface uses the fixed, staggered ripples of the layered
+        // rain (2026-09-08); random water splashes would double it up.
+        if roll < 0.55, let leaf = foliage.randomElement() {
             let frame = leaf.calculateAccumulatedFrame()
             let point = CGPoint(
                 x: CGFloat.random(in: frame.minX...frame.maxX),

@@ -41,6 +41,12 @@ final class WeatherDataService: NSObject {
             defaults.removeObject(forKey: Self.fetchedAtKey)
         }
         super.init()
+        #if DEBUG
+        if let raw = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("-PiboWeather=") })?
+            .dropFirst("-PiboWeather=".count) {
+            debugCondition = PiboWeather(rawValue: String(raw))
+        }
+        #endif
         locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
         locationManager.delegate = self
     }

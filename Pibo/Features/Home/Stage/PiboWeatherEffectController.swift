@@ -55,33 +55,104 @@ final class PiboWeatherEffectController {
         startCharacterDrips()
     }
 
+    /// 2026-09-08 low-cost layered rain (shared with HarmonyOS `RainCurtain`):
+    /// thin streaks fading at both ends, split into far (24) and near (12)
+    /// deterministic seeds, each layer two vertically tiled curtains that only
+    /// translate at constant speed along the wind slope. No per-frame particle
+    /// physics. Reduce Motion halves the seeds and slows the fall 1.8×.
     private func buildRainCurtain() {
         let storm = environment.rainIntensity >= 0.8
-        let emitter = SKEmitterNode()
-        emitter.particleTexture = Self.rainTexture
-        emitter.position = CGPoint(x: size.width / 2, y: size.height + 24)
-        emitter.particlePositionRange = CGVector(dx: size.width * 1.15, dy: 0)
-        let powerMultiplier: CGFloat = lowPowerModeEnabled ? 0.45 : 1
-        emitter.particleBirthRate = (90 + 150 * environment.rainIntensity) * powerMultiplier
-        emitter.particleLifetime = size.height / 480 + 0.6
-        emitter.particleLifetimeRange = 0.3
-        emitter.emissionAngle = -.pi / 2
-        emitter.emissionAngleRange = 0.05
-        emitter.particleSpeed = storm ? 720 : 560
-        emitter.particleSpeedRange = 140
-        emitter.yAcceleration = -420
-        emitter.xAcceleration = wind.direction.dx * (storm ? 140 : 55)
-        emitter.particleAlpha = 0.55
-        emitter.particleAlphaRange = 0.2
-        emitter.particleAlphaSpeed = -0.12
-        emitter.particleScale = storm ? 0.55 : 0.42
-        emitter.particleScaleRange = 0.2
-        emitter.particleColor = Self.rainTint
-        emitter.particleColorBlendFactor = 1
-        emitter.particleBlendMode = .alpha
-        emitter.advanceSimulationTime(1.6)
-        backLayer.addChild(emitter)
+        let reduced = UIAccessibility.isReduceMotionEnabled || lowPowerModeEnabled
+        let stormMultiplier: CGFloat = storm ? 1.55 : 1
+        let drift = wind.direction.dx * (32 + 48 * wind.strength) * stormMultiplier
+        backLayer.addChild(makeCurtain(near: false, storm: storm, reduced: reduced, drift: drift))
+        frontLayer.addChild(makeCurtain(near: true, storm: storm, reduced: reduced, drift: drift))
+        if !reduced { startCreekRipples() }
     }
+
+    private func makeCurtain(near: Bool, storm: Bool, reduced: Bool, drift: CGFloat) -> SKNode {
+        let root = SKNode()
+        root.zPosition = near ? 0.5 : 0
+        let angle = atan2(drift, size.height)
+        let seeds = PiboRainPresentation.particles(near: near, reduced: reduced)
+        for tile in [-1, 0] {
+            let curtain = SKNode()
+            curtain.name = "tile\(tile)"
+            for seed in seeds {
+                let streak = SKSpriteNode(texture: Self.streakTexture)
+                streak.size = CGSize(
+                    width: near ? 0.95 : 0.65,
+                    height: seed.size * (near ? 1.05 : 0.65) * (storm ? 1.16 : 1)
+                )
+                streak.alpha = seed.opacity * (near ? 0.72 : 0.46) * (storm ? 1.15 : 1)
+                streak.zRotation = angle
+                // Top-left percentage placement flipped into SpriteKit space.
+                streak.position = CGPoint(
+                    x: size.width * seed.x / 100,
+                    y: size.height * (1 - seed.y / 100)
+                )
+                curtain.addChild(streak)
+            }
+            root.addChild(curtain)
+        }
+        let duration = PiboRainPresentation.duration(near: near, storm: storm, reduced: reduced)
+        let fall = SKAction.customAction(withDuration: duration) { [size] node, elapsed in
+            let progress = CGFloat(elapsed) / CGFloat(duration)
+            for child in node.children {
+                let tile: CGFloat = child.name == "tile-1" ? -1 : 0
+                child.position = CGPoint(
+                    x: (progress + tile) * drift,
+                    y: -(progress + tile) * size.height
+                )
+            }
+        }
+        root.run(.repeatForever(fall), withKey: "rainCurtain")
+        return root
+    }
+
+    /// Four fixed creek anchors expand and fade in turn under the foliage.
+    private func startCreekRipples() {
+        let mapper = ForestLayoutMapper(sceneSize: size)
+        for (index, anchor) in PiboRainPresentation.rippleAnchors.enumerated() {
+            let ellipse = SKShapeNode(ellipseOf: mapper.size(CGSize(width: 24, height: 8)))
+            ellipse.strokeColor = SKColor(red: 0xB8 / 255, green: 0xDF / 255, blue: 0xDF / 255, alpha: 1)
+            ellipse.lineWidth = 0.65
+            ellipse.fillColor = .clear
+            ellipse.position = mapper.point(anchor)
+            ellipse.alpha = 0
+            ellipse.setScale(0.2)
+            backLayer.addChild(ellipse)
+            let ripple = SKAction.sequence([
+                .group([
+                    .sequence([.fadeAlpha(to: 0.32, duration: 0), .fadeOut(withDuration: 1.1)]),
+                    .sequence([.scale(to: 0.2, duration: 0), .scale(to: 1, duration: 1.1)]),
+                ]),
+                .wait(forDuration: 1.4 + Double(index) * 0.23),
+            ])
+            ellipse.run(.sequence([
+                .wait(forDuration: 0.25 + Double(index) * 0.51),
+                .repeatForever(ripple),
+            ]), withKey: "creekRipple")
+        }
+    }
+
+    private static let streakTexture: SKTexture = {
+        let size = CGSize(width: 2, height: 32)
+        let image = UIGraphicsImageRenderer(size: size).image { context in
+            let colors = [
+                SKColor(red: 0xD6 / 255, green: 0xE9 / 255, blue: 0xF5 / 255, alpha: 0).cgColor,
+                SKColor(red: 0xD6 / 255, green: 0xE9 / 255, blue: 0xF5 / 255, alpha: 0.7).cgColor,
+                SKColor(red: 0xD6 / 255, green: 0xE9 / 255, blue: 0xF5 / 255, alpha: 0).cgColor,
+            ] as CFArray
+            guard let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.65, 1]
+            ) else { return }
+            context.cgContext.drawLinearGradient(
+                gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: []
+            )
+        }
+        return SKTexture(image: image)
+    }()
 
     private func startGroundSplashes() {
         let interval = (environment.rainIntensity >= 0.8 ? 0.05 : 0.11)
