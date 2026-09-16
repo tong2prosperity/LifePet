@@ -11,26 +11,36 @@ import Security
 struct TokenStore: Sendable {
     static let shared = TokenStore()
 
-    private let service = "fun.tiebao.co.Pibo.auth"
+    private let service: String
     private let accessKey = "access_token"
     private let refreshKey = "refresh_token"
     private let userIDKey = "user_id"
+    /// Only the already-masked login phone (e.g. `159****5256`) is stored, and
+    /// only alongside a session; the full number never reaches disk.
+    private let maskedPhoneKey = "phone_masked"
+
+    init(service: String = "fun.tiebao.co.Pibo.auth") {
+        self.service = service
+    }
 
     var accessToken: String? { read(accessKey) }
     var refreshToken: String? { read(refreshKey) }
     var userId: String? { read(userIDKey) }
+    var maskedPhone: String? { read(maskedPhoneKey) }
     var isLoggedIn: Bool { accessToken != nil && refreshToken != nil }
 
-    func save(access: String, refresh: String, userId: String? = nil) {
+    func save(access: String, refresh: String, userId: String? = nil, maskedPhone: String? = nil) {
         write(accessKey, access)
         write(refreshKey, refresh)
         if let userId, !userId.isEmpty { write(userIDKey, userId) }
+        if let maskedPhone, !maskedPhone.isEmpty { write(maskedPhoneKey, maskedPhone) }
     }
 
     func clear() {
         delete(accessKey)
         delete(refreshKey)
         delete(userIDKey)
+        delete(maskedPhoneKey)
     }
 
     // MARK: - Keychain primitives

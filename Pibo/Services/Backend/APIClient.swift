@@ -58,6 +58,39 @@ actor APIClient {
         _ = try await requestData(path: path, method: "POST", bodyData: bodyData, authed: authed)
     }
 
+    /// POST returning the raw 2xx body, for payloads whose keys must not pass
+    /// through the snake_case key strategy (e.g. signed upload headers).
+    func postData<B: Encodable>(_ path: String, body: B, authed: Bool,
+                                timeout: TimeInterval? = nil) async throws -> Data {
+        let bodyData = try encode(body)
+        return try await requestData(path: path, method: "POST", bodyData: bodyData, authed: authed, timeout: timeout)
+    }
+
+    /// PUTs raw bytes to an absolute pre-signed object-storage URL. No bearer
+    /// token and no refresh: the signature in the URL/headers is the credential.
+    func putBytes(_ url: URL, data: Data, headers: [String: String],
+                  timeout: TimeInterval = 120) async throws {
+        var req = URLRequest(url: url)
+        req.httpMethod = "PUT"
+        req.timeoutInterval = timeout
+        for (field, value) in headers {
+            req.setValue(value, forHTTPHeaderField: field)
+        }
+        req.httpBody = data
+        let response: URLResponse
+        do {
+            (_, response) = try await session.data(for: req)
+        } catch {
+            throw APIError.transport(error.localizedDescription)
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.transport("no HTTP response")
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.unexpectedStatus(http.statusCode)
+        }
+    }
+
     func put<B: Encodable, T: Decodable>(_ path: String, body: B, authed: Bool) async throws -> T {
         let bodyData = try encode(body)
         let data = try await requestData(path: path, method: "PUT", bodyData: bodyData, authed: authed)

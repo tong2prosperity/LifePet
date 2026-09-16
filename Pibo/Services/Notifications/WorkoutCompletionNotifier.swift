@@ -69,15 +69,12 @@ final class WorkoutCompletionNotifier {
         self.pushEnabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true
     }
 
-    /// Quietly covers existing users without forcing a permission prompt. An
-    /// explicit settings toggle upgrades to full alert + sound authorization.
+    /// Restores the current authorization state only. Launch never requests
+    /// notification permission (decision 049); the Home guide and the explicit
+    /// settings toggle request full alert + sound authorization.
     func start() async {
         let settings = await notificationCenter.notificationSettings()
-        if settings.authorizationStatus == .notDetermined, pushEnabled {
-            await requestAuthorization(provisional: true)
-        } else {
-            authorized = Self.isAuthorized(settings.authorizationStatus)
-        }
+        authorized = Self.isAuthorized(settings.authorizationStatus)
     }
 
     func requestAuthorization(provisional: Bool = false) async {

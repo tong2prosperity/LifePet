@@ -17,6 +17,22 @@ enum FirstRunStatus: String, Codable, Sendable {
     case completed
 }
 
+/// Daily-persona first run (decision 049): welcome → product overview → health
+/// choice. Platform setup progress only; never story consent.
+enum DailySetupStep: String, Codable, CaseIterable, Sendable {
+    case welcome
+    case overview
+    case health
+}
+
+/// Optional one-time Home teaching after the daily first run. Persisted
+/// separately from the setup step so skipping it never replays onboarding.
+enum DailyHomeGuide: String, Codable, Sendable {
+    case none
+    case pat
+    case growth
+}
+
 enum StoryConnectionStatus: String, Codable, Sendable {
     case unresponded
     case responded
@@ -73,6 +89,12 @@ struct OnboardingNarrativeSnapshot: Codable, Equatable, Sendable {
     var storyBoBaselineCollected: Int?
     var storyFirstBoMinted: Bool?
     var storyFirstBoCollected: Bool?
+
+    /// Raw values (not typed enums) so an unknown future value degrades to the
+    /// derived default instead of failing the whole snapshot decode. Both are
+    /// optional: snapshots written before decision 049 simply lack them.
+    var dailySetupStep: String?
+    var dailyHomeGuide: String?
 }
 
 /// One persisted owner for first-run checkpoints, story consent and permission
@@ -85,6 +107,20 @@ final class OnboardingStateStore {
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let persistenceKey: String
+    @ObservationIgnored private let isEphemeral: Bool
+
+    /// A fresh, never-persisted store for the DEBUG first-run preview. It reads
+    /// nothing from and writes nothing to real defaults.
+    static func ephemeralPreview() -> OnboardingStateStore {
+        OnboardingStateStore(ephemeral: ())
+    }
+
+    private init(ephemeral: Void) {
+        defaults = .standard
+        persistenceKey = ""
+        isEphemeral = true
+        snapshot = OnboardingNarrativeSnapshot()
+    }
 
     init(
         defaults: UserDefaults = .standard,
@@ -92,6 +128,7 @@ final class OnboardingStateStore {
     ) {
         self.defaults = defaults
         self.persistenceKey = persistenceKey
+        self.isEphemeral = false
 
         if let data = defaults.data(forKey: persistenceKey),
            let decoded = try? JSONDecoder().decode(OnboardingNarrativeSnapshot.self, from: data) {
@@ -128,6 +165,58 @@ final class OnboardingStateStore {
 
     var completionTimeBasis: OnboardingCompletionTimeBasis? {
         snapshot.completionTimeBasis
+    }
+
+    // MARK: Daily-persona first run (decision 049)
+
+    /// Old in-progress snapshots without the field resume where they were: the
+    /// untouched encounter position becomes welcome, anything later resumes at
+    /// the health choice.
+    var dailySetupStep: DailySetupStep {
+        if let raw = snapshot.dailySetupStep, let step = DailySetupStep(rawValue: raw) {
+            return step
+        }
+        return snapshot.checkpoint == .encounter ? .welcome : .health
+    }
+
+    func moveDailySetup(to step: DailySetupStep) {
+        guard snapshot.firstRunStatus != .completed else { return }
+        snapshot.dailySetupStep = step.rawValue
+        snapshot.firstRunStatus = .inProgress
+        persist()
+        guard !isEphemeral else { return }
+        Analytics.track(
+            .onboardingCheckpoint,
+            screen: "onboarding",
+            ["checkpoint": .string(step.rawValue)]
+        )
+    }
+
+    var dailyHomeGuide: DailyHomeGuide {
+        snapshot.dailyHomeGuide.flatMap(DailyHomeGuide.init(rawValue:)) ?? .none
+    }
+
+    /// Completes the daily first run exactly once. Returns `false` (and changes
+    /// nothing, including `completedAt`) when the first run was already
+    /// complete, so callers can gate the `bo` eligibility boundary on it.
+    @discardableResult
+    func completeDailyFirstRun(at date: Date = .now) -> Bool {
+        guard snapshot.firstRunStatus != .completed else { return false }
+        snapshot.dailyHomeGuide = DailyHomeGuide.pat.rawValue
+        completeFirstRun(at: date)
+        return true
+    }
+
+    func acknowledgeDailyPat() {
+        guard dailyHomeGuide == .pat else { return }
+        snapshot.dailyHomeGuide = DailyHomeGuide.growth.rawValue
+        persist()
+    }
+
+    func dismissDailyHomeGuide() {
+        guard dailyHomeGuide != .none else { return }
+        snapshot.dailyHomeGuide = DailyHomeGuide.none.rawValue
+        persist()
     }
 
     /// Records release-scope transitions without deriving story progress from
@@ -323,6 +412,7 @@ final class OnboardingStateStore {
         snapshot.completedAt = date
         snapshot.completionTimeBasis = .recorded
         persist()
+        guard !isEphemeral else { return }
         defaults.set(true, forKey: PiboPersistenceKeys.Defaults.onboardingDone)
         Analytics.track(.onboardingCompleted, screen: "onboarding")
     }
@@ -376,6 +466,7 @@ final class OnboardingStateStore {
 
     func reset() {
         snapshot = OnboardingNarrativeSnapshot()
+        guard !isEphemeral else { return }
         defaults.removeObject(forKey: persistenceKey)
         defaults.set(false, forKey: PiboPersistenceKeys.Defaults.onboardingDone)
         persist()
@@ -438,6 +529,15 @@ final class OnboardingStateStore {
         result.storyFirstBoMinted = value.storyFirstBoMinted == true
         result.storyFirstBoCollected = value.storyFirstBoCollected == true
 
+        if !supportedFlow
+            || value.dailySetupStep.flatMap(DailySetupStep.init(rawValue:)) == nil {
+            result.dailySetupStep = nil
+        }
+        if !supportedFlow
+            || value.dailyHomeGuide.flatMap(DailyHomeGuide.init(rawValue:)) == nil {
+            result.dailyHomeGuide = nil
+        }
+
         if !supportedFlow {
             result.connection = .unresponded
             result.respondedAt = nil
@@ -481,7 +581,7 @@ final class OnboardingStateStore {
     }
 
     private func persist() {
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        guard !isEphemeral, let data = try? JSONEncoder().encode(snapshot) else { return }
         defaults.set(data, forKey: persistenceKey)
     }
 }

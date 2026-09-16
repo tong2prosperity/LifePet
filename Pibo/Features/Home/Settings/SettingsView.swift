@@ -16,6 +16,9 @@ struct SettingsView: View {
     @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled)
     private var ambientSoundEnabled = true
     @State private var showLogoutConfirmation = false
+    @State private var showDeleteAccountConfirmation = false
+    @State private var showDeleteAccountFailure = false
+    @State private var deletingAccount = false
     @State private var showStoryRecovery = false
     @State private var healthRequestInFlight = false
 
@@ -55,6 +58,23 @@ struct SettingsView: View {
             }
             Button(AppLocalization.text("取消"), role: .cancel) {}
         }
+        .alert(
+            AppLocalization.text("确定要注销账号吗？"),
+            isPresented: $showDeleteAccountConfirmation
+        ) {
+            Button(AppLocalization.text("取消"), role: .cancel) {}
+            Button(AppLocalization.text("注销账号"), role: .destructive) {
+                performDeleteAccount()
+            }
+        } message: {
+            Text(AppLocalization.text("注销会删除服务端与本设备上的全部 Pibo 数据，包括健康记录、bo 与餐食历史，且无法恢复。"))
+        }
+        .alert(
+            AppLocalization.text("注销失败，请检查网络后重试"),
+            isPresented: $showDeleteAccountFailure
+        ) {
+            Button(AppLocalization.text("好"), role: .cancel) {}
+        }
         .fullScreenCover(isPresented: $showStoryRecovery) {
             HealthAuthView(mode: .storyRecovery) { showStoryRecovery = false }
         }
@@ -62,12 +82,8 @@ struct SettingsView: View {
 
     private var accountSection: some View {
         settingsSection("账号") {
-            NavigationLink {
-                BackendLoginView()
-            } label: {
-                settingsRow(title: "用户名", detail: accountDetail, showsChevron: true)
-            }
-            .buttonStyle(.plain)
+            settingsRow(title: "手机号", detail: accountDetail, showsChevron: false)
+                .accessibilityElement(children: .combine)
         }
     }
 
@@ -87,9 +103,12 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
             }
-        } else if !onboarding.hasObservedHealthSource,
-                  (!PiboReleaseScope.temporaryCooperationOnboarding
-                    || onboarding.snapshot.connection == .accepted) {
+        } else if SettingsHealthEntryPolicy.showsConnectRow(
+            temporaryCooperationEnabled: PiboReleaseScope.temporaryCooperationOnboarding,
+            storyAccepted: onboarding.snapshot.connection == .accepted,
+            hasObservedHealthSource: onboarding.hasObservedHealthSource,
+            healthAuthState: health.authState
+        ) {
             settingsSection("settings.connection.title") {
                 Button {
                     connectHealthRecords()
@@ -171,9 +190,16 @@ struct SettingsView: View {
         settingsSection("关于") {
             VStack(spacing: 0) {
                 NavigationLink {
-                    PrivacyPolicyView()
+                    LegalDocumentView(document: LegalDocuments.privacyPolicy)
                 } label: {
                     settingsRow(title: "隐私协议", showsChevron: true)
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(LP.Separator.primary)
+                NavigationLink {
+                    LegalDocumentView(document: LegalDocuments.userAgreement)
+                } label: {
+                    settingsRow(title: "用户协议", showsChevron: true)
                 }
                 .buttonStyle(.plain)
                 Divider().overlay(LP.Separator.primary)
@@ -188,6 +214,46 @@ struct SettingsView: View {
     }
 
     private var logoutSection: some View {
+        VStack(spacing: LP.Spacing.m) {
+            logoutButton
+            deleteAccountButton
+        }
+    }
+
+    private var deleteAccountButton: some View {
+        Button {
+            LPHaptics.tap()
+            showDeleteAccountConfirmation = true
+        } label: {
+            Text(AppLocalization.text(deletingAccount ? "正在注销…" : "注销账号"))
+                .lpText(LP.Typography.b3Medium)
+                .foregroundStyle(LP.Fill.foundationError)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(auth.phase != .loggedIn || deletingAccount)
+        .opacity(auth.phase == .loggedIn ? 1 : 0.44)
+        .background(
+            RoundedRectangle(cornerRadius: Self.sectionRadius, style: .continuous)
+                .fill(LP.Fill.bgContainer)
+        )
+        .accessibilityHint(AppLocalization.text("永久删除服务端与本设备上的全部 Pibo 数据"))
+    }
+
+    private func performDeleteAccount() {
+        guard !deletingAccount else { return }
+        deletingAccount = true
+        Task {
+            // Success publishes logged-out + bumps `accountDeletionRevision`;
+            // `RootView` then schedules the local wipe and returns to first run.
+            let erased = await auth.deleteAccount()
+            deletingAccount = false
+            if !erased { showDeleteAccountFailure = true }
+        }
+    }
+
+    private var logoutButton: some View {
         Button {
             LPHaptics.tap()
             showLogoutConfirmation = true
@@ -241,10 +307,10 @@ struct SettingsView: View {
     private var accountDetail: String {
         switch auth.phase {
         case .loggedIn:
-            return store.ownerName.isEmpty ? AppLocalization.text("已登录") : store.ownerName
-        case .codeSent(let phone):
-            return maskedPhone(phone)
-        case .loggedOut:
+            // Sessions from before the masked value was recorded show 已登录
+            // until the next login.
+            return auth.accountPhone ?? AppLocalization.text("已登录")
+        case .codeSent, .loggedOut:
             return AppLocalization.text("未登录")
         }
     }
@@ -361,25 +427,25 @@ struct SettingsView: View {
         .frame(minHeight: 52)
         .contentShape(Rectangle())
     }
-
-    private func maskedPhone(_ phone: String) -> String {
-        guard phone.count > 7 else { return phone }
-        return "\(phone.prefix(3)) **** \(phone.suffix(4))"
-    }
 }
 
-private struct PrivacyPolicyView: View {
-    var body: some View {
-        ScrollView {
-            Text(AppLocalization.text("Pibo 仅在获得授权后读取健康数据，用于在设备上生成状态与历史。我们不会出售你的健康数据。通知、声音与健康权限可随时在设置中关闭。"))
-                .lpText(LP.Typography.b3Regular)
-                .foregroundStyle(LP.Content.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(LP.Spacing.l)
+/// Whether Settings offers 「连接健康记录」. With the temporary-cooperation story
+/// paused, observed-source facts are never written, so the real HealthKit
+/// request state decides (mirrors HarmonyOS `store.healthConnected`).
+enum SettingsHealthEntryPolicy {
+    static func showsConnectRow(
+        temporaryCooperationEnabled: Bool,
+        storyAccepted: Bool,
+        hasObservedHealthSource: Bool,
+        healthAuthState: HealthDataService.AuthState
+    ) -> Bool {
+        if temporaryCooperationEnabled {
+            return storyAccepted && !hasObservedHealthSource
         }
-        .background(LP.Fill.bgSurfaceSecondary.ignoresSafeArea())
-        .navigationTitle(AppLocalization.text("隐私协议"))
-        .navigationBarTitleDisplayMode(.inline)
+        switch healthAuthState {
+        case .granted, .unavailable, .requesting: return false
+        case .unknown, .denied: return true
+        }
     }
 }
 
