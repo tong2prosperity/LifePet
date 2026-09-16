@@ -24,6 +24,10 @@ struct APIConfig: Sendable {
 
     static let shared = APIConfig()
 
+    init(baseURL: URL) {
+        self.baseURL = baseURL
+    }
+
     init() {
         if let raw = Bundle.main.object(forInfoDictionaryKey: "PIBO_API_BASE_URL") as? String,
            let url = URL(string: raw), !raw.isEmpty {
