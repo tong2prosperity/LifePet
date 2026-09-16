@@ -11,12 +11,13 @@ struct MorningSleepCard: View {
     let presentation: MorningSleepPresentation
     let history: HealthHistoryStore
 
+    static let debugFixtureNotice = "DEBUG · 示例睡眠，非真实健康记录"
 
     var body: some View {
         SleepDetailContent(
             detail: .from(summary: presentation.summary),
             history: history,
-
+            debugNotice: presentation.isDebugFixture ? Self.debugFixtureNotice : nil,
             onClose: {
                 LPHaptics.tap()
                 dismiss()

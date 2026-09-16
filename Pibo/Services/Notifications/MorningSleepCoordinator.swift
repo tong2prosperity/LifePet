@@ -13,8 +13,11 @@ struct MorningSleepPresentation: Equatable, Identifiable, Sendable {
     /// The wake-day is no longer today, so the card reads as a dated
     /// retrospective ("补看") rather than "last night".
     let isCatchUp: Bool
+    /// DEBUG rehearsal only. A fixture presentation is labelled on the card,
+    /// never consumes the real wake-day, and is rejected outside DEBUG builds.
+    var isDebugFixture: Bool = false
 
-    var id: String { summary.wakeDayKey }
+    var id: String { isDebugFixture ? "debug-\(summary.wakeDayKey)" : summary.wakeDayKey }
 }
 
 /// The notification surface the coordinator needs. Abstracted so the delivery
@@ -92,7 +95,6 @@ final class MorningSleepCoordinator {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let notifications: any MorningSleepNotificationScheduling
     @ObservationIgnored private var appIsActive = false
-    @ObservationIgnored private var mockPresentationWakeDayKey: String?
     @ObservationIgnored private var recheckTask: Task<Void, Never>?
     /// Recent nights, oldest first. Keeping more than the newest one is what
     /// makes a notification tapped after midnight resolve to its own night
@@ -107,6 +109,10 @@ final class MorningSleepCoordinator {
     private static let lastScheduledKey = "pibo.sleep.morning.lastScheduled.v2"
     private static let legacyLastPresentedKey = "pibo.sleep.morning.lastPresented.v1"
     private static let legacyLastScheduledKey = "pibo.sleep.morning.lastScheduled.v1"
+    /// The DEV notification fixture lives here and only here — never in the
+    /// real archive, `latestSummary`, baseline or delivery records.
+    static let debugFixtureKey = "pibo.sleep.morning.debugFixture.v1"
+    static let debugNotificationIdentifier = "pibo.sleep.mock"
 
     /// How many nights stay reachable. The catch-up window is 36h, so three
     /// entries always cover it even with a nap in between.
@@ -236,16 +242,20 @@ final class MorningSleepCoordinator {
     /// card queued late in the evening must not surface as "last night" after
     /// midnight, and must not consume the wrong wake-day when it does.
     func consumablePresentation(now: Date = .now) -> MorningSleepPresentation? {
+        if let pending = pendingPresentation, pending.isDebugFixture {
+            #if DEBUG
+            return pending
+            #else
+            pendingPresentation = nil
+            return nil
+            #endif
+        }
         guard allowsSleepReview() else {
             pendingPresentation = nil
             return nil
         }
         guard let pending = pendingPresentation else { return nil }
         let summary = pending.summary
-
-        if mockPresentationWakeDayKey == summary.wakeDayKey {
-            return pending
-        }
 
         guard summary.isWithinCatchupWindow(now: now),
               !isBlockedByPriorPresentation(summary, isSettled: pending.isSettled)
@@ -265,7 +275,26 @@ final class MorningSleepCoordinator {
     }
 
     func handleNotificationOpen(wakeDayKey: String?, isMock: Bool = false, now: Date = .now) {
+        if isMock {
+            // Release builds never accept the fixture route.
+            #if DEBUG
+            guard let fixture = decode(MorningSleepSummary.self, forKey: Self.debugFixtureKey),
+                  wakeDayKey == nil || fixture.wakeDayKey == wakeDayKey
+            else {
+                LPLog.app.error("Morning sleep mock notification opened without a stored fixture")
+                return
+            }
+            pendingPresentation = MorningSleepPresentation(
+                summary: fixture,
+                isSettled: true,
+                isCatchUp: fixture.isCatchUp(now: now),
+                isDebugFixture: true
+            )
+            #endif
+            return
+        }
         guard allowsSleepReview() else { return }
+
         let match: MorningSleepSummary?
         if let wakeDayKey {
             match = archive.first { $0.wakeDayKey == wakeDayKey }
@@ -279,26 +308,14 @@ final class MorningSleepCoordinator {
             return
         }
 
-        if isMock {
-            mockPresentationWakeDayKey = summary.wakeDayKey
-            pendingPresentation = MorningSleepPresentation(
-                summary: summary,
-                isSettled: true,
-                isCatchUp: summary.isCatchUp(now: now)
-            )
-            return
-        }
-
-        // An explicit tap is a direct request, so the quiet band does not apply
-        // — but a night that has aged out or was already consumed still doesn't
-        // reopen.
-        let isSettled = summary.readiness(now: now, userIsInteracting: false) == .final
-        guard summary.isWithinCatchupWindow(now: now),
-              !isBlockedByPriorPresentation(summary, isSettled: isSettled)
-        else { return }
+        // An explicit tap is a direct request: the quiet band and the
+        // once-per-wake-day dedupe (which governs passive launches) do not
+        // apply, so a card already seen can be reopened. A night that has aged
+        // out of the catch-up window still doesn't.
+        guard summary.isWithinCatchupWindow(now: now) else { return }
         pendingPresentation = MorningSleepPresentation(
             summary: summary,
-            isSettled: isSettled,
+            isSettled: summary.readiness(now: now, userIsInteracting: false) == .final,
             isCatchUp: summary.isCatchUp(now: now)
         )
     }
@@ -308,9 +325,13 @@ final class MorningSleepCoordinator {
     /// still-provisional night stays upgradeable exactly once.
     func markPresented(_ presentation: MorningSleepPresentation) {
         let summary = presentation.summary
-        if mockPresentationWakeDayKey == summary.wakeDayKey {
+        if presentation.isDebugFixture {
             // Rehearsing the DEBUG flow must not consume the real morning card.
-            mockPresentationWakeDayKey = nil
+            notifications.morningRemoveDelivered([Self.debugNotificationIdentifier])
+            if pendingPresentation?.id == presentation.id {
+                pendingPresentation = nil
+            }
+            return
         } else {
             encode(
                 DeliveryRecord(
@@ -363,39 +384,39 @@ final class MorningSleepCoordinator {
 
     #if DEBUG
     func debugPresentFixture() {
-        guard allowsSleepReview() else { return }
-        let summary = MorningSleepSummary.debugFixture()
-        store(summary)
-        mockPresentationWakeDayKey = summary.wakeDayKey
         pendingPresentation = MorningSleepPresentation(
-            summary: summary,
+            summary: MorningSleepSummary.debugFixture(),
             isSettled: true,
-            isCatchUp: false
+            isCatchUp: false,
+            isDebugFixture: true
         )
     }
 
     /// Schedules a real local notification containing the fixture. Its mock
     /// category is allowed to show as a foreground banner; only tapping that
     /// banner routes the fixture into the normal home-sheet presentation.
+    /// The DEV rehearsal is independent of the hammock capability (the real
+    /// wake notification stays gated); it needs only system notification
+    /// permission.
     func debugScheduleFixtureNotification(delay: TimeInterval = 3) async -> Bool {
-        guard allowsSleepReview(), allowsWakeNotification() else { return false }
         guard await debugNotificationAuthorizationAvailable() else {
             LPLog.app.error("Morning sleep mock notification unavailable: not authorized")
             return false
         }
 
+        // Persist only the isolated fixture before scheduling, so a cold launch
+        // from the notification can rebuild the card without touching (or
+        // substituting) the real archive.
         let summary = MorningSleepSummary.debugFixture()
-        store(summary)
-        pendingPresentation = nil
-        mockPresentationWakeDayKey = nil
+        encode(summary, forKey: Self.debugFixtureKey)
 
-        let identifier = "pibo.sleep.mock"
+        let identifier = Self.debugNotificationIdentifier
         notifications.morningRemovePending([identifier])
         notifications.morningRemoveDelivered([identifier])
 
         let content = UNMutableNotificationContent()
-        content.title = MorningSleepCopy.notificationTitle
-        content.body = MorningSleepCopy.notificationBody
+        content.title = "DEBUG · 初醒通知"
+        content.body = "测试通知：点开查看睡眠示例卡片。"
         content.sound = .default
         content.categoryIdentifier = AppNotificationCategory.morningSleepMock
         content.threadIdentifier = "pibo.sleep.mock"

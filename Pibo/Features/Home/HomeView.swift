@@ -750,12 +750,10 @@ struct HomeView: View {
         )
         guard stageCommands.playBoProgressFeedback(presentation) else { return }
         boProgressFeedback.consume(id: pending.id)
+        // The bo feedback only quotes the duration; the sleep card is marked
+        // seen solely when its sheet actually appears.
         if let sleep {
             morningSleep.markEnergyPresented(sleep)
-            if let queued = morningSleep.pendingPresentation,
-               queued.summary.wakeDayKey == sleep.wakeDayKey {
-                morningSleep.markPresented(queued)
-            }
         }
     }
 
