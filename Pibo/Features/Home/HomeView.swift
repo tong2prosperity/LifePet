@@ -71,6 +71,8 @@ struct HomeView: View {
     @State private var boBalanceHint: String?
     @State private var boBalanceHintTask: Task<Void, Never>?
     @State private var boBalanceTarget: CGPoint?
+    /// Current pose's bo container top (global), for the speech bubble.
+    @State private var speechAnchor: CGPoint?
     #if DEBUG
     @State private var debugControls = HomeDebugControlsState()
     #endif
@@ -781,7 +783,7 @@ struct HomeView: View {
         ZStack {
             // Speech bubble floats just above Pibo's head (~30% down).
             if let speech = speechPresentation.line {
-                HomeSpeechOverlay.make(line: speech) {
+                HomeSpeechOverlay.make(line: speech, anchorY: speechAnchor?.y) {
                     speechPresentation.dismiss()
                     Analytics.track(.historyOpen, screen: "home_speech")
                     presentation.showHistory = true
@@ -830,6 +832,9 @@ struct HomeView: View {
         }
         handlers.harvestActiveChanged = { active in boHarvestActive = active }
         handlers.harvestHint = showBoBalanceHint
+        handlers.speechAnchorChanged = { point in
+            if speechAnchor != point { speechAnchor = point }
+        }
         return handlers
     }
 

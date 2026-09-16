@@ -75,6 +75,7 @@ struct HomeStageSurface: View {
         var collectBo: () -> Bool = { false }
         var harvestActiveChanged: (Bool) -> Void = { _ in }
         var harvestHint: (String) -> Void = { _ in }
+        var speechAnchorChanged: (CGPoint?) -> Void = { _ in }
         let ornamentLightTap: (PiboOrnament.ID, Int) -> Void
         let ornamentTap: (PiboOrnament.ID) -> Void
         let shadowTap: () -> Void
@@ -107,6 +108,7 @@ struct HomeStageSurface: View {
             onCollectBo: handlers.collectBo,
             onHarvestActiveChanged: handlers.harvestActiveChanged,
             onHarvestHint: handlers.harvestHint,
+            onSpeechAnchorChanged: handlers.speechAnchorChanged,
             balanceTarget: input.balanceTarget,
             isPaused: input.isPaused,
             isObscured: input.isObscured

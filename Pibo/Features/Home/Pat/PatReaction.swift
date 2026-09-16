@@ -48,11 +48,23 @@ struct PiboSpeechLine: Equatable {
     var data: PiboSpeechData? = nil
     var hasNext = false
     var lingerDuration: TimeInterval? = nil
+    /// Decision 054: a companion prompt's two preset replies and "我想说…".
+    var interaction: PiboSpeechInteraction? = nil
 
     /// A system notice — the app explaining why Pibo is not answering.
     static func system(_ text: String) -> PiboSpeechLine {
         PiboSpeechLine(text: text, source: .system)
     }
+}
+
+struct PiboSpeechChoice: Equatable, Identifiable {
+    let id: String
+    let label: String
+}
+
+struct PiboSpeechInteraction: Equatable {
+    let choices: [PiboSpeechChoice]
+    let allowsCustom: Bool
 }
 
 /// The store's answer to a pat. `turnsAway` and `line` compose: 不理睬 is a

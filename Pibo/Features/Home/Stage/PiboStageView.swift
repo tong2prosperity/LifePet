@@ -52,6 +52,7 @@ struct PiboStageView: View, Equatable {
     var onCollectBo: () -> Bool = { false }
     var onHarvestActiveChanged: (Bool) -> Void = { _ in }
     var onHarvestHint: (String) -> Void = { _ in }
+    var onSpeechAnchorChanged: (CGPoint?) -> Void = { _ in }
     /// Balance chip centre in this view's coordinates; energy flies there.
     var balanceTarget: CGPoint?
     /// Suspend the stage when an opaque feature covers Home. The `SpriteView`
@@ -211,6 +212,7 @@ struct PiboStageView: View, Equatable {
         scene.onCollectBo = onCollectBo
         scene.onHarvestActiveChanged = onHarvestActiveChanged
         scene.onHarvestHint = onHarvestHint
+        scene.onSpeechAnchorChanged = onSpeechAnchorChanged
         scene.onDirectManipulationChanged = { [weak renderController] active in
             renderController?.setDirectManipulation(
                 active: active,

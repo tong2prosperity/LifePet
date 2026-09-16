@@ -61,6 +61,10 @@ final class PiboStageScene: SKScene {
     var onHarvestHint: ((String) -> Void)? {
         didSet { configureCharacterCallbacks() }
     }
+    /// Speech bubble anchor (bo container top) in SwiftUI view coordinates.
+    var onSpeechAnchorChanged: ((CGPoint?) -> Void)? {
+        didSet { configureCharacterCallbacks() }
+    }
 
     // — Nodes —
     private let backdrop = SKNode()
@@ -771,6 +775,12 @@ final class PiboStageScene: SKScene {
         character.onCollectBo = { [weak self] in self?.onCollectBo?() ?? false }
         character.onHarvestActiveChanged = { [weak self] active in self?.onHarvestActiveChanged?(active) }
         character.onHarvestHint = { [weak self] hint in self?.onHarvestHint?(hint) }
+        character.onSpeechAnchorChanged = { [weak self] point in
+            guard let self else { return }
+            let viewPoint = point.map { CGPoint(x: $0.x, y: self.size.height - $0.y) }
+            // Scene callbacks run inside the render loop; publish afterwards.
+            DispatchQueue.main.async { self.onSpeechAnchorChanged?(viewPoint) }
+        }
     }
 
     private func applyTuning(visibilityChanged: Bool) {

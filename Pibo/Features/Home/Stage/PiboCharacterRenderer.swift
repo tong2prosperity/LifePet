@@ -52,6 +52,12 @@ final class PiboCharacterRenderer {
     private var boRipeElapsed: Double?
     private var boRipeFrom: CGFloat = 0
     var isHarvesting: Bool { harvest.isReleasing }
+    /// Top of the current pose's bo container in scene space, reported only when
+    /// the pose settles or moves ≥ 4 design units — never per frame, so pat
+    /// squash, wind sway and growth cannot make the speech bubble wobble.
+    var onSpeechAnchorChanged: (CGPoint?) -> Void = { _ in }
+    private var speechAnchorStateID: String?
+    private var speechAnchor: CGPoint?
     private weak var scene: SKScene?
     private weak var camera: SKCameraNode?
     private var theme: PiboTheme = .forest
@@ -465,18 +471,15 @@ final class PiboCharacterRenderer {
         }
         cancelContextualAction()
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
-        let short = reduceMotion ? 0.08 : 0.15
         let medium = reduceMotion ? 0.10 : 0.22
         let actor = contextualActionNode
         let sequence: SKAction
         switch action {
         case .checkConnection:
-            let angle = reduceMotion ? CGFloat.pi / 180 : 4 * CGFloat.pi / 180
-            sequence = .sequence([
-                eased(.rotate(toAngle: -angle, duration: short, shortestUnitArc: true)),
-                eased(.rotate(toAngle: angle, duration: medium, shortestUnitArc: true)),
-                eased(.rotate(toAngle: 0, duration: short, shortestUnitArc: true)),
-            ])
+            // 2026-09-07: pat keeps its squash-and-rebound deformation only; no
+            // extra sideways tilt or shift layered on top.
+            playBodyTap()
+            return
         case .letSleep:
             sequence = .sequence([
                 eased(.scaleX(
@@ -488,41 +491,20 @@ final class PiboCharacterRenderer {
                 eased(.scaleX(to: 1, y: 1, duration: medium)),
             ])
         case .morningGreeting:
-            let angle = reduceMotion ? CGFloat.pi / 180 : 3 * CGFloat.pi / 180
             sequence = .sequence([
                 eased(.scaleX(
                     to: reduceMotion ? 0.99 : 0.96,
                     y: reduceMotion ? 1.02 : 1.08,
                     duration: medium
                 )),
-                eased(.rotate(toAngle: angle, duration: short, shortestUnitArc: true)),
-                eased(.rotate(toAngle: -angle, duration: short, shortestUnitArc: true)),
-                eased(.group([
-                    .scaleX(to: 1, y: 1, duration: medium),
-                    .rotate(toAngle: 0, duration: medium, shortestUnitArc: true),
-                ])),
+                eased(.scaleX(to: 1, y: 1, duration: medium)),
             ])
         case .checkIn:
             playBodyTap()
             return
         case .play:
-            let hop = designLength(reduceMotion ? 2 : 10)
-            let side = designLength(reduceMotion ? 2 : 14)
-            let angle = reduceMotion ? CGFloat.pi / 180 : 4 * CGFloat.pi / 180
-            sequence = .sequence([
-                eased(.group([
-                    .moveBy(x: -side, y: hop, duration: medium),
-                    .rotate(toAngle: angle, duration: medium, shortestUnitArc: true),
-                ])),
-                eased(.group([
-                    .moveBy(x: side * 2, y: 0, duration: medium),
-                    .rotate(toAngle: -angle, duration: medium, shortestUnitArc: true),
-                ])),
-                eased(.group([
-                    .moveBy(x: -side, y: -hop, duration: medium),
-                    .rotate(toAngle: 0, duration: medium, shortestUnitArc: true),
-                ])),
-            ])
+            playBodyTap()
+            return
         case .rest:
             let settle = designLength(1)
             sequence = .sequence([
@@ -895,8 +877,26 @@ final class PiboCharacterRenderer {
         }
         vector.updateBoFill(deltaTime: deltaTime, reduceMotion: reduceMotion)
         vector.syncBoContainerPresentation()
+        reportSpeechAnchorIfNeeded(transition: transition)
         updateVectorRig(time: time, deltaTime: deltaTime, wind: wind, reduceMotion: reduceMotion)
         if let view = scene?.view { vector.refreshReflectionSnapshotIfNeeded(in: view) }
+    }
+
+    private func reportSpeechAnchorIfNeeded(transition: PiboStateTransition) {
+        guard let vector, let scene, !transition.isRunning else { return }
+        let stateID = transition.displayStateID
+        guard let path = vector.sproutPath() else { return }
+        let box = path.boundingBoxOfPath
+        guard !box.isNull else { return }
+        // Body transform is Y-up in node space; the container's top is maxY.
+        let local = vector.rootPoint(forBodyPathPoint: CGPoint(x: box.midX, y: box.maxY))
+        let point = scene.convert(local, from: vector.rootNode)
+        let threshold = 4 * designUnitScale
+        if stateID == speechAnchorStateID, let previous = speechAnchor,
+           hypot(point.x - previous.x, point.y - previous.y) < threshold { return }
+        speechAnchorStateID = stateID
+        speechAnchor = point
+        onSpeechAnchorChanged(point)
     }
 
     /// 同一套六段骨骼阻尼弹簧，宿主换成矢量角色的芽。根梢方向随状态变化，
