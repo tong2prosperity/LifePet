@@ -42,3 +42,7 @@ HarmonyOS 本轮实现、验证和 iOS 待补齐清单见 HarmonyPibo 仓库 `do
 - Debug 预览同步覆盖欢迎、产品说明、健康选择三屏；权限和数据隔离保持不变。
 
 HarmonyOS 计划与证据见 `HarmonyPibo/docs/harmony-first/2026-09-08-Onboarding产品价值说明.md`；iOS 表现仍待补齐。
+
+## 2026-09-16 iOS 补齐
+
+iOS 已按 HarmonyOS 实施记录补齐：cabd322、a8ef1e6：日常人格欢迎→产品说明→健康选择、首页双击引导、首启预览；onboarding 后强制登录。真机验收仍待完成；实施证据见 HarmonyPibo `docs/harmony-first/` 各记录的「iOS 补齐（2026-09-16）」。
