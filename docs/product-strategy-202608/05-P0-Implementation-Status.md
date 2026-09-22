@@ -1,5 +1,7 @@
 # P0 首版改造工程状态
 
+> 2026-09-23 模拟器走查（iPhone 17 / iOS 26.5，启动参数 + 截图）：首页、健康记录、状态观测仪、物件唤醒、睡眠详情、压力卡、成就弹窗、游戏场、设置、首次引导与 bo 成长提示逐个截图核对。修两处：游戏场「摇花铃」徽标按 126pt 参与布局、把卡片撑爆（`MiniGameAssets`）；成就弹窗与分享卡从不设置 bo 容器填充、永远画空壳（改为透传 `BoLedgerStore.growthProgress`）。新增 `-PiboOpenSettings` 截图参数。登录流程与拍照识别需真实账号与后端，模拟器内不可验；真机试听仍待完成。
+
 > 2026-09-19 iOS 补差：首页互动音效（Harmony-first 2026-09-17）——12 个 Mixkit 短音效（`Pibo/Resources/Audio/HomeSFX/`，与鸿蒙逐字节一致）、同一张音量表、`PiboSoundEffectService`（`.ambient` 会话；前台／减弱动画／设置开关门控；80 ms 同音去重）、9 个触发点、设置 › 声音「互动音效」开关（`pibo.audio.effectsEnabled.v1`）。`PiboSoundEffectServiceTests` 通过；真机试听待完成。
 
 > 2026-09-16 iOS 补差：iOS 已补齐 2026-09-04 以来全部手机端 Harmony-first 记录（提交 658500e…730e164）——决定 050/051 发布范围收口、Core 精确依赖 0.24.0、决定 048 bo 容器收取与 boRipe 成熟动画、决定 049 日常人格 onboarding、onboarding 后强制登录／协议／注销、COS 餐食上传、健康记录真实性与连续云雾睡眠详情、决定 047 观测仪悬浮查看、说话气泡与 467 条拍一拍文案、活跃弹跳、决定 054 陪伴提问、分层雨幕、DEV 悬浮入口。PiboTests 全量 644 项通过；真机验收待完成。手表「pibo-呼吸」按用户决定暂不做。

@@ -408,6 +408,7 @@ struct HomeView: View {
             HomeStageSurface(
                 input: .init(
                     store: store,
+                    boLedger: boLedger,
                     animationPresentation: animationPresentation,
                     environment: stageEnvironment,
                     ornamentUnlocks: ornamentUnlocks,

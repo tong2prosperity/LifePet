@@ -15,6 +15,9 @@ enum HomeDebugLaunchAutomation {
         let enqueueBoProgress: (BoProgressMilestone) -> Void
         let openBoPanel: () -> Void
         let openStressCard: () -> Void
+        /// Screenshot hook for Settings, which is otherwise only reachable by
+        /// tapping the gear (the Simulator cannot synthesize taps).
+        var openSettings: () -> Void = {}
     }
 
     struct Scheduler {
@@ -88,6 +91,9 @@ enum HomeDebugLaunchAutomation {
         }
         if options.opensStressCard {
             handlers.openStressCard()
+        }
+        if options.opensSettings {
+            scheduler.schedule(.milliseconds(350), false, handlers.openSettings)
         }
     }
 }

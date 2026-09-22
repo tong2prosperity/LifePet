@@ -432,6 +432,9 @@ struct MiniGameKindBadgeAsset: View {
         case .bellSquat:
             MiniGameBellAsset(swing: true)
                 .scaleEffect(0.26)
+                // The asset lays out at its full 126pt; without a frame the
+                // badge's own circle inherits that size and swallows the card.
+                .frame(width: 33, height: 33)
         case .memoryMatrix:
             MiniGameMemoryGridAsset(active: [1, 4, 6])
                 .frame(width: 30, height: 26)

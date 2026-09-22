@@ -13,6 +13,7 @@ struct PiboHistoryView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(HealthHistoryStore.self) private var history
     @Environment(HealthDataService.self) private var health
+    @Environment(BoLedgerStore.self) private var boLedger
 
     /// Card to scroll to on open (notification deep link). `nil` = top of page.
     var focus: HistoryFocus?
@@ -85,7 +86,12 @@ struct PiboHistoryView: View {
             get: { shareSnapshot != nil },
             set: { if !$0 { shareSnapshot = nil } }
         )) {
-            if let shareSnapshot { TodayPiboShareSheet(snapshot: shareSnapshot) }
+            if let shareSnapshot {
+                TodayPiboShareSheet(
+                    snapshot: shareSnapshot,
+                    boFillProgress: boLedger.growthProgress
+                )
+            }
         }
         .sheet(isPresented: $showHealthStatus) {
             HealthDataStatusSheet()

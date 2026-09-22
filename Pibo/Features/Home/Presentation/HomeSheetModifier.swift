@@ -9,6 +9,7 @@ struct HomeSheetModifier: ViewModifier {
     let history: HealthHistoryStore
     let recognizer: FoodRecognitionService
     let morningSleep: MorningSleepCoordinator
+    let boLedger: BoLedgerStore
     let onDismiss: () -> Void
     let replayWalkEcho: (WalkDoodleRecord) -> Void
     let startMealCapture: (MealType) -> Void
@@ -43,7 +44,10 @@ struct HomeSheetModifier: ViewModifier {
                 message: model.message
             )
         case .achievement(let payload):
-            PiboAchievementModal(payload: payload) { confirmAchievement(payload) }
+            PiboAchievementModal(
+                payload: payload,
+                boFillProgress: boLedger.growthProgress
+            ) { confirmAchievement(payload) }
                 .interactiveDismissDisabled()
         case .ornamentUnlock(let id):
             OrnamentAwakeningSheet(ornamentID: id)

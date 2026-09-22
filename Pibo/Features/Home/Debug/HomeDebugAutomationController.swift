@@ -74,7 +74,8 @@ final class HomeDebugAutomationController {
                     // a bare simulator has no heartbeat series to produce.
                     store.debugSeedStressIfNeeded()
                     stressNotifier.pendingCardOpen = true
-                }
+                },
+                openSettings: { presentation.showSettings = true }
             )
         )
     }

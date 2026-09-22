@@ -3,6 +3,9 @@ import UIKit
 
 struct TodayPiboShareSheet: View {
     let snapshot: TodayPiboShareSnapshot
+    /// Home's current bo container fill, so the exported portrait matches the
+    /// stage instead of always drawing the empty shell.
+    var boFillProgress: Double = 0
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -12,8 +15,9 @@ struct TodayPiboShareSheet: View {
     @State private var exportURL: URL?
     @State private var errorText: String?
 
-    init(snapshot: TodayPiboShareSnapshot) {
+    init(snapshot: TodayPiboShareSnapshot, boFillProgress: Double = 0) {
         self.snapshot = snapshot
+        self.boFillProgress = boFillProgress
         _selectedScene = State(initialValue: PiboFlatWorldScene.recommended(petName: snapshot.petName))
     }
 
@@ -88,7 +92,10 @@ struct TodayPiboShareSheet: View {
             }
         }
         .task {
-            characterImage = PiboShareCharacterRenderer.image(stateID: snapshot.assetStateID)
+            characterImage = PiboShareCharacterRenderer.image(
+                stateID: snapshot.assetStateID,
+                boFillProgress: CGFloat(boFillProgress)
+            )
             if characterImage == nil {
                 errorText = "Pibo 形象暂时无法生成，请重试。"
                 AccessibilityNotification.Announcement(errorText ?? "图片生成失败").post()
@@ -117,7 +124,8 @@ struct TodayPiboShareSheet: View {
         isExporting = true
         errorText = nil
         let image = characterImage ?? PiboShareCharacterRenderer.image(
-            stateID: snapshot.assetStateID
+            stateID: snapshot.assetStateID,
+            boFillProgress: CGFloat(boFillProgress)
         )
         guard let image else {
             errorText = "Pibo 形象暂时无法生成，请重试。"

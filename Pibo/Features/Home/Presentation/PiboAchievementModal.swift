@@ -4,6 +4,10 @@ import SwiftUI
 
 struct PiboAchievementModal: View {
     let payload: PiboAnimationAchievementPayload
+    /// Home's current bo container fill. The modal hosts the same vector
+    /// character as the stage, and a character that is never told the fill
+    /// draws the empty container shell (决定 048).
+    var boFillProgress: Double = 0
     let onConfirm: () -> Void
 
     @State private var showCharacter = false
@@ -22,7 +26,10 @@ struct PiboAchievementModal: View {
         VStack(spacing: LP.Spacing.l) {
             ZStack {
                 if showCharacter {
-                    PiboAchievementCharacterView(stateID: payload.stateID)
+                    PiboAchievementCharacterView(
+                        stateID: payload.stateID,
+                        boFillProgress: boFillProgress
+                    )
                 } else {
                     PiboWhiteConvergenceView()
                 }
@@ -161,12 +168,18 @@ private final class AlphaPlayerView: UIView {
 
 private struct PiboAchievementCharacterView: UIViewRepresentable {
     let stateID: String
+    let boFillProgress: Double
 
     func makeUIView(context: Context) -> SKView {
         let view = SKView()
         view.backgroundColor = .clear
         view.allowsTransparency = true
-        view.presentScene(PiboAchievementCharacterScene(stateID: stateID))
+        view.presentScene(
+            PiboAchievementCharacterScene(
+                stateID: stateID,
+                boFillProgress: boFillProgress
+            )
+        )
         return view
     }
 
@@ -176,13 +189,15 @@ private struct PiboAchievementCharacterView: UIViewRepresentable {
 @MainActor
 private final class PiboAchievementCharacterScene: SKScene {
     private let stateID: String
+    private let boFillProgress: CGFloat
     private var character: PiboVectorCharacter?
     private var animator: PiboIdleAnimator?
     private var intro: PiboStateTransition?
     private var previousUpdateTime: TimeInterval?
 
-    init(stateID: String) {
+    init(stateID: String, boFillProgress: Double) {
         self.stateID = stateID
+        self.boFillProgress = CGFloat(boFillProgress)
         super.init(size: CGSize(width: 300, height: 300))
         scaleMode = .resizeFill
         backgroundColor = .clear
@@ -206,6 +221,7 @@ private final class PiboAchievementCharacterScene: SKScene {
         // for placing Pibo on a world surface and replaces `rootNode.position`,
         // which would move these poses out of the Modal's centered artboard.
         character.setState(stateID)
+        character.setBoFillProgress(boFillProgress)
         layoutCharacter()
         intro.startAuthoredIntro()
     }
