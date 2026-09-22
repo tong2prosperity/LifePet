@@ -31,6 +31,7 @@ enum HomePatInteractionCoordinator {
             handlers: Handlers(
                 react: { action, state in
                     LPHaptics.tap()
+                    PiboSoundEffectService.shared.play(.pat(for: state))
                     contextualActions.restart(
                         action: action,
                         state: state,

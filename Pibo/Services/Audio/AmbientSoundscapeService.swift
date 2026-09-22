@@ -5,6 +5,10 @@ import PiboCore
 
 @MainActor
 final class AmbientSoundscapeService {
+    /// Read by `PiboSoundEffectService` so a cue never flips the category
+    /// underneath the running loops.
+    private(set) static var holdsPlaybackSession = false
+
     private let bundle: Bundle
     private let session: AVAudioSession
     private var profile: SoundscapeProfile?
@@ -257,6 +261,7 @@ final class AmbientSoundscapeService {
             try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setActive(true)
             sessionActive = true
+            Self.holdsPlaybackSession = true
             didLogSessionFailure = false
             return true
         } catch {
@@ -282,5 +287,6 @@ final class AmbientSoundscapeService {
         guard sessionActive else { return }
         try? session.setActive(false, options: [.notifyOthersOnDeactivation])
         sessionActive = false
+        Self.holdsPlaybackSession = false
     }
 }

@@ -309,6 +309,7 @@ struct DailyOnboardingView: View {
         if previewMode {
             onClosePreview()
         } else {
+            PiboSoundEffectService.shared.play(.onboardingComplete)
             onComplete()
         }
     }

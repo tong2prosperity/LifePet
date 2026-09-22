@@ -15,6 +15,8 @@ struct SettingsView: View {
 
     @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled)
     private var ambientSoundEnabled = true
+    @AppStorage(PiboPersistenceKeys.Defaults.soundEffectsEnabled)
+    private var soundEffectsEnabled = true
     @State private var showLogoutConfirmation = false
     @State private var showDeleteAccountConfirmation = false
     @State private var showDeleteAccountFailure = false
@@ -144,15 +146,27 @@ struct SettingsView: View {
 
     private var soundSection: some View {
         settingsSection("声音") {
-            settingToggle(title: "环境声音", isOn: $ambientSoundEnabled)
-                .onChange(of: ambientSoundEnabled) { _, enabled in
+            VStack(spacing: 0) {
+                settingToggle(title: "环境声音", isOn: $ambientSoundEnabled)
+                    .onChange(of: ambientSoundEnabled) { _, enabled in
+                        LPHaptics.tap()
+                        Analytics.track(
+                            .soundscapeSettingChange,
+                            screen: "settings",
+                            ["enabled": .bool(enabled)]
+                        )
+                    }
+                Divider().overlay(LP.Separator.primary)
+                settingToggle(
+                    title: "互动音效",
+                    subtitle: "拍一拍、bo 与物件的轻声反馈",
+                    isOn: $soundEffectsEnabled
+                )
+                .onChange(of: soundEffectsEnabled) { _, enabled in
                     LPHaptics.tap()
-                    Analytics.track(
-                        .soundscapeSettingChange,
-                        screen: "settings",
-                        ["enabled": .bool(enabled)]
-                    )
+                    PiboSoundEffectService.shared.setEnabled(enabled)
                 }
+            }
         }
     }
 

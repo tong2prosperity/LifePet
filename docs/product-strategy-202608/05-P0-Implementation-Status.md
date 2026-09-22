@@ -1,5 +1,7 @@
 # P0 首版改造工程状态
 
+> 2026-09-19 iOS 补差：首页互动音效（Harmony-first 2026-09-17）——12 个 Mixkit 短音效（`Pibo/Resources/Audio/HomeSFX/`，与鸿蒙逐字节一致）、同一张音量表、`PiboSoundEffectService`（`.ambient` 会话；前台／减弱动画／设置开关门控；80 ms 同音去重）、9 个触发点、设置 › 声音「互动音效」开关（`pibo.audio.effectsEnabled.v1`）。`PiboSoundEffectServiceTests` 通过；真机试听待完成。
+
 > 2026-09-16 iOS 补差：iOS 已补齐 2026-09-04 以来全部手机端 Harmony-first 记录（提交 658500e…730e164）——决定 050/051 发布范围收口、Core 精确依赖 0.24.0、决定 048 bo 容器收取与 boRipe 成熟动画、决定 049 日常人格 onboarding、onboarding 后强制登录／协议／注销、COS 餐食上传、健康记录真实性与连续云雾睡眠详情、决定 047 观测仪悬浮查看、说话气泡与 467 条拍一拍文案、活跃弹跳、决定 054 陪伴提问、分层雨幕、DEV 悬浮入口。PiboTests 全量 644 项通过；真机验收待完成。手表「pibo-呼吸」按用户决定暂不做。
 
 > 2026-09-09 MVP 收口：[决定 051](../narrative-rebuild/decisions/051-单人陪伴MVP边界与停止条件.md) 冻结两周单人陪伴范围、两轮 polish 与停止条件；Shadow、风铃、铃兰灯和会员入口延后，真实完成状态见 Harmony-first。

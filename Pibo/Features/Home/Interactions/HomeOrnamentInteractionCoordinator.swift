@@ -40,6 +40,9 @@ enum HomeOrnamentInteractionCoordinator {
             present(.chimeEcho)
             return
         }
+        if ornamentID == .hammock, unlocks.grants(.sleepReview) {
+            PiboSoundEffectService.shared.play(.hammockCreak)
+        }
         handleTap(
             ornamentID: ornamentID,
             canPresent: { true },

@@ -408,7 +408,6 @@ struct HomeView: View {
             HomeStageSurface(
                 input: .init(
                     store: store,
-                    boLedger: boLedger,
                     animationPresentation: animationPresentation,
                     environment: stageEnvironment,
                     ornamentUnlocks: ornamentUnlocks,
@@ -784,6 +783,7 @@ struct HomeView: View {
                     history: history,
                     recognizer: recognizer,
                     morningSleep: morningSleep,
+                    boLedger: boLedger,
                     onDismiss: {
                         if !presentation.presentQueuedCameraIfNeeded() {
                             presentationFlow.resumePendingFlows()
@@ -885,6 +885,7 @@ struct HomeView: View {
                     onDetail: {
                         speechPresentation.dismiss()
                         Analytics.track(.historyOpen, screen: "home_speech")
+                        PiboSoundEffectService.shared.play(.footprintsOpen)
                         presentation.showHistory = true
                     },
                     onChoice: speech.interaction == nil ? nil : { companion.choose($0) },
@@ -900,6 +901,7 @@ struct HomeView: View {
                 dismissSpeech: speechPresentation.dismiss,
                 onOpenHistory: {
                     Analytics.track(.historyOpen, screen: "home")
+                    PiboSoundEffectService.shared.play(.footprintsOpen)
                     presentation.showHistory = true
                 }
             )
@@ -1291,6 +1293,7 @@ struct HomeView: View {
             return
         }
         speechPresentation.dismiss()
+        PiboSoundEffectService.shared.play(.observerOpen)
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) {
             statusObserverPresentation.open()
         }

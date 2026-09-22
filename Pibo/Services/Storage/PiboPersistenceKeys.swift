@@ -11,6 +11,7 @@ nonisolated enum PiboPersistenceKeys {
         static let appLanguage = "pibo.appLanguage.v1"
         static let selectedThemeID = "pibo.theme.selectedID.v1"
         static let ambientSoundEnabled = "pibo.audio.ambientEnabled.v1"
+        static let soundEffectsEnabled = "pibo.audio.effectsEnabled.v1"
         static let piboSpeechHistory = "pibo.speech.history.v1"
         static let homeSpeechHistory = "pibo.speech.homeHistory.v2"
 

@@ -255,6 +255,9 @@ final class PiboCharacterRenderer {
             vectorPlaybook?.setAmbient(stateID)
         case .bounceCut:
             vectorPlaybook?.syncAmbientState(stateID)
+            if visible, scene?.isPaused != true {
+                PiboSoundEffectService.shared.play(.stateTransition)
+            }
             vectorTransition?.bounceCut(to: stateID)
         }
     }
@@ -353,7 +356,12 @@ final class PiboCharacterRenderer {
         guard let origin = hairDragOrigin else { return }
         hairDragOrigin = nil
         let travelled = hypot(point.x - origin.x, point.y - origin.y)
-        if travelled < 8 { harvest.tap() } else { harvest.cancelDrag() }
+        if travelled < 8 {
+            harvest.tap()
+            if !cancelled { PiboSoundEffectService.shared.play(.boSproutTouch) }
+        } else {
+            harvest.cancelDrag()
+        }
         if headRig.isEnabled {
             // Below the release threshold the container springs back and nothing
             // is collected; the pull never detaches or spends anything.
@@ -1250,6 +1258,7 @@ final class PiboCharacterRenderer {
             LPLog.bo.debug("progress feedback ignored — sprout anchor is not visible")
             return
         }
+        PiboSoundEffectService.shared.play(.boGrowthSparkle)
         boProgressHost.removeAllActions()
         boProgressHost.removeAllChildren()
         boProgressHost.position = anchor

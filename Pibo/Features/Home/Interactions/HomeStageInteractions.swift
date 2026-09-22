@@ -49,6 +49,7 @@ struct HomeStageInteractions {
             HomePatInteractionCoordinator.run(input: input, handlers: .init(
                 react: { action, state in
                     LPHaptics.tap()
+                    PiboSoundEffectService.shared.play(.pat(for: state))
                     contextualActions.restart(action: action, state: state, stageCommands: stageCommands)
                 },
                 resolveSpeech: debugPat.resolve,

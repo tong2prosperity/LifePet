@@ -369,6 +369,7 @@ struct HealthAuthView: View {
     private func finish() {
         onboarding.completeFirstRun()
         LPHaptics.success()
+        PiboSoundEffectService.shared.play(.onboardingComplete)
         onContinue()
     }
 }

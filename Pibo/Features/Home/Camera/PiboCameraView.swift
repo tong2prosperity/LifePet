@@ -432,6 +432,7 @@ struct PiboCameraView: View {
             await Task.detached { PiboPhotoStore.saveLatest(image) }.value
             lastThumb = image
             LPHaptics.success()
+            PiboSoundEffectService.shared.play(.mealStickerPop)
             dismiss()
         case .notFood:
             gateMessage = AppLocalization.text("照片里没有识别到餐食，请调整取景后重拍。")
