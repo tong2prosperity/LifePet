@@ -122,6 +122,19 @@ struct PiboPatCatalog {
     }
 }
 
+/// Identity of an authored record: a catalog update that reorders or rewrites
+/// records must not resume a different record at a mismatched line. Same shape
+/// as HarmonyOS `patUnitFingerprint`.
+func piboPatUnitFingerprint(_ unit: PiboPatUnit) -> String {
+    "\(unit.state)|\(unit.context)|" + unit.lines.map(\.text).joined(separator: "\u{241E}")
+}
+
+/// The continuation mark is presentation only; lines that already open with an
+/// ellipsis keep their authored rhythm.
+func piboPatContinuationText(_ text: String) -> String {
+    text.hasPrefix("…") ? text : "……" + text
+}
+
 @MainActor
 final class PiboPatConversationStore {
     private struct Snapshot: Codable {
@@ -130,6 +143,20 @@ final class PiboPatConversationStore {
         var tiredRestingEpisodeKey = ""
         var wakingGreetedEpisodeKey = ""
         var consumedEventTokens: [String] = []
+        /// The unfinished micro-chapter. Optional, so older snapshots decode.
+        var active: PersistedActiveUnit?
+    }
+
+    private struct PersistedActiveUnit: Codable {
+        let state: String
+        let episodeKey: String
+        let context: Int32
+        let recordIndex: Int
+        let nextLineIndex: Int
+        let eventToken: String?
+        let touchDiscovery: Bool
+        let fingerprint: String
+        let savedAt: Date
     }
 
     private struct ActiveUnit {
@@ -140,11 +167,18 @@ final class PiboPatConversationStore {
         var nextLineIndex: Int
         let eventToken: String?
         let touchDiscovery: Bool
+        let fingerprint: String
+        /// Set when the user left Home mid-chapter; the next line opens with a
+        /// continuation mark so Pibo visibly picks the thread back up.
+        var resumedAcrossVisit: Bool
     }
 
     private static let persistenceKey = "pibo.pat.conversation.v1"
     private static let maximumConsumedEvents = 96
     private static let touchDiscoveryCount = 3
+    /// A micro-chapter left mid-way resumes on the next visit inside the same
+    /// state episode. After this long the thread is stale; the record restarts.
+    static let activeResumeMaximumAge: TimeInterval = 36 * 60 * 60
 
     private let catalog: PiboPatCatalog
     private let defaults: UserDefaults
@@ -156,7 +190,8 @@ final class PiboPatConversationStore {
 
     init(
         catalog: PiboPatCatalog? = nil,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        now: Date = .now
     ) {
         self.catalog = catalog ?? .bundled()
         self.defaults = defaults
@@ -173,6 +208,33 @@ final class PiboPatConversationStore {
         } else {
             snapshot = Snapshot()
         }
+        active = Self.restoredActive(snapshot.active, now: now)
+    }
+
+    /// Validates a saved chapter field by field; anything odd, stale or saved
+    /// in the future (clock change) restarts the record instead.
+    private static func restoredActive(_ saved: PersistedActiveUnit?, now: Date) -> ActiveUnit? {
+        guard let saved,
+              let state = PiboActivityState(rawValue: saved.state),
+              let context = PiboCorePatContext(rawValue: saved.context),
+              context != .none,
+              saved.recordIndex >= 0,
+              saved.nextLineIndex >= 1,
+              !saved.fingerprint.isEmpty,
+              now.timeIntervalSince(saved.savedAt) <= activeResumeMaximumAge,
+              saved.savedAt.timeIntervalSince(now) <= 60
+        else { return nil }
+        return ActiveUnit(
+            state: state,
+            episodeKey: saved.episodeKey,
+            context: context,
+            recordIndex: saved.recordIndex,
+            nextLineIndex: saved.nextLineIndex,
+            eventToken: saved.eventToken.flatMap { $0.isEmpty ? nil : $0 },
+            touchDiscovery: saved.touchDiscovery,
+            fingerprint: saved.fingerprint,
+            resumedAcrossVisit: true
+        )
     }
 
     #if DEBUG
@@ -182,8 +244,11 @@ final class PiboPatConversationStore {
     }
     #endif
 
+    /// Leaving Home keeps an unfinished micro-chapter. Restarting it on every
+    /// visit meant a user who pats once or twice per visit replayed the same
+    /// opening line forever and never reached the record's last line.
     func leaveHome() {
-        active = nil
+        active?.resumedAcrossVisit = true
         lastSpeechAt = nil
         lastState = nil
         lastEpisodeKey = ""
@@ -196,7 +261,10 @@ final class PiboPatConversationStore {
             return
         }
         guard lastState != state || lastEpisodeKey != episodeKey else { return }
-        active = nil
+        if active != nil {
+            active = nil
+            persist()
+        }
         lastSpeechAt = nil
         self.lastState = state
         lastEpisodeKey = episodeKey
@@ -218,7 +286,11 @@ final class PiboPatConversationStore {
            let continued = continueActive(input, active: active, at: date) {
             return continued
         }
-        active = nil
+        if active != nil {
+            // A different episode or an unreadable record: drop the stale thread.
+            active = nil
+            persist(at: date)
+        }
 
         let eventCandidate = input.events.first {
             !$0.token.isEmpty && !snapshot.consumedEventTokens.contains($0.token)
@@ -274,8 +346,11 @@ final class PiboPatConversationStore {
                 recordIndex: selected,
                 nextLineIndex: progress.nextLineIndex,
                 eventToken: eventToken,
-                touchDiscovery: touchDiscovery
+                touchDiscovery: touchDiscovery,
+                fingerprint: piboPatUnitFingerprint(unit),
+                resumedAcrossVisit: false
             )
+            persist(at: date)
         } else {
             complete(
                 context: context,
@@ -301,6 +376,7 @@ final class PiboPatConversationStore {
 
     func reset() {
         snapshot = Snapshot()
+        active = nil
         leaveHome()
         defaults.removeObject(forKey: Self.persistenceKey)
     }
@@ -313,7 +389,8 @@ final class PiboPatConversationStore {
         let units = catalog.units(for: current.context, storyStage: input.storyStage)
         guard units.indices.contains(current.recordIndex) else { return nil }
         let unit = units[current.recordIndex]
-        guard unit.lines.indices.contains(current.nextLineIndex),
+        guard piboPatUnitFingerprint(unit) == current.fingerprint,
+              unit.lines.indices.contains(current.nextLineIndex),
               unitAvailable(unit, values: input.values) else { return nil }
         let lineIndex = current.nextLineIndex
         let progress = PiboCorePat.lineProgress(
@@ -324,8 +401,11 @@ final class PiboPatConversationStore {
         if progress.hasNext {
             var next = current
             next.nextLineIndex = progress.nextLineIndex
+            next.resumedAcrossVisit = false
             active = next
+            persist(at: date)
         } else {
+            active = nil
             complete(
                 context: current.context,
                 selectedRecord: current.recordIndex,
@@ -334,11 +414,11 @@ final class PiboPatConversationStore {
                 touchDiscovery: current.touchDiscovery,
                 episodeKey: current.episodeKey
             )
-            active = nil
         }
+        let rendered = render(unit.lines[lineIndex].text, values: input.values)
         return PiboPatResolution(
             speechAccepted: true,
-            text: render(unit.lines[lineIndex].text, values: input.values),
+            text: current.resumedAcrossVisit ? piboPatContinuationText(rendered) : rendered,
             speaker: unit.speaker,
             action: unit.action,
             shouldExecuteSideEffect: false,
@@ -432,7 +512,20 @@ final class PiboPatConversationStore {
         }
     }
 
-    private func persist() {
+    private func persist(at date: Date = .now) {
+        snapshot.active = active.map {
+            PersistedActiveUnit(
+                state: $0.state.rawValue,
+                episodeKey: $0.episodeKey,
+                context: $0.context.rawValue,
+                recordIndex: $0.recordIndex,
+                nextLineIndex: $0.nextLineIndex,
+                eventToken: $0.eventToken,
+                touchDiscovery: $0.touchDiscovery,
+                fingerprint: $0.fingerprint,
+                savedAt: date
+            )
+        }
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         defaults.set(data, forKey: Self.persistenceKey)
     }
