@@ -39,7 +39,11 @@ struct SettingsView: View {
                 soundSection
                 notificationSection
                 aboutSection
-                logoutSection
+                // Login is on demand (only the meal camera needs it), so most
+                // people never had an account: no dimmed account actions.
+                if auth.phase == .loggedIn {
+                    logoutSection
+                }
                 #if DEBUG
                 debugSection
                 #endif
@@ -269,8 +273,7 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(auth.phase != .loggedIn || deletingAccount)
-        .opacity(auth.phase == .loggedIn ? 1 : 0.44)
+        .disabled(deletingAccount)
         .background(
             RoundedRectangle(cornerRadius: Self.sectionRadius, style: .continuous)
                 .fill(LP.Fill.bgContainer)
@@ -302,8 +305,6 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(auth.phase != .loggedIn)
-        .opacity(auth.phase == .loggedIn ? 1 : 0.44)
         .background(
             RoundedRectangle(cornerRadius: Self.sectionRadius, style: .continuous)
                 .fill(LP.Fill.bgContainer)

@@ -88,7 +88,7 @@ struct HomeCornerActions: View {
                     systemImage: "camera.fill",
                     label: "餐食相机",
                     rotation: -2,
-                    size: 36,
+                    size: 44,
                     action: onOpenCamera
                 )
             }
@@ -97,7 +97,7 @@ struct HomeCornerActions: View {
                     systemImage: "map.fill",
                     label: "散步涂鸦",
                     rotation: 1,
-                    size: 36,
+                    size: 44,
                     action: onOpenWalkDoodle
                 )
             }
@@ -105,7 +105,7 @@ struct HomeCornerActions: View {
                 systemImage: "gearshape",
                 label: "设置",
                 rotation: 0,
-                size: 36,
+                size: 44,
                 action: onOpenSettings
             )
         }
@@ -125,7 +125,7 @@ struct HomeCornerActions: View {
             action()
         } label: {
             Image(systemName: systemImage)
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(isCamera
                                  ? PiboMoss.Color.foundationTeal
                                  : LP.Content.secondary)
@@ -170,31 +170,46 @@ struct HomeBottomControls: View {
         .padding(.bottom, LP.Spacing.l)
     }
 
+    /// 足迹 as a labelled glass pill in the corner actions' light material
+    /// (2026-09-28, mirrors HarmonyOS `HomeHistoryButton`): the forest and
+    /// Pibo stay the brightest, most saturated things on Home, and a new user
+    /// can read what it opens.
     private var historyButton: some View {
         Button {
             LPHaptics.tap()
             dismissSpeech()
             onOpenHistory()
         } label: {
-            ZStack(alignment: .top) {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color(hex: 0x006650))
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(LP.Colorful.teal500)
-                    .frame(height: 64)
-                Image(systemName: "list.bullet")
-                    .font(.system(size: 30, weight: .regular))
-                    .foregroundStyle(Color.white)
-                    .padding(.top, 16)
+            HStack(spacing: 7) {
+                Image(systemName: "book")
+                    .font(.system(size: 17, weight: .medium))
+                    .accessibilityHidden(true)
+                Text(AppLocalization.text("足迹"))
+                    .font(.system(size: 16, weight: .medium))
             }
-            .frame(width: 72, height: 72)
+            .foregroundStyle(Color(hex: 0x245343))
+            .padding(.leading, 16)
+            .padding(.trailing, 18)
+            .frame(height: 48)
+            .background(Capsule().fill(Color(hex: 0xFBFCFC, alpha: 0.9)))
+            .overlay(Capsule().strokeBorder(.white.opacity(0.55), lineWidth: 1))
+            .lpShadow(LP.Shadow.elevation1)
+            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HomeHistoryPillStyle())
         .accessibilityLabel(AppLocalization.text("足迹"))
     }
 
 }
 
+/// A slight press-in, no extra haptic (the tap already gives one).
+private struct HomeHistoryPillStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
 
 /// Always-visible collected balance with the short collection hint to its right.
 struct HomeBoBalanceChip: View {
