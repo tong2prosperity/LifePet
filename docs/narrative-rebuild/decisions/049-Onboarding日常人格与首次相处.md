@@ -46,3 +46,7 @@ HarmonyOS 计划与证据见 `HarmonyPibo/docs/harmony-first/2026-09-08-Onboardi
 ## 2026-09-16 iOS 补齐
 
 iOS 已按 HarmonyOS 实施记录补齐：cabd322、a8ef1e6：日常人格欢迎→产品说明→健康选择、首页双击引导、首启预览；onboarding 后强制登录。真机验收仍待完成；实施证据见 HarmonyPibo `docs/harmony-first/` 各记录的「iOS 补齐（2026-09-16）」。
+
+## 2026-09-28 双端实施：按需登录
+
+用户 2026-09-28 授权本轮拥有最终产品决策权；据此撤销 2026-09-15 起的“onboarding 后强制登录”，回到“登录不得挡在见到 Pibo 之前”的方向：完成引导直接进入森林，只有餐食相机需要账号时才弹出带原因、可关闭的登录页，成功后恢复相机；协议复选框默认不勾选。HarmonyOS 6faf8d5、iOS 1d9c181。实施证据见 HarmonyPibo `docs/harmony-first/2026-09-28-先见Pibo按需登录.md`；真机验收待完成。
