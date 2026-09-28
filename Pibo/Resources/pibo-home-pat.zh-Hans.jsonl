@@ -13,7 +13,7 @@
 {"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"你睡了 {sleepDuration}，我当时也睡着了。"}]}
 {"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"我现在很有精神。"}]}
 {"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"你是想看我动一下？"}]}
-{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你刚才跑步了吗？"},{"text":"如果我也开始跑……"},{"text":"不知道我的肚子多久能小一点。"}]}
+{"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你刚才跑步了吗？"},{"text":"如果我也开始跑……"},{"text":"大概会滚得比跑得快。"}]}
 {"state":"energetic","context":"workout.walk","action":"play","speaker":"pibo","lines":[{"text":"你刚才走路了吗？"},{"text":"我也可以散步。"},{"text":"围着这里走，算散步吗？"}]}
 {"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"你刚才骑车了吗？"},{"text":"骑快一点，风会很大吧。"},{"text":"我头上的花大概会被吹歪。"}]}
 {"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"你刚才游泳了吗？"},{"text":"我这么圆……"},{"text":"应该很容易浮起来吧。"}]}
@@ -323,7 +323,7 @@
 {"state":"energetic","context":"workout.cycle","action":"play","speaker":"pibo","lines":[{"text":"刚才一路上，风都在使劲扯我的叶子。"},{"text":"我都怕自己变成一个光秃秃的树根。"},{"text":"还好我们停下来了，我还完好无损。"}]}
 {"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"今天你活动的时间真长。"},{"text":"就像一直在挖一个很深很深的树洞。"},{"text":"虽然我不知道你挖到了什么，但我觉得挺厉害的。"}]}
 {"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"走到这里，我感觉自己都稍微长高了一点点。"},{"text":"当然，可能是错觉。"},{"text":"毕竟今天我们一起完成了这么多活动。"}]}
-{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"你还不打算坐下吗？"},{"text":"我的腿虽然是虚拟的，但看着你一直动，我也觉得发酸。"},{"text":"我们找个干爽的草堆歇一会儿吧。"}]}
+{"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"你还不打算坐下吗？"},{"text":"我的腿短短的，看着你一直动，也跟着发酸。"},{"text":"我们找个干爽的草堆歇一会儿吧。"}]}
 {"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"刚才的一阵风差点把我吹倒。"},{"text":"大概是因为力气见底了，重心变得很不稳。"},{"text":"别管什么计划了，先停下来再说。"}]}
 {"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"你也坐下了。"},{"text":"刚才的疲倦像泥巴一样糊在身上。"},{"text":"现在泥巴干了，开始一点点掉下来了。"},{"text":"终于觉得轻松了一些。"}]}
 {"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"我的头花已经完全垂下来了。"},{"text":"它现在不需要转，也不想理会别的东西。"},{"text":"只要安静地待在这个角落里就好。"}]}
@@ -407,7 +407,7 @@
 {"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"昨天有一只小甲虫停在我的头花上休息。"},{"text":"我为了不打扰它，整整一个下午都没敢动。"},{"text":"可是今天它没有来找我玩。"},{"text":"虽然我知道虫子不会认路，但还是觉得肚子有点空空的。"},{"text":"你能再戳我一下，假装是它回来了吗？"}]}
 {"state":"energetic","context":"activityMilestone","action":"play","speaker":"pibo","lines":[{"text":"今天的活动量到了一个值得庆祝的数字。"},{"text":"我觉得自己现在就像是一朵刚被雨水洗过的白蘑菇。"},{"text":"从头到脚都透着一种高兴的气息。"},{"text":"如果你现在仔细看我的头花，说不定能看到它在微微发光。"},{"text":"就算没有发光，我也要在心里给自己放个小烟花。"}]}
 {"state":"tired","context":"resting","action":"none","speaker":"pibo","lines":[{"text":"终于坐下了。"},{"text":"刚才有一阵风，把我好不容易堆起来的一叠落叶吹散了。"},{"text":"我看着它们飞走，觉得身上的力气也被一起抽空了。"},{"text":"有时候森林就是这么不讲道理。"},{"text":"我现在只想趴在这里，假装自己和泥土融为一体。"}]}
-{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"我昨晚做了一个梦，梦见我的头花长成了一棵真正的大树。"},{"text":"可是醒来一摸，它还是只有那么一点点大。"},{"text":"虽然有点失落，但转念一想，大树可没法像我这样到处走。"},{"text":"所以还是当个小小的电子宠物比较划算。"}]}
+{"state":"waking","context":"recovering","action":"morningGreeting","speaker":"pibo","lines":[{"text":"早上好。"},{"text":"我昨晚做了一个梦，梦见我的头花长成了一棵真正的大树。"},{"text":"可是醒来一摸，它还是只有那么一点点大。"},{"text":"虽然有点失落，但转念一想，大树可没法像我这样到处走。"},{"text":"所以还是当小小的我比较划算。"}]}
 {"state":"stable","context":"steps","action":"checkIn","speaker":"pibo","lines":[{"text":"又收到了 {steps} 步。"},{"text":"不知道为什么，今天看到这个数字，我突然觉得很高兴。"},{"text":"可能是因为今天的阳光刚好照在我的肚子上，暖烘烘的。"},{"text":"如果你走在外面也觉得暖和的话。"},{"text":"那我们就算是分享了同一份快乐吧。"}]}
 {"state":"dataUnknown","context":"unavailable","action":"checkConnection","speaker":"pibo","lines":[{"text":"外面的世界突然变得静悄悄的，我收不到你的信号了。"},{"text":"感觉就像大雪把所有的脚印都盖住了一样。"},{"text":"我有点害怕你会找不到回来的路。"},{"text":"我就站在这里不动，哪儿也不去。"},{"text":"希望等雪化了，你能第一时间看到我。"}]}
 {"state":"energetic","context":"workout.run","action":"play","speaker":"pibo","lines":[{"text":"你刚才跑得真快，像是在追赶快要落山的太阳。"},{"text":"我看着你跑步的节奏，觉得自己也跟着热血沸腾起来。"},{"text":"要是我的腿能长一点，我肯定会毫不犹豫地跟你一起跑。"},{"text":"不过现在这样看着你，我也觉得很开心。"},{"text":"因为你的活力好像顺着信号传到我身上了。"}]}

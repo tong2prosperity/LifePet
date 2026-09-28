@@ -1532,13 +1532,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Formation complete. This route works."
+            "value" : "The bo on my head is ripe. Try pulling it up."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "形成完成。看来这条路线有效。"
+            "value" : "我头顶的 bo 成熟了，往上拉一下试试。"
           }
         }
       }

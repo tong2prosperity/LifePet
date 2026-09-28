@@ -403,7 +403,7 @@ enum DailyOnboardingCopy {
     static let dataNotConnected = "尚未连接健康记录。你仍可以和 Pibo 互动，之后在设置中连接。"
 
     static let homeTitle = "想试的时候，再打开"
-    /// Harmony: 「餐食相机和历史记录，都在右上角。」 On iOS 足迹 sits bottom-right.
+    /// Same words as HarmonyOS `dailyOnboarding.tools`: 足迹 sits bottom-right.
     static var tools: String {
         PiboReleaseScope.camera
             ? "餐食相机在右上角，足迹在右下角。"
