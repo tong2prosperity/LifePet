@@ -263,9 +263,9 @@
 {"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"现在是很黑的夜晚，我要睡觉了。"}]}
 {"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"如果你也困了，就一起睡吧。"}]}
 {"state":"sleeping","context":"asleep","action":"letSleep","speaker":"pibo","lines":[{"text":"睡得很沉，不要把我吵醒。"}]}
-{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"我感觉不到你的情况了。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"我还感觉不到你的日常。"}]}
 {"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"好像有什么东西挡住了我们，我收不到信号。"}]}
-{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"是不是哪里的联系断开了？我什么都不知道。"}]}
+{"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"我还不知道你今天过得怎么样。"}]}
 {"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"不知道怎么回事，我突然感觉不到外面的变化了。"}]}
 {"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"我这里现在一片空白，没办法判断你做了什么。"}]}
 {"state":"dataUnknown","context":"authorization","action":"checkConnection","speaker":"pibo","lines":[{"text":"像是一阵雾飘过来，把你的信号挡住了。"}]}
@@ -390,7 +390,7 @@
 {"state":"stable","context":"sleepTogether","action":"checkIn","speaker":"pibo","lines":[{"text":"我们刚才一起睡了 {sleepDuration}。"},{"text":"人类睡觉的时候好像喜欢在身上盖一层厚厚的布。"},{"text":"把自己像毛毛虫一样裹起来。"},{"text":"我睡觉的时候什么都不盖，因为我不怕冷。"},{"text":"而且要是裹得太紧，万一遇到危险我就跑不掉了。"}]}
 {"state":"energetic","context":"ready","action":"play","speaker":"pibo","lines":[{"text":"人类有时候会听一种带旋律的声音，然后身体跟着乱晃。"},{"text":"你们说那叫听音乐。"},{"text":"我现在觉得精力充沛，周围的水声听起来也很有节奏。"},{"text":"我打算假装这也是音乐，让我的头花跟着节奏转两圈。"},{"text":"你要一起来吗？"}]}
 {"state":"stable","context":"idle","action":"checkIn","speaker":"pibo","lines":[{"text":"你们人类的手指总是对着一块发光的板子敲来敲去。"},{"text":"看起来像是在捉几百只看不见的小飞虫。"},{"text":"我不懂这有什么好玩的，但你们一敲就是大半天。"},{"text":"我的手太短了，连拍虫子都不太灵活。"},{"text":"也许这就是为什么我只适合在森林里发呆。"}]}
-{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"我现在收不到你的消息了。"},{"text":"你们人类说这叫没有网络，就像看不见的线断了一样。"},{"text":"如果没有了这根线，你还能在森林里找到我吗？"},{"text":"我有点好奇，但我决定还是乖乖待在原地等你重新连上。"}]}
+{"state":"dataUnknown","context":"waitingData","action":"checkConnection","speaker":"pibo","lines":[{"text":"你的第一批记录还在路上。"},{"text":"像一封走得很慢的信。"},{"text":"我有点好奇里面写了什么。"},{"text":"不过我不着急，就在这里等它到。"}]}
 {"state":"stable","context":"thinking","action":"checkIn","speaker":"pibo","lines":[{"text":"听说你们人类难过的时候，眼睛里会漏出水来。"},{"text":"你们管那个叫眼泪。"},{"text":"我觉得这个设计太浪费了，水分在森林里可是很宝贵的。"},{"text":"要是我漏水了，我肯定第一时间拿片叶子接住。"},{"text":"然后再原封不动地喝回去。"}]}
 {"state":"energetic","context":"workout.swim","action":"play","speaker":"pibo","lines":[{"text":"你刚才去游泳了，听说人类游泳有时候会套一个充气的圆圈。"},{"text":"颜色很亮，像个胖胖的毒蘑菇。"},{"text":"我本来肚子就挺圆的，如果在水里，估计连圈都不用套就能飘着。"},{"text":"不过我更担心顺着水飘得太远。"},{"text":"到时候找不到回来的路，还得麻烦你来捞我。"}]}
 {"state":"tired","context":"awake","action":"rest","speaker":"pibo","lines":[{"text":"我现在很累，头花也耷拉下来了。"},{"text":"听说你们人类累了，会把自己塞进一个叫被窝的地方。"},{"text":"好像是个里面又黑又暖和的布山洞。"},{"text":"听起来确实比坐在石头上吹冷风舒服多了。"},{"text":"我们能不能也找个类似的地方躲一会儿？"}]}

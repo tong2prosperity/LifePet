@@ -20,13 +20,16 @@ struct HomeStageInteractions {
     let storyStage: () -> PiboCoreStorySpeechStage
     let speechFacts: () -> PiboHomeSpeechFacts
     let healthAvailability: () -> HealthDataService.DataAvailability
-    let canPresentOrnament: () -> Bool
+    /// Home can open a sheet now: nothing else is presented, no `bo` pull or
+    /// food projection is on the stage.
+    let canPresentSheet: () -> Bool
     let toggleStatusObserver: () -> Void
     let dismissSpeech: () -> Void
     let showAnimationLine: (PiboSpeechLine) -> Void
     let showResolvedSpeech: (PiboSpeech) -> Void
     let presentSheet: (HomeSheetDestination) -> Void
     var companion: HomeCompanionController? = nil
+    var healthPrompts = HealthRecoveryPromptStore()
     /// DEBUG pat rehearsal: an isolated scenario input and resolution.
     var debugPat: (input: () -> PiboPatConversationInput, resolve: () -> PiboPatResolution)? = nil
 
@@ -72,6 +75,10 @@ struct HomeStageInteractions {
         // automatic "connect health" sheet.
         let isDailyGuidePat = onboarding.dailyHomeGuide == .pat
         if isDailyGuidePat { onboarding.acknowledgeDailyPat() }
+        // A legacy upgrade time is not when this person met Pibo.
+        let onboardingCompletedAt = onboarding.snapshot.completionTimeBasis == .recorded
+            ? onboarding.snapshot.completedAt
+            : nil
         HomePatInteractionCoordinator.run(
             input: input,
             speech: speech,
@@ -79,6 +86,13 @@ struct HomeStageInteractions {
             stageCommands: stageCommands,
             presentHealthStatus: {
                 guard !isDailyGuidePat else { return }
+                // 2026-09-28: a pat offers health help at most once per local
+                // day and never on the onboarding day; a sheet that could not
+                // open does not use up the day.
+                guard healthPrompts.patPromptAllowed(onboardingCompletedAt: onboardingCompletedAt),
+                      canPresentSheet()
+                else { return }
+                healthPrompts.markPatPromptShown()
                 presentSheet(.healthDataStatus)
             },
             show: { line in
@@ -129,7 +143,7 @@ struct HomeStageInteractions {
         if id == .hammock, ornamentUnlocks.isUnlocked(.hammock) { companion?.onHammockTapped() }
         HomeOrnamentInteractionCoordinator.handleTap(
             ornamentID: id,
-            canPresent: canPresentOrnament,
+            canPresent: canPresentSheet,
             unlocks: ornamentUnlocks,
             morningSleep: morningSleep,
             dismissSpeech: dismissSpeech,

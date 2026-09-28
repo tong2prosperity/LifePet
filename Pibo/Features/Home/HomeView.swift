@@ -236,7 +236,7 @@ struct HomeView: View {
             storyStage: { speechInput.storyStage },
             speechFacts: { speechInput.facts },
             healthAvailability: { health.dataAvailability },
-            canPresentOrnament: {
+            canPresentSheet: {
                 presentation.activeSheet == nil
                     && !fullScreenFeaturePresented
                     && sproutPhase == .idle

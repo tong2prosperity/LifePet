@@ -23,6 +23,8 @@ nonisolated enum PiboPersistenceKeys {
         static let workoutAnchor = "pibo.healthkit.workoutAnchor.v1"
         static let healthKitAuthorized = "pibo.healthkit.authorized.v1"
         static let wellnessObserverPinnedPetIDs = "pibo.wellnessObserver.pinnedPetIDs.v1"
+        /// 拍一拍上一次自动打开健康帮助的本地日期（每天最多一次）。
+        static let healthRecoveryPatPromptDay = "pibo.health.recoveryPrompt.lastPatPromptDay.v1"
 
         static let lastSeenDate = "pibo.dayRollover.lastSeenDate.v1"
         static let lastDecayAt = "pibo.decay.lastDecayAt.v1"
