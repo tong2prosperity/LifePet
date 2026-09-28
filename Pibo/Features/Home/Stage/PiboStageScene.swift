@@ -35,8 +35,12 @@ final class PiboStageScene: SKScene {
     private(set) var animationStateID: String?
     private(set) var growth: PiboGrowthStage = .mystery
     private(set) var stageEnvironment: PiboStageEnvironment = .daylight
+    private(set) var forestMood: ForestMood = .neutral
     /// Fired on a double tap that lands on Pibo's body (拍一拍).
     var onPat: (() -> Void)?
+    /// Fired once the double-tap window closes after a single tap on the body:
+    /// Pibo has already blinked back; Home re-shows the state caption.
+    var onGlance: (() -> Void)?
     /// Fired after a tap or drag on the sprout settles. The gesture never
     /// detaches artwork; a ripe `bo` remains visible until directly invested.
     var onSproutTouched: (() -> Void)? {
@@ -88,6 +92,10 @@ final class PiboStageScene: SKScene {
     }
     /// Speech bubble anchor (bo container top) in SwiftUI view coordinates.
     var onSpeechAnchorChanged: ((CGPoint?) -> Void)? {
+        didSet { configureCharacterCallbacks() }
+    }
+    /// State caption anchor (Pibo's feet) in SwiftUI view coordinates.
+    var onCaptionAnchorChanged: ((CGPoint?) -> Void)? {
         didSet { configureCharacterCallbacks() }
     }
 
@@ -216,6 +224,7 @@ final class PiboStageScene: SKScene {
             installThemeRenderer()
             layoutAll()
             themeRenderer?.apply(environment: stageEnvironment)
+            themeRenderer?.apply(forestMood: forestMood, animated: false)
             themeRenderer?.apply(renderPolicy: themeRenderPolicy)
             themeRenderer?.apply(
                 presentedOrnaments: presentedOrnaments,
@@ -244,6 +253,18 @@ final class PiboStageScene: SKScene {
                 animated: true
             )
         }
+    }
+
+    /// Home passes the mood of Pibo's Core state; onboarding keeps it neutral.
+    /// A paused stage or Reduce Motion switches the light at once.
+    func setForestMood(_ mood: ForestMood) {
+        guard mood != forestMood else { return }
+        forestMood = mood
+        guard built else { return }
+        themeRenderer?.apply(
+            forestMood: mood,
+            animated: !isPaused && !UIAccessibility.isReduceMotionEnabled
+        )
     }
 
     func setEnvironment(_ newEnvironment: PiboStageEnvironment) {
@@ -576,6 +597,8 @@ final class PiboStageScene: SKScene {
         tapTouch = t
         tapOrigin = p
         if piboRegion == .body {
+            // The second tap of a double tap: the pat wins over the glance.
+            removeAction(forKey: Self.glanceActionKey)
             bodyContactFeedbackActive = true
             character.beginContactFeedback()
         }
@@ -706,7 +729,10 @@ final class PiboStageScene: SKScene {
         }
         if character.hitRegion(at: p, in: self) == .body {
             if HomePatGesturePolicy.accepts(tapCount: tapCount) {
+                removeAction(forKey: Self.glanceActionKey)
                 onPat?()
+            } else if tapCount == 1 {
+                scheduleGlance()
             }
             return
         }
@@ -728,6 +754,28 @@ final class PiboStageScene: SKScene {
         case nil:
             break
         }
+    }
+
+    private static let glanceActionKey = "pibo.glance"
+    /// Long enough for the system to count a second tap, short enough that
+    /// the blink still reads as an answer to the first one.
+    private static let glanceDelay: TimeInterval = 0.3
+
+    /// A single tap is "are you there?" (2026-09-28, mirrors HarmonyOS
+    /// `handleGlance`): once no second tap can follow, Pibo blinks back and
+    /// Home re-shows the state caption. No speech, haptic, Core pat or
+    /// analytics.
+    private func scheduleGlance() {
+        removeAction(forKey: Self.glanceActionKey)
+        run(.sequence([
+            .wait(forDuration: Self.glanceDelay),
+            .run { [weak self] in
+                guard let self, !self.character.isHarvesting, !self.character.isCloseupActive else { return }
+                self.character.playGlanceBlink()
+                // Actions run inside the render loop; publish afterwards.
+                DispatchQueue.main.async { self.onGlance?() }
+            },
+        ]), withKey: Self.glanceActionKey)
     }
 
     // MARK: - Build
@@ -770,6 +818,7 @@ final class PiboStageScene: SKScene {
         installThemeRenderer()
         layoutAll()
         themeRenderer?.apply(environment: stageEnvironment)
+        themeRenderer?.apply(forestMood: forestMood, animated: false)
         themeRenderer?.apply(renderPolicy: themeRenderPolicy)
         themeRenderer?.apply(
             presentedOrnaments: presentedOrnaments,
@@ -832,6 +881,11 @@ final class PiboStageScene: SKScene {
             let viewPoint = point.map { CGPoint(x: $0.x, y: self.size.height - $0.y) }
             // Scene callbacks run inside the render loop; publish afterwards.
             DispatchQueue.main.async { self.onSpeechAnchorChanged?(viewPoint) }
+        }
+        character.onCaptionAnchorChanged = { [weak self] point in
+            guard let self else { return }
+            let viewPoint = point.map { CGPoint(x: $0.x, y: self.size.height - $0.y) }
+            DispatchQueue.main.async { self.onCaptionAnchorChanged?(viewPoint) }
         }
     }
 

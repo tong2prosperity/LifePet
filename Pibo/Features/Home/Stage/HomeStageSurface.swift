@@ -13,6 +13,12 @@ struct HomeStageSurface: View {
         /// Exact Core-ledger progress rendered as a bottom-up `bo` fill.
         let boFillProgress: Double
         let environment: PiboStageEnvironment
+        /// The forest's light for Pibo's state (2026-09-28).
+        let forestMood: ForestMood
+        /// VoiceOver: the state caption as a sentence, or the companion scene
+        /// Pibo is in, plus what a pat does.
+        let piboAccessibilityLabel: String?
+        let piboAccessibilityHint: String?
         let presentedOrnaments: Set<PiboOrnament.ID>
         let unlockedOrnaments: Set<PiboOrnament.ID>
         let litOrnamentLights: [PiboOrnament.ID: Set<Int>]
@@ -38,7 +44,8 @@ struct HomeStageSurface: View {
             balanceTarget: CGPoint? = nil,
             moodStateID: String? = nil,
             companionHotspots: PiboStageScene.CompanionHotspots = .none,
-            boOverride: BoOverride? = nil
+            boOverride: BoOverride? = nil,
+            stateCaption: PiboStateCaption? = nil
         ) {
             theme = store.currentTheme
             activityState = animationPresentation.state
@@ -67,6 +74,17 @@ struct HomeStageSurface: View {
             boGrowthStage = boOverride?.stage ?? boLedger.growthStage
             boFillProgress = boOverride?.progress ?? boLedger.growthProgress
             self.environment = environment
+            // Debug animation overrides map to their semantic state, so the
+            // light and the words follow what the stage shows.
+            let presentedState = animationPresentation.patState
+            forestMood = ForestMood(state: presentedState)
+            if let stateCaption {
+                piboAccessibilityLabel = Self.companionSceneLabel(for: animationStateID) ?? stateCaption.sentence
+                piboAccessibilityHint = PiboCoreAnimationAdapter.accessibilityHint(for: presentedState)
+            } else {
+                piboAccessibilityLabel = nil
+                piboAccessibilityHint = nil
+            }
             let unlocked = ornamentUnlocks.presentableUnlocked
             unlockedOrnaments = unlocked
             // Keep the forest legible: every owned item plus exactly the next
@@ -90,6 +108,9 @@ struct HomeStageSurface: View {
         var harvestActiveChanged: (Bool) -> Void = { _ in }
         var harvestHint: (String) -> Void = { _ in }
         var speechAnchorChanged: (CGPoint?) -> Void = { _ in }
+        var captionAnchorChanged: (CGPoint?) -> Void = { _ in }
+        /// A single tap on Pibo: it has blinked; Home re-shows the caption.
+        var glance: () -> Void = {}
         var companionHotspot: (PiboStageScene.CompanionHotspot) -> Void = { _ in }
         let ornamentLightTap: (PiboOrnament.ID, Int) -> Void
         let ornamentTap: (PiboOrnament.ID) -> Void
@@ -110,12 +131,15 @@ struct HomeStageSurface: View {
             boGrowthStage: input.boGrowthStage,
             boFillProgress: input.boFillProgress,
             environment: input.environment,
+            forestMood: input.forestMood,
+            piboAccessibility: input.piboAccessibilityLabel.map { ($0, input.piboAccessibilityHint ?? "") },
             presentedOrnaments: input.presentedOrnaments,
             unlockedOrnaments: input.unlockedOrnaments,
             litOrnamentLights: input.litOrnamentLights,
             shadowPresentation: input.shadowPresentation,
             tuning: input.tuning,
             onPat: handlers.pat,
+            onGlance: handlers.glance,
             onSproutTouched: handlers.sproutTouch,
             onOrnamentLightTapped: handlers.ornamentLightTap,
             onOrnamentTapped: handlers.ornamentTap,
@@ -124,6 +148,7 @@ struct HomeStageSurface: View {
             onHarvestActiveChanged: handlers.harvestActiveChanged,
             onHarvestHint: handlers.harvestHint,
             onSpeechAnchorChanged: handlers.speechAnchorChanged,
+            onCaptionAnchorChanged: handlers.captionAnchorChanged,
             companionHotspots: input.companionHotspots,
             onCompanionHotspot: handlers.companionHotspot,
             balanceTarget: input.balanceTarget,
@@ -150,6 +175,17 @@ struct BoOverride: Equatable {
 }
 
 extension HomeStageSurface.Input {
+    /// Companion scenes away from the log describe themselves instead of the
+    /// state (HarmonyOS `contextualActionStateDescription`).
+    static func companionSceneLabel(for stateID: String) -> String? {
+        switch stateID {
+        case "boring": AppLocalization.text("Pibo 在森林里转圈")
+        case "coolhide": AppLocalization.text("Pibo 在草丛里")
+        case "dive": AppLocalization.text("Pibo 泡在水里")
+        default: nil
+        }
+    }
+
     static func presentedStateID(semantic: String, hasRipeBo: Bool, harvestActive: Bool) -> String {
         #if DEBUG
         if HomeStageSurface.debugBypassesCollectionPose { return semantic }

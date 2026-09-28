@@ -92,6 +92,17 @@ enum PiboCoreAnimationAdapter {
         }
     }
 
+    /// What a pat does, for VoiceOver once Home already says how Pibo is.
+    static func accessibilityHint(for state: PiboActivityState) -> String {
+        switch contextualAction(for: state) {
+        case .letSleep: AppLocalization.text("点按可轻轻看一眼")
+        case .morningGreeting: AppLocalization.text("点按可和它说早安")
+        case .play: AppLocalization.text("点按可和它玩一下")
+        case .rest: AppLocalization.text("点按可让它休息")
+        case .checkIn, .checkConnection: AppLocalization.text("点按可摸一摸")
+        }
+    }
+
     static func achievementContentID(
         kind: PiboAnimationAchievementKind,
         modal: Bool

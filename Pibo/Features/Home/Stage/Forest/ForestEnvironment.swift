@@ -8,7 +8,7 @@ struct ForestRGB: Equatable, Sendable {
 
     static let neutral = ForestRGB(red: 1, green: 1, blue: 1)
 
-    fileprivate static func interpolate(from: ForestRGB, to: ForestRGB, progress: CGFloat) -> ForestRGB {
+    static func interpolate(from: ForestRGB, to: ForestRGB, progress: CGFloat) -> ForestRGB {
         ForestRGB(
             red: from.red + (to.red - from.red) * progress,
             green: from.green + (to.green - from.green) * progress,
@@ -54,6 +54,17 @@ struct ForestLightingProfile: Equatable, Sendable {
     /// 每一层都带着自己的权重和上限（`far` 是 ×0.70，所以它最黑也只到 0.34），
     /// 直接用会得到一个悄悄缩水的强度。
     var nightness: CGFloat
+    /// 0…1 how much open daylight the time and weather allow. State moods read
+    /// it but never change it, so cross-fading two moods stays linear.
+    var daylight: CGFloat = 1
+    /// 0…1 warm light falling from the upper left (energetic, daylight only).
+    var sunWash: CGFloat = 0
+    /// 0…1 low peach light from the left (just woke up, daylight only).
+    var dawnWash: CGFloat = 0
+    /// 0…1 shade gathering at the lower edges (tired; a deeper night asleep).
+    var shade: CGFloat = 0
+    /// 0…1 ground mist (no data; a little when tired). Only moods set these four.
+    var haze: CGFloat = 0
 }
 
 struct ForestEnvironmentSnapshot: Equatable, Sendable {
@@ -159,7 +170,10 @@ enum ForestEnvironmentAdapter {
             morningBeam: value.morningBeam,
             duskBeam: value.duskBeam,
             fireflyBirthRate: value.fireflies,
-            nightness: peakDarkness > 0 ? min(value.darkness / peakDarkness, 1) : 0
+            nightness: peakDarkness > 0 ? min(value.darkness / peakDarkness, 1) : 0,
+            // 1 at clear midday, 0 from late dusk on; rain dims it further.
+            daylight: min(max(1 - value.darkness / 0.36, 0), 1)
+                * (1 - min(max(environment.rainIntensity, 0), 1) * 0.7)
         )
 
         return ForestEnvironmentSnapshot(
@@ -207,5 +221,121 @@ enum ForestEnvironmentAdapter {
     private static func smoothstep(_ lower: CGFloat, _ upper: CGFloat, _ value: CGFloat) -> CGFloat {
         let x = min(max((value - lower) / (upper - lower), 0), 1)
         return x * x * (3 - 2 * x)
+    }
+}
+
+/// The forest's reading of Pibo's Core state (2026-09-28, mirrors HarmonyOS
+/// `ForestMood`). Presentation only: Core owns the state; the platform decides
+/// how the same forest light answers it, so the state reads at a glance
+/// instead of only through two-pixel eye changes.
+enum ForestMood: String, CaseIterable, Sendable {
+    case neutral
+    case bright
+    case weary
+    case dawn
+    case hush
+    case haze
+
+    init(state: PiboActivityState) {
+        self = switch state {
+        case .energetic: .bright
+        case .tired: .weary
+        case .waking: .dawn
+        case .sleeping: .hush
+        case .dataUnknown: .haze
+        case .stable: .neutral
+        }
+    }
+}
+
+struct ForestMoodProfile: Equatable, Sendable {
+    var darknessDelta: CGFloat = 0
+    var saturationDelta: CGFloat = 0
+    var tint: ForestRGB = .neutral
+    var tintAmount: CGFloat = 0
+    /// Minimum morning-beam opacity at full daylight; scaled down toward night.
+    var beamFloor: CGFloat = 0
+    var beamScale: CGFloat = 1
+    /// Added fireflies. Scaled by darkness so a bright day never shows them.
+    var fireflyDelta: CGFloat = 0
+    var windScale: CGFloat = 1
+    var haze: CGFloat = 0
+    /// Peak sun/dawn wash at full daylight; scaled down toward night.
+    var sunWash: CGFloat = 0
+    var dawnWash: CGFloat = 0
+    var shade: CGFloat = 0
+
+    private static let warm = ForestRGB(red: 1.00, green: 0.93, blue: 0.80)
+    private static let dawnLight = ForestRGB(red: 1.00, green: 0.86, blue: 0.66)
+    private static let cool = ForestRGB(red: 0.84, green: 0.90, blue: 1.00)
+    private static let moon = ForestRGB(red: 0.82, green: 0.87, blue: 1.00)
+    private static let mist = ForestRGB(red: 0.93, green: 0.95, blue: 0.96)
+
+    static func profile(for mood: ForestMood) -> ForestMoodProfile {
+        switch mood {
+        case .bright:
+            ForestMoodProfile(darknessDelta: -0.05, saturationDelta: 0.10, tint: warm, tintAmount: 0.09,
+                              beamFloor: 0.42, fireflyDelta: 1.5, windScale: 1.22, sunWash: 0.42)
+        case .weary:
+            ForestMoodProfile(darknessDelta: 0.08, saturationDelta: -0.12, tint: cool, tintAmount: 0.12,
+                              beamScale: 0.35, fireflyDelta: -1, windScale: 0.55, haze: 0.12, shade: 0.42)
+        case .dawn:
+            ForestMoodProfile(darknessDelta: -0.03, saturationDelta: 0.04, tint: dawnLight, tintAmount: 0.12,
+                              beamFloor: 0.40, windScale: 0.9, haze: 0.06, dawnWash: 0.4)
+        case .hush:
+            ForestMoodProfile(darknessDelta: 0.08, saturationDelta: -0.06, tint: moon, tintAmount: 0.10,
+                              beamScale: 0.5, fireflyDelta: 1, windScale: 0.6, shade: 0.46)
+        case .haze:
+            ForestMoodProfile(saturationDelta: -0.18, tint: mist, tintAmount: 0.10,
+                              beamScale: 0.4, fireflyDelta: -0.5, windScale: 0.8, haze: 0.55)
+        case .neutral:
+            ForestMoodProfile()
+        }
+    }
+}
+
+extension ForestEnvironmentSnapshot {
+    /// Layers a state mood over the time-of-day/weather environment. `weight`
+    /// is 0…1 so a state change cross-fades instead of cutting the forest's
+    /// light: the renderer applies the outgoing mood at (1 - t) and the
+    /// incoming one at t. Pibo and the water keep their own light.
+    func applying(_ mood: ForestMood, weight: CGFloat) -> ForestEnvironmentSnapshot {
+        let w = min(max(weight, 0), 1)
+        guard mood != .neutral, w > 0 else { return self }
+        let profile = ForestMoodProfile.profile(for: mood)
+        let daylight = lighting.daylight
+
+        func material(_ base: ForestMaterialLighting, tintAmount: CGFloat) -> ForestMaterialLighting {
+            let added = tintAmount * w
+            let total = min(base.tintAmount + added, 1)
+            let share = total > 0 ? added / total : 0
+            return ForestMaterialLighting(
+                darkness: min(max(base.darkness + profile.darknessDelta * w, 0), 0.88),
+                tint: .interpolate(from: base.tint, to: profile.tint, progress: share),
+                tintAmount: total,
+                saturation: min(max(base.saturation + profile.saturationDelta * w, 0.5), 1.15),
+                lift: base.lift
+            )
+        }
+
+        var result = self
+        result.lighting.far = material(lighting.far, tintAmount: profile.tintAmount)
+        result.lighting.midground = material(lighting.midground, tintAmount: profile.tintAmount)
+        result.lighting.foreground = material(lighting.foreground, tintAmount: profile.tintAmount * 0.9)
+        result.lighting.morningBeam = max(
+            lighting.morningBeam * (1 + (profile.beamScale - 1) * w),
+            profile.beamFloor * daylight * w
+        )
+        result.lighting.duskBeam = lighting.duskBeam * (1 + (profile.beamScale - 1) * w)
+        result.lighting.fireflyBirthRate = max(
+            0,
+            lighting.fireflyBirthRate + profile.fireflyDelta * (1 - daylight) * w
+        )
+        result.lighting.sunWash = min(max(lighting.sunWash + profile.sunWash * daylight * w, 0), 1)
+        result.lighting.dawnWash = min(max(lighting.dawnWash + profile.dawnWash * daylight * w, 0), 1)
+        result.lighting.shade = min(max(lighting.shade + profile.shade * w, 0), 1)
+        result.lighting.haze = min(max(lighting.haze + profile.haze * w, 0), 1)
+        result.wind.strength = wind.strength * (1 + (profile.windScale - 1) * w)
+        return result
     }
 }

@@ -111,6 +111,9 @@ protocol PiboThemeRenderer: AnyObject {
     func teardown()
     func layout(sceneSize: CGSize)
     func apply(environment: PiboStageEnvironment)
+    /// How the theme's light answers Pibo's Core state. `animated` false
+    /// switches at once (Reduce Motion, a paused stage, a rebuild).
+    func apply(forestMood: ForestMood, animated: Bool)
     func apply(renderPolicy: PiboThemeRenderPolicy)
     /// 用 `bo` 换来的物件。主题自己决定怎么画、画不画得了 —— 没有落位的物件
     /// （美术还没到）应当安静跳过，而不是画一个占位方块到用户的森林里。
@@ -144,6 +147,7 @@ protocol PiboThemeRenderer: AnyObject {
 
 extension PiboThemeRenderer {
     func didEvaluateActions() {}
+    func apply(forestMood: ForestMood, animated: Bool) {}
     func apply(unlockedOrnaments: Set<PiboOrnament.ID>) {}
     func apply(
         presentedOrnaments: Set<PiboOrnament.ID>,

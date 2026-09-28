@@ -58,6 +58,21 @@ final class PiboCharacterRenderer {
     var onSpeechAnchorChanged: (CGPoint?) -> Void = { _ in }
     private var speechAnchorStateID: String?
     private var speechAnchor: CGPoint?
+    /// Pibo's feet (body centre x, the board's ground line) in scene space, for
+    /// the state caption. Reported like the speech anchor: when the zone or
+    /// state changes or the feet move ≥ 4 design units, never per frame.
+    var onCaptionAnchorChanged: (CGPoint?) -> Void = { _ in }
+    private var captionAnchorStateID: String?
+    private var captionAnchor: CGPoint?
+    /// A soft contact shadow so the pale body sits on the log instead of
+    /// floating over it (2026-09-28, mirrors HarmonyOS `PiboGrounding`).
+    private let groundShadowNode = SKSpriteNode(texture: PiboCharacterRenderer.groundShadowTexture)
+    private var groundedStateID: String?
+    /// Body centre x and shadow width in 300-unit board coordinates.
+    private var groundedBodyMidX: CGFloat = 150
+    private var groundShadowWidthUnits: CGFloat = 88
+    /// Seconds left in a single-tap "glance" blink.
+    private var glanceBlinkRemaining: TimeInterval = 0
     private weak var scene: SKScene?
     private weak var camera: SKCameraNode?
     private var theme: PiboTheme = .forest
@@ -198,6 +213,12 @@ final class PiboCharacterRenderer {
 
     private func installInteractionHierarchyIfNeeded() {
         guard interactionPivotNode.parent == nil else { return }
+        // Outside the pat/contact nodes: the shadow stays on the ground while
+        // the body squashes and hops above it.
+        groundShadowNode.zPosition = -0.5
+        groundShadowNode.alpha = 0.4
+        groundShadowNode.isHidden = true
+        rootNode.addChild(groundShadowNode)
         rootNode.addChild(interactionPivotNode)
         interactionPivotNode.addChild(contextualActionNode)
         contextualActionNode.addChild(contactFeedbackNode)
@@ -827,7 +848,89 @@ final class PiboCharacterRenderer {
             y: pivotInScene.y - rootNode.position.y
         ))
         rootNode.zPosition = player.zPosition
+        layoutGrounding(stateID: stateID, artboard: authored, mapper: mapper, vector: vector)
     }
+
+    /// Nest, creek and grass poses are not standing on the log.
+    private static let ungroundedStateIDs: Set<String> = [
+        PiboAnimationResourceID.sleepingHammockA,
+        PiboAnimationResourceID.sleepingHammockB,
+        PiboAnimationResourceID.wakingHammock,
+        "dive",
+        "coolhide",
+    ]
+
+    /// Places the contact shadow and reports the caption anchor from the
+    /// same ground line (94% down the board, as HarmonyOS `PIBO_FOOT_RATIO`).
+    private func layoutGrounding(
+        stateID: String,
+        artboard: CGRect,
+        mapper: ForestLayoutMapper,
+        vector: PiboVectorCharacter
+    ) {
+        if stateID != groundedStateID {
+            groundedStateID = stateID
+            let body = vector.bodyDesignBounds
+            groundedBodyMidX = body?.midX ?? 150
+            // HarmonyOS: 80% of the body width, never narrower than a small body.
+            groundShadowWidthUnits = max(body?.width ?? 110, 110) * 0.8
+        }
+        let unit = artboard.width / 300
+        let foot = CGPoint(x: artboard.minX + groundedBodyMidX * unit, y: artboard.minY + artboard.height * 0.94)
+        let grounded = !Self.ungroundedStateIDs.contains(stateID)
+        groundShadowNode.isHidden = !grounded
+        if grounded {
+            let width = groundShadowWidthUnits * unit
+            let height = width * 0.14
+            // The ellipse's top sits 0.09 w above the ground line.
+            let center = mapper.point(CGPoint(x: foot.x, y: foot.y - width * 0.09 + height / 2))
+            let blur = 5 * mapper.scale
+            groundShadowNode.size = CGSize(
+                width: width * mapper.scale + blur * 2,
+                height: height * mapper.scale + blur * 2
+            )
+            groundShadowNode.position = CGPoint(x: center.x - rootNode.position.x, y: center.y - rootNode.position.y)
+        }
+        let point = mapper.point(foot)
+        if stateID == captionAnchorStateID, let previous = captionAnchor,
+           hypot(point.x - previous.x, point.y - previous.y) < 4 * designUnitScale { return }
+        captionAnchorStateID = stateID
+        captionAnchor = point
+        onCaptionAnchorChanged(point)
+    }
+
+    /// A single tap is "are you there?": Pibo blinks back. No speech, haptic,
+    /// Core pat or analytics (2026-09-28, mirrors HarmonyOS `handleGlance`).
+    func playGlanceBlink() {
+        guard !harvest.isReleasing, !isCloseupActive else { return }
+        glanceBlinkRemaining = 0.13
+    }
+
+    /// A blurred ellipse: #0B1A14, solid to 45% of the radius, clear at the edge.
+    private static let groundShadowTexture: SKTexture = {
+        let size = CGSize(width: 64, height: 64)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let color = UIColor(red: 0x0B / 255, green: 0x1A / 255, blue: 0x14 / 255, alpha: 1)
+            guard let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [color.cgColor, color.cgColor, color.withAlphaComponent(0).cgColor] as CFArray,
+                locations: [0, 0.45, 1]
+            ) else { return }
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            context.cgContext.drawRadialGradient(
+                gradient,
+                startCenter: center, startRadius: 0,
+                endCenter: center, endRadius: size.width / 2,
+                options: []
+            )
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
+    }()
 
     private func setInteractionPivot(_ pivot: CGPoint) {
         interactionPivotNode.position = pivot
@@ -1438,6 +1541,10 @@ final class PiboCharacterRenderer {
                 height: overlay.eyeScale.height * harvest.blink * (1 + pull * 0.12)
             )
             overlay.handSwingDegrees = pull * 18
+        }
+        if glanceBlinkRemaining > 0 {
+            glanceBlinkRemaining = max(0, glanceBlinkRemaining - deltaTime)
+            overlay.eyeScale = CGSize(width: overlay.eyeScale.width, height: overlay.eyeScale.height * 0.12)
         }
         vector?.expressionOverlay = overlay
 

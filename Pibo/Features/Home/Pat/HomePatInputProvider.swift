@@ -16,7 +16,7 @@ struct HomePatInputProvider {
             episodeKey: animationPresentation.patEpisodeKey,
             stableThinking: animationPresentation.stableThinking,
             ambientEvent: ambientEvent(for: state),
-            dataUnknownReason: dataUnknownReason,
+            dataUnknownReason: Self.dataUnknownReason(for: healthAvailability),
             storyStage: storyStageKey,
             values: baseValues,
             events: eventCandidates(for: state)
@@ -32,7 +32,10 @@ struct HomePatInputProvider {
         }
     }
 
-    private var dataUnknownReason: PiboCorePatDataUnknownReason {
+    /// Shared with the state caption, so the words and the pat agree on why.
+    static func dataUnknownReason(
+        for healthAvailability: HealthDataService.DataAvailability
+    ) -> PiboCorePatDataUnknownReason {
         switch healthAvailability {
         case .unavailable: .unavailable
         case .needsAuthorization: .authorization

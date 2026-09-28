@@ -30,6 +30,12 @@ struct PiboStageView: View, Equatable {
     var boFillProgress: Double = 0
     /// Theme-neutral local time and weather input.
     var environment: PiboStageEnvironment = .daylight
+    /// How the forest's light answers Pibo's state. Home passes the Core
+    /// state's mood; onboarding keeps the forest neutral.
+    var forestMood: ForestMood = .neutral
+    /// VoiceOver wording for Pibo when Home has a state caption:
+    /// 「Pibo 有点累，昨晚没睡够」 plus what a pat does.
+    var piboAccessibility: (label: String, hint: String)? = nil
     /// 森林中的全部共同物件。未拥有的物件由渲染器直接显示为灰态。
     var presentedOrnaments: Set<PiboOrnament.ID> = []
     /// 用 `bo` 换来、已经解锁的物件。空集 = 全部共同物件保持灰态。
@@ -41,6 +47,8 @@ struct PiboStageView: View, Equatable {
     /// DEBUG exposes them in a collapsible overlay.
     var tuning: StageRenderTuning = .standard
     var onPat: () -> Void = {}
+    /// A single tap on Pibo's body, after the double-tap window.
+    var onGlance: () -> Void = {}
     /// Fired when the head sprout is released after a tap or gentle drag.
     var onSproutTouched: () -> Void = {}
     /// Fired when a tap lights one of an ornament's lamps (铃兰灯的一盏铃铛).
@@ -53,6 +61,7 @@ struct PiboStageView: View, Equatable {
     var onHarvestActiveChanged: (Bool) -> Void = { _ in }
     var onHarvestHint: (String) -> Void = { _ in }
     var onSpeechAnchorChanged: (CGPoint?) -> Void = { _ in }
+    var onCaptionAnchorChanged: (CGPoint?) -> Void = { _ in }
     var companionHotspots: PiboStageScene.CompanionHotspots = .none
     var onCompanionHotspot: (PiboStageScene.CompanionHotspot) -> Void = { _ in }
     /// Balance chip centre in this view's coordinates; energy flies there.
@@ -124,6 +133,7 @@ struct PiboStageView: View, Equatable {
             }
 
             .onChange(of: environment) { _, value in scene.setEnvironment(value) }
+            .onChange(of: forestMood) { _, value in scene.setForestMood(value) }
             .onChange(of: presentedOrnaments) { _, _ in applyOrnaments() }
             .onChange(of: unlockedOrnaments) { _, _ in applyOrnaments() }
             .onChange(of: litOrnamentLights) { _, value in scene.setLitOrnamentLights(value) }
@@ -153,9 +163,10 @@ struct PiboStageView: View, Equatable {
     @ViewBuilder
     private var commonItemAccessibilityControls: some View {
         VStack {
-            Button(PiboCoreAnimationAdapter.accessibilityLabel(for: state)) {
+            Button(piboAccessibility?.label ?? PiboCoreAnimationAdapter.accessibilityLabel(for: state)) {
                 onPat()
             }
+            .accessibilityHint(piboAccessibility?.hint ?? "")
             .accessibilityValue(boGrowthAccessibilityValue)
             Button(AppLocalization.text(boGrowthStage == .ripe ? "收取 bo" : "查看 bo")) {
                 if boGrowthStage == .ripe {
@@ -216,6 +227,7 @@ struct PiboStageView: View, Equatable {
         renderController.refreshLowPowerMode()
         scene.setLowPowerMode(renderController.lowPowerModeEnabled)
         scene.onPat = onPat
+        scene.onGlance = onGlance
         scene.onSproutTouched = onSproutTouched
         scene.onOrnamentLightTapped = onOrnamentLightTapped
         scene.onOrnamentTapped = onOrnamentTapped
@@ -224,6 +236,7 @@ struct PiboStageView: View, Equatable {
         scene.onHarvestActiveChanged = onHarvestActiveChanged
         scene.onHarvestHint = onHarvestHint
         scene.onSpeechAnchorChanged = onSpeechAnchorChanged
+        scene.onCaptionAnchorChanged = onCaptionAnchorChanged
         scene.onCompanionHotspot = onCompanionHotspot
         scene.setCompanionHotspots(companionHotspots)
         scene.onDirectManipulationChanged = { [weak renderController] active in
@@ -237,6 +250,7 @@ struct PiboStageView: View, Equatable {
         scene.setHasRipeBo(boGrowthStage == .ripe)
         scene.setBalanceTarget(viewPoint: balanceTarget)
         scene.setEnvironment(environment)
+        scene.setForestMood(forestMood)
         applyOrnaments()
         scene.setLitOrnamentLights(litOrnamentLights)
         scene.setShadowPresentation(shadowPresentation)
@@ -278,6 +292,9 @@ struct PiboStageView: View, Equatable {
             && lhs.balanceTarget == rhs.balanceTarget
             && lhs.companionHotspots == rhs.companionHotspots
             && lhs.environment == rhs.environment
+            && lhs.forestMood == rhs.forestMood
+            && lhs.piboAccessibility?.label == rhs.piboAccessibility?.label
+            && lhs.piboAccessibility?.hint == rhs.piboAccessibility?.hint
             && lhs.presentedOrnaments == rhs.presentedOrnaments
             && lhs.unlockedOrnaments == rhs.unlockedOrnaments
             && lhs.litOrnamentLights == rhs.litOrnamentLights

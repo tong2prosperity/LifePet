@@ -73,6 +73,9 @@ struct HomeView: View {
     @State private var boBalanceTarget: CGPoint?
     /// Current pose's bo container top (global), for the speech bubble.
     @State private var speechAnchor: CGPoint?
+    /// Pibo's feet, reported by the stage, for the state caption.
+    @State private var captionAnchor: CGPoint?
+    @State private var stateCaptionPresenter = HomeStateCaptionPresenter()
     /// Decision 054 companion prompts, echoes and moods (local-only memory).
     @State private var companion = HomeCompanionController.shared
     @AccessibilityFocusState private var statusObserverHeadingFocused: Bool
@@ -403,28 +406,71 @@ struct HomeView: View {
         #endif
     }
 
+    private var stageInput: HomeStageSurface.Input {
+        HomeStageSurface.Input(
+            store: store,
+            boLedger: boLedger,
+            animationPresentation: animationPresentation,
+            environment: stageEnvironment,
+            ornamentUnlocks: ornamentUnlocks,
+            ornamentLights: ornamentLights,
+            tuning: forestTuning,
+            isPaused: stageRenderingPaused,
+            isObscured: stageObscured,
+            shadowPresentation: shadowStagePresentation,
+            harvestActive: boHarvestActive,
+            balanceTarget: boBalanceTarget,
+            moodStateID: companion.moodAnimationID,
+            companionHotspots: companionHotspots,
+            boOverride: debugBoOverride,
+            stateCaption: stateCaption
+        )
+    }
+
+    /// How Pibo is and why, in words (2026-09-28). Core owns both; the
+    /// caption only names them.
+    private var stateCaption: PiboStateCaption {
+        PiboStateCaption.resolve(.init(
+            state: animationPresentation.patState,
+            cause: animationPresentation.decision?.cause ?? .missingData,
+            pendingCause: animationPresentation.decision?.pendingCause,
+            dataUnknownReason: HomePatInputProvider.dataUnknownReason(for: health.dataAvailability),
+            hasRealHealthData: store.hasRealHealthData
+        ))
+    }
+
+    /// The forest is not what the person is looking at right now.
+    private var stateCaptionBlocked: Bool {
+        scenePhase != .active || stageRenderingPaused || stageObscured
+    }
+
+    /// Pibo is already talking, a guide or meal owns the forest, or Pibo is
+    /// away from the log (hidden, in the creek, cooling off in the grass).
+    private func stateCaptionSuppressed(presentedStateID: String) -> Bool {
+        stateCaptionBlocked
+            || speechPresentation.line != nil
+            || onboarding.dailyHomeGuide != .none
+            || presentation.foodProjection != nil
+            || sproutPhase != .idle
+            || companion.mood.hidesBody
+            || presentedStateID == "dive"
+            || presentedStateID == "coolhide"
+    }
+
     private var homeScene: some View {
-        ZStack {
+        let input = stageInput
+        return ZStack {
             HomeStageSurface(
-                input: .init(
-                    store: store,
-                    boLedger: boLedger,
-                    animationPresentation: animationPresentation,
-                    environment: stageEnvironment,
-                    ornamentUnlocks: ornamentUnlocks,
-                    ornamentLights: ornamentLights,
-                    tuning: forestTuning,
-                    isPaused: stageRenderingPaused,
-                    isObscured: stageObscured,
-                    shadowPresentation: shadowStagePresentation,
-                    harvestActive: boHarvestActive,
-                    balanceTarget: boBalanceTarget,
-                    moodStateID: companion.moodAnimationID,
-                    companionHotspots: companionHotspots,
-                    boOverride: debugBoOverride
-                ),
+                input: input,
                 commandController: stageCommands,
                 handlers: stageHandlers
+            )
+
+            HomeStateCaptionOverlay(
+                caption: stateCaption,
+                anchor: captionAnchor,
+                isPresented: stateCaptionPresenter.isShown
+                    && !stateCaptionSuppressed(presentedStateID: input.animationStateID)
             )
 
             walkEchoOverlay
@@ -677,6 +723,22 @@ struct HomeView: View {
             .onChange(of: presentation.activeSheet == nil && !fullScreenFeaturePresented) { _, homeClear in
                 if !homeClear { statusObserverPresentation.close() }
             }
+            // State caption timing (HarmonyOS parity): arrival 0.9 s, back to
+            // the forest 0.7 s, a new state or cause 0.42 s, a glance at once.
+            .onAppear {
+                if !stateCaptionBlocked { stateCaptionPresenter.show(after: HomeStateCaptionPresenter.arrivalDelay) }
+            }
+            .onChange(of: stateCaptionBlocked) { _, blocked in
+                if blocked {
+                    stateCaptionPresenter.hide()
+                } else {
+                    stateCaptionPresenter.show(after: HomeStateCaptionPresenter.returnDelay)
+                }
+            }
+            .onChange(of: stateCaption) { _, _ in
+                guard !stateCaptionBlocked else { return }
+                stateCaptionPresenter.show(after: HomeStateCaptionPresenter.changeDelay)
+            }
             #if DEBUG
             .fullScreenCover(item: $debugOnboardingPreview) { step in
                 DailyOnboardingPreviewHost(startingAt: step)
@@ -693,6 +755,7 @@ struct HomeView: View {
             #endif
             .onDisappear {
                 statusObserverPresentation.close()
+                stateCaptionPresenter.hide()
                 boBalanceHintTask?.cancel()
                 boBalanceHint = nil
                 companion.leaveHome()
@@ -988,6 +1051,10 @@ struct HomeView: View {
         handlers.speechAnchorChanged = { point in
             if speechAnchor != point { speechAnchor = point }
         }
+        handlers.captionAnchorChanged = { point in
+            if captionAnchor != point { captionAnchor = point }
+        }
+        handlers.glance = { stateCaptionPresenter.show(after: .zero) }
         return handlers
     }
 

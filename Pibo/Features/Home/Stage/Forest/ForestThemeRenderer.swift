@@ -10,6 +10,13 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     private var context: PiboThemeRendererContext?
     private var size: CGSize = .zero
     private var environment: ForestEnvironmentSnapshot = .daylight
+    /// Time and weather only; `environment` layers the state mood on top.
+    private var baseEnvironment: ForestEnvironmentSnapshot = .daylight
+    private var moodFrom: ForestMood = .neutral
+    private var moodTo: ForestMood = .neutral
+    /// 0…1 through the current mood cross-fade; 1 = settled.
+    private var moodProgress: CGFloat = 1
+    private static let moodFadeDuration: CGFloat = 1.1
     private let configuration: ForestRenderConfiguration = .standard
     private var renderPolicy = PiboThemeRenderPolicy(
         ambientMotionScale: 1,
@@ -28,6 +35,12 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     private var baseNode: SKSpriteNode?
     private var morningLightNode: SKSpriteNode?
     private var duskLightNode: SKSpriteNode?
+    /// State-mood light (2026-09-28). Sun, dawn and shade sit behind Pibo, the
+    /// ornaments and the ground glow; the mist hangs over the foreground leaves.
+    private var sunWashNode: SKSpriteNode?
+    private var dawnWashNode: SKSpriteNode?
+    private var shadeNode: SKSpriteNode?
+    private var hazeNode: SKSpriteNode?
     private var materialShaders: [ForestLightingGroup: SKShader] = [:]
     /// Locked ornaments need their own shader. `ForestMaterial.fsh` deliberately
     /// ignores SpriteKit's `colorBlendFactor`, so tinting the sprite alone does
@@ -119,10 +132,35 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     }
 
     func apply(environment input: PiboStageEnvironment) {
-        environment = ForestEnvironmentAdapter.resolve(input)
+        baseEnvironment = ForestEnvironmentAdapter.resolve(input)
+        refreshEnvironment()
+        refreshOrnamentLights(igniting: [])
+    }
+
+    /// Cross-fades the forest's state mood over ~1.1 s instead of cutting the
+    /// whole scene's light. A settled repeat is ignored; a fade already
+    /// heading to the same mood keeps going.
+    func apply(forestMood mood: ForestMood, animated: Bool) {
+        if mood == moodTo, animated || moodProgress >= 1 { return }
+        if animated {
+            moodFrom = moodProgress >= 0.5 ? moodTo : moodFrom
+            moodTo = mood
+            moodProgress = 0
+        } else {
+            moodFrom = mood
+            moodTo = mood
+            moodProgress = 1
+        }
+        refreshEnvironment()
+    }
+
+    private func refreshEnvironment() {
+        let eased = moodProgress * moodProgress * (3 - 2 * moodProgress)
+        environment = baseEnvironment
+            .applying(moodFrom, weight: 1 - eased)
+            .applying(moodTo, weight: eased)
         wind = environment.wind
         applyLighting()
-        refreshOrnamentLights(igniting: [])
     }
 
     func apply(renderPolicy: PiboThemeRenderPolicy) {
@@ -168,6 +206,12 @@ final class ForestThemeRenderer: PiboThemeRenderer {
     }
 
     func update(time: TimeInterval, deltaTime: TimeInterval, reduceMotion: Bool) {
+        if moodProgress < 1 {
+            moodProgress = reduceMotion
+                ? 1
+                : min(1, moodProgress + CGFloat(deltaTime) / Self.moodFadeDuration)
+            refreshEnvironment()
+        }
         flowTime.formTruncatingRemainder(dividingBy: 120)
         flowTime += Float(deltaTime)
         reflectionUpdateAccumulator += deltaTime
@@ -554,6 +598,8 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         dusk.blendMode = .screen
         context.layers.background.addChild(dusk)
         duskLightNode = dusk
+
+        installMoodLight(in: context.layers)
 
         let groundGlow = SKShapeNode(ellipseOf: mapper.size(CGSize(width: 150, height: 48)))
         groundGlow.fillColor = UIColor(red: 0.22, green: 0.86, blue: 0.68, alpha: 1)
@@ -956,6 +1002,10 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         baseNode = nil
         morningLightNode = nil
         duskLightNode = nil
+        sunWashNode = nil
+        dawnWashNode = nil
+        shadeNode = nil
+        hazeNode = nil
         fireflyEmitter = nil
         lanternGroundGlow = nil
         lanternWaterGlow = nil
@@ -1135,8 +1185,101 @@ final class ForestThemeRenderer: PiboThemeRenderer {
         context?.applyCharacterShader(materialShader(for: .pibo))
         morningLightNode?.alpha = environment.lighting.morningBeam
         duskLightNode?.alpha = environment.lighting.duskBeam
+        for (node, alpha) in [
+            (sunWashNode, environment.lighting.sunWash),
+            (dawnWashNode, environment.lighting.dawnWash),
+            (shadeNode, environment.lighting.shade),
+            (hazeNode, environment.lighting.haze),
+        ] {
+            // Full-screen layers: skip the blend entirely while they are clear.
+            node?.alpha = alpha
+            node?.isHidden = alpha < 0.001
+        }
         updateWaterLighting()
         updateFireflies()
+    }
+
+    /// Same gradients as HarmonyOS `MoodLight` / `MoodHaze`, baked once per
+    /// scene size at half resolution (they are smooth, so filtering hides it).
+    private func installMoodLight(in layers: PiboStageThemeLayers) {
+        func overlay(_ z: CGFloat, parent: SKNode, draw: (CGContext, CGSize) -> Void) -> SKSpriteNode {
+            let pixels = CGSize(width: max(1, (size.width / 2).rounded()), height: max(1, (size.height / 2).rounded()))
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            format.opaque = false
+            let image = UIGraphicsImageRenderer(size: pixels, format: format).image { draw($0.cgContext, pixels) }
+            let texture = SKTexture(image: image)
+            texture.filteringMode = .linear
+            let node = SKSpriteNode(texture: texture, size: size)
+            node.position = CGPoint(x: size.width / 2, y: size.height / 2)
+            node.zPosition = z
+            node.alpha = 0
+            node.isHidden = true
+            parent.addChild(node)
+            return node
+        }
+        // Above the last forest rock (z 16), below the hammock (17), the
+        // lantern and its ground glow (18) and Pibo (20).
+        let behindPibo: CGFloat = 16.5
+        sunWashNode = overlay(behindPibo, parent: layers.background) { context, size in
+            Self.drawRadial(in: context, center: CGPoint(x: size.width * 0.16, y: -size.height * 0.06),
+                            radius: size.height * 0.82, stops: [
+                                (0, 0xFFD58A, 1), (0.28, 0xFFD892, 0.78), (0.6, 0xFFE2AC, 0.34), (1, 0xFFE2AC, 0),
+                            ])
+        }
+        dawnWashNode = overlay(behindPibo, parent: layers.background) { context, size in
+            Self.drawRadial(in: context, center: CGPoint(x: -size.width * 0.12, y: size.height * 0.4),
+                            radius: size.height * 0.72, stops: [
+                                (0, 0xFFB68C, 1), (0.34, 0xFFC29C, 0.70), (0.66, 0xFFD2B4, 0.25), (1, 0xFFD2B4, 0),
+                            ])
+        }
+        // Centred high so the top edge stays clear and the weight settles on
+        // the ground and the lower corners.
+        shadeNode = overlay(behindPibo, parent: layers.background) { context, size in
+            Self.drawRadial(in: context, center: CGPoint(x: size.width / 2, y: size.height * 0.3),
+                            radius: hypot(size.width / 2, size.height * 0.7), stops: [
+                                (0, 0x0C1522, 0), (0.46, 0x0C1522, 0), (0.78, 0x0C1522, 0.44), (1, 0x0C1522, 0.90),
+                            ])
+        }
+        // Over the foreground leaves (≤ 39), under the fireflies (40).
+        hazeNode = overlay(39.6, parent: layers.foreground) { context, size in
+            let stops: [(CGFloat, UInt32, CGFloat)] = [
+                (0, 0xEEF2F1, 0), (0.34, 0xEEF2F1, 0.18), (0.66, 0xE8EDEB, 0.36),
+                (0.84, 0xE8EDEB, 0.24), (1, 0xE8EDEB, 0.08),
+            ]
+            guard let gradient = Self.gradient(stops) else { return }
+            context.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
+        }
+    }
+
+    private static func gradient(_ stops: [(CGFloat, UInt32, CGFloat)]) -> CGGradient? {
+        CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colors: stops.map { stop in
+                UIColor(
+                    red: CGFloat((stop.1 >> 16) & 0xFF) / 255,
+                    green: CGFloat((stop.1 >> 8) & 0xFF) / 255,
+                    blue: CGFloat(stop.1 & 0xFF) / 255,
+                    alpha: stop.2
+                ).cgColor
+            } as CFArray,
+            locations: stops.map(\.0)
+        )
+    }
+
+    private static func drawRadial(
+        in context: CGContext,
+        center: CGPoint,
+        radius: CGFloat,
+        stops: [(CGFloat, UInt32, CGFloat)]
+    ) {
+        guard let gradient = gradient(stops) else { return }
+        context.drawRadialGradient(
+            gradient,
+            startCenter: center, startRadius: 0,
+            endCenter: center, endRadius: radius,
+            options: [.drawsAfterEndLocation]
+        )
     }
 
     private func updateWaterLighting() {
