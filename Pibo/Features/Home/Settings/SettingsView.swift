@@ -23,6 +23,7 @@ struct SettingsView: View {
     @State private var deletingAccount = false
     @State private var showStoryRecovery = false
     @State private var healthRequestInFlight = false
+    @State private var showLogin = false
 
     #if DEBUG
     var onReset: () -> Void = {}
@@ -80,12 +81,34 @@ struct SettingsView: View {
         .fullScreenCover(isPresented: $showStoryRecovery) {
             HealthAuthView(mode: .storyRecovery) { showStoryRecovery = false }
         }
+        .fullScreenCover(isPresented: $showLogin) {
+            NavigationStack {
+                LoginFlowView(
+                    purpose: .account,
+                    onComplete: { showLogin = false },
+                    onClose: { showLogin = false }
+                )
+            }
+        }
     }
 
+    /// Logged out, the row is the way in: login is on demand, never a gate.
+    @ViewBuilder
     private var accountSection: some View {
         settingsSection("账号") {
-            settingsRow(title: "手机号", detail: accountDetail, showsChevron: false)
-                .accessibilityElement(children: .combine)
+            if auth.phase == .loggedIn {
+                settingsRow(title: "手机号", detail: accountDetail, showsChevron: false)
+                    .accessibilityElement(children: .combine)
+            } else {
+                Button {
+                    LPHaptics.tap()
+                    showLogin = true
+                } label: {
+                    settingsRow(title: "手机号", detail: accountDetail, showsChevron: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(AppLocalization.text("登录后可以使用餐食识别"))
+            }
         }
     }
 

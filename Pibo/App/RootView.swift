@@ -5,26 +5,24 @@ import UserNotifications
 
 /// Which top-level surface the shell shows. Pure so the gate is testable.
 ///
-/// Order (2026-09-14/15 decision, supersedes 049/051 "login never blocks"):
-/// first-run onboarding → required phone login → Home. A restored valid JWT
-/// goes straight to Home; logout or account deletion falls back to login.
+/// First-run onboarding → Home. Login no longer stands between the user and
+/// Pibo (2026-09-28, back to 031/049/051): the meal camera asks for an account
+/// when it needs one and Settings offers it. Account deletion resets onboarding,
+/// which brings the first run back.
 enum RootGate: Hashable {
     case onboarding
-    case login
     case home
 
     static func resolve(
         shouldPresentFirstRun: Bool,
-        isAuthenticated: Bool,
         bypassesGates: Bool = false
     ) -> RootGate {
         if bypassesGates { return .home }
-        if shouldPresentFirstRun { return .onboarding }
-        return isAuthenticated ? .home : .login
+        return shouldPresentFirstRun ? .onboarding : .home
     }
 }
 
-/// Pibo shell: daily-persona first run, then the required login gate, then Home.
+/// Pibo shell: daily-persona first run, then Home.
 struct RootView: View {
     @Environment(OnboardingStateStore.self) private var onboarding
     @Environment(BoLedgerStore.self) private var boLedger
@@ -52,8 +50,7 @@ struct RootView: View {
         ProcessInfo.processInfo.arguments.contains("-PiboOpenHistory")
     }
 
-    /// Screenshot/automation launches jump straight to Home, past both the
-    /// first run and the login gate (the simulator cannot log in by itself).
+    /// Screenshot/automation launches jump straight to Home, past the first run.
     private var debugBypassesOnboarding: Bool {
         let arguments = ProcessInfo.processInfo.arguments
         return debugOpensHistory
@@ -74,8 +71,6 @@ struct RootView: View {
         AppLanguage(rawValue: appLanguage) ?? .preferred
     }
 
-    /// One observable read of the auth phase decides the gate, so a successful
-    /// login or a logout switches immediately.
     private var gate: RootGate {
         #if DEBUG
         let bypass = debugBypassesOnboarding
@@ -84,7 +79,6 @@ struct RootView: View {
         #endif
         return RootGate.resolve(
             shouldPresentFirstRun: onboarding.shouldPresentFirstRun,
-            isAuthenticated: auth.phase == .loggedIn,
             bypassesGates: bypass
         )
     }
@@ -104,9 +98,9 @@ struct RootView: View {
                 #endif
             }
         }
-        // A gate change rebuilds the whole stack: logging out (or deleting the
-        // account) closes every Home cover, sheet and pushed Settings page, and
-        // the next login starts from a clean Home.
+        // A gate change rebuilds the whole stack: deleting the account returns
+        // to the first run with every Home cover, sheet and pushed page closed.
+        // Logging out keeps Home; only account-bound surfaces close there.
         .id(gate)
         // Language follows the stored value; the in-app 中/EN switch button was
         // removed per product direction (2026-06-09).
@@ -157,8 +151,6 @@ struct RootView: View {
                     onComplete: completeDailyOnboarding
                 )
             }
-        case .login:
-            LoginFlowView(onComplete: {})
         }
     }
 

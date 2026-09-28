@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// Required phone + SMS login shown after first-run onboarding (2026-09-14).
-///
-/// There is deliberately no close control: the gate in `RootView` only lets
-/// the user through once `AuthService.phase` becomes `.loggedIn`, and it
-/// switches on that observable change immediately. The code page can go back
-/// to the phone page. 隐私政策 / 用户协议 open the in-app legal reader.
+/// Phone + SMS login, shown on demand (2026-09-28): the meal camera asks for
+/// it with its reason, and Settings 「手机号 · 未登录」 opens it. Nothing blocks
+/// Home any more, so the page is always presented and always closable. The
+/// code page can go back to the phone page. 隐私政策 / 用户协议 open the in-app
+/// legal reader.
 struct LoginFlowView: View {
+    var purpose: LoginPurpose = .account
     let onComplete: () -> Void
+    /// Leaves without logging in. A camera request is dropped with it.
+    var onClose: (() -> Void)? = nil
 
     @Environment(AuthService.self) private var auth
     @State private var phone = ""
@@ -17,8 +19,10 @@ struct LoginFlowView: View {
     var body: some View {
         LoginPhoneView(
             phone: $phone,
+            purpose: purpose,
             onCodeSent: { showingVerification = true },
-            onOpenLegal: { legalDocument = $0 }
+            onOpenLegal: { legalDocument = $0 },
+            onClose: onClose
         )
         .navigationDestination(isPresented: $showingVerification) {
             LoginVerificationView(phone: phone, onComplete: onComplete)
@@ -45,14 +49,21 @@ struct LoginFlowView: View {
 }
 
 private struct LoginPhoneView: View {
+    static let consentReminder = "请先阅读并勾选同意隐私政策和用户协议"
+
     @Binding var phone: String
+    let purpose: LoginPurpose
     let onCodeSent: () -> Void
     let onOpenLegal: (LegalDocument) -> Void
+    let onClose: (() -> Void)?
 
     @Environment(AuthService.self) private var auth
-    @State private var acceptedTerms = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Consent is the user's own act: never pre-ticked.
+    @State private var acceptedTerms = false
     @State private var sending = false
     @State private var feedback = ""
+    @State private var consentNudgeOffset: CGFloat = 0
 
     private var isPhoneValid: Bool {
         phone.count == 11
@@ -68,11 +79,14 @@ private struct LoginPhoneView: View {
                         titleBlock
                         phoneField
 
+                        // Enabled by a full number alone: an unticked consent
+                        // answers the tap with a visible reason instead of a
+                        // silently grey button.
                         Button(action: sendCode) {
                             LoginPrimaryButtonLabel(title: "验证并登录")
                         }
-                        .buttonStyle(LoginPrimaryButtonStyle(enabled: isPhoneValid && acceptedTerms))
-                        .disabled(!isPhoneValid || !acceptedTerms || sending)
+                        .buttonStyle(LoginPrimaryButtonStyle(enabled: isPhoneValid))
+                        .disabled(!isPhoneValid || sending)
                         .accessibilityHint("发送验证码并进入验证码输入页面")
 
                         if sending {
@@ -97,6 +111,20 @@ private struct LoginPhoneView: View {
             .padding(.bottom, LP.Spacing.xxl)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(LP.Fill.bgSurface.ignoresSafeArea())
+            .overlay(alignment: .topLeading) {
+                if let onClose {
+                    Button(action: onClose) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(LP.Content.secondary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, LP.Spacing.s)
+                    .accessibilityLabel("关闭登录")
+                }
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .onChange(of: phone) { _, value in
@@ -107,7 +135,11 @@ private struct LoginPhoneView: View {
     }
 
     private func sendCode() {
-        guard isPhoneValid, acceptedTerms, !sending else { return }
+        guard isPhoneValid, !sending else { return }
+        guard acceptedTerms else {
+            nudgeConsent()
+            return
+        }
         sending = true
         feedback = ""
         Task {
@@ -121,16 +153,33 @@ private struct LoginPhoneView: View {
         }
     }
 
+    /// Red reason, four short shakes of the consent row and a light tap.
+    /// Reduce Motion keeps the reason and the haptic, not the shake.
+    private func nudgeConsent() {
+        feedback = Self.consentReminder
+        LPHaptics.decline()
+        guard !reduceMotion else { return }
+        consentNudgeOffset = 0
+        withAnimation(.easeOut(duration: 0.07).repeatCount(4, autoreverses: true)) {
+            consentNudgeOffset = 6
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(280))
+            consentNudgeOffset = 0
+        }
+    }
+
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: LP.Spacing.s) {
-            Text("欢迎来到 Pibo")
+            Text(purpose.title)
                 .lpText(LP.Typography.uiH4)
                 .foregroundStyle(LP.Content.primary)
                 .accessibilityAddTraits(.isHeader)
 
-            Text("未注册的手机号验证通过后将自动注册")
+            Text(purpose.subtitle)
                 .lpText(LP.Typography.body)
                 .foregroundStyle(LP.Content.quarternary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -174,6 +223,7 @@ private struct LoginPhoneView: View {
         HStack(alignment: .center, spacing: 0) {
             Button {
                 acceptedTerms.toggle()
+                if acceptedTerms, feedback == Self.consentReminder { feedback = "" }
             } label: {
                 ZStack {
                     Circle()
@@ -205,6 +255,7 @@ private struct LoginPhoneView: View {
                     return .handled
                 })
         }
+        .offset(x: consentNudgeOffset)
     }
 
     private var legalAttributedText: AttributedString {

@@ -729,6 +729,11 @@ struct HomeView: View {
                 if HomeDebugLaunchOptions.current.showsStatusObserver {
                     statusObserverPresentation.open(sample: true)
                 }
+                // Screenshot hook: the corner camera tap, through the real
+                // account guard (the Simulator cannot synthesize taps).
+                if ProcessInfo.processInfo.arguments.contains("-PiboOpenCamera") {
+                    presentation.openMealCapture(isLoggedIn: auth.phase == .loggedIn)
+                }
                 #endif
                 presentBoProgressFeedbackIfPossible()
                 bindCompanion()
@@ -777,6 +782,29 @@ struct HomeView: View {
             .navigationDestination(isPresented: presentation.settingsBinding) {
                 settingsDestination
             }
+            // On-demand login for the meal camera. Resuming waits for the
+            // cover's own dismissal so the picker or camera never overlaps it.
+            .fullScreenCover(
+                isPresented: presentation.loginBinding,
+                onDismiss: {
+                    presentation.resumeAfterLogin(isLoggedIn: auth.phase == .loggedIn)
+                }
+            ) {
+                NavigationStack {
+                    LoginFlowView(
+                        purpose: presentation.loginPurpose,
+                        onComplete: { presentation.showLogin = false },
+                        onClose: presentation.cancelLogin
+                    )
+                }
+            }
+            // Only a real session end: going back from the code page also
+            // publishes `.loggedOut` (from `.codeSent`) and must keep the page.
+            .onChange(of: auth.phase) { oldPhase, phase in
+                if oldPhase == .loggedIn, phase == .loggedOut {
+                    presentation.closeAccountSurfacesForSessionEnd()
+                }
+            }
             .modifier(
                 HomeSheetModifier(
                     destination: presentation.sheetBinding,
@@ -786,7 +814,9 @@ struct HomeView: View {
                     morningSleep: morningSleep,
                     boLedger: boLedger,
                     onDismiss: {
-                        if !presentation.presentQueuedCameraIfNeeded() {
+                        if !presentation.presentQueuedCameraIfNeeded(
+                            isLoggedIn: auth.phase == .loggedIn
+                        ) {
                             presentationFlow.resumePendingFlows()
                             resumeOrnamentDiscoveryIfNeeded()
                         }
@@ -898,6 +928,7 @@ struct HomeView: View {
                 presentation: presentation,
                 balanceChip: AnyView(boBalanceChip),
                 cameraEnabled: featureAccess.cameraEnabled,
+                accountLoggedIn: auth.phase == .loggedIn,
                 walkDoodleEnabled: featureAccess.walkDoodleEnabled,
                 dismissSpeech: speechPresentation.dismiss,
                 onOpenHistory: {

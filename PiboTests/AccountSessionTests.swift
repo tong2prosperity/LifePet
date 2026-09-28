@@ -5,12 +5,19 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct AccountSessionTests {
-    @Test func rootGateOrdersOnboardingLoginHome() {
-        #expect(RootGate.resolve(shouldPresentFirstRun: true, isAuthenticated: false) == .onboarding)
-        #expect(RootGate.resolve(shouldPresentFirstRun: true, isAuthenticated: true) == .onboarding)
-        #expect(RootGate.resolve(shouldPresentFirstRun: false, isAuthenticated: false) == .login)
-        #expect(RootGate.resolve(shouldPresentFirstRun: false, isAuthenticated: true) == .home)
-        #expect(RootGate.resolve(shouldPresentFirstRun: true, isAuthenticated: false, bypassesGates: true) == .home)
+    /// 2026-09-28: login never stands between the user and Pibo. The first
+    /// run leads straight to Home; the meal camera asks for an account itself.
+    @Test func rootGateLeadsFromFirstRunStraightHome() {
+        #expect(RootGate.resolve(shouldPresentFirstRun: true) == .onboarding)
+        #expect(RootGate.resolve(shouldPresentFirstRun: false) == .home)
+        #expect(RootGate.resolve(shouldPresentFirstRun: true, bypassesGates: true) == .home)
+    }
+
+    @Test func loginPageSaysWhyItIsAsking() {
+        #expect(LoginPurpose.mealCamera.title == "拍餐食前，先登录一下")
+        #expect(LoginPurpose.mealCamera.subtitle.hasPrefix("识别盘子里的食物需要连上 Pibo 的服务。"))
+        #expect(LoginPurpose.account.title == "登录 Pibo 账号")
+        #expect(LoginPurpose.account.subtitle.hasPrefix("目前账号只用于餐食识别。"))
     }
 
     @Test func masksMainlandNumbersOnly() {

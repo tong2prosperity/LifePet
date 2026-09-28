@@ -142,6 +142,27 @@ final class HomePresentationPolicyTests: XCTestCase {
         XCTAssertEqual(probe.count, 0)
     }
 
+    /// The on-demand login cover (2026-09-28) hides the forest like the camera.
+    func testLoginCoverPausesTheStageLikeAFullScreenFeature() {
+        let policy = HomePresentationPolicy(
+            sceneIsActive: true,
+            cameraPresented: false,
+            gamesPresented: false,
+            historyPresented: false,
+            walkDoodlePresented: false,
+            settingsPresented: false,
+            storyRecoveryPresented: false,
+            sheetPresented: false,
+            sheetDismissalInProgress: false,
+            sproutFlowIsIdle: true,
+            loginPresented: true
+        )
+
+        XCTAssertTrue(policy.stagePaused)
+        XCTAssertTrue(policy.fullScreenFeaturePresented)
+        XCTAssertFalse(policy.boProgressFeedbackEnabled)
+    }
+
     func testInactiveSceneShortCircuitsFeedbackAndSoundscapeInputs() {
         let feedbackProbe = ReadProbe()
         let soundscapeProbe = ReadProbe()

@@ -6,6 +6,7 @@ struct HomePrimaryChrome: View {
     let presentation: HomePresentationState
     var balanceChip: AnyView? = nil
     let cameraEnabled: Bool
+    let accountLoggedIn: Bool
     let walkDoodleEnabled: Bool
     let dismissSpeech: () -> Void
     let onOpenHistory: () -> Void
@@ -16,6 +17,7 @@ struct HomePrimaryChrome: View {
                 presentation: presentation,
                 balanceChip: balanceChip,
                 cameraEnabled: cameraEnabled,
+                accountLoggedIn: accountLoggedIn,
                 walkDoodleEnabled: walkDoodleEnabled,
                 dismissSpeech: dismissSpeech
             )
@@ -35,6 +37,7 @@ struct HomeHeader: View {
     let presentation: HomePresentationState
     var balanceChip: AnyView? = nil
     let cameraEnabled: Bool
+    let accountLoggedIn: Bool
     let walkDoodleEnabled: Bool
     let dismissSpeech: () -> Void
 
@@ -53,7 +56,9 @@ struct HomeHeader: View {
                         screen: "home",
                         ["meal": .string("none")]
                     )
-                    presentation.activeSheet = .mealCaptureSelection
+                    // Meal recognition is the only MVP feature that needs an
+                    // account, so this is where login is asked for.
+                    presentation.openMealCapture(isLoggedIn: accountLoggedIn)
                 },
                 onOpenWalkDoodle: {
                     presentation.showWalkDoodle = true

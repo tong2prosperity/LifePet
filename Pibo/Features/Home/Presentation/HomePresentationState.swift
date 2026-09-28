@@ -1,6 +1,14 @@
 import Observation
 import SwiftUI
 
+/// What the meal camera reopens after its on-demand login succeeds.
+enum CameraLoginResume: Equatable {
+    /// The corner camera asked before the meal picker.
+    case mealSelection
+    /// A queued camera request (e.g. 重拍) asked with its meal.
+    case camera(MealType?)
+}
+
 /// Owns every presentation slot attached to Home. Product availability remains
 /// outside this type; the gated bindings preserve each existing presentation
 /// contract while sheets share one exclusive destination.
@@ -24,6 +32,10 @@ final class HomePresentationState {
     /// sheet dismissal finishes so SwiftUI never has to overlap two presenters.
     var queuedCameraMeal: MealType?
     var activeSheet: HomeSheetDestination?
+    /// On-demand login (2026-09-28). Only the meal camera needs an account.
+    var showLogin = false
+    var loginPurpose: LoginPurpose = .account
+    var cameraResumeAfterLogin: CameraLoginResume?
     /// A verified meal can finish while the full-screen camera still covers the
     /// forest. Keep it prepared until camera dismissal so the 6.08 s performance
     /// never elapses invisibly behind the cover.
@@ -76,6 +88,10 @@ final class HomePresentationState {
         Binding(get: { self.showSettings }, set: { self.showSettings = $0 })
     }
 
+    var loginBinding: Binding<Bool> {
+        Binding(get: { self.showLogin }, set: { self.showLogin = $0 })
+    }
+
     var storyRecoveryBinding: Binding<Bool> {
         Binding(
             get: { self.showStoryRecovery },
@@ -100,13 +116,63 @@ final class HomePresentationState {
         activeSheet = nil
     }
 
+    /// The corner camera: the meal picker, or the account first.
+    func openMealCapture(isLoggedIn: Bool) {
+        guard isLoggedIn else {
+            requestCameraLogin(resume: .mealSelection)
+            return
+        }
+        activeSheet = .mealCaptureSelection
+    }
+
+    /// Consumes a camera request queued behind a closing sheet. Without an
+    /// account it becomes a login request that resumes with the same meal.
     @discardableResult
-    func presentQueuedCameraIfNeeded() -> Bool {
+    func presentQueuedCameraIfNeeded(isLoggedIn: Bool) -> Bool {
         guard let meal = queuedCameraMeal else { return false }
         queuedCameraMeal = nil
+        guard isLoggedIn else {
+            requestCameraLogin(resume: .camera(meal))
+            return true
+        }
         cameraInitialMeal = meal
         showCamera = true
         return true
+    }
+
+    /// The user left the login page without an account; forget the camera.
+    func cancelLogin() {
+        cameraResumeAfterLogin = nil
+        showLogin = false
+    }
+
+    /// Runs from the login cover's `onDismiss`, after its pixels are gone, so
+    /// the camera or picker never has to overlap it. Only a real login resumes.
+    func resumeAfterLogin(isLoggedIn: Bool) {
+        let resume = cameraResumeAfterLogin
+        cameraResumeAfterLogin = nil
+        guard isLoggedIn, let resume else { return }
+        switch resume {
+        case .mealSelection:
+            activeSheet = .mealCaptureSelection
+        case .camera(let meal):
+            cameraInitialMeal = meal
+            showCamera = true
+        }
+    }
+
+    /// Logout or an expired session closes only what needs an account; Home,
+    /// Settings and everything local stay where the user left them.
+    func closeAccountSurfacesForSessionEnd() {
+        showLogin = false
+        cameraResumeAfterLogin = nil
+        if case .shadow = activeSheet { activeSheet = nil }
+    }
+
+    private func requestCameraLogin(resume: CameraLoginResume) {
+        cameraResumeAfterLogin = resume
+        loginPurpose = .mealCamera
+        showLogin = true
     }
 
     func prepareFoodProjection(_ projection: HomeFoodProjection) {

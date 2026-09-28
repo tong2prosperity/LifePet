@@ -11,6 +11,7 @@ struct HomePresentationPolicy {
     private let sheetPresented: () -> Bool
     private let sheetDismissalInProgress: () -> Bool
     private let sproutFlowIsIdle: () -> Bool
+    private let loginPresented: () -> Bool
 
     init(
         sceneIsActive: @autoclosure @escaping () -> Bool,
@@ -22,9 +23,11 @@ struct HomePresentationPolicy {
         storyRecoveryPresented: @autoclosure @escaping () -> Bool,
         sheetPresented: @autoclosure @escaping () -> Bool,
         sheetDismissalInProgress: @autoclosure @escaping () -> Bool,
-        sproutFlowIsIdle: @autoclosure @escaping () -> Bool
+        sproutFlowIsIdle: @autoclosure @escaping () -> Bool,
+        loginPresented: @autoclosure @escaping () -> Bool = false
     ) {
         self.sceneIsActive = sceneIsActive
+        self.loginPresented = loginPresented
         self.cameraPresented = cameraPresented
         self.gamesPresented = gamesPresented
         self.historyPresented = historyPresented
@@ -53,6 +56,7 @@ struct HomePresentationPolicy {
         storyRecoveryPresented = { presentation.showStoryRecovery }
         sheetPresented = { presentation.activeSheet != nil }
         sheetDismissalInProgress = { presentation.sheetDismissalInProgress }
+        loginPresented = { presentation.showLogin }
         self.sproutFlowIsIdle = sproutFlowIsIdle
     }
 
@@ -60,6 +64,7 @@ struct HomePresentationPolicy {
     /// covers plus sheets, which on iOS occlude the stage too.
     var stagePaused: Bool {
         cameraPresented()
+            || loginPresented()
             || gamesPresented()
             || historyPresented()
             || walkDoodlePresented()
@@ -70,6 +75,7 @@ struct HomePresentationPolicy {
 
     var fullScreenFeaturePresented: Bool {
         cameraPresented()
+            || loginPresented()
             || gamesPresented()
             || historyPresented()
             || walkDoodlePresented()
