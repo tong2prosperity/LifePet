@@ -61,4 +61,4 @@
 
 ## 当前状态
 
-HarmonyOS 实施中；iOS 待补齐。
+HarmonyOS 已实现（HarmonyPibo c78c203，`pibo-core 0.27.0` 本地标签待推送）；iOS 待补齐，清单见 HarmonyPibo `docs/harmony-first/2026-09-28-Pibo时间线.md`。实现中确定的文案细节：回忆的开场用中性的「我想起一件以前的事。」「我又想起一件以前的事。」——已有关系的第一次可能记在第 31 天，不能说成「刚认识的时候」；时段词为早上／白天／晚上／夜里，随陪伴时段由 Core 划分。
