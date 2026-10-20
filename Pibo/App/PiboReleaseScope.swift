@@ -43,7 +43,7 @@ enum PiboReleaseScope {
     /// 注释掉 tab，现归口到这里。
     static var customizePibo: Bool { on(false, "-PiboEnableCustomize") }
 
-    // MARK: 决定 051：单人陪伴 MVP
+    // MARK: 决定 057：移出路线图（原依据决定 051 已由 064 废止）
     //
     // 以下开关只决定本版是否展示／允许发起操作，不改 Core 目录、成本、前置或持久权属，
     // 也不删除好友关系、余额与历史。Debug 不旁路恢复，所以写成常量而不是 `on(...)`。
