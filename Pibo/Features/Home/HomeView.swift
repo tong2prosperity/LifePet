@@ -690,7 +690,26 @@ struct HomeView: View {
                 // controller stages the story's beats on the same director.
                 PixelStageView(look: pixelLook,
                                onStageReady: startPixelDay,
-                               onLayoutChanged: { pixelDay?.onStageLayout($0) })
+                               onLayoutChanged: { pixelDay?.onStageLayout($0) },
+                               onPat: {
+                                   // Decision 061: a double tap on a shape it has taken
+                                   // helps it back; it is not a pat.
+                                   if pixelDay?.onPat() == true { return }
+                                   stageHandlers.pat()
+                                   growthUI.afterPat()
+                               },
+                               onGlance: {
+                                   // A glance acknowledges whatever Pibo was saying.
+                                   speechPresentation.dismiss()
+                               },
+                               onPlaceTapped: { pixelDay?.onPlaceTapped($0) ?? false },
+                               onDecorTapped: { id in
+                                   growthUI.onDecorTapped(id)
+                               },
+                               onGrassTapped: { companion.onGrassTapped() },
+                               onPokeSound: {
+                                   PiboSoundEffectService.shared.play(.boSproutTouch)
+                               })
             } else {
                 HomeStageSurface(
                     input: input,

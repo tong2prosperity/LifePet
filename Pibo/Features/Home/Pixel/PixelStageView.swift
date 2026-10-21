@@ -110,6 +110,11 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     private(set) var actor = PixelActorFrame()
     /// The layout the last frame was drawn with, for the gesture layer and the director.
     var currentLayout: PixelForestLayout { layout }
+    /// The look and the decor scene of the last frame, for the gesture layer's boxes.
+    var currentLook: Look { look }
+    var currentDecorScene: PixelDecorScene { decorScene(0) }
+    /// The logical size of the picture, so a tap in points can be mapped onto it.
+    var pixelSize: (width: Int, height: Int) { (frame.width, frame.height) }
 
     /// Pibo's day. Home feeds it Core's answers; without a brain it simply stands there.
     let director = PixelDayDirector()
@@ -126,6 +131,19 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     var shootingStarDue: ((Bool) -> Bool)?
     var onShootingStarCaught: (() -> Void)?
     var onHaptic: ((Double) -> Void)?
+
+    // The gesture layer's answers (decision 058): what Home does about a tap lives there.
+    /// A double tap on Pibo, after the pat itself has played.
+    var onPat: (() -> Void)?
+    /// A single tap on Pibo: the badge blinked.
+    var onGlance: (() -> Void)?
+    /// A tap on a place, the basket or a story thing; true when it took the tap.
+    var onPlaceTapped: ((Int) -> Bool)?
+    /// A tap on a decoration or an ornament that is not a place in Pibo's day.
+    var onDecorTapped: ((Int) -> Void)?
+    var onGrassTapped: (() -> Void)?
+    /// A place was poked: the small touch cue.
+    var onPokeSound: (() -> Void)?
 
     // Scene-change pan: the old scene's last frame, the trail and the view being composed.
     private var shownScene = -1
@@ -456,6 +474,134 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     func poke(_ place: Int, _ at: Double) {
         pokedPlace = place
         pokedAt = at
+        // Every tappable thing answers on its own, whatever Pibo decides to do about it.
+        let box = placeBox(place)
+        let seed = Int(at.truncatingRemainder(dividingBy: 991)) + 1
+        switch PiboCoreDayPlace(rawValue: Int32(clamping: place)) {
+        case .bigTree, .loneTree:
+            anchors.squirrelPokedAt = elapsed
+        case .pond, .creekBank:
+            anchors.fishPokedAt = elapsed
+        case .flowerBed, .flowerField:
+            if let box {
+                effects.append(makePixelEffect(.bloom, at, box.x + box.w / 2, box.y + 4, 0, seed))
+            }
+        case .campfire:
+            if let box {
+                for step in 0..<3 {
+                    effects.append(makePixelEffect(.sparkle, at + Double(step * 160),
+                                                   box.x + 3 + step * 2, box.y - 2 - step * 3,
+                                                   0, seed + step))
+                }
+            }
+        default:
+            if let box, place != Int(PiboCoreDayPlace.trailSign.rawValue),
+               place != PixelHotspot.basket.rawValue {
+                effects.append(makePixelEffect(.sparkle, at, box.x + box.w / 2, box.y, 0, seed))
+            }
+        }
+        onPokeSound?()
+    }
+
+    /// The art's box for a place (ArkTS `placeBox`): the poke's effects sit on it.
+    private func placeBox(_ place: Int) -> PixelPlaceBox? {
+        let decor = pixelDecorForPlace(PiboCoreDayPlace(rawValue: Int32(clamping: place)) ?? .ground)
+        if decor >= 0, let found = pixelDecorHitBoxes(layout, decorScene(0))
+            .first(where: { $0.id.rawValue == decor }) {
+            return PixelPlaceBox(place: place, x: found.x + 3, y: found.y + 3,
+                                 w: found.w - 6, h: found.h - 6)
+        }
+        if place == PixelHotspot.basket.rawValue { return pixelBasketBox(layout) }
+        if place == Int(PiboCoreDayPlace.mealMat.rawValue) { return pixelMealMatBox(layout) }
+        if place == Int(PiboCoreDayPlace.findSpot.rawValue) {
+            return pixelFindSpotBox(layout, look.scene)
+        }
+        if place >= PIXEL_SEASON_OLD_POD {
+            var two = PixelSeasonTwoLook()
+            two.planks = look.planks
+            two.oldPodFound = look.oldPod >= 1
+            two.oldPodLit = look.oldPod >= 2
+            two.farLight = look.farLight
+            guard let found = pixelSeasonTwoBoxes(layout, two).first(where: { $0.id == place }) else {
+                return nil
+            }
+            return PixelPlaceBox(place: place, x: found.x, y: found.y, w: found.w, h: found.h)
+        }
+        if place >= PIXEL_SEASON_POD {
+            var season = PixelSeasonLook()
+            season.podFixed = look.podFixed
+            season.sprout = look.sproutStage
+            season.mailbox = look.mailbox
+            guard let found = pixelSeasonBoxes(layout, season).first(where: { $0.id == place }) else {
+                return nil
+            }
+            return PixelPlaceBox(place: place, x: found.x, y: found.y, w: found.w, h: found.h)
+        }
+        guard let dayPlace = PiboCoreDayPlace(rawValue: Int32(clamping: place)) else { return nil }
+        return pixelNaturalBox(layout, look.scene, dayPlace)
+    }
+
+    // --- Gestures (ArkTS `handlePat` / `handleGlance` / `handlePlaceTap`) -----------------
+
+    /// A double tap on Pibo: it stops where it is, hearts pop, and Home counts the pat.
+    func handlePat() {
+        if foundHiding() { return }
+        patStartMs = now
+        director.patted(now)
+        playMoment(.patHearts, value: 0, source: -1)
+        onPat?()
+    }
+
+    /// A single tap on Pibo: the badge blinks and reads out (decision 062).
+    func handleGlance() {
+        if foundHiding() { return }
+        glance()
+        onGlance?()
+    }
+
+    /// A tap on a place, the basket, a story thing or a food sticker. Returns true when
+    /// something took the tap, which earns a little burst of hearts.
+    @discardableResult
+    func handlePlaceTap(_ place: Int) -> Bool {
+        poke(place, now)
+        guard let onPlaceTapped else { return false }
+        guard onPlaceTapped(place) else { return false }
+        let head = headPoint()
+        effects.append(makePixelEffect(.hearts, now, head[0] + 6, head[1] + 8, 0, 7))
+        return true
+    }
+
+    /// A tap on a decoration: the ones that are places in Pibo's day go through the day,
+    /// the hammock and the observer keep their own sheets, the grass belongs to the
+    /// companion.
+    func handleDecorTap(_ id: Int) {
+        let place = pixelPlaceForDecor(id).map { Int($0.rawValue) } ?? -1
+        let ornament = id == PixelDecorID.hammock.rawValue || id == PixelDecorID.observer.rawValue
+        if place >= 0 && !ornament, onPlaceTapped != nil {
+            handlePlaceTap(place)
+            return
+        }
+        if place >= 0 { poke(place, now) }
+        if id == PixelDecorID.grass.rawValue {
+            onGrassTapped?()
+            return
+        }
+        onDecorTapped?(id)
+    }
+
+    /// A tap on a peeking Pibo counts as finding it.
+    private func foundHiding() -> Bool {
+        guard director.hiding else { return false }
+        handlePlaceTap(director.hidingPlace)
+        return true
+    }
+
+    /// A tap on the leaf, not a pull: a ripe bo asks to be pulled, a sprout just shivers.
+    func leafTap() {
+        guard !collecting else { return }
+        if look.leafRipe { return }
+        let head = headPoint()
+        effects.append(makePixelEffect(.sparkle, now, head[0] + 4, head[1] - 6, 0, 2))
     }
 
     /// A finger went up on the leaf. `offsetY` is the drag, negative upwards.
@@ -882,6 +1028,17 @@ struct PixelStageView: View {
     /// can fire before the view has its final size, so a single layout report would leave
     /// the director planning walks on a stage that no longer exists.
     var onLayoutChanged: ((PixelForestLayout) -> Void)?
+    /// A double tap on Pibo (the pat itself has already played on the stage).
+    var onPat: (() -> Void)?
+    /// A single tap on Pibo: the badge blinked.
+    var onGlance: (() -> Void)?
+    /// A tap on a place, the basket or a story thing; true when it took the tap.
+    var onPlaceTapped: ((Int) -> Bool)?
+    /// A tap on a decoration or an ornament that is not a place in Pibo's day.
+    var onDecorTapped: ((Int) -> Void)?
+    var onGrassTapped: (() -> Void)?
+    /// A place was poked: the small touch cue.
+    var onPokeSound: (() -> Void)?
 
     @State private var image: CGImage?
     @State private var scale: Int = 3
@@ -911,13 +1068,39 @@ struct PixelStageView: View {
             }
             .onAppear {
                 redraw(size: proxy.size)
+                bindGestures()
                 onStageReady?(renderer)
                 reportLayoutIfNeeded()
                 #if DEBUG
                 if onStageReady == nil { startDay(proxy.size) }
+                if let raw = ProcessInfo.processInfo.arguments
+                    .first(where: { $0.hasPrefix("-PiboStageTap=") })?
+                    .dropFirst("-PiboStageTap=".count) {
+                    let spec = String(raw)
+                    Task {
+                        try? await Task.sleep(for: .seconds(3))
+                        debugTap(spec)
+                    }
+                }
                 #endif
             }
             .onChange(of: proxy.size) { _, size in redraw(size: size) }
+            // One gesture for the whole stage: the boxes are computed from the same layout
+            // the frame was drawn with, so they follow Pibo and the scene.
+            .contentShape(Rectangle())
+            .gesture(
+                SpatialTapGesture(count: 2)
+                    .onEnded { value in handleTap(value.location, proxy.size, double: true) }
+                    .exclusively(
+                        before: SpatialTapGesture(count: 1)
+                            .onEnded { value in handleTap(value.location, proxy.size, double: false) }
+                    )
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 4)
+                    .onChanged { value in leafDragChanged(value, proxy.size) }
+                    .onEnded { _ in renderer.leafPanEnd() }
+            )
         }
         .ignoresSafeArea()
         .onReceive(timer) { _ in
@@ -952,6 +1135,82 @@ struct PixelStageView: View {
         var current = look
         if let debugHour { current.hour = debugHour }
         image = renderer.render(size: size, scale: scale, now: 0, look: current)
+    }
+
+    /// Hands the renderer Home's answers once; the closures read Home's state live.
+    private func bindGestures() {
+        renderer.onPat = onPat
+        renderer.onGlance = onGlance
+        renderer.onPlaceTapped = onPlaceTapped
+        renderer.onDecorTapped = onDecorTapped
+        renderer.onGrassTapped = onGrassTapped
+        renderer.onPokeSound = onPokeSound
+    }
+
+    /// A point in the view mapped onto the logical picture (the image is centred in the
+    /// stage, and one logical pixel is `scale` points).
+    private func logicalPoint(_ point: CGPoint, _ size: CGSize) -> CGPoint {
+        let pixel = renderer.pixelSize
+        let imageWidth = CGFloat(pixel.width * scale)
+        let imageHeight = CGFloat(pixel.height * scale)
+        return CGPoint(x: (point.x - (size.width - imageWidth) / 2) / CGFloat(scale),
+                       y: (point.y - (size.height - imageHeight) / 2) / CGFloat(scale))
+    }
+
+    private func handleTap(_ point: CGPoint, _ size: CGSize, double: Bool) {
+        performTap(atLogical: logicalPoint(point, size), double: double)
+    }
+
+    /// The hit test and dispatch a tap goes through, in logical pixels.
+    private func performTap(atLogical logical: CGPoint, double: Bool) {
+        guard let hit = renderer.hit(at: logical.x, logical.y) else { return }
+        switch hit.target {
+        case .actor:
+            // Exclusive: the double-tap pat wins; a lone tap resolves as a glance.
+            if double { renderer.handlePat() } else { renderer.handleGlance() }
+        case .leaf:
+            if !double { renderer.leafTap() }
+        case .star:
+            renderer.catchStar()
+        case .place(let place):
+            renderer.handlePlaceTap(place)
+        case .decor(let id):
+            renderer.handleDecorTap(id)
+        }
+    }
+
+    #if DEBUG
+    /// `-PiboStageTap=actor|sign|basket|leaf|star` taps the middle of that box once the
+    /// stage is up: the simulator cannot synthesise a touch, and the boxes are what needs
+    /// checking.
+    private func debugTap(_ spec: String) {
+        let target: PixelStageTarget?
+        switch spec {
+        case "actor": target = .actor
+        case "leaf": target = .leaf
+        case "star": target = .star
+        case "sign": target = .place(Int(PiboCoreDayPlace.trailSign.rawValue))
+        case "basket": target = .place(PixelHotspot.basket.rawValue)
+        default: target = nil
+        }
+        guard let target else { return }
+        let hits = renderer.stageHits()
+        guard let hit = hits.last(where: { $0.target == target }) else {
+            LPLog.day.notice("stage tap \(spec, privacy: .public): no box")
+            return
+        }
+        LPLog.day.notice("stage tap \(spec, privacy: .public) at \(hit.center.x, privacy: .public),\(hit.center.y, privacy: .public)")
+        performTap(atLogical: CGPoint(x: hit.center.x, y: hit.center.y), double: target == .actor)
+    }
+    #endif
+
+    /// A pull only arms on the leaf's column, so a pat never turns into a harvest.
+    private func leafDragChanged(_ value: DragGesture.Value, _ size: CGSize) {
+        let start = logicalPoint(value.startLocation, size)
+        guard renderer.leafHit(at: start.x, start.y) else { return }
+        var current = look
+        if let debugHour { current.hour = debugHour }
+        renderer.leafPan(Double(value.translation.height), ripe: current.leafRipe)
     }
 
     #if DEBUG

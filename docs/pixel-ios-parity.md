@@ -62,6 +62,7 @@
 | `.../Pixel/UI/PixelFont.swift` | `pixel/ui/PixelFont.ets` | Fusion Pixel 12px 简体子集（OFL-1.1），12px 整数倍取字号 |
 | `.../Pixel/UI/DaySheets.swift` | `pixel/ui/DaySheets.ets` | 森林地图（三张场景缩略图、等级门槛、一起去）与收藏架（24 格剪影、摆出来／收回来、散步日记） |
 | `.../Pixel/UI/StorySheets.swift` | `pixel/ui/StorySheets.ets` | 第一季的纸：报告、来信、旧笔记（横线纸、划掉的错页、落款） |
+| `.../Pixel/PixelStageHits.swift` | `pixel/PixelStage.ets`（`updateHitRegions`） | 舞台的全部可点框：地点、装饰、收藏篮、摆出来的收藏、野餐垫与贴纸、诱饵、两季的物件、Pibo 与叶子 |
 | `.../Wellness/WellnessReadout.swift` | `models/WellnessReadout.ets` | 今日一句话结论、不可用标题／细节、分段与原因文案、更新时间 |
 
 字体：鸿蒙用 `font.registerFont({ familyName: 'PiboPixel' })` 起别名；Core Text 没有别名，
@@ -85,6 +86,12 @@ iOS 直接向文件里的族名 `Fusion Pixel 12px Prop zh-Hans` 取字，`Pixel
 - 第一季的纸（报告／来信／旧笔记）由 `StoryPaperHost` 显示，弹层与成长页同一套纸框；
   `-PiboSeasonMoment=season:notebook|season:report|season:open-letter` 在舞台就绪两秒后
   打开对应的一页（正常路径是点舞台上的旧舱与信箱）。
+- 舞台会接住手势了（`PixelStageHits.swift`）：点哪里由同一帧的布局算出框，最上面那个赢。
+  Pibo 身上双击是拍一拍（先让导演播，再交给 Home 的拍一拍对话与成长反馈），单击是瞥一眼
+  （收起当前那句）；叶子上拉是收取 bo；路牌开地图、篮子开收藏架、食物贴纸开这一餐；
+  装饰里属于「一天里的地点」的走 `onPlaceTapped`，吊床／观测仪／草丛各走各的。
+  调试用 `-PiboStageTap=actor|leaf|sign|basket|star`，三秒后点一次对应框的中心
+  （模拟器没法合成触摸，这里要验的是框本身）。
 - 成长反馈由 `HomeGrowthController` 每 800 ms 取一件来演；升级卡与拍立得卡在首页最上层。
   `-PiboGrowthMoment=growth:level`（或 `growth:away`／`growth:heart`／`growth:polaroid` 等）
   在舞台就绪两秒后播放一次。
@@ -120,8 +127,10 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 
 ### 2. 舞台交互
 
-- 命中区域（`updateHitRegions`、地点框、装饰框、餐垫贴纸、诱饵）、双击拍一拍、
-  叶子上拉收取、摇一摇、`audio/PixelStageSounds`。
+- 已完成：命中框与点击分发（地点／装饰／篮子／收藏／贴纸／诱饵／Pibo／叶子／流星）、
+  双击拍一拍、单击瞥一眼、叶子上拉的拖动。
+- 待移植：摇一摇（`onShake`）、收取 bo 的完整回路（`onCollectBo` + 提示气泡）、
+  叶子未熟时的提示与音效、`audio/PixelStageSounds`（徽章读数的 bip-bip 等）。
 - 相机页、读数报告、足迹日记、餐食详情的像素外壳（数据视图沿用现有图表）。
 
 ### 3. 页面接线与旧表现退役
