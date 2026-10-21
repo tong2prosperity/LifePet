@@ -53,6 +53,8 @@ struct HomeView: View {
     /// Decision 069: the pixel stage's day and season, once the stage exists.
     @State private var pixelDay: HomeDayController?
     @State private var pixelSeason: HomeSeasonController?
+    /// Decision 057: which pixel growth sheet is up, if any.
+    @State private var pixelSheet: PixelSheetKind?
     @State private var contextualActions = HomeContextualActionCoordinator()
     @State private var ornamentDiscovery = OrnamentDiscoveryStore()
     @State private var discoveryTask: Task<Void, Never>?
@@ -650,6 +652,23 @@ struct HomeView: View {
                 .opacity(statusObserverCardVisible ? 0 : 1)
                 .allowsHitTesting(!statusObserverCardVisible)
 
+            // Decision 057's sheets, over the forest but under the full-screen covers.
+            if PiboReleaseScope.pixelHome, let pixelSheet {
+                PixelSheetHost(
+                    kind: pixelSheet,
+                    growth: growth,
+                    wishes: wishes,
+                    decor: decor,
+                    ornaments: ornamentUnlocks,
+                    ledger: boLedger,
+                    dayCount: store.dayCount,
+                    localHour: Int(HomeAtmosphereClock.localHour(at: atmosphereClock.now)),
+                    onClose: { self.pixelSheet = nil }
+                )
+                .zIndex(40)
+                .transition(.opacity)
+            }
+
             if companion.replySheetOpen {
                 CompanionReplyPanel(
                     question: companion.promptQuestion,
@@ -984,6 +1003,18 @@ struct HomeView: View {
                    let hour = Double(raw) {
                     store.debugForestHour = hour
                 }
+                // `-PiboPixelSheet=growth|wishes|decor` opens a pixel sheet on launch:
+                // the simulator cannot synthesise a tap on the HUD.
+                if let raw = ProcessInfo.processInfo.arguments
+                    .first(where: { $0.hasPrefix("-PiboPixelSheet=") })?
+                    .dropFirst("-PiboPixelSheet=".count) {
+                    pixelSheet = switch raw {
+                    case "growth": .growth
+                    case "wishes": .wishes
+                    case "decor": .decor
+                    default: nil
+                    }
+                }
                 #endif
                 shadowSync.setSnapshotDraft(shadowSnapshotDraft)
                 reconcileShadowFriendFlow()
@@ -1190,7 +1221,7 @@ struct HomeView: View {
 
             // Decision 057's growth HUD, top-left over the forest (HarmonyOS
             // `HomePage.GrowthChrome`). Hidden under full-screen surfaces.
-            if PiboReleaseScope.pixelHome, !fullScreenFeaturePresented {
+            if PiboReleaseScope.pixelHome, !fullScreenFeaturePresented, pixelSheet == nil {
                 growthHud
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(.leading, 12)
@@ -1286,18 +1317,16 @@ struct HomeView: View {
             ),
             onOpenGrowth: {
                 LPHaptics.tap()
-                // The pixel growth sheet is not ported yet; the tap must not pretend
-                // otherwise. It starts working with `GrowthSheets`.
-                LPLog.day.notice("growth sheet pending the pixel sheet port")
+                pixelSheet = .growth
             },
             onOpenWishes: {
                 LPHaptics.tap()
                 wishes.markEveningSeen(localHour: hour)
-                LPLog.day.notice("wish sheet pending the pixel sheet port")
+                pixelSheet = .wishes
             },
             onOpenDecor: {
                 LPHaptics.tap()
-                LPLog.day.notice("decor sheet pending the pixel sheet port")
+                pixelSheet = .decor
             },
             onOpenReadout: {
                 LPHaptics.tap()
