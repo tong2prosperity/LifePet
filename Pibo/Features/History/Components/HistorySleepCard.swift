@@ -35,9 +35,22 @@ struct HistorySleepCard: View {
     private var graphHeight: CGFloat { embedded ? 116 : 204 }
     private var trailCenter: CGFloat { graphHeight - 43 }
 
+    /// 决定 063: the pixel night strip replaces the cloud trail, and the card takes the
+    /// pixel frame. The numbers, ruler and legend stay exactly as they were.
+    private var pixel: Bool { PiboReleaseScope.pixelHistory }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if !embedded {
+        cardContent
+            .onAppear { reveal() }
+            .onChange(of: segments) { _, _ in resetForNewData() }
+            .onChange(of: start) { _, _ in resetForNewData() }
+            .onChange(of: end) { _, _ in resetForNewData() }
+    }
+
+    @ViewBuilder
+    private var cardContent: some View {
+        let inner = VStack(alignment: .leading, spacing: 0) {
+            if !embedded && !pixel {
                 Text(AppLocalization.text("睡眠"))
                     .font(.system(size: 16))
                     .foregroundStyle(Color(hex: 0xC4CBDC))
@@ -53,7 +66,7 @@ struct HistorySleepCard: View {
                         stagelessContent
                     }
                 }
-                .padding(.horizontal, embedded ? 0 : 24)
+                .padding(.horizontal, embedded ? 0 : (pixel ? 8 : 24))
                 .padding(.bottom, embedded ? 0 : (onExpand == nil ? 24 : 4))
             } else {
                 Text(AppLocalization.text("暂无睡眠数据"))
@@ -68,7 +81,7 @@ struct HistorySleepCard: View {
                     onExpand()
                 } label: {
                     Text(AppLocalization.text("展开睡眠详情"))
-                        .font(.system(size: 13))
+                        .font(pixel ? PixelFont.font(12) : .system(size: 13))
                         .foregroundStyle(Color(hex: 0xC4CBDC))
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .contentShape(Rectangle())
@@ -78,32 +91,92 @@ struct HistorySleepCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            if !embedded {
-                LinearGradient(
-                    colors: [Color(hex: 0x252B3A), Color(hex: 0x1E2430)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
+
+        if pixel && !embedded {
+            PixelRecordCard(title: "睡眠", dark: true) { inner }
+        } else {
+            inner
+                .background {
+                    if !embedded {
+                        LinearGradient(
+                            colors: [Color(hex: 0x252B3A), Color(hex: 0x1E2430)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: embedded ? 0 : 26, style: .continuous))
+                .overlay {
+                    if !embedded {
+                        RoundedRectangle(cornerRadius: 26, style: .continuous)
+                            .strokeBorder(Color(hex: 0xA7B4D5, alpha: 0x22 / 255), lineWidth: 1)
+                    }
+                }
         }
-        .clipShape(RoundedRectangle(cornerRadius: embedded ? 0 : 26, style: .continuous))
-        .overlay {
-            if !embedded {
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .strokeBorder(Color(hex: 0xA7B4D5, alpha: 0x22 / 255), lineWidth: 1)
-            }
-        }
-        .onAppear { reveal() }
-        .onChange(of: segments) { _, _ in resetForNewData() }
-        .onChange(of: start) { _, _ in resetForNewData() }
-        .onChange(of: end) { _, _ in resetForNewData() }
     }
 
     // MARK: Trail
 
     @ViewBuilder
     private func trailContent(_ timeline: SleepTrailTimeline) -> some View {
+        if pixel {
+            pixelTrailContent(timeline)
+        } else {
+            cloudTrailContent(timeline)
+        }
+    }
+
+    /// The night as sky columns: stages stacked like a hypnogram, one Pibo-kept moon in the
+    /// corner and a cursor only once a stretch has been picked.
+    private func pixelTrailContent(_ timeline: SleepTrailTimeline) -> some View {
+        VStack(spacing: 0) {
+            if !embedded {
+                durationHeader(timeline)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 6)
+            }
+            PixelSleepSkyStrip(
+                segments: plotted,
+                timeline: timeline,
+                selected: selectedSegment,
+                onSelect: { segment in
+                    LPHaptics.tap()
+                    selectedSegment = segment
+                }
+            )
+            .opacity(isRevealed ? 1 : 0)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(AppLocalization.text("睡眠阶段图"))
+            .accessibilityValue(accessibilityValue)
+            .accessibilityHint(AppLocalization.text("轻点不同位置选择睡眠片段；上下轻扫逐段切换"))
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: step(1)
+                case .decrement: step(-1)
+                @unknown default: break
+                }
+            }
+
+            SleepTrailRuler(timeline: timeline, pixel: pixel)
+                .opacity(isRevealed ? 1 : 0)
+
+            if let selectedSegment {
+                Text(SleepTrailFormat.selectionDetail(selectedSegment))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(hex: 0xC4CBDC))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
+            }
+
+            legend
+                .padding(.top, 20)
+        }
+    }
+
+    private func cloudTrailContent(_ timeline: SleepTrailTimeline) -> some View {
         VStack(spacing: 0) {
             GeometryReader { geometry in
                 ZStack(alignment: .topLeading) {
@@ -160,16 +233,16 @@ struct HistorySleepCard: View {
 
     private func durationHeader(_ timeline: SleepTrailTimeline) -> some View {
         let minutes = Int((totalSeconds / 60).rounded(.down))
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: pixel ? 2 : 8) {
             HStack(alignment: .lastTextBaseline, spacing: 3) {
                 Text("\(minutes / 60)")
-                    .font(.system(size: 50, weight: .light))
+                    .font(pixel ? PixelFont.font(40) : .system(size: 50, weight: .light))
                 Text(AppLocalization.text("小时"))
-                    .font(.system(size: 23))
+                    .font(pixel ? PixelFont.font(14) : .system(size: 23))
                 Text("\(minutes % 60)")
-                    .font(.system(size: 50, weight: .light))
+                    .font(pixel ? PixelFont.font(40) : .system(size: 50, weight: .light))
                 Text(AppLocalization.text("分"))
-                    .font(.system(size: 23))
+                    .font(pixel ? PixelFont.font(14) : .system(size: 23))
             }
             .foregroundStyle(Color(hex: 0xF7F1EA))
             .monospacedDigit()
@@ -179,7 +252,7 @@ struct HistorySleepCard: View {
             // trail and axis still start at the earliest recorded interval, so
             // a pre-sleep awake stretch stays visible.
             Text("\(SleepTrailFormat.clock(start ?? timeline.start)) — \(SleepTrailFormat.clock(end ?? timeline.end))")
-                .font(.system(size: 14))
+                .font(pixel ? PixelFont.font(12) : .system(size: 14))
                 .foregroundStyle(Color(hex: 0xACB3C8))
                 .monospacedDigit()
         }
@@ -189,23 +262,31 @@ struct HistorySleepCard: View {
         HStack {
             ForEach(SleepTrailPalette.stageOrder, id: \.rawValue) { stage in
                 HStack(spacing: 4) {
-                    if embedded {
-                        Circle()
-                            .fill(SleepTrailPalette.color(stage))
-                            .frame(width: 12, height: 12)
+                    if embedded || pixel {
+                        Rectangle()
+                            .fill(pixel ? Self.pixelStageColor(stage) : SleepTrailPalette.color(stage))
+                            .frame(width: embedded && !pixel ? 12 : 10, height: 10)
                     } else {
                         Capsule()
                             .fill(SleepTrailPalette.color(stage))
                             .frame(width: 16, height: 10)
                     }
                     Text(stage.trailDisplayName)
-                        .font(.system(size: 12))
+                        .font(pixel ? PixelFont.font(11) : .system(size: 12))
                         .foregroundStyle(Color(hex: 0xC4CBDC))
                 }
                 if stage != SleepTrailPalette.stageOrder.last { Spacer(minLength: 0) }
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// The strip's own four inks, so the legend and the sky agree exactly.
+    private static func pixelStageColor(_ stage: SleepStage) -> Color {
+        let index = max(0, min(RECORD_SLEEP_STAGE_HEX.count - 1, stage.rawValue))
+        let hex = RECORD_SLEEP_STAGE_HEX[index]
+        let value = UInt32(hex, radix: 16) ?? 0
+        return Color(pixelHex: value)
     }
 
     // MARK: Stageless

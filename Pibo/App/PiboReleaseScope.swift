@@ -65,6 +65,10 @@ enum PiboReleaseScope {
     /// 用 `-PiboPixelHome` 打开像素舞台（它自带 Pibo 的日程，不需要 Home 的依赖）。
     static var pixelHome: Bool { on(false, "-PiboPixelHome") }
 
+    /// 决定 063：记录卡（睡眠／步数／活动）的像素画面与纸框。跟着像素首页一起打开，
+    /// 因为它们是同一个世界的两半；`-PiboPixelHistory` 可以单独打开。
+    static var pixelHistory: Bool { on(false, "-PiboPixelHistory", "-PiboPixelHome") }
+
     /// 本版森林是否展示／允许操作这件物件。隐藏物件不跳过：它挡住的后续链一并不出现。
     static func allowsOrnament(_ id: PiboOrnament.ID) -> Bool {
         switch id {

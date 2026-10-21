@@ -17,7 +17,68 @@ struct HistoryActivityCard: View {
     var exerciseGoal: Int = 0
     var standGoal: Int = 0
 
+    private var intensities: [Double] {
+        Self.dropIntensities(
+            kcal: kcal, exerciseMinutes: exerciseMinutes, standHours: standHours,
+            moveGoal: moveGoal, exerciseGoal: exerciseGoal, standGoal: standGoal
+        )
+    }
+
     var body: some View {
+        if PiboReleaseScope.pixelHistory {
+            pixelBody
+        } else {
+            legacyBody
+        }
+    }
+
+    /// 决定 063: the same three numbers, over the pixel pond instead of the metal water.
+    private var pixelBody: some View {
+        PixelRecordCard(title: "活动") {
+            VStack(spacing: 0) {
+                HStack(alignment: .top, spacing: LP.Spacing.s) {
+                    pixelStat("卡路里", kcal.map { "\($0)" } ?? "—", "kcal")
+                    pixelStat("运动", exerciseMinutes.map { "\($0)" } ?? "—", "min")
+                    pixelStat("站立", standHours.map { "\($0)" } ?? "—", "h")
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+
+                if kcal != nil || exerciseMinutes != nil || standHours != nil {
+                    PixelActivityPondView(intensities: intensities)
+                        .padding(.horizontal, 4)
+                        .padding(.bottom, 4)
+                } else {
+                    Text(AppLocalization.text("暂无活动记录"))
+                        .font(.system(size: 12))
+                        .foregroundStyle(PixelUIColor.inkSoft)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+                }
+            }
+        }
+    }
+
+    private func pixelStat(_ label: String, _ value: String, _ unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(AppLocalization.text(label))
+                .font(PixelFont.font(11))
+                .foregroundStyle(PixelUIColor.inkSoft)
+            HStack(alignment: .lastTextBaseline, spacing: 3) {
+                Text(value)
+                    .font(PixelFont.font(22))
+                    .foregroundStyle(PixelUIColor.ink)
+                Text(unit)
+                    .font(PixelFont.font(11))
+                    .foregroundStyle(PixelUIColor.inkSoft)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var legacyBody: some View {
         HistoryCard(title: "活动", background: { background }) {
             VStack(spacing: 0) {
                 HStack(alignment: .top, spacing: LP.Spacing.s) {
@@ -29,14 +90,11 @@ struct HistoryActivityCard: View {
                 .padding(.bottom, LP.Spacing.s)
 
                 if kcal != nil || exerciseMinutes != nil || standHours != nil {
-                    WaterSurface(intensities: Self.dropIntensities(
-                        kcal: kcal, exerciseMinutes: exerciseMinutes, standHours: standHours,
-                        moveGoal: moveGoal, exerciseGoal: exerciseGoal, standGoal: standGoal
-                    ))
-                    .frame(height: 86)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, LP.Spacing.l)
-                    .padding(.bottom, LP.Spacing.l)
+                    WaterSurface(intensities: intensities)
+                        .frame(height: 86)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, LP.Spacing.l)
+                        .padding(.bottom, LP.Spacing.l)
                 } else {
                     Text(AppLocalization.text("暂无活动记录"))
                         .lpText(LP.Typography.c1Regular)

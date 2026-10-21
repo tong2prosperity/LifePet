@@ -409,6 +409,8 @@ struct SleepCloudTrailCanvas: View {
 /// Start / interior-hour / end labels under the trail.
 struct SleepTrailRuler: View {
     let timeline: SleepTrailTimeline
+    /// 决定 063: the pixel record card draws its axis in the pixel face too.
+    var pixel = false
 
     var body: some View {
         Canvas { context, size in
@@ -429,7 +431,7 @@ struct SleepTrailRuler: View {
                 context.stroke(tick, with: .color(lineColor), lineWidth: 0.7)
                 let label = context.resolve(
                     Text(SleepTrailFormat.clock(time))
-                        .font(.system(size: 11).monospacedDigit())
+                        .font(pixel ? PixelFont.font(11) : .system(size: 11).monospacedDigit())
                         .foregroundStyle(Color(hex: 0xAAB2C7))
                 )
                 let anchor: UnitPoint = index == 0

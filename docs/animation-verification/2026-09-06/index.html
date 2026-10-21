@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pibo · 原生动画接入审阅</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f2ec;color:#293c39;font:16px/1.65 system-ui,-apple-system,"PingFang SC",sans-serif}main{max-width:1140px;margin:auto;padding:56px 28px 70px}h1{font-size:clamp(30px,5vw,48px);letter-spacing:-1.5px;line-height:1.15;margin:12px 0 18px}h2{font-size:24px;line-height:1.35;margin:0 0 12px}p{margin:0 0 16px;max-width:790px}.eyebrow{font-size:12px;letter-spacing:2px;color:#6b8073}.muted,figcaption{color:#69766e;font-size:14px}.pills{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0 36px}.pills span{background:#e1e8db;border-radius:30px;padding:6px 14px;font-size:13px}section{margin-top:34px;padding:28px;background:#fffefa;border:1px solid #e1e4d9;border-radius:22px}.video-row{display:grid;grid-template-columns:310px 1fr;gap:34px;align-items:center}video{display:block;width:100%;max-height:670px;background:#dde5d9;border-radius:18px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}.food{grid-template-columns:repeat(3,1fr)}figure{margin:0}figure img{display:block;width:100%;border-radius:12px;background:#eee}figcaption{margin-top:10px}figcaption b{display:block;color:#293c39;font-size:15px}.food img{aspect-ratio:1;object-fit:cover;object-position:center 53%}a{color:#3b6854;text-underline-offset:4px}button{font:inherit;cursor:pointer;border:1px solid #b8c6b4;border-radius:24px;background:#edf2e7;color:#35513d;padding:8px 16px;margin-right:8px}button:focus-visible,a:focus-visible{outline:3px solid #758f39;outline-offset:4px}footer{margin-top:26px;color:#69766e;font-size:13px}ul{padding-left:20px;margin:0 0 20px}li{margin:8px 0}.divider{border-top:1px solid #e4e8dc;padding-top:18px;margin-top:22px}@media(max-width:760px){main{padding:32px 16px}section{padding:20px}.video-row{grid-template-columns:1fr}video{max-width:300px;margin:auto}.grid{grid-template-columns:repeat(2,1fr)}.food{grid-template-columns:repeat(3,1fr);gap:9px}.food figcaption{font-size:12px}}
+</style>
+<main>
+  <div class="eyebrow">PIBO / NATIVE MOTION / 2026.09.06</div>
+  <h1>精修动画，已经进入两端 App。</h1>
+  <p>六种健康状态，11 种持续表现。疲倦会慢慢安顿，醒来需要重新聚焦；看到食物时，先把目光投过去。</p>
+  <div class="pills"><span>iOS · SpriteKit</span><span>HarmonyOS · Canvas</span><span>v5.2 · 共 37 段</span><span>Core 0.21.0</span></div>
+  <section class="video-row" aria-label="疲倦安顿原生录屏">
+    <video id="settle" controls muted playsinline preload="metadata" poster="ios-tired.png"><source src="ios-settle-rest-review.mp4" type="video/mp4">可<a href="ios-settle-rest-review.mp4">下载静音录屏</a>。</video>
+    <div>
+      <div class="eyebrow">01 / 原生首页 · iPhone 17 模拟器</div>
+      <h2>疲倦 → 安顿 → 持续休息</h2>
+      <p>身体缓慢降低，脚部保持落点，眼皮有重量。4.2 秒安顿完成后，Pibo 保持休息，不会弹回清醒待机。</p>
+      <p class="muted">11 秒静音实录。另在转场完成约两分钟后检查了休息姿态。</p>
+      <button type="button" onclick="document.querySelector('#settle').playbackRate=1">正常速度</button><button type="button" onclick="document.querySelector('#settle').playbackRate=.5">半速检查</button>
+      <p class="divider muted">在两端 Debug「森林细节」面板选择各个表现，再点击「观察左侧／观察右侧」，可直接审阅完整原生动作。</p>
+    </div>
+  </section>
+  <section>
+    <div class="eyebrow">02 / 两端原生首页截图</div>
+    <h2>同一套表情与姿态，在各自森林里播放。</h2>
+    <p class="muted">点击图片查看原尺寸。各模拟器已有健康数据不同，头顶 bo 的填充量并非本次对照对象。</p>
+    <div class="grid">
+      <figure><a href="ios-tired.png"><img src="ios-tired.png" alt="iOS 首页中的疲倦 Pibo" loading="lazy"></a><figcaption><b>iOS · 疲倦</b>沉重眼皮，缓慢呼吸</figcaption></figure>
+      <figure><a href="ios-resting.png"><img src="ios-resting.png" alt="iOS 首页中持续侧倚休息的 Pibo" loading="lazy"></a><figcaption><b>iOS · 持续休息</b>安顿后保持侧倚</figcaption></figure>
+      <figure><a href="harmony-tired.jpeg"><img src="harmony-tired.jpeg" alt="鸿蒙首页中的疲倦 Pibo" loading="lazy"></a><figcaption><b>鸿蒙 · 疲倦</b>共用轮廓与动作数据</figcaption></figure>
+      <figure><a href="harmony-resting.jpeg"><img src="harmony-resting.jpeg" alt="鸿蒙首页中持续侧倚休息的 Pibo" loading="lazy"></a><figcaption><b>鸿蒙 · 持续休息</b>维持同一行为语义</figcaption></figure>
+    </div>
+  </section>
+  <section>
+    <div class="eyebrow">03 / 原生 CHARACTER LAB · 固定 1.9 秒</div>
+    <h2>看向食物，方向更清楚。</h2>
+    <p>面部先朝食物移动，身体轻微跟随；疲倦仍然是疲倦。观察结束后回到当前姿态。</p>
+    <div class="grid food">
+      <figure><a href="ios-food-left.png"><img src="ios-food-left.png" alt="疲倦 Pibo 朝画面左侧观察" loading="lazy"></a><figcaption><b>← 观察左侧</b>视线与面部向左</figcaption></figure>
+      <figure><a href="ios-food-baseline.png"><img src="ios-food-baseline.png" alt="疲倦 Pibo 未观察食物时的姿态" loading="lazy"></a><figcaption><b>疲倦待机</b>同一时刻的基准姿态</figcaption></figure>
+      <figure><a href="ios-food-right.png"><img src="ios-food-right.png" alt="疲倦 Pibo 朝画面右侧观察" loading="lazy"></a><figcaption><b>观察右侧 →</b>视线与面部向右</figcaption></figure>
+    </div>
+    <p class="muted divider">以上是实际 SpriteKit 渲染器的纯动作取证；未创建餐食贴纸、历史或奖励。正式流程仍需服务端确认食物后触发。</p>
+  </section>
+  <section>
+    <h2>本次接入与验证</h2>
+    <ul><li>11 个持续表现、3 个转场、22 个左右食物观察，以及已批准的拍一拍。</li><li>疲倦休息、安稳思考、初醒恢复不足和问候后表现，均接入现有状态与会话行为。</li><li>未解锁吊床时在苔藓睡眠／初醒，已解锁继续使用批准的吊床睡姿与初醒资源。</li><li>Core 测试、iOS 全量与专项测试、鸿蒙全部检查、两端构建和媒体同步检查通过。</li></ul>
+    <p class="muted">本页是模拟器验证。手机真机的持续帧率、温升与耗电仍待实测。</p>
+    <a href="README.md">查看集成记录与复验方法</a>
+  </section>
+  <footer>同一媒体母版 → 两端原生播放。正式健康状态始终由 pibo-core 决定。</footer>
+</main>
+</html>

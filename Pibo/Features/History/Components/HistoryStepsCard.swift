@@ -51,7 +51,115 @@ struct HistoryStepsCard: View {
 
     var body: some View {
         let cols = Self.columns(steps: steps, hourlySteps: hourlySteps)
-        HistoryCard(title: "步数", background: { LP.Fill.bgContainer }) {
+        card(cols)
+            .onAppear { startReveal() }
+            .onChange(of: cols) { _, _ in
+                selectedIndex = nil
+                resetReveal()
+            }
+            // 换了一天就把拖动杆的选中丢掉 —— 索引在新的一天依然合法，不清的话中间那格会
+            // 静悄悄显示新数据里同一小时的值。
+            .onChange(of: dayID) { _, _ in
+                selectedIndex = nil
+                resetReveal()
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(AppLocalization.text("步数"))
+            .accessibilityValue(accessibilityValue(cols))
+            .accessibilityHint(hasHourly ? AppLocalization.text("上下轻扫逐小时查看") : "")
+            .accessibilityAdjustableAction { direction in
+                guard hasHourly else { return }
+                switch direction {
+                case .increment: selectAdjacent(offset: 1, in: cols)
+                case .decrement: selectAdjacent(offset: -1, in: cols)
+                @unknown default: break
+                }
+            }
+    }
+
+    @ViewBuilder
+    private func card(_ cols: [Int]) -> some View {
+        if PiboReleaseScope.pixelHistory {
+            PixelRecordCard(title: "步数") { pixelContent(cols) }
+        } else {
+            HistoryCard(title: "步数", background: { LP.Fill.bgContainer }) { legacyContent(cols) }
+        }
+    }
+
+    /// 决定 063: the day's total grown into a slope — a stone, a sprout, a pine or a tall
+    /// tree — over the pixel hills. The ruler and hour labels stay real data.
+    private func pixelContent(_ cols: [Int]) -> some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                Text(steps.map { "\($0)" } ?? "—")
+                    .font(PixelFont.font(26))
+                    .foregroundStyle(PixelUIColor.ink)
+                    .monospacedDigit()
+                Text("步")
+                    .font(PixelFont.font(12))
+                    .foregroundStyle(PixelUIColor.inkSoft)
+                    .padding(.bottom, 4)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, 6)
+
+            if cols.isEmpty {
+                Text(AppLocalization.text(steps == nil ? "暂无步数记录" : "已记录全天步数，暂无分时记录"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(PixelUIColor.inkSoft)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 16)
+            } else {
+                VStack(spacing: 4) {
+                    PixelStepsSlopeView(steps: steps ?? 0, isToday: isToday && hasHourly)
+                        .frame(maxWidth: .infinity)
+                    VStack(spacing: 4) {
+                        TickRuler()
+                            .stroke(PixelUIColor.inkSoft.opacity(0.5), lineWidth: 1)
+                            .frame(height: 8)
+                        if hasHourly {
+                            pixelAxisLabels(peak: peakCallout(cols), selected: selectedCallout(cols))
+                        } else {
+                            Text(AppLocalization.text(isToday ? "今日累计步数" : "当日累计步数"))
+                                .font(PixelFont.font(11))
+                                .foregroundStyle(PixelUIColor.inkSoft)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                }
+                .padding(.bottom, 12)
+            }
+        }
+    }
+
+    private func pixelAxisLabels(peak: (range: String, steps: Int)?,
+                                 selected: (range: String, steps: Int)?) -> some View {
+        let callout = selected ?? peak
+        return HStack(spacing: 4) {
+            Text(String(format: "%02d:00", Self.startHour))
+                .font(PixelFont.font(11))
+                .foregroundStyle(PixelUIColor.inkSoft)
+            Spacer(minLength: 0)
+            if let callout {
+                HStack(spacing: 4) {
+                    Text(callout.range)
+                    Text("\(callout.steps)步")
+                }
+                .font(PixelFont.font(11))
+                .foregroundStyle(selected == nil ? PixelUIColor.inkSoft.opacity(0.7) : PixelUIColor.inkSoft)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            }
+            Spacer(minLength: 0)
+            Text(String(format: "%02d:00", Self.endHour))
+                .font(PixelFont.font(11))
+                .foregroundStyle(PixelUIColor.inkSoft)
+        }
+    }
+
+    private func legacyContent(_ cols: [Int]) -> some View {
+        VStack(spacing: 0) {
             HStack(alignment: .bottom, spacing: LP.Spacing.s) {
                 Text(steps.map { "\($0)" } ?? "—")
                     .lpText(LP.Typography.uiH4)
@@ -100,29 +208,6 @@ struct HistoryStepsCard: View {
                     }
                     .padding(.horizontal, 16)   // Figma 321-in-353 inset
                 }
-            }
-        }
-        .onAppear { startReveal() }
-        .onChange(of: cols) { _, _ in
-            selectedIndex = nil
-            resetReveal()
-        }
-        // 换了一天就把拖动杆的选中丢掉 —— 索引在新的一天依然合法，不清的话中间那格会
-        // 静悄悄显示新数据里同一小时的值。
-        .onChange(of: dayID) { _, _ in
-            selectedIndex = nil
-            resetReveal()
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(AppLocalization.text("步数"))
-        .accessibilityValue(accessibilityValue(cols))
-        .accessibilityHint(hasHourly ? AppLocalization.text("上下轻扫逐小时查看") : "")
-        .accessibilityAdjustableAction { direction in
-            guard hasHourly else { return }
-            switch direction {
-            case .increment: selectAdjacent(offset: 1, in: cols)
-            case .decrement: selectAdjacent(offset: -1, in: cols)
-            @unknown default: break
             }
         }
     }
