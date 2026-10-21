@@ -60,6 +60,8 @@ struct HomeView: View {
     @State private var storyPaper: PiboStoryPaper?
     /// Decision 057: the queue that plays growth moments on Home one at a time.
     @State private var growthUI = HomeGrowthController()
+    /// Decision 062: the badge's readout, open from the HUD without the ornament.
+    @State private var readoutOpen = false
     @State private var contextualActions = HomeContextualActionCoordinator()
     @State private var ornamentDiscovery = OrnamentDiscoveryStore()
     @State private var discoveryTask: Task<Void, Never>?
@@ -148,6 +150,22 @@ struct HomeView: View {
 
     private var statusObserverUsesSample: Bool {
         statusObserverPresentation.usesSample
+    }
+
+    /// Decision 062: the badge Pibo wears opens today's readout for everyone, from the
+    /// status bar — nothing to buy first. The ornament still opens it in the forest.
+    private var statusObserverShown: Bool {
+        PiboReleaseScope.pixelHome ? (readoutOpen || statusObserverCardVisible)
+            : statusObserverCardVisible
+    }
+
+    /// The report's seven columns: this week's records, oldest first.
+    private var statusObserverWeek: [HealthDayRecord] {
+        let calendar = Calendar.current
+        let end = atmosphereClock.now
+        let start = calendar.date(byAdding: .day, value: -6,
+                                  to: calendar.startOfDay(for: end)) ?? end
+        return history.records(from: start, to: end)
     }
 
     private var statusObserverOwnsHealthStatus: Bool {
@@ -729,9 +747,9 @@ struct HomeView: View {
                 .zIndex(5)
 
             chromeContent
-                .accessibilityHidden(stagePaused || statusObserverCardVisible)
-                .opacity(statusObserverCardVisible ? 0 : 1)
-                .allowsHitTesting(!statusObserverCardVisible)
+                .accessibilityHidden(stagePaused || statusObserverShown)
+                .opacity(statusObserverShown ? 0 : 1)
+                .allowsHitTesting(!statusObserverShown)
 
             // Decision 057's sheets, over the forest but under the full-screen covers.
             if PiboReleaseScope.pixelHome, let pixelSheet {
@@ -804,17 +822,43 @@ struct HomeView: View {
                 .transition(.opacity)
             }
 
-            if statusObserverCardVisible {
-                statusObserverPanel
-                    .zIndex(20)
-                    .transition(reduceMotion
-                        ? .identity
-                        : .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
-                                .animation(.easeOut(duration: 0.24)),
-                            removal: .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
-                                .animation(.easeOut(duration: 0.16))
-                        ))
+            if statusObserverShown {
+                Group {
+                    if PiboReleaseScope.pixelHome {
+                        // Decision 062: the badge's readout, printed on Pibo's paper.
+                        GeometryReader { proxy in
+                            StatusObserverReportHost(
+                                record: history.record(on: atmosphereClock.now),
+                                historyRecords: statusObserverWeek,
+                                availability: health.dataAvailability,
+                                usesMock: statusObserverUsesSample,
+                                dayCount: store.dayCount,
+                                badgeState: piboPixelActivity(animationPresentation.stateID).rawValue,
+                                badgeCracked: !seasons.podFixed,
+                                panelTop: 72,
+                                stageWidth: proxy.size.width,
+                                stageHeight: proxy.size.height,
+                                onClose: closeReadout,
+                                onCheckHealth: {
+                                    closeReadout()
+                                    speechPresentation.dismiss()
+                                    presentation.activeSheet = .healthDataStatus
+                                }
+                            )
+                        }
+                    } else {
+                        statusObserverPanel
+                    }
+                }
+                .zIndex(20)
+                .transition(reduceMotion
+                    ? .identity
+                    : .asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
+                            .animation(.easeOut(duration: 0.24)),
+                        removal: .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
+                            .animation(.easeOut(duration: 0.16))
+                    ))
             }
 
             HomeStoryRecoveryOverlay(
@@ -1140,6 +1184,17 @@ struct HomeView: View {
                     default: nil
                     }
                 }
+                // `-PiboObserver=1` opens the readout: the simulator cannot tap the HUD.
+                if ProcessInfo.processInfo.arguments.contains("-PiboObserver=1") {
+                    Task {
+                        try? await Task.sleep(for: .seconds(2))
+                        if PiboReleaseScope.pixelHome {
+                            readoutOpen = true
+                        } else if !statusObserverPresentation.isOpen {
+                            toggleStatusObserver()
+                        }
+                    }
+                }
                 #endif
                 shadowSync.setSnapshotDraft(shadowSnapshotDraft)
                 reconcileShadowFriendFlow()
@@ -1461,8 +1516,13 @@ struct HomeView: View {
             },
             onOpenReadout: {
                 LPHaptics.tap()
-                PiboSoundEffectService.shared.play(.observerOpen)
-                if !statusObserverPresentation.isOpen { toggleStatusObserver() }
+                if PiboReleaseScope.pixelHome {
+                    // Decision 062: the badge opens today's readout for everyone.
+                    readoutOpen = true
+                } else {
+                    PiboSoundEffectService.shared.play(.observerOpen)
+                    if !statusObserverPresentation.isOpen { toggleStatusObserver() }
+                }
             }
         )
     }
@@ -1733,6 +1793,12 @@ struct HomeView: View {
         debugControls.showsForestPanel = false
         statusObserverPresentation.close()
         speechPresentation.dismiss()
+    }
+
+    /// The badge's readout closes both ways it can be open.
+    private func closeReadout() {
+        readoutOpen = false
+        closeStatusObserver()
     }
 
     private func handleDebugRequest(_ request: HomeDebugRequest) {

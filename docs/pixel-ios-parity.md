@@ -63,6 +63,7 @@
 | `.../Pixel/UI/DaySheets.swift` | `pixel/ui/DaySheets.ets` | 森林地图（三张场景缩略图、等级门槛、一起去）与收藏架（24 格剪影、摆出来／收回来、散步日记） |
 | `.../Pixel/UI/StorySheets.swift` | `pixel/ui/StorySheets.ets` | 第一季的纸：报告、来信、旧笔记（横线纸、划掉的错页、落款） |
 | `.../Pixel/PixelStageHits.swift` | `pixel/PixelStage.ets`（`updateHitRegions`） | 舞台的全部可点框：地点、装饰、收藏篮、摆出来的收藏、野餐垫与贴纸、诱饵、两季的物件、Pibo 与叶子 |
+| `.../Pixel/UI/ReadoutReport.swift` | `pixel/ui/ReadoutReport.ets` + `components/home/HomeStatusObserver.ets` | 读数徽章的报告：结论与分数、睡眠／负荷、七日方块、主要依据的便签、撕边纸条（按格打印出来） |
 | `.../Wellness/WellnessReadout.swift` | `models/WellnessReadout.ets` | 今日一句话结论、不可用标题／细节、分段与原因文案、更新时间 |
 
 字体：鸿蒙用 `font.registerFont({ familyName: 'PiboPixel' })` 起别名；Core Text 没有别名，
@@ -86,6 +87,9 @@ iOS 直接向文件里的族名 `Fusion Pixel 12px Prop zh-Hans` 取字，`Pixel
 - 第一季的纸（报告／来信／旧笔记）由 `StoryPaperHost` 显示，弹层与成长页同一套纸框；
   `-PiboSeasonMoment=season:notebook|season:report|season:open-letter` 在舞台就绪两秒后
   打开对应的一页（正常路径是点舞台上的旧舱与信箱）。
+- 读数徽章的报告（决定 062）在像素模式下替代旧的状态观测卡片：HUD 的读数行对所有人打开
+  （`readoutOpen`，不经过观测仪物件），纸条从徽章下方按格打印出来，`-PiboObserver=1` 可直接看。
+  非像素模式仍是原来的 `statusObserverPanel`。
 - 舞台会接住手势了（`PixelStageHits.swift`）：点哪里由同一帧的布局算出框，最上面那个赢。
   Pibo 身上双击是拍一拍（先让导演播，再交给 Home 的拍一拍对话与成长反馈），单击是瞥一眼
   （收起当前那句）；叶子上拉是收取 bo；路牌开地图、篮子开收藏架、食物贴纸开这一餐；
@@ -119,8 +123,9 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 ### 1. 像素 UI 外壳（剩余）
 
 - 已完成：`PixelUI`、`GrowthHud`、`GrowthSheets`（含升级卡与拍立得卡）、`PixelFont`、
-  `WellnessReadout`、`PolaroidStore`、`HomeGrowthController`、`DaySheets`、`StorySheets`。
-- 待移植：`RecordWindows`（309）、`ReadoutReport`（370）、`FootprintsDiary`（196）、
+  `WellnessReadout`、`PolaroidStore`、`HomeGrowthController`、`DaySheets`、`StorySheets`、
+  `ReadoutReport`（含 `HomeStatusObserver` 的纸条外壳）。
+- 待移植：`RecordWindows`（309）、`FootprintsDiary`（196）、
   `PixelMonthCalendar`（167）、`PixelViewfinder`（144）、`PixelOnboardingArt`（98）、
   `PodPanelArt`（47）、`PixelPortrait`（42）。
 - 成长页的拍立得一段还没接上（`PolaroidStore` 已有 `latest`，等足迹页一起做）。
