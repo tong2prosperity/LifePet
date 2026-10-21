@@ -1,0 +1,210 @@
+{"id": "growth.awaySummary.001", "event": "awaySummary", "tone": "gentle", "text": "你不在的时候，昨晚的睡眠给我送来好多能量！", "kind": 0}
+{"id": "growth.awaySummary.002", "event": "awaySummary", "tone": "gentle", "text": "你睡觉的时候，我的叶子在长~", "kind": 0}
+{"id": "growth.awaySummary.003", "event": "awaySummary", "tone": "gentle", "text": "昨晚的睡眠到了，叶子长了一截！", "kind": 0}
+{"id": "growth.awaySummary.004", "event": "awaySummary", "tone": "tease", "text": "你睡得香，我长得快。嘿嘿。", "kind": 0}
+{"id": "growth.awaySummary.005", "event": "awaySummary", "tone": "tease", "text": "你在床上躺着，我在这儿噌噌长。", "kind": 0}
+{"id": "growth.awaySummary.006", "event": "awaySummary", "tone": "oldFriend", "text": "老样子：你睡觉，我长高。", "kind": 0}
+{"id": "growth.awaySummary.007", "event": "awaySummary", "tone": "oldFriend", "text": "睡眠能量收到！多多益善~", "kind": 0}
+{"id": "growth.awaySummary.008", "event": "awaySummary", "tone": "gentle", "text": "你走的那些路，都变成叶子里的能量了。", "kind": 1}
+{"id": "growth.awaySummary.009", "event": "awaySummary", "tone": "gentle", "text": "你在外面走，我在这儿长~", "kind": 1}
+{"id": "growth.awaySummary.010", "event": "awaySummary", "tone": "gentle", "text": "步数送来的能量，我收下啦！", "kind": 1}
+{"id": "growth.awaySummary.011", "event": "awaySummary", "tone": "tease", "text": "你走了那么多路，我一步没动，也长高了。", "kind": 1}
+{"id": "growth.awaySummary.012", "event": "awaySummary", "tone": "tease", "text": "你出腿，我长叶。好划算！", "kind": 1}
+{"id": "growth.awaySummary.013", "event": "awaySummary", "tone": "oldFriend", "text": "你走路的时候，我在这儿数。数着数着就长了。", "kind": 1}
+{"id": "growth.awaySummary.014", "event": "awaySummary", "tone": "oldFriend", "text": "你的腿今天好忙啊~", "kind": 1}
+{"id": "growth.awaySummary.015", "event": "awaySummary", "tone": "gentle", "text": "你刚才动起来了吧？我这边都感觉到了！", "kind": 2}
+{"id": "growth.awaySummary.016", "event": "awaySummary", "tone": "gentle", "text": "活动的能量到了，叶子精神多了。", "kind": 2}
+{"id": "growth.awaySummary.017", "event": "awaySummary", "tone": "gentle", "text": "你刚才好有劲！我感觉到了。", "kind": 2}
+{"id": "growth.awaySummary.018", "event": "awaySummary", "tone": "tease", "text": "你在外面热身，我在这儿热叶子。", "kind": 2}
+{"id": "growth.awaySummary.019", "event": "awaySummary", "tone": "tease", "text": "你出了汗，我长了叶子。谢谢你~", "kind": 2}
+{"id": "growth.awaySummary.020", "event": "awaySummary", "tone": "oldFriend", "text": "你又去运动了吧？叶子告诉我的。", "kind": 2}
+{"id": "growth.awaySummary.021", "event": "awaySummary", "tone": "oldFriend", "text": "活动能量收到！我伸个懒腰庆祝一下~", "kind": 2}
+{"id": "growth.awaySummary.022", "event": "awaySummary", "tone": "gentle", "text": "你不在的时候，森林一直在给我攒东西。"}
+{"id": "growth.awaySummary.023", "event": "awaySummary", "tone": "gentle", "text": "欢迎回来！叶子长了一点点。"}
+{"id": "growth.awaySummary.024", "event": "awaySummary", "tone": "tease", "text": "你一走，我就偷偷长。"}
+{"id": "growth.awaySummary.025", "event": "awaySummary", "tone": "oldFriend", "text": "回来啦。我没闲着，长了一截！"}
+{"id": "growth.levelUp.001", "event": "levelUp", "tone": "gentle", "text": "我好像……变了一点？"}
+{"id": "growth.levelUp.002", "event": "levelUp", "tone": "gentle", "text": "长大的感觉，痒痒的~"}
+{"id": "growth.levelUp.003", "event": "levelUp", "tone": "gentle", "text": "诶？我变大了！是你养的哦。"}
+{"id": "growth.levelUp.004", "event": "levelUp", "tone": "gentle", "text": "又升了一级！今天的空气都好闻。"}
+{"id": "growth.levelUp.005", "event": "levelUp", "tone": "tease", "text": "我变厉害了！……但还是不会做饭。"}
+{"id": "growth.levelUp.006", "event": "levelUp", "tone": "tease", "text": "升级了！先不告诉松鼠。"}
+{"id": "growth.levelUp.007", "event": "levelUp", "tone": "tease", "text": "升级啦！嘿嘿，嘿嘿嘿。"}
+{"id": "growth.levelUp.008", "event": "levelUp", "tone": "oldFriend", "text": "又长大了一点。不急，慢慢来。"}
+{"id": "growth.levelUp.009", "event": "levelUp", "tone": "oldFriend", "text": "我升级了！你要请客吗？"}
+{"id": "growth.levelUp.010", "event": "levelUp", "tone": "oldFriend", "text": "这一级，我想慢慢享受一下~"}
+{"id": "growth.levelUp.011", "event": "levelUp", "tone": "gentle", "text": "我学会伸懒腰了！啊——~你也伸一个？", "level": 2}
+{"id": "growth.levelUp.012", "event": "levelUp", "tone": "gentle", "text": "我长大一圈了！叶子也变长了。", "level": 3}
+{"id": "growth.levelUp.013", "event": "levelUp", "tone": "gentle", "text": "我会数石头了！一、二……好多。", "level": 4}
+{"id": "growth.levelUp.014", "event": "levelUp", "tone": "gentle", "text": "第二片叶子长出来了！它们在打招呼。", "level": 5}
+{"id": "growth.levelUp.015", "event": "levelUp", "tone": "gentle", "text": "有小围巾了！风吹来也不怕~", "level": 6}
+{"id": "growth.levelUp.016", "event": "levelUp", "tone": "tease", "text": "围巾到手！我是森林里最时髦的麻薯。", "level": 6}
+{"id": "growth.levelUp.017", "event": "levelUp", "tone": "gentle", "text": "我长成大 Pibo 了！还学会了哼歌~", "level": 7}
+{"id": "growth.levelUp.018", "event": "levelUp", "tone": "tease", "text": "我长大了！……但还是想被摸摸。", "level": 7}
+{"id": "growth.levelUp.019", "event": "levelUp", "tone": "gentle", "text": "叶子上冒出一个花苞！我不敢乱动了。", "level": 8}
+{"id": "growth.levelUp.020", "event": "levelUp", "tone": "tease", "text": "橡果帽是松鼠掉的。我先戴着，它没说不行。", "level": 9}
+{"id": "growth.levelUp.021", "event": "levelUp", "tone": "gentle", "text": "开花了！原来我也会开花！", "level": 10}
+{"id": "growth.levelUp.022", "event": "levelUp", "tone": "oldFriend", "text": "开花了。这一路，谢谢你在。", "level": 10}
+{"id": "growth.levelUp.023", "event": "levelUp", "tone": "tease", "text": "我背上小背包啦！里面只有一颗石头。", "level": 12}
+{"id": "growth.levelUp.024", "event": "levelUp", "tone": "gentle", "text": "从今天起，夜里我的叶子会发光！你迷路就往这边看。", "level": 15}
+{"id": "growth.heartUp.001", "event": "heartUp", "tone": "gentle", "text": "我们好像又熟了一点~", "level": 0}
+{"id": "growth.heartUp.002", "event": "heartUp", "tone": "gentle", "text": "心里暖暖的。", "level": 0}
+{"id": "growth.heartUp.003", "event": "heartUp", "tone": "gentle", "text": "今天也被你照顾到了。", "level": 0}
+{"id": "growth.heartUp.004", "event": "heartUp", "tone": "tease", "text": "又多一颗心！我好容易被收买的。", "level": 1}
+{"id": "growth.heartUp.005", "event": "heartUp", "tone": "tease", "text": "又熟了一点。那我说话就不客气啦~", "level": 1}
+{"id": "growth.heartUp.006", "event": "heartUp", "tone": "oldFriend", "text": "这颗心我收下了。我给你起了个外号，不告诉你。", "level": 2}
+{"id": "growth.heartUp.007", "event": "heartUp", "tone": "oldFriend", "text": "心又满了一格！我们是铁哥们了。", "level": 2}
+{"id": "growth.heartUp.008", "event": "heartUp", "tone": "gentle", "text": "多了一颗心~"}
+{"id": "growth.toneUnlocked.001", "event": "toneUnlocked", "tone": "tease", "text": "我们算熟了吧？那我以后说话就直一点啦。", "level": 1}
+{"id": "growth.toneUnlocked.002", "event": "toneUnlocked", "tone": "tease", "text": "熟了熟了！以后我要开始吐槽你了。", "level": 1}
+{"id": "growth.toneUnlocked.003", "event": "toneUnlocked", "tone": "tease", "text": "叮！你解锁了：嘴有点欠的 Pibo。", "level": 1}
+{"id": "growth.toneUnlocked.004", "event": "toneUnlocked", "tone": "oldFriend", "text": "老朋友了。以后互相吐槽，不许生气哦。", "level": 2}
+{"id": "growth.toneUnlocked.005", "event": "toneUnlocked", "tone": "oldFriend", "text": "我们现在不用客气了，对吧？", "level": 2}
+{"id": "growth.toneUnlocked.006", "event": "toneUnlocked", "tone": "oldFriend", "text": "从今天起，你的糗事我都记着。好事也记着。", "level": 2}
+{"id": "growth.wishDone.001", "event": "wishDone", "tone": "gentle", "text": "走到了！叶子都跟着晃~", "kind": 0}
+{"id": "growth.wishDone.002", "event": "wishDone", "tone": "tease", "text": "步数达成！你的鞋比我还开心。", "kind": 0}
+{"id": "growth.wishDone.003", "event": "wishDone", "tone": "oldFriend", "text": "走完啦。今天的路，我都记着。", "kind": 0}
+{"id": "growth.wishDone.004", "event": "wishDone", "tone": "gentle", "text": "活动满了！好有精神~", "kind": 1}
+{"id": "growth.wishDone.005", "event": "wishDone", "tone": "tease", "text": "动够啦！你今天比风车还能转。", "kind": 1}
+{"id": "growth.wishDone.006", "event": "wishDone", "tone": "oldFriend", "text": "达成！我在这儿给你鼓掌，啪啪啪！", "kind": 1}
+{"id": "growth.wishDone.007", "event": "wishDone", "tone": "gentle", "text": "被拍够了~好满足。", "kind": 2}
+{"id": "growth.wishDone.008", "event": "wishDone", "tone": "tease", "text": "拍够三下了！手感不错吧？我自己觉得不错。", "kind": 2}
+{"id": "growth.wishDone.009", "event": "wishDone", "tone": "oldFriend", "text": "摸摸任务完成！你很懂嘛。", "kind": 2}
+{"id": "growth.wishDone.010", "event": "wishDone", "tone": "gentle", "text": "谢谢你给我看！看起来好好吃。", "kind": 3}
+{"id": "growth.wishDone.011", "event": "wishDone", "tone": "tease", "text": "看到了！我没有流口水……我也没有嘴。", "kind": 3}
+{"id": "growth.wishDone.012", "event": "wishDone", "tone": "oldFriend", "text": "又一顿饭！我记下了。", "kind": 3}
+{"id": "growth.wishDone.013", "event": "wishDone", "tone": "gentle", "text": "谢谢你回答我！我会好好记着。", "kind": 4}
+{"id": "growth.wishDone.014", "event": "wishDone", "tone": "tease", "text": "你回答了！我还以为你会装没看见。", "kind": 4}
+{"id": "growth.wishDone.015", "event": "wishDone", "tone": "oldFriend", "text": "你的答案我收下了，存进小本子。", "kind": 4}
+{"id": "growth.wishDone.016", "event": "wishDone", "tone": "gentle", "text": "昨晚睡够啦！叶子亮亮的~", "kind": 5}
+{"id": "growth.wishDone.017", "event": "wishDone", "tone": "tease", "text": "睡够了！今天的睡眠冠军是你。参赛的也只有你。", "kind": 5}
+{"id": "growth.wishDone.018", "event": "wishDone", "tone": "oldFriend", "text": "睡得好！这才是我认识的你。", "kind": 5}
+{"id": "growth.wishDone.019", "event": "wishDone", "tone": "gentle", "text": "一个小心愿实现了！"}
+{"id": "growth.wishDone.020", "event": "wishDone", "tone": "tease", "text": "盖章！啪！盖得好正。"}
+{"id": "growth.patCap.001", "event": "patCap", "tone": "gentle", "text": "今天被摸了好多次~明天再来呀。"}
+{"id": "growth.patCap.002", "event": "patCap", "tone": "gentle", "text": "今天的拍拍我都收到了，够啦~"}
+{"id": "growth.patCap.003", "event": "patCap", "tone": "tease", "text": "今天的摸摸额度用完啦，明天请早~"}
+{"id": "growth.patCap.004", "event": "patCap", "tone": "tease", "text": "再拍也不会长经验啦。但你想拍就拍吧。"}
+{"id": "growth.patCap.005", "event": "patCap", "tone": "oldFriend", "text": "你今天拍我的次数，够我回味到明天了。"}
+{"id": "growth.patCap.006", "event": "patCap", "tone": "oldFriend", "text": "好啦好啦，知道你喜欢我~"}
+{"id": "growth.decorPlaced.001", "event": "decorPlaced", "tone": "gentle", "text": "蘑菇凳放好了！软软的。", "kind": 0}
+{"id": "growth.decorPlaced.002", "event": "decorPlaced", "tone": "tease", "text": "蘑菇凳！我坐不上去，但它是我的。", "kind": 0}
+{"id": "growth.decorPlaced.003", "event": "decorPlaced", "tone": "gentle", "text": "名牌立好了！上面写着我们认识的天数。", "kind": 1}
+{"id": "growth.decorPlaced.004", "event": "decorPlaced", "tone": "tease", "text": "有名牌了！松鼠路过就知道这里有人住。", "kind": 1}
+{"id": "growth.decorPlaced.005", "event": "decorPlaced", "tone": "gentle", "text": "石头堆起来了！以后我讲一件石头的事，就多放一颗。", "kind": 2}
+{"id": "growth.decorPlaced.006", "event": "decorPlaced", "tone": "tease", "text": "石头堆！我的石头终于有家了。", "kind": 2}
+{"id": "growth.decorPlaced.007", "event": "decorPlaced", "tone": "gentle", "text": "花圃种好了！你走一千步，它就开一朵。", "kind": 3}
+{"id": "growth.decorPlaced.008", "event": "decorPlaced", "tone": "tease", "text": "花圃到位！开不开花，看你的腿~", "kind": 3}
+{"id": "growth.decorPlaced.009", "event": "decorPlaced", "tone": "gentle", "text": "风车装好了！你动起来，它就转。", "kind": 4}
+{"id": "growth.decorPlaced.010", "event": "decorPlaced", "tone": "tease", "text": "风车来了！你动得越多，它转得越快。", "kind": 4}
+{"id": "growth.decorPlaced.011", "event": "decorPlaced", "tone": "gentle", "text": "月亮灯挂好了！你睡得好，它就亮。", "kind": 5}
+{"id": "growth.decorPlaced.012", "event": "decorPlaced", "tone": "tease", "text": "月亮灯到手！它比我还关心你几点睡。", "kind": 5}
+{"id": "growth.decorPlaced.013", "event": "decorPlaced", "tone": "gentle", "text": "小池塘挖好了！里面住进了一只青蛙。", "kind": 6}
+{"id": "growth.decorPlaced.014", "event": "decorPlaced", "tone": "tease", "text": "池塘有了！青蛙不太理人……", "kind": 6}
+{"id": "growth.decorPlaced.015", "event": "decorPlaced", "tone": "gentle", "text": "秋千挂好了！我精神好的时候就去荡。", "kind": 7}
+{"id": "growth.decorPlaced.016", "event": "decorPlaced", "tone": "tease", "text": "秋千！我还不太会荡，先看看。", "kind": 7}
+{"id": "growth.decorPlaced.017", "event": "decorPlaced", "tone": "gentle", "text": "篝火搭好了！天黑以后会点起来。", "kind": 8}
+{"id": "growth.decorPlaced.018", "event": "decorPlaced", "tone": "tease", "text": "篝火有了！今晚好暖和~", "kind": 8}
+{"id": "growth.decorPlaced.019", "event": "decorPlaced", "tone": "gentle", "text": "帐篷支起来了！像要去露营。", "kind": 9}
+{"id": "growth.decorPlaced.020", "event": "decorPlaced", "tone": "tease", "text": "帐篷！我们哪儿也不去，但好像在露营~", "kind": 9}
+{"id": "growth.decorPlaced.021", "event": "decorPlaced", "tone": "oldFriend", "text": "新东西放好了。这片空地越来越像家了。"}
+{"id": "growth.decorTapped.001", "event": "decorTapped", "tone": "gentle", "text": "这个凳子好软。我试过，坐不上去。", "kind": 0}
+{"id": "growth.decorTapped.002", "event": "decorTapped", "tone": "tease", "text": "蘑菇凳是用来看的，不是用来坐的。……我坐不上去。", "kind": 0}
+{"id": "growth.decorTapped.003", "event": "decorTapped", "tone": "gentle", "text": "第 {day} 天了。", "kind": 1}
+{"id": "growth.decorTapped.004", "event": "decorTapped", "tone": "tease", "text": "名牌上写着第 {day} 天。日子过得好快！", "kind": 1}
+{"id": "growth.decorTapped.005", "event": "decorTapped", "tone": "gentle", "text": "每颗石头都有一个故事。", "kind": 2}
+{"id": "growth.decorTapped.006", "event": "decorTapped", "tone": "tease", "text": "别数了，我数过了！", "kind": 2}
+{"id": "growth.decorTapped.007", "event": "decorTapped", "tone": "gentle", "text": "花是你走出来的哦。", "kind": 3}
+{"id": "growth.decorTapped.008", "event": "decorTapped", "tone": "tease", "text": "想多开几朵？嘿嘿，你知道怎么做。", "kind": 3}
+{"id": "growth.decorTapped.009", "event": "decorTapped", "tone": "gentle", "text": "风车在转！这是你今天动起来的样子。", "kind": 4}
+{"id": "growth.decorTapped.010", "event": "decorTapped", "tone": "tease", "text": "风车说它今天好累，都怪你太能动了。", "kind": 4}
+{"id": "growth.decorTapped.011", "event": "decorTapped", "tone": "gentle", "text": "月亮灯记得你昨晚睡得怎么样。", "kind": 5}
+{"id": "growth.decorTapped.012", "event": "decorTapped", "tone": "tease", "text": "月亮灯从来不说谎。我偶尔会。", "kind": 5}
+{"id": "growth.decorTapped.013", "event": "decorTapped", "tone": "gentle", "text": "青蛙今天也不太想理我。", "kind": 6}
+{"id": "growth.decorTapped.014", "event": "decorTapped", "tone": "tease", "text": "青蛙说它很忙。它坐了一整天。", "kind": 6}
+{"id": "growth.decorTapped.015", "event": "decorTapped", "tone": "gentle", "text": "秋千晃了一下。是风吧？", "kind": 7}
+{"id": "growth.decorTapped.016", "event": "decorTapped", "tone": "tease", "text": "我不是不敢荡！我在等一个好天气。", "kind": 7}
+{"id": "growth.decorTapped.017", "event": "decorTapped", "tone": "gentle", "text": "火光暖暖的~", "kind": 8}
+{"id": "growth.decorTapped.018", "event": "decorTapped", "tone": "tease", "text": "别靠太近，我的叶子会卷！", "kind": 8}
+{"id": "growth.decorTapped.019", "event": "decorTapped", "tone": "gentle", "text": "帐篷里好安静。", "kind": 9}
+{"id": "growth.decorTapped.020", "event": "decorTapped", "tone": "tease", "text": "帐篷里什么都没有。但待在里面好舒服~", "kind": 9}
+{"id": "growth.decorTapped.021", "event": "decorTapped", "tone": "oldFriend", "text": "这些东西，都是我们一起攒出来的。"}
+{"id": "growth.starWish.001", "event": "starWish", "tone": "gentle", "text": "流星！我许了一个愿，不能说~"}
+{"id": "growth.starWish.002", "event": "starWish", "tone": "gentle", "text": "流星！我许愿明天也能见到你。"}
+{"id": "growth.starWish.003", "event": "starWish", "tone": "tease", "text": "抓到流星了！一天只能许一个愿哦。"}
+{"id": "growth.starWish.004", "event": "starWish", "tone": "tease", "text": "我许愿叶子长快点！流星好像在笑我。"}
+{"id": "growth.starWish.005", "event": "starWish", "tone": "oldFriend", "text": "我替我们俩许了个愿。保密！"}
+{"id": "growth.starWish.006", "event": "starWish", "tone": "oldFriend", "text": "流星一天只来一次。它好害羞。"}
+{"id": "growth.anniversary.001", "event": "anniversary", "tone": "gentle", "text": "我们认识一周啦！森林里多了一块蛋糕。", "level": 7}
+{"id": "growth.anniversary.002", "event": "anniversary", "tone": "tease", "text": "一周了！蛋糕是我做的，别问用什么做的。", "level": 7}
+{"id": "growth.anniversary.003", "event": "anniversary", "tone": "gentle", "text": "两周了。谢谢你每天来看我。", "level": 14}
+{"id": "growth.anniversary.004", "event": "anniversary", "tone": "tease", "text": "认识两周了！我已经能听出你的脚步声了。", "level": 14}
+{"id": "growth.anniversary.005", "event": "anniversary", "tone": "gentle", "text": "一个月了！时间过得好快。", "level": 30}
+{"id": "growth.anniversary.006", "event": "anniversary", "tone": "oldFriend", "text": "一个月了。我们是老朋友了吧？", "level": 30}
+{"id": "growth.anniversary.007", "event": "anniversary", "tone": "gentle", "text": "第一百天。我想把今天记得久一点。", "level": 100}
+{"id": "growth.anniversary.008", "event": "anniversary", "tone": "oldFriend", "text": "一百天了！插一百根蜡烛会着火的，就插一根吧。", "level": 100}
+{"id": "growth.anniversary.009", "event": "anniversary", "tone": "gentle", "text": "今天是特别的日子！我们认识第 {day} 天了。"}
+{"id": "growth.anniversary.010", "event": "anniversary", "tone": "tease", "text": "第 {day} 天！蛋糕我先替你尝了一口。"}
+{"id": "growth.anniversary.011", "event": "anniversary", "tone": "oldFriend", "text": "第 {day} 天了，老朋友。"}
+{"id": "growth.morningSleep.001", "event": "morningSleep", "tone": "gentle", "text": "昨晚睡得有点少。我陪你慢慢醒。", "band": 0}
+{"id": "growth.morningSleep.002", "event": "morningSleep", "tone": "gentle", "text": "今天我们都慢一点吧~", "band": 0}
+{"id": "growth.morningSleep.003", "event": "morningSleep", "tone": "gentle", "text": "眼皮有点重？我也是。", "band": 0}
+{"id": "growth.morningSleep.004", "event": "morningSleep", "tone": "tease", "text": "你睡得少……我替你多睡了两个小时。", "band": 0}
+{"id": "growth.morningSleep.005", "event": "morningSleep", "tone": "tease", "text": "昨晚有点短。看，我的眼袋都出来了。", "band": 0}
+{"id": "growth.morningSleep.006", "event": "morningSleep", "tone": "oldFriend", "text": "昨晚短了点。今天慢慢来。", "band": 0}
+{"id": "growth.morningSleep.007", "event": "morningSleep", "tone": "oldFriend", "text": "没睡够的早上，就别硬撑啦。", "band": 0}
+{"id": "growth.morningSleep.008", "event": "morningSleep", "tone": "gentle", "text": "早上好！昨晚睡得还行。", "band": 1}
+{"id": "growth.morningSleep.009", "event": "morningSleep", "tone": "gentle", "text": "新的一天！叶子醒了~", "band": 1}
+{"id": "growth.morningSleep.010", "event": "morningSleep", "tone": "tease", "text": "早~昨晚睡得不多不少，刚刚好。", "band": 1}
+{"id": "growth.morningSleep.011", "event": "morningSleep", "tone": "oldFriend", "text": "早。昨晚还挺规矩嘛。", "band": 1}
+{"id": "growth.morningSleep.012", "event": "morningSleep", "tone": "gentle", "text": "昨晚睡得真好！我眼睛都亮了。", "band": 2}
+{"id": "growth.morningSleep.013", "event": "morningSleep", "tone": "gentle", "text": "睡饱的早上，森林都是亮的~", "band": 2}
+{"id": "growth.morningSleep.014", "event": "morningSleep", "tone": "tease", "text": "睡这么好？你昨晚是变成石头了吗？", "band": 2}
+{"id": "growth.morningSleep.015", "event": "morningSleep", "tone": "tease", "text": "睡得超好！今天可以骄傲一下~", "band": 2}
+{"id": "growth.morningSleep.016", "event": "morningSleep", "tone": "oldFriend", "text": "睡得好的你，我最喜欢。别的时候也喜欢。", "band": 2}
+{"id": "growth.morningSleep.017", "event": "morningSleep", "tone": "oldFriend", "text": "昨晚睡得像块石头！夸你的。", "band": 2}
+{"id": "growth.sourceInfo.001", "event": "sourceInfo", "tone": "gentle", "text": "这是昨晚的睡眠送来的能量。睡得越好，叶子长得越快。", "kind": 0, "band": 1}
+{"id": "growth.sourceInfo.002", "event": "sourceInfo", "tone": "tease", "text": "睡眠能量！躺着就能攒，好棒的事。", "kind": 0, "band": 1}
+{"id": "growth.sourceInfo.003", "event": "sourceInfo", "tone": "gentle", "text": "睡眠的能量，要等昨晚的记录到了才会来。", "kind": 0, "band": 0}
+{"id": "growth.sourceInfo.004", "event": "sourceInfo", "tone": "tease", "text": "睡眠这格还空着。等昨晚的记录到了就有。", "kind": 0, "band": 0}
+{"id": "growth.sourceInfo.005", "event": "sourceInfo", "tone": "gentle", "text": "这是今天的步数送来的能量。走得越多，叶子长得越快。", "kind": 1, "band": 1}
+{"id": "growth.sourceInfo.006", "event": "sourceInfo", "tone": "tease", "text": "步数能量！你的每一步，我都偷偷记着。", "kind": 1, "band": 1}
+{"id": "growth.sourceInfo.007", "event": "sourceInfo", "tone": "gentle", "text": "步数还没送能量来。随便走走就会有。", "kind": 1, "band": 0}
+{"id": "growth.sourceInfo.008", "event": "sourceInfo", "tone": "tease", "text": "步数这格还空着。不急，我又跑不掉。", "kind": 1, "band": 0}
+{"id": "growth.sourceInfo.009", "event": "sourceInfo", "tone": "gentle", "text": "这是今天的活动送来的能量。你动起来，风车也会转。", "kind": 2, "band": 1}
+{"id": "growth.sourceInfo.010", "event": "sourceInfo", "tone": "tease", "text": "活动能量！你出的汗，变成了我的叶子。", "kind": 2, "band": 1}
+{"id": "growth.sourceInfo.011", "event": "sourceInfo", "tone": "gentle", "text": "活动的能量还没来。动一动它就来了。", "kind": 2, "band": 0}
+{"id": "growth.sourceInfo.012", "event": "sourceInfo", "tone": "tease", "text": "活动这格还空着。风车也在发呆。", "kind": 2, "band": 0}
+{"id": "growth.sourceInfo.013", "event": "sourceInfo", "tone": "gentle", "text": "这是你的身体今天送给我的能量。"}
+{"id": "growth.shake.001", "event": "shake", "tone": "gentle", "text": "哇啊啊——晕~晕~的~"}
+{"id": "growth.shake.002", "event": "shake", "tone": "gentle", "text": "地震了吗！？哦，是你。"}
+{"id": "growth.shake.003", "event": "shake", "tone": "tease", "text": "别摇啦！我是麻薯，不是骰子！"}
+{"id": "growth.shake.004", "event": "shake", "tone": "tease", "text": "再摇，叶子要甩出去了！"}
+{"id": "growth.shake.005", "event": "shake", "tone": "tease", "text": "我不是雪花球！摇不出雪的！"}
+{"id": "growth.shake.006", "event": "shake", "tone": "oldFriend", "text": "摇我？我记下了。下次你睡着，我也摇你。"}
+{"id": "growth.shake.007", "event": "shake", "tone": "oldFriend", "text": "晕了晕了……你今天好闲啊~"}
+{"id": "growth.polaroid.001", "event": "polaroid", "tone": "gentle", "text": "今天的森林，我帮你拍下来了。"}
+{"id": "growth.polaroid.002", "event": "polaroid", "tone": "gentle", "text": "咔嚓！今天收进相册啦。"}
+{"id": "growth.polaroid.003", "event": "polaroid", "tone": "gentle", "text": "晚上的森林最安静，拍一张留个纪念。"}
+{"id": "growth.polaroid.004", "event": "polaroid", "tone": "gentle", "text": "今天也一起过完了，拍一张~"}
+{"id": "growth.polaroid.005", "event": "polaroid", "tone": "gentle", "text": "站好了！咔嚓——存好啦。"}
+{"id": "growth.polaroid.006", "event": "polaroid", "tone": "tease", "text": "这张我好上镜！你没入镜，可惜。"}
+{"id": "growth.polaroid.007", "event": "polaroid", "tone": "tease", "text": "今天的摄影师也是我！"}
+{"id": "growth.polaroid.008", "event": "polaroid", "tone": "tease", "text": "咔嚓！啊，我刚才眨眼了……就这张吧。"}
+{"id": "growth.polaroid.009", "event": "polaroid", "tone": "oldFriend", "text": "又一张！相册越来越厚了。"}
+{"id": "growth.polaroid.010", "event": "polaroid", "tone": "oldFriend", "text": "你看我叶子这个角度，专业吧？"}
+{"id": "growth.firstMarker.001", "event": "firstMarker", "tone": "gentle", "text": "这是你第一次拍我的记号。", "kind": 0}
+{"id": "growth.firstMarker.002", "event": "firstMarker", "tone": "tease", "text": "第一次被拍，我其实吓了一跳！", "kind": 0}
+{"id": "growth.firstMarker.003", "event": "firstMarker", "tone": "gentle", "text": "我们第一次一起收 bo，就在这儿。", "kind": 1}
+{"id": "growth.firstMarker.004", "event": "firstMarker", "tone": "oldFriend", "text": "第一枚 bo！那天你拉得特别小心。", "kind": 1}
+{"id": "growth.firstMarker.005", "event": "firstMarker", "tone": "gentle", "text": "第一次在吊床上睡着的那晚，月亮好圆。", "kind": 2}
+{"id": "growth.firstMarker.006", "event": "firstMarker", "tone": "tease", "text": "第一晚睡吊床。我打呼了吗？不许说！", "kind": 2}
+{"id": "growth.firstMarker.007", "event": "firstMarker", "tone": "gentle", "text": "你第一次给我看你吃了什么，我记着呢。", "kind": 3}
+{"id": "growth.firstMarker.008", "event": "firstMarker", "tone": "oldFriend", "text": "第一顿饭的记号。我当时看得好认真。", "kind": 3}
+{"id": "growth.firstMarker.009", "event": "firstMarker", "tone": "gentle", "text": "这是我们的一个第一次。"}
+{"id": "growth.decorPlaced.022", "event": "decorPlaced", "tone": "gentle", "text": "小船拴在小溪边了！去那边能看到。", "kind": 10}
+{"id": "growth.decorPlaced.023", "event": "decorPlaced", "tone": "tease", "text": "我有船了。虽然只能在小溪里漂。", "kind": 10}
+{"id": "growth.decorPlaced.024", "event": "decorPlaced", "tone": "gentle", "text": "风筝插在山坡上了，等一个有风的晴天。", "kind": 11}
+{"id": "growth.decorPlaced.025", "event": "decorPlaced", "tone": "tease", "text": "风筝！放之前我得先学会不被它拽跑。", "kind": 11}
+{"id": "growth.decorPlaced.026", "event": "decorPlaced", "tone": "gentle", "text": "望远镜架在山顶了。晚上一起去看星星？", "kind": 12}
+{"id": "growth.decorPlaced.027", "event": "decorPlaced", "tone": "tease", "text": "望远镜到手！星星们，躲好了。", "kind": 12}
