@@ -16,10 +16,10 @@
 
 ### Core
 
-- `pibo-core 0.34.1`：C ABI 早已有 `day`／`explore`／`season`／`echo`／`emote`／`shape`，
+- `pibo-core 0.34.2`：C ABI 早已有 `day`／`explore`／`season`／`echo`／`emote`／`shape`，
   但 Swift 包没有包装，iOS 读不到。新增 `Sources/PiboCore/PiboDay.swift`（纯类型映射，
-  规则仍全在 Rust），并补上 `pibo_decor_scene` 与 QWeather 条件／风廓线。
-- iOS 依赖从 `0.24.0` 提到 `0.34.1`，`Package.resolved` 同步；旧调用点全部照常编译。
+  规则仍全在 Rust），并补上 `pibo_decor_scene`（0.34.2）与 QWeather 条件／风廓线。
+- iOS 依赖从 `0.24.0` 提到 `0.34.2`，`Package.resolved` 同步；旧调用点全部照常编译。
 
 ### 渲染与画面
 
@@ -33,6 +33,29 @@
 | `.../Character/*` | `pixel/character/*` | Pibo 身体／叶子／表情／动作／一天姿态／变形形态 |
 | `.../Scene/*` | `pixel/scene/*`、`pixel/effects/*`、`pixel/day/PixelShape.ets` | 森林静态与生命层、地点、装饰、季节、第二季、氛围、收藏、野餐垫、光源、特效 |
 | `.../PixelStageView.swift` | `pixel/PixelStage.ets` 的 `renderFrame` | 按批准的绘制顺序合成一帧：静态森林 → 生命层 → 地点 → 季节 → 装饰后层 → Pibo → 前层 → 灯光 |
+| `.../Day/PixelDayDirector.swift` | `pixel/day/PixelDayDirector.ets` | 节拍机：走路／做事／等待／下台／瞬移／回调，漫游点、过溪石、躲藏、伪装、变形阶段与剧本表演 |
+| `.../Day/HomeDayController.swift` | `services/day/HomeDayController.ets` | 把 Core 的 `day_choose`／`explore_trip`／`echo_choose` 变成舞台计划，问候、邀请、换场、出门、离家日记 |
+| `.../Day/HomeSeasonController.swift` | `services/day/HomeSeasonController.ets` | 两季各七拍的分镜、季节之间的来信、报告与旧笔记、木板与过溪 |
+
+### 存储与协调（规则全部读 Core）
+
+| Swift 位置 | 对应 ArkTS | 内容 |
+| --- | --- | --- |
+| `Pibo/Services/Growth/*` | `services/growth/*` | `GrowthStore`、`WishStore`、`DecorStore`、`GrowthCoordinator`、`GrowthCopyCatalog`、`GrowthPresentation` |
+| `Pibo/Services/Day/PiboDayStore.swift` | `services/day/PiboDayStore.ets` | 场景、出行、收藏、离家日记、展示位，键 `pibo_day/state.v1` |
+| `Pibo/Services/Day/PiboSeasonStore.swift` | `services/day/PiboSeasonStore.ets` | 两季节拍进度、来信、报告、木板与笔记页，键 `pibo_season/state.v1` |
+| `Pibo/Services/Day/PiboDayPresentation.swift` | `services/day/PiboDayPresentation.ets` | 收藏／目的地／场景／回声的本地化名字 |
+| `Pibo/Services/Day/MealStickerPixels.swift` | `services/day/MealStickerPixels.ets` | 把餐食照片解成 24×24 索引贴纸 |
+| `Pibo/Features/Home/Pixel/HomePixelStageLook.swift` | `components/home/HomeForestScene.ets` | 把 Home 的全部状态读成 `PixelStageRenderer.Look`；舞台本身不认识 store |
+
+### 接线
+
+- 五个 store（成长／心愿／装饰／日程／季节）在 `PiboApp` 里创建并注入环境，
+  `GrowthCoordinator` 跟着账本重算一起刷新。
+- 首页可用 `-PiboPixelHome` 切到像素舞台（`PiboReleaseScope.pixelHome`）。它自带 Pibo 的
+  一天，并且已经把真实的健康、账本、成长线索、装饰、季节进度接进来。
+- 舞台在尺寸稳定后会重新上报布局；首次 `onAppear` 时视图还没铺满，只报一次会让导演
+  按旧舞台量出来的点走路。
 
 调色板表、字形表、坐标与绘制顺序与鸿蒙逐字节一致；两个移植子任务各自用 Node 跑原 ArkTS
 并逐帧比对（角色 714 帧、场景 799 行哈希），差异为 0。
@@ -44,26 +67,12 @@
 SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPibo
 ```
 
-`-PiboOpenPixelStage` 同样可用；`-PiboPixelHour=19` 可固定时段截图。
+`-PiboOpenPixelStage` 同样可用；`-PiboPixelHour=19` 固定时段，`-PiboSeasonBeat=N` 当场播放
+第 N 拍，`-PiboForestHour=10` 固定首页森林的光。
 
 ## 待移植（按依赖顺序）
 
-### 1. 日导演与舞台行为
-
-- `pixel/day/PixelDayDirector.ets`（1075）：按 Core `day_choose`／`day_invite`／`day_greet`／
-  `explore_trip`／`echo_choose`／`shape_plan` 驱动走路、活动、躲藏、变形、出门。
-- `pixel/PixelStage.ets` 其余部分：命中区域、双击拍一拍、叶子上拉收取、场景换场横向卷轴、
-  摇一摇、舞台时刻队列、`PixelStageEffects`、`audio/PixelStageSounds`。
-
-### 2. 存储与协调（规则全部读 Core）
-
-- `services/growth/GrowthStore`（288）、`WishStore`、`DecorStore`（123）、`GrowthCoordinator`（234）、
-  `GrowthCopyCatalog`（123）、`GrowthPresentation`。
-- `services/day/PiboDayStore`（307）、`PiboSeasonStore`（326）、`HomeDayController`（1054）、
-  `HomeSeasonController`（939）。
-- 持久化语义必须一致：健康经验由账本推导、只持久化互动经验与每日计数、装饰先扣 `bo` 再记账。
-
-### 3. 像素 UI 外壳
+### 1. 像素 UI 外壳
 
 - `pixel/ui/PixelUI`（267）、`GrowthHud`（150）、`GrowthSheets`（508）、`DaySheets`（291）、
   `RecordWindows`（309）、`ReadoutReport`（370）、`FootprintsDiary`（196）、
@@ -71,16 +80,19 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
   `StorySheets`（88）、`PodPanelArt`（47）、`PixelPortrait`（42）。
 - 像素字体：鸿蒙用 Fusion Pixel 12px 简体子集（OFL-1.1，约 1 MB）。iOS 需同样引入并只在
   气泡、HUD、标题使用；正文与健康图表保持系统字体。
-- 文案：`rawfile/pibo-growth.zh-Hans.jsonl`（185 条，13 个时刻 × 三档语气）与拍一拍
-  `minTone` 过滤。
 
-### 4. 页面接线与旧表现退役
+### 2. 舞台交互
+
+- 命中区域（`updateHitRegions`、地点框、装饰框、餐垫贴纸、诱饵）、双击拍一拍、
+  叶子上拉收取、摇一摇、`audio/PixelStageSounds`。
+- 相机页、读数报告、足迹日记、餐食详情的像素外壳（数据视图沿用现有图表）。
+
+### 3. 页面接线与旧表现退役
 
 - `HomePage`／`Index` 的图层顺序（HUD 在 chrome 之后、成长弹层在反馈之后）。
-- 相机页、读数报告、足迹日记、餐食详情的像素外壳（数据视图沿用现有图表）。
 - 旧 SpriteKit 舞台与旧 UI 在像素版通过验收后整批退役（决定 069）。
 
-### 5. 测试与验收
+### 4. 测试与验收
 
 - 渲染金值：把鸿蒙 `tools/fixtures/pixel-visual-baseline.json` 的帧在 iOS 侧复现，
   加一条 XCTest 逐像素比对。
@@ -105,3 +117,4 @@ xcodebuild ... OTHER_SWIFT_FLAGS='$(inherited) -disable-sandbox'
 | 日期 | 变化 |
 | --- | --- |
 | 2026-10-21 | 建立；Core 0.34.1、渲染基础、角色、场景、舞台预览完成并在模拟器出图 |
+| 2026-10-21 | 日导演与 `renderFrame` 合成；成长／心愿／装饰／日程／季节存储与两个协调器；季节分镜；Core 0.34.2；首页像素舞台接线 |
