@@ -48,6 +48,9 @@ struct PiboSpeechLine: Equatable {
     var data: PiboSpeechData? = nil
     var hasNext = false
     var lingerDuration: TimeInterval? = nil
+    /// A short supporting fact under the line ("步数 +42", "第 7 天"). Growth moments
+    /// (decision 057) put today's number here; the line itself stays in Pibo's voice.
+    var fact: String? = nil
     /// Decision 054: a companion prompt's two preset replies and "我想说…".
     var interaction: PiboSpeechInteraction? = nil
 

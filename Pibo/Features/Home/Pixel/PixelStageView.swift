@@ -11,7 +11,7 @@ import SwiftUI
 /// lives here too, so a frame always has Pibo's position and pose to draw; Home feeds it
 /// Core's answers through `brain`.
 @MainActor
-final class PixelStageRenderer {
+final class PixelStageRenderer: PixelStageMomentTarget {
     /// Logical width the stage aims for; the integer scale follows from the view size.
     static let targetWidth = 136
     static let forestSeed = 2026

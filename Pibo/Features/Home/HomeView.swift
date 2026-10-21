@@ -21,6 +21,7 @@ struct HomeView: View {
     @Environment(GrowthCoordinator.self) private var growthCoordinator
     @Environment(PiboDayStore.self) private var days
     @Environment(PiboSeasonStore.self) private var seasons
+    @Environment(PolaroidStore.self) private var polaroids
     @Environment(WalkDoodleProgressStore.self) private var walkDoodleProgress
     @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
     @Environment(OrnamentLightStore.self) private var ornamentLights
@@ -55,6 +56,8 @@ struct HomeView: View {
     @State private var pixelSeason: HomeSeasonController?
     /// Decision 057: which pixel growth sheet is up, if any.
     @State private var pixelSheet: PixelSheetKind?
+    /// Decision 057: the queue that plays growth moments on Home one at a time.
+    @State private var growthUI = HomeGrowthController()
     @State private var contextualActions = HomeContextualActionCoordinator()
     @State private var ornamentDiscovery = OrnamentDiscoveryStore()
     @State private var discoveryTask: Task<Void, Never>?
@@ -600,6 +603,46 @@ struct HomeView: View {
         pixelDay = controller
         controller.start()
         controller.onStageLayout(renderer.currentLayout)
+
+        // Decision 057: growth moments play on this stage — the effects queue needs a
+        // target, so the controller is bound once the pixel stage exists.
+        growthUI.stageEffects.attach(renderer)
+        growthUI.bind(HomeGrowthController.Dependencies(
+            growth: { growth },
+            coordinator: { growthCoordinator },
+            decor: { decor },
+            ledger: { boLedger },
+            speech: { speechPresentation },
+            companionBusy: { companion.replySheetOpen || companion.holdsSpeech },
+            dayCount: { store.dayCount },
+            polaroids: { polaroids },
+            appActive: { scenePhase == .active },
+            overlayOpen: {
+                presentation.activeSheet != nil || fullScreenFeaturePresented
+                    || pixelSheet != nil || growthUI.levelUpVisible || growthUI.polaroidVisible
+            },
+            // Decision 058's untold trip would turn the away summary into a diary line;
+            // the diary's wording is not ported yet, so the generic summary plays.
+            awayDiary: { nil },
+            lastWorkoutEndedAt: { store.lastWorkoutEndedAt },
+            lastWorkoutKind: { nil }
+        ))
+        growthUI.start()
+
+        #if DEBUG
+        // `-PiboGrowthMoment=growth:level` plays one growth moment once the stage is up:
+        // the simulator cannot drive the queue on its own.
+        if let raw = ProcessInfo.processInfo.arguments
+            .first(where: { $0.hasPrefix("-PiboGrowthMoment=") })?
+            .dropFirst("-PiboGrowthMoment=".count) {
+            let moment = String(raw)
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                LPLog.day.notice("growth moment \(self.growthUI.debugRun(moment), privacy: .public)")
+            }
+        }
+        #endif
+
         LPLog.day.info(
             "pixel stage layout \(renderer.currentLayout.width, privacy: .public)x\(renderer.currentLayout.height, privacy: .public) ground=\(renderer.currentLayout.groundY, privacy: .public)"
         )
@@ -666,6 +709,32 @@ struct HomeView: View {
                     onClose: { self.pixelSheet = nil }
                 )
                 .zIndex(40)
+                .transition(.opacity)
+            }
+
+            // Decision 057's level-up reveal and evening print, over everything else.
+            if PiboReleaseScope.pixelHome, growthUI.levelUpVisible {
+                ZStack {
+                    PixelUIColor.scrim
+                        .ignoresSafeArea()
+                        .onTapGesture { growthUI.closeLevelUp() }
+                    LevelUpCard(level: growthUI.levelUpLevel, line: growthUI.levelUpLine,
+                                onClose: { growthUI.closeLevelUp() })
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .zIndex(45)
+                .transition(.opacity)
+            }
+
+            if PiboReleaseScope.pixelHome, growthUI.polaroidVisible, let shot = growthUI.polaroid {
+                ZStack {
+                    PixelUIColor.scrim
+                        .ignoresSafeArea()
+                        .onTapGesture { growthUI.closePolaroid() }
+                    PolaroidCard(shot: shot, onClose: { growthUI.closePolaroid() })
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .zIndex(46)
                 .transition(.opacity)
             }
 
@@ -1021,6 +1090,10 @@ struct HomeView: View {
                 soundscape.setCoLightCount(coLightCount(ornamentLights.lit))
                 resumeOrnamentDiscoveryIfNeeded()
             }
+            .onDisappear {
+                // The growth queue belongs to this screen; Home is the only place it plays.
+                growthUI.stop()
+            }
             .onChange(of: ornamentUnlocks.owned) { oldValue, newValue in
                 guard newValue.count > oldValue.count,
                       let next = ornamentUnlocks.nextLocked else { return }
@@ -1221,7 +1294,8 @@ struct HomeView: View {
 
             // Decision 057's growth HUD, top-left over the forest (HarmonyOS
             // `HomePage.GrowthChrome`). Hidden under full-screen surfaces.
-            if PiboReleaseScope.pixelHome, !fullScreenFeaturePresented, pixelSheet == nil {
+            if PiboReleaseScope.pixelHome, !fullScreenFeaturePresented,
+               pixelSheet == nil, !growthUI.levelUpVisible, !growthUI.polaroidVisible {
                 growthHud
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(.leading, 12)

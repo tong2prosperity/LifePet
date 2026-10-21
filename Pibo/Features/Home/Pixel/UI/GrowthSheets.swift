@@ -1,5 +1,6 @@
 import PiboCore
 import SwiftUI
+import UIKit
 
 // The growth sheets (decision 057): 成长, 今日小心愿, 森林装饰, plus the level-up card.
 // Everything they show is Core's answer or the ledger's balance — the sheets only word and
@@ -382,6 +383,76 @@ struct DecorSheet: View {
             hammockMessage = AppLocalization.text("暂时没能保存，请重试")
         case .insufficientBalance, .prerequisiteMissing:
             hammockMessage = AppLocalization.text("bo 还不够，等收取后再来看看")
+        }
+    }
+}
+
+// MARK: - 拍立得
+
+/// The evening print of the forest. Saved only on this phone; sharing goes through the
+/// system share sheet, which also offers saving to Photos.
+struct PolaroidCard: View {
+    var shot: PolaroidShot
+    var onClose: () -> Void = {}
+
+    private var image: UIImage? {
+        UIImage(contentsOfFile: shot.path)
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Text(AppLocalization.text("今天的森林"))
+                .font(PixelFont.font(20))
+                .foregroundStyle(PixelUIColor.leaf)
+
+            if let image {
+                // Contain inside a 4:5-ish frame, like the ArkTS `ImageFit.Contain`.
+                Color.clear
+                    .aspectRatio(0.92, contentMode: .fit)
+                    .overlay {
+                        Image(uiImage: image)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                    }
+                    .accessibilityLabel(AppLocalization.format("%@ 的森林拍立得", shot.day))
+            } else {
+                Rectangle()
+                    .fill(PixelUIColor.paperDim)
+                    .aspectRatio(0.92, contentMode: .fit)
+                    .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+            }
+
+            Text(shot.day)
+                .font(PixelFont.font(12))
+                .foregroundStyle(PixelUIColor.inkSoft)
+            if !shot.caption.isEmpty {
+                Text("「\(shot.caption)」")
+                    .font(PixelFont.font(13))
+                    .foregroundStyle(PixelUIColor.inkSoft)
+                    .multilineTextAlignment(.center)
+            }
+            HStack(spacing: 12) {
+                ShareLink(item: URL(fileURLWithPath: shot.path)) {
+                    Text(AppLocalization.text("分享 / 保存"))
+                        .font(PixelFont.font(14))
+                        .foregroundStyle(PixelUIColor.ink)
+                        .frame(minWidth: 72, minHeight: 40)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(PixelUIColor.paper)
+                        .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                }
+                .accessibilityIdentifier("polaroid-share")
+                PixelButton(label: AppLocalization.text("收好啦"), buttonID: "polaroid-close", onTap: onClose)
+            }
+        }
+        .padding(18)
+        .frame(width: 0.84 * UIScreen.main.bounds.width)
+        .background(PixelUIColor.paper)
+        .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 3))
+        .background(alignment: .bottomTrailing) {
+            Rectangle().fill(PixelUIColor.shadow).offset(x: 4, y: 4)
         }
     }
 }

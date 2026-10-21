@@ -58,6 +58,13 @@ struct PiboSpeechBubbleView: View {
                     .multilineTextAlignment(bodyAlignment)
                     .frame(maxWidth: .infinity, alignment: bodyAlignment == .center ? .center : .leading)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let fact = line.fact, !fact.isEmpty {
+                    Text(fact)
+                        .font(.system(size: 13))
+                        .foregroundStyle(LP.Content.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             if let interaction = line.interaction, let onChoice {

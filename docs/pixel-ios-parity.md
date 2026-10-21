@@ -16,10 +16,12 @@
 
 ### Core
 
-- `pibo-core 0.34.2`：C ABI 早已有 `day`／`explore`／`season`／`echo`／`emote`／`shape`，
+- `pibo-core 0.34.3`：C ABI 早已有 `day`／`explore`／`season`／`echo`／`emote`／`shape`，
   但 Swift 包没有包装，iOS 读不到。新增 `Sources/PiboCore/PiboDay.swift`（纯类型映射，
   规则仍全在 Rust），并补上 `pibo_decor_scene`（0.34.2）与 QWeather 条件／风廓线。
-- iOS 依赖从 `0.24.0` 提到 `0.34.2`，`Package.resolved` 同步；旧调用点全部照常编译。
+  0.34.3 补上 `boat`／`kite`／`telescope` 三个装饰 id —— 此前 `PiboCoreDecorID` 只到
+  `tent`，`catalog` 会把小溪与山坡的三件悄悄丢掉，装饰页因此永远只有「空地」。
+- iOS 依赖从 `0.24.0` 提到 `0.34.3`，`Package.resolved` 同步；旧调用点全部照常编译。
 
 ### 渲染与画面
 
@@ -42,6 +44,8 @@
 | Swift 位置 | 对应 ArkTS | 内容 |
 | --- | --- | --- |
 | `Pibo/Services/Growth/*` | `services/growth/*` | `GrowthStore`、`WishStore`、`DecorStore`、`GrowthCoordinator`、`GrowthCopyCatalog`、`GrowthPresentation` |
+| `Pibo/Services/Growth/PolaroidStore.swift` | `services/growth/PolaroidStore.ets` | 每晚一张森林拍立得：整数倍放大到相纸、存 PNG、留 60 张，键 `pibo_growth_polaroid/shots.v1` |
+| `Pibo/Features/Home/Growth/HomeGrowthController.swift` | `services/growth/HomeGrowthController.ets` | 成长反馈队列：离开摘要、升级、多一颗心、心愿盖章、装饰、流星、纪念日、早晨睡眠、摇一摇、拍立得；每次只演一件，等弹层与气泡让位 |
 | `Pibo/Services/Day/PiboDayStore.swift` | `services/day/PiboDayStore.ets` | 场景、出行、收藏、离家日记、展示位，键 `pibo_day/state.v1` |
 | `Pibo/Services/Day/PiboSeasonStore.swift` | `services/day/PiboSeasonStore.ets` | 两季节拍进度、来信、报告、木板与笔记页，键 `pibo_season/state.v1` |
 | `Pibo/Services/Day/PiboDayPresentation.swift` | `services/day/PiboDayPresentation.ets` | 收藏／目的地／场景／回声的本地化名字 |
@@ -54,6 +58,7 @@
 | --- | --- | --- |
 | `.../Pixel/UI/PixelUI.swift` | `pixel/ui/PixelUI.ets` | 纸色／墨色／叶色等语义色、32 个图标 stamp、面板、文字、按钮、分段条、心、标题、开关 |
 | `.../Pixel/UI/GrowthHud.swift` | `pixel/ui/GrowthHud.ets` | 等级章、金色经验条、熟悉度心、读数徽章行、`bo` 与心愿小条 |
+| `.../Pixel/UI/GrowthSheets.swift` | `pixel/ui/GrowthSheets.ets` | 成长页（英雄图、能量来源、下一级解锁）、今日小心愿、森林装饰（按场景分组、先扣后得）、升级卡与底部弹层宿主 |
 | `.../Pixel/UI/PixelFont.swift` | `pixel/ui/PixelFont.ets` | Fusion Pixel 12px 简体子集（OFL-1.1），12px 整数倍取字号 |
 | `.../Wellness/WellnessReadout.swift` | `models/WellnessReadout.ets` | 今日一句话结论、不可用标题／细节、分段与原因文案、更新时间 |
 
@@ -68,7 +73,15 @@ iOS 直接向文件里的族名 `Fusion Pixel 12px Prop zh-Hans` 取字，`Pixel
 - 首页可用 `-PiboPixelHome` 切到像素舞台（`PiboReleaseScope.pixelHome`）。它自带 Pibo 的
   一天，并且已经把真实的健康、账本、成长线索、装饰、季节进度接进来。
 - 像素模式下 `GrowthHud` 占左上角（12／10），顶栏的旧 `bo` 浮标同时收起，与鸿蒙
-  `HomePage.GrowthChrome` 的位置和遮挡规则一致（全屏页打开时整块隐藏）。
+  `HomePage.GrowthChrome` 的位置和遮挡规则一致（全屏页或成长弹层打开时整块隐藏）。
+- HUD 的四个入口都通了：成长／心愿／装饰打开像素弹层（`PixelSheetHost`），读数打开
+  现有的状态观测仪。调试用 `-PiboPixelSheet=growth|wishes|decor` 直接开某一页。
+- 成长反馈由 `HomeGrowthController` 每 800 ms 取一件来演；升级卡与拍立得卡在首页最上层。
+  `-PiboGrowthMoment=growth:level`（或 `growth:away`／`growth:heart`／`growth:polaroid` 等）
+  在舞台就绪两秒后播放一次。
+- 气泡新增一行 `fact`（小一号的灰字），成长时刻把「步数 +42」「第 7 天」放这里。
+- 吊床在 iOS 没有单独的「放置／收起」状态：解锁即入林，装饰页只如实显示已放置。
+- 离家日记的文案还没移植，离开摘要先走通用那句（`awayDiary` 传 nil）。
 - 舞台在尺寸稳定后会重新上报布局；首次 `onAppear` 时视图还没铺满，只报一次会让导演
   按旧舞台量出来的点走路。
 
@@ -89,13 +102,12 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 
 ### 1. 像素 UI 外壳（剩余）
 
-- 已完成：`PixelUI`、`GrowthHud`、`PixelFont`、`WellnessReadout`。
-- 待移植：`GrowthSheets`（508）、`DaySheets`（291）、`RecordWindows`（309）、
-  `ReadoutReport`（370）、`FootprintsDiary`（196）、`PixelMonthCalendar`（167）、
-  `PixelViewfinder`（144）、`PixelOnboardingArt`（98）、`StorySheets`（88）、
-  `PodPanelArt`（47）、`PixelPortrait`（42）。
-- HUD 上「成长／心愿／装饰」三个入口目前只记日志，等对应弹层移植后接上；
-  「读数」已经能打开现有的状态观测仪。
+- 已完成：`PixelUI`、`GrowthHud`、`GrowthSheets`（含升级卡与拍立得卡）、`PixelFont`、
+  `WellnessReadout`、`PolaroidStore`、`HomeGrowthController`。
+- 待移植：`DaySheets`（291）、`RecordWindows`（309）、`ReadoutReport`（370）、
+  `FootprintsDiary`（196）、`PixelMonthCalendar`（167）、`PixelViewfinder`（144）、
+  `PixelOnboardingArt`（98）、`StorySheets`（88）、`PodPanelArt`（47）、`PixelPortrait`（42）。
+- 成长页的拍立得一段还没接上（`PolaroidStore` 已有 `latest`，等足迹页一起做）。
 
 ### 2. 舞台交互
 
@@ -135,3 +147,5 @@ xcodebuild ... OTHER_SWIFT_FLAGS='$(inherited) -disable-sandbox'
 | 2026-10-21 | 建立；Core 0.34.1、渲染基础、角色、场景、舞台预览完成并在模拟器出图 |
 | 2026-10-21 | 日导演与 `renderFrame` 合成；成长／心愿／装饰／日程／季节存储与两个协调器；季节分镜；Core 0.34.2；首页像素舞台接线 |
 | 2026-10-21 | 像素 UI 起步：`PixelUI`、`GrowthHud`、像素字体注册、`WellnessReadout`；HUD 挂到首页左上角，旧 `bo` 浮标在像素模式收起 |
+| 2026-10-21 | 成长／心愿／装饰弹层与升级卡；Core 0.34.3 补三个装饰 id；HUD 四个入口接通 |
+| 2026-10-21 | 成长反馈队列与每晚拍立得；升级卡、拍立得卡在首页播放；气泡补 `fact` 行 |

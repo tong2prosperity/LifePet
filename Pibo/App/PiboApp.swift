@@ -50,6 +50,8 @@ struct PiboApp: App {
     @State private var days: PiboDayStore
     /// Decisions 059/062: the season's beats, letters and notebook.
     @State private var seasons: PiboSeasonStore
+    /// Decision 057's evening print of the forest, kept on this phone.
+    @State private var polaroids: PolaroidStore
     /// 物件身上被亲手点亮的灯。与解锁再分开一层：解锁是永久的，点灯天亮就作废。
     @State private var ornamentLights = OrnamentLightStore()
     /// One app-wide resolver for all contextual Pibo copy. Views submit cues;
@@ -179,6 +181,7 @@ struct PiboApp: App {
         _growthCoordinator = State(initialValue: coordinatorStore)
         _days = State(initialValue: PiboDayStore())
         _seasons = State(initialValue: PiboSeasonStore())
+        _polaroids = State(initialValue: PolaroidStore())
         onboardingState.configureTemporaryCooperation(
             enabled: PiboReleaseScope.temporaryCooperationOnboarding,
             boLifetimeMinted: ledger.lifetimeMinted,
@@ -321,6 +324,7 @@ struct PiboApp: App {
                 .environment(growthCoordinator)
                 .environment(days)
                 .environment(seasons)
+                .environment(polaroids)
                 .environment(walkDoodleProgress)
                 .environment(ornamentUnlocks)
                 .environment(ornamentLights)
