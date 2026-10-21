@@ -882,7 +882,11 @@ struct PixelStageView: View {
     @State private var day: HomeDayController?
     #endif
 
-    private let renderer = PixelStageRenderer()
+    /// Held in `@State`, not a plain `let`: the view is a struct, so SwiftUI rebuilds it
+    /// whenever Home changes anything. A fresh renderer would come with a fresh day
+    /// director — and the controller bound to the previous one would drive a stage nobody
+    /// draws, leaving Pibo standing in the middle of the path.
+    @State private var renderer = PixelStageRenderer()
     private let timer = Timer.publish(every: 1.0 / 20.0, on: .main, in: .common).autoconnect()
 
     var body: some View {
