@@ -56,6 +56,8 @@ struct HomeView: View {
     @State private var pixelSeason: HomeSeasonController?
     /// Decision 057: which pixel growth sheet is up, if any.
     @State private var pixelSheet: PixelSheetKind?
+    /// Decision 059: the paper the season's beats send home, if one is up.
+    @State private var storyPaper: PiboStoryPaper?
     /// Decision 057: the queue that plays growth moments on Home one at a time.
     @State private var growthUI = HomeGrowthController()
     @State private var contextualActions = HomeContextualActionCoordinator()
@@ -546,9 +548,10 @@ struct HomeView: View {
             },
             overlays: {
                 HomeDayOverlays(
-                    anyOpen: { presentation.activeSheet != nil || fullScreenFeaturePresented },
-                    showDayMap: { _ in },
-                    showShelf: { _ in }
+                    anyOpen: { presentation.activeSheet != nil || fullScreenFeaturePresented
+                        || pixelSheet != nil || storyPaper != nil },
+                    showDayMap: { open in pixelSheet = open ? .dayMap : nil },
+                    showShelf: { open in pixelSheet = open ? .shelf : nil }
                 )
             },
             appActive: { scenePhase == .active },
@@ -590,7 +593,11 @@ struct HomeView: View {
             speak: { text in
                 speechPresentation.show(PiboSpeechLine(text: text))
             },
-            showStoryPaper: { _ in },
+            showStoryPaper: { page in
+                // Decision 059: the report, a letter or the old notebook, over the forest.
+                pixelSheet = nil
+                storyPaper = page
+            },
             changed: { controller.revision += 1 },
             lifeFlags: { controller.lifeFlags(Date().timeIntervalSince1970 * 1000) },
             feel: { _ in }
@@ -619,7 +626,8 @@ struct HomeView: View {
             appActive: { scenePhase == .active },
             overlayOpen: {
                 presentation.activeSheet != nil || fullScreenFeaturePresented
-                    || pixelSheet != nil || growthUI.levelUpVisible || growthUI.polaroidVisible
+                    || pixelSheet != nil || storyPaper != nil
+                    || growthUI.levelUpVisible || growthUI.polaroidVisible
             },
             // Decision 058's untold trip would turn the away summary into a diary line;
             // the diary's wording is not ported yet, so the generic summary plays.
@@ -639,6 +647,17 @@ struct HomeView: View {
             Task {
                 try? await Task.sleep(for: .seconds(2))
                 LPLog.day.notice("growth moment \(self.growthUI.debugRun(moment), privacy: .public)")
+            }
+        }
+        // `-PiboSeasonMoment=season:notebook` runs one season debug step (a beat, a letter,
+        // or one of the paper pages the pod and the mailbox open).
+        if let raw = ProcessInfo.processInfo.arguments
+            .first(where: { $0.hasPrefix("-PiboSeasonMoment=") })?
+            .dropFirst("-PiboSeasonMoment=".count) {
+            let moment = String(raw)
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                LPLog.day.notice("season moment \(season.debugRun(moment), privacy: .public)")
             }
         }
         #endif
@@ -706,10 +725,26 @@ struct HomeView: View {
                     ledger: boLedger,
                     dayCount: store.dayCount,
                     localHour: Int(HomeAtmosphereClock.localHour(at: atmosphereClock.now)),
-                    onClose: { self.pixelSheet = nil }
+                    days: days,
+                    day: pixelDay,
+                    season: Int((pixelDay?.season ?? .summer).rawValue),
+                    onClose: { self.pixelSheet = nil },
+                    onOpenFootprints: { _ in
+                        // Decision 063: the walk diary lives in the footprints. The page
+                        // has no day focus yet, so this lands on its newest day.
+                        self.pixelSheet = nil
+                        presentation.showHistory = true
+                    }
                 )
                 .zIndex(40)
                 .transition(.opacity)
+            }
+
+            // Decision 059's paper: the report home, a letter, or the old notebook.
+            if PiboReleaseScope.pixelHome, let storyPaper {
+                StoryPaperHost(page: storyPaper, onClose: { self.storyPaper = nil })
+                    .zIndex(41)
+                    .transition(.opacity)
             }
 
             // Decision 057's level-up reveal and evening print, over everything else.
@@ -1072,8 +1107,8 @@ struct HomeView: View {
                    let hour = Double(raw) {
                     store.debugForestHour = hour
                 }
-                // `-PiboPixelSheet=growth|wishes|decor` opens a pixel sheet on launch:
-                // the simulator cannot synthesise a tap on the HUD.
+                // `-PiboPixelSheet=growth|wishes|decor|map|shelf` opens a pixel sheet on
+                // launch: the simulator cannot synthesise a tap on the HUD.
                 if let raw = ProcessInfo.processInfo.arguments
                     .first(where: { $0.hasPrefix("-PiboPixelSheet=") })?
                     .dropFirst("-PiboPixelSheet=".count) {
@@ -1081,6 +1116,8 @@ struct HomeView: View {
                     case "growth": .growth
                     case "wishes": .wishes
                     case "decor": .decor
+                    case "map": .dayMap
+                    case "shelf": .shelf
                     default: nil
                     }
                 }
@@ -1295,7 +1332,8 @@ struct HomeView: View {
             // Decision 057's growth HUD, top-left over the forest (HarmonyOS
             // `HomePage.GrowthChrome`). Hidden under full-screen surfaces.
             if PiboReleaseScope.pixelHome, !fullScreenFeaturePresented,
-               pixelSheet == nil, !growthUI.levelUpVisible, !growthUI.polaroidVisible {
+               pixelSheet == nil, storyPaper == nil,
+               !growthUI.levelUpVisible, !growthUI.polaroidVisible {
                 growthHud
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(.leading, 12)

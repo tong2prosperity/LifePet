@@ -414,6 +414,19 @@ final class HomeSeasonController: HomeSeasonStaging {
             host.changed()
             return "信箱来了一封信"
         }
+        // The three pages normally open by tapping the pod or the mailbox on the stage.
+        if id == "season:notebook" {
+            openNotebook()
+            return "旧笔记打开了"
+        }
+        if id == "season:report" {
+            openReport()
+            return "第一份报告打开了"
+        }
+        if id == "season:open-letter" {
+            openLetter()
+            return "来信打开了"
+        }
         if id.hasPrefix("season2:") { return debugRunTwo(id) }
         let beat = Int(id.replacingOccurrences(of: "season:beat-", with: "")) ?? -1
         guard beat >= 1, beat <= PiboCoreSeason.beatCount,

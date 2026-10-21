@@ -147,6 +147,9 @@ struct PixelButton: View {
             .font(PixelFont.font(14))
             .foregroundStyle(primary && active ? Color.white : PixelUIColor.ink)
             .multilineTextAlignment(.center)
+            // ArkUI gives a Text its intrinsic width; SwiftUI would otherwise share the
+            // row's spare space with a flexible sibling and stretch the button.
+            .fixedSize(horizontal: true, vertical: false)
             .frame(minWidth: 72, minHeight: 40)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)

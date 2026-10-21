@@ -465,12 +465,17 @@ enum PixelSheetKind: Equatable, Identifiable {
     case growth
     case wishes
     case decor
+    /// Decision 058: the trail sign's map and the basket's shelf.
+    case dayMap
+    case shelf
 
     var id: String {
         switch self {
         case .growth: "pixel-growth"
         case .wishes: "pixel-wishes"
         case .decor: "pixel-decor"
+        case .dayMap: "pixel-day-map"
+        case .shelf: "pixel-shelf"
         }
     }
 }
@@ -486,7 +491,13 @@ struct PixelSheetHost: View {
     var ledger: BoLedgerStore
     var dayCount = 1
     var localHour = 12
+    /// Pibo's own day: the shelf, the diary and which scene is open.
+    var days: PiboDayStore
+    var day: HomeDayController?
+    var season = 1
     var onClose: () -> Void = {}
+    /// The diary row hands the footprints the day it was written.
+    var onOpenFootprints: (Double) -> Void = { _ in }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -510,6 +521,25 @@ struct PixelSheetHost: View {
             GrowthSheet(growth: growth, onClose: onClose)
         case .wishes:
             WishSheet(wishes: wishes, localHour: localHour, onClose: onClose)
+        case .dayMap:
+            DayMapSheet(current: days.scene,
+                        level: growth.level,
+                        season: season,
+                        minLevel: { scene in
+                            day?.sceneMinLevel(PiboCoreDayScene(rawValue: Int32(scene)) ?? .clearing) ?? 1
+                        },
+                        onClose: onClose,
+                        onTravel: { scene in
+                            // The map steps aside; Pibo walks out of the edge and the scene
+                            // changes off-screen (决定 058).
+                            onClose()
+                            day?.travelTo(PiboCoreDayScene(rawValue: Int32(scene)) ?? .clearing)
+                        })
+        case .shelf:
+            ShelfSheet(days: days,
+                       scene: days.scene,
+                       onClose: onClose,
+                       onOpenFootprints: onOpenFootprints)
         case .decor:
             DecorSheet(decor: decor, ornamentUnlocks: ornaments, ledger: ledger,
                        level: growth.level, balance: ledger.availableBo, dayCount: dayCount,

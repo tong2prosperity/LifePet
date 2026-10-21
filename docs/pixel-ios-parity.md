@@ -60,6 +60,8 @@
 | `.../Pixel/UI/GrowthHud.swift` | `pixel/ui/GrowthHud.ets` | 等级章、金色经验条、熟悉度心、读数徽章行、`bo` 与心愿小条 |
 | `.../Pixel/UI/GrowthSheets.swift` | `pixel/ui/GrowthSheets.ets` | 成长页（英雄图、能量来源、下一级解锁）、今日小心愿、森林装饰（按场景分组、先扣后得）、升级卡与底部弹层宿主 |
 | `.../Pixel/UI/PixelFont.swift` | `pixel/ui/PixelFont.ets` | Fusion Pixel 12px 简体子集（OFL-1.1），12px 整数倍取字号 |
+| `.../Pixel/UI/DaySheets.swift` | `pixel/ui/DaySheets.ets` | 森林地图（三张场景缩略图、等级门槛、一起去）与收藏架（24 格剪影、摆出来／收回来、散步日记） |
+| `.../Pixel/UI/StorySheets.swift` | `pixel/ui/StorySheets.ets` | 第一季的纸：报告、来信、旧笔记（横线纸、划掉的错页、落款） |
 | `.../Wellness/WellnessReadout.swift` | `models/WellnessReadout.ets` | 今日一句话结论、不可用标题／细节、分段与原因文案、更新时间 |
 
 字体：鸿蒙用 `font.registerFont({ familyName: 'PiboPixel' })` 起别名；Core Text 没有别名，
@@ -76,6 +78,13 @@ iOS 直接向文件里的族名 `Fusion Pixel 12px Prop zh-Hans` 取字，`Pixel
   `HomePage.GrowthChrome` 的位置和遮挡规则一致（全屏页或成长弹层打开时整块隐藏）。
 - HUD 的四个入口都通了：成长／心愿／装饰打开像素弹层（`PixelSheetHost`），读数打开
   现有的状态观测仪。调试用 `-PiboPixelSheet=growth|wishes|decor` 直接开某一页。
+- 舞台上的路牌与篮子已经接好：`HomeDayController.onPlaceTapped` 收到 `trailSign`／`basket`
+  就调 `HomeDayOverlays.showDayMap/showShelf`，打开森林地图与收藏架（`-PiboPixelSheet=map|shelf`
+  可直接看）。地图的「一起去」走 `travelTo`：Pibo 从边缘走出去，场景在幕后换掉。
+  收藏架的「日记写在足迹里 ›」先落到足迹页最新一天（iOS 的 `HistoryFocus` 还没有日期焦点）。
+- 第一季的纸（报告／来信／旧笔记）由 `StoryPaperHost` 显示，弹层与成长页同一套纸框；
+  `-PiboSeasonMoment=season:notebook|season:report|season:open-letter` 在舞台就绪两秒后
+  打开对应的一页（正常路径是点舞台上的旧舱与信箱）。
 - 成长反馈由 `HomeGrowthController` 每 800 ms 取一件来演；升级卡与拍立得卡在首页最上层。
   `-PiboGrowthMoment=growth:level`（或 `growth:away`／`growth:heart`／`growth:polaroid` 等）
   在舞台就绪两秒后播放一次。
@@ -103,10 +112,10 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 ### 1. 像素 UI 外壳（剩余）
 
 - 已完成：`PixelUI`、`GrowthHud`、`GrowthSheets`（含升级卡与拍立得卡）、`PixelFont`、
-  `WellnessReadout`、`PolaroidStore`、`HomeGrowthController`。
-- 待移植：`DaySheets`（291）、`RecordWindows`（309）、`ReadoutReport`（370）、
-  `FootprintsDiary`（196）、`PixelMonthCalendar`（167）、`PixelViewfinder`（144）、
-  `PixelOnboardingArt`（98）、`StorySheets`（88）、`PodPanelArt`（47）、`PixelPortrait`（42）。
+  `WellnessReadout`、`PolaroidStore`、`HomeGrowthController`、`DaySheets`、`StorySheets`。
+- 待移植：`RecordWindows`（309）、`ReadoutReport`（370）、`FootprintsDiary`（196）、
+  `PixelMonthCalendar`（167）、`PixelViewfinder`（144）、`PixelOnboardingArt`（98）、
+  `PodPanelArt`（47）、`PixelPortrait`（42）。
 - 成长页的拍立得一段还没接上（`PolaroidStore` 已有 `latest`，等足迹页一起做）。
 
 ### 2. 舞台交互
