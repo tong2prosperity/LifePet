@@ -64,6 +64,12 @@
 | `.../Pixel/UI/StorySheets.swift` | `pixel/ui/StorySheets.ets` | 第一季的纸：报告、来信、旧笔记（横线纸、划掉的错页、落款） |
 | `.../Pixel/PixelStageHits.swift` | `pixel/PixelStage.ets`（`updateHitRegions`） | 舞台的全部可点框：地点、装饰、收藏篮、摆出来的收藏、野餐垫与贴纸、诱饵、两季的物件、Pibo 与叶子 |
 | `.../Pixel/UI/ReadoutReport.swift` | `pixel/ui/ReadoutReport.ets` + `components/home/HomeStatusObserver.ets` | 读数徽章的报告：结论与分数、睡眠／负荷、七日方块、主要依据的便签、撕边纸条（按格打印出来） |
+| `.../Pixel/UI/RecordWindows.swift` | `pixel/ui/RecordWindows.ets` | 记录卡的三张画：睡眠的夜空条（阶段色带＋月亮＋星点＋游标）、步数的山坡（石头／嫩芽／松树／高树，从左长出来）、活动的池塘（三列水滴与涟漪） |
+| `Pibo/Features/History/Components/PixelRecordViews.swift` | `components/HistoryCards.ets` 的像素外壳 | 三张记录卡的纸框、各自的时钟（160／120 ms）与点选：睡眠卡保留刻度尺与图例，步数卡保留分时标签 |
+| `Pibo/Features/History/Footprints/FootprintsDiaryModels.swift` | `models/FootprintsDiaryModels.ets` | 日记的六种条目、固定顺序、月历格子与「地球第 N 天」的日期算法 |
+| `Pibo/Features/History/Footprints/FootprintsDiary.swift` | `pixel/ui/FootprintsDiary.ets` | 「Pibo 写的」：读数一行、散步日记（收藏贴纸＋步数）、地球食物样本（斜贴的方框＋No.N）、森林拍立得 |
+| `Pibo/Features/History/Footprints/PixelMonthCalendar.swift` | `pixel/ui/PixelMonthCalendar.ets` | 「翻到哪一天」：周一起始的月历、绿点／星星／相识红框、今天与选中、只能翻到相识到今天 |
+| `.../Footprints/FootprintsDiarySource.swift` | `services/FootprintsDiarySource.ets` | 把已有记录读成日记的「事实」：读数结论、散步、食物样本、拍立得（只读，不写回、不推断） |
 | `.../Wellness/WellnessReadout.swift` | `models/WellnessReadout.ets` | 今日一句话结论、不可用标题／细节、分段与原因文案、更新时间 |
 
 字体：鸿蒙用 `font.registerFont({ familyName: 'PiboPixel' })` 起别名；Core Text 没有别名，
@@ -104,6 +110,14 @@ iOS 直接向文件里的族名 `Fusion Pixel 12px Prop zh-Hans` 取字，`Pixel
 - 离家日记的文案还没移植，离开摘要先走通用那句（`awayDiary` 传 nil）。
 - 舞台在尺寸稳定后会重新上报布局；首次 `onAppear` 时视图还没铺满，只报一次会让导演
   按旧舞台量出来的点走路。
+- 记录卡（决定 063）跟着 `pixelHistory` 走：睡眠卡换成夜空条（保留刻度尺、图例与点选片段），
+  步数卡换成山坡（保留分时标签），活动卡换成池塘。三张卡都换成纸框＋2 px 墨边＋硬阴影，
+  睡眠卡保留深底（星星画在透明上）。`-PiboPixelHistory` 单独打开，`-PiboPixelHome` 也会带上。
+- 健康记录页在像素模式下就是「足迹」：标题换成「足迹／地球第 N 天」，日期条换成像素翻页
+  （‹ 日期 ▾ ›），「Pibo 写的」贴在记录卡上方，点日期牌摊开像素月历，点读数一行摊开
+  那一天的读数报告。`-PiboHistoryCalendar` 可直接看月历。
+- 拍立得的 `path` 是绝对路径，容器搬家后打不开；`PolaroidShot.fileURL` 会退回当前
+  `Documents/polaroids` 里同名的那张，卡片与日记都走它。
 
 调色板表、字形表、坐标与绘制顺序与鸿蒙逐字节一致；两个移植子任务各自用 Node 跑原 ArkTS
 并逐帧比对（角色 714 帧、场景 799 行哈希），差异为 0。
@@ -124,10 +138,17 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 
 - 已完成：`PixelUI`、`GrowthHud`、`GrowthSheets`（含升级卡与拍立得卡）、`PixelFont`、
   `WellnessReadout`、`PolaroidStore`、`HomeGrowthController`、`DaySheets`、`StorySheets`、
-  `ReadoutReport`（含 `HomeStatusObserver` 的纸条外壳）。
-- 待移植：`RecordWindows`（309）、`FootprintsDiary`（196）、
-  `PixelMonthCalendar`（167）、`PixelViewfinder`（144）、`PixelOnboardingArt`（98）、
-  `PodPanelArt`（47）、`PixelPortrait`（42）。
+  `ReadoutReport`（含 `HomeStatusObserver` 的纸条外壳）、`RecordWindows`、`FootprintsDiary`、
+  `PixelMonthCalendar`。
+- 待移植：`PixelViewfinder`（144）、`PixelOnboardingArt`（98）、`PodPanelArt`（47）、
+  `PixelPortrait`（42）。这四个是纯画法，等相机页、开场、旧舱面板与形象页转像素时一起接。
+- 足迹页本身（`HistoryFloorView`）在 iOS 落在健康记录页上（标题、日期翻页、日记、记录卡、
+  月历、读数报告都通了）；**还差三处数据源**：
+  - 决定 056 的时间线记忆（`services/PiboTimelineStore.ets`，256 行）iOS 没有，
+    所以日记里的「共同的第一次」与「我说过的小事」两类暂时为空 —— 不猜、不补，
+    等这个 store 移植过来再接（`FootprintsDayFacts.firsts/beats` 已经是它的形状）。
+  - 月历的「相识那天」红框要 `store.identity.birthDate`，已接；星星要时间线的 firsts。
+  - 旧舱面板（`PodPanelArt`）与形象页（`PixelPortrait`）还没有对应页面。
 - 成长页的拍立得一段还没接上（`PolaroidStore` 已有 `latest`，等足迹页一起做）。
 
 ### 2. 舞台交互
@@ -172,3 +193,5 @@ xcodebuild ... OTHER_SWIFT_FLAGS='$(inherited) -disable-sandbox'
 | 2026-10-21 | 像素 UI 起步：`PixelUI`、`GrowthHud`、像素字体注册、`WellnessReadout`；HUD 挂到首页左上角，旧 `bo` 浮标在像素模式收起 |
 | 2026-10-21 | 成长／心愿／装饰弹层与升级卡；Core 0.34.3 补三个装饰 id；HUD 四个入口接通 |
 | 2026-10-21 | 成长反馈队列与每晚拍立得；升级卡、拍立得卡在首页播放；气泡补 `fact` 行 |
+| 2026-10-21 | 记录卡的像素画面：`RecordWindows`（夜空条／山坡／池塘）、三张卡换纸框；`pixelHistory` 开关 |
+| 2026-10-21 | 足迹（决定 063）：`FootprintsDiary`、`PixelMonthCalendar`、日记事实源；健康记录页在像素模式下变成足迹页（标题、翻页、日记、月历、读数报告）；拍立得路径改走 `fileURL` 兜底 |
