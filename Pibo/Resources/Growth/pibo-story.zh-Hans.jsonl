@@ -1,0 +1,181 @@
+{"id": "story.beat.001", "event": "beat", "tone": "gentle", "text": "这是我的舱！降落的时候太急了，所以它是斜的。", "kind": 1}
+{"id": "story.beat.002", "event": "beat", "tone": "tease", "text": "这是我的舱！嗯……它本来不是斜的。", "kind": 1}
+{"id": "story.beat.003", "event": "beat", "tone": "oldFriend", "text": "还没正式介绍过我的舱吧？它是斜的。不许笑。", "kind": 1}
+{"id": "story.beat.004", "event": "beat", "tone": "gentle", "text": "我从家里带了一粒种子。这块土软软的，就种这儿吧。", "kind": 2}
+{"id": "story.beat.005", "event": "beat", "tone": "tease", "text": "这块土看起来不错！种这儿。土，你好~", "kind": 2}
+{"id": "story.beat.006", "event": "beat", "tone": "oldFriend", "text": "这块地我看了两天了。就种这儿，以后我们一起管。", "kind": 2}
+{"id": "story.beat.007", "event": "beat", "tone": "gentle", "text": "那颗不太亮的星星，是我家。", "kind": 3, "band": 0}
+{"id": "story.beat.008", "event": "beat", "tone": "tease", "text": "那颗不太亮的，是我家。它只是有点远！", "kind": 3, "band": 0}
+{"id": "story.beat.009", "event": "beat", "tone": "oldFriend", "text": "那颗暗暗的就是我家。别笑，它离得远嘛。", "kind": 3, "band": 0}
+{"id": "story.beat.010", "event": "beat", "tone": "gentle", "text": "我家在那个方向。白天看不见，晚上就出来了。", "kind": 3, "band": 1}
+{"id": "story.beat.011", "event": "beat", "tone": "tease", "text": "我家就在那边，云后面。白天它躲起来了。", "kind": 3, "band": 1}
+{"id": "story.beat.012", "event": "beat", "tone": "oldFriend", "text": "那边，对，云后面。晚上再指给你看。", "kind": 3, "band": 1}
+{"id": "story.beat.013", "event": "beat", "tone": "gentle", "text": "我在外面捡到一颗螺丝！是我舱上的。", "kind": 4, "band": 0}
+{"id": "story.beat.014", "event": "beat", "tone": "tease", "text": "诶？这颗螺丝……是我舱上掉的！", "kind": 4, "band": 0}
+{"id": "story.beat.015", "event": "beat", "tone": "oldFriend", "text": "出门一趟，捡回来一颗自己舱上的螺丝。", "kind": 4, "band": 0}
+{"id": "story.beat.016", "event": "beat", "tone": "gentle", "text": "草里有一颗螺丝，是我舱上的！", "kind": 4, "band": 1}
+{"id": "story.beat.017", "event": "beat", "tone": "tease", "text": "这颗螺丝在草里躲了好几天。找到你了！", "kind": 4, "band": 1}
+{"id": "story.beat.018", "event": "beat", "tone": "oldFriend", "text": "螺丝找到了。原来掉在这儿啊。", "kind": 4, "band": 1}
+{"id": "story.beat.019", "event": "beat", "tone": "gentle", "text": "我写了第一份报告，从天线寄回家了！点舱可以看。", "kind": 5}
+{"id": "story.beat.020", "event": "beat", "tone": "tease", "text": "第一份报告寄出去啦！有一半是猜的……点舱可以看。", "kind": 5}
+{"id": "story.beat.021", "event": "beat", "tone": "oldFriend", "text": "报告寄出去了。里面写了你哦。点舱可以看。", "kind": 5}
+{"id": "story.beat.022", "event": "beat", "tone": "gentle", "text": "家里有东西寄来了！我先不打开，等你。", "kind": 6}
+{"id": "story.beat.023", "event": "beat", "tone": "tease", "text": "信箱自己长出来了！里面有信！等你一起看。", "kind": 6}
+{"id": "story.beat.024", "event": "beat", "tone": "oldFriend", "text": "来信了！我忍着没拆。快点信箱！", "kind": 6}
+{"id": "story.beat.025", "event": "beat", "tone": "gentle", "text": "它长出一片叶子了！今天就是它的生日。", "kind": 7}
+{"id": "story.beat.026", "event": "beat", "tone": "tease", "text": "长叶子了！生日快乐，小苗~", "kind": 7}
+{"id": "story.beat.027", "event": "beat", "tone": "oldFriend", "text": "第一片叶子！今天是它的生日，我送了它一块石头。", "kind": 7}
+{"id": "story.beatAfter.001", "event": "beatAfter", "tone": "gentle", "text": "天线直了！现在它能听见很远的地方。", "kind": 4}
+{"id": "story.beatAfter.002", "event": "beatAfter", "tone": "tease", "text": "天线立起来了！嘀——嘀——能听见吗？", "kind": 4}
+{"id": "story.beatAfter.003", "event": "beatAfter", "tone": "oldFriend", "text": "修好了！天线现在比我站得还直。", "kind": 4}
+{"id": "story.badgeFixed.001", "event": "badgeFixed", "tone": "gentle", "text": "胸前这个也松了，顺手拧一下。好了，现在看你看得清楚多了。", "kind": 4}
+{"id": "story.badgeFixed.002", "event": "badgeFixed", "tone": "tease", "text": "徽章也拧紧了。镜片终于不闪了，看着像新的。", "kind": 4}
+{"id": "story.badgeFixed.003", "event": "badgeFixed", "tone": "oldFriend", "text": "顺手把徽章也修了。家里看报告，得先看清楚你。", "kind": 4}
+{"id": "story.beatAfter.004", "event": "beatAfter", "tone": "gentle", "text": "种好了！接下来要靠它自己了。", "kind": 2}
+{"id": "story.beatAfter.005", "event": "beatAfter", "tone": "tease", "text": "种好了。拍三下，这是我们那边的规矩。", "kind": 2}
+{"id": "story.beatAfter.006", "event": "beatAfter", "tone": "oldFriend", "text": "种好了！要是长歪了，那是风吹的。", "kind": 2}
+{"id": "story.podTap.001", "event": "podTap", "tone": "gentle", "text": "它是斜的，但很结实。", "kind": 0}
+{"id": "story.podTap.002", "event": "podTap", "tone": "gentle", "text": "里面有我的被子，还有一点家里的味道。", "kind": 0}
+{"id": "story.podTap.003", "event": "podTap", "tone": "tease", "text": "斜着住也挺好，下雨的时候水会自己流走。", "kind": 0}
+{"id": "story.podTap.004", "event": "podTap", "tone": "oldFriend", "text": "你又来看我的舱啦？它记得你哦。", "kind": 0}
+{"id": "story.podTap.005", "event": "podTap", "tone": "gentle", "text": "晚上天线会一闪一闪的，那是在跟家里打招呼。", "kind": 1}
+{"id": "story.podTap.006", "event": "podTap", "tone": "tease", "text": "天线在站岗。嘀——嘀——", "kind": 1}
+{"id": "story.podTap.007", "event": "podTap", "tone": "oldFriend", "text": "闪一下是「一切都好」，闪两下是「我想家了」。现在是一下。", "kind": 1}
+{"id": "story.sproutTap.001", "event": "sproutTap", "tone": "gentle", "text": "土包下面，有什么在悄悄动。", "kind": 1}
+{"id": "story.sproutTap.002", "event": "sproutTap", "tone": "tease", "text": "它还在土里睡懒觉。", "kind": 1}
+{"id": "story.sproutTap.003", "event": "sproutTap", "tone": "gentle", "text": "冒芽了！小小的。", "kind": 2}
+{"id": "story.sproutTap.004", "event": "sproutTap", "tone": "tease", "text": "芽出来了！第一次看到天，它好像吓了一跳。", "kind": 2}
+{"id": "story.sproutTap.005", "event": "sproutTap", "tone": "gentle", "text": "两片子叶，像在举手。", "kind": 3}
+{"id": "story.sproutTap.006", "event": "sproutTap", "tone": "tease", "text": "两片子叶！像在喊「到！」", "kind": 3}
+{"id": "story.sproutTap.007", "event": "sproutTap", "tone": "gentle", "text": "长出真叶了！它是一棵真正的植物了。", "kind": 4}
+{"id": "story.sproutTap.008", "event": "sproutTap", "tone": "tease", "text": "长出真叶了！我封它为：空地小树苗。", "kind": 4}
+{"id": "story.sproutTap.009", "event": "sproutTap", "tone": "gentle", "text": "它变成小树了，比我高一点点。", "kind": 5}
+{"id": "story.sproutTap.010", "event": "sproutTap", "tone": "tease", "text": "它现在比我高了！……我踮脚也比不过。", "kind": 5}
+{"id": "story.letterArrived.001", "event": "letterArrived", "tone": "gentle", "text": "信箱的旗子竖起来了！家里来信了。"}
+{"id": "story.letterArrived.002", "event": "letterArrived", "tone": "tease", "text": "旗子竖起来了！我忍着没看，等你一起。"}
+{"id": "story.reportEarth.001", "event": "reportEarth", "tone": "gentle", "text": "地球人睡觉前会看一块发光的板子。我也看了，没睡着。为什么呢？"}
+{"id": "story.reportEarth.002", "event": "reportEarth", "tone": "gentle", "text": "地球人见面会问「吃了吗」。可他们好像都吃过了。"}
+{"id": "story.reportEarth.003", "event": "reportEarth", "tone": "gentle", "text": "这里的水会从天上掉下来！还是免费的！"}
+{"id": "story.reportForest.001", "event": "reportForest", "tone": "gentle", "text": "空地上的石头一动不动。我跟它们比过，我输了。"}
+{"id": "story.reportForest.002", "event": "reportForest", "tone": "gentle", "text": "蘑菇长得好快，一晚上就冒出来好几个。"}
+{"id": "story.reportForest.003", "event": "reportForest", "tone": "gentle", "text": "种子发芽了！它好安静，一直不说话。"}
+{"id": "story.reportYou.001", "event": "reportYou", "tone": "gentle", "text": "和我住在一起的人类，最近走了好多路。人类好像很喜欢走路。", "band": 0}
+{"id": "story.reportYou.002", "event": "reportYou", "tone": "gentle", "text": "和我住在一起的人类，最近大多待在一个地方，过得挺安稳。", "band": 1}
+{"id": "story.reportYou.003", "event": "reportYou", "tone": "gentle", "text": "和我住在一起的人类，最近睡得很好。早上醒来，看起来亮亮的。", "band": 2}
+{"id": "story.reportYou.004", "event": "reportYou", "tone": "gentle", "text": "和我住在一起的人类，日子我还没看清楚。先不写。", "band": 3}
+{"id": "story.reportYou.005", "event": "reportYou", "tone": "gentle", "text": "和我住在一起的人类，日子过得很平稳。我很喜欢这样。", "band": 4}
+{"id": "story.letter.001", "event": "letter", "tone": "gentle", "text": "收到你的报告。舱斜了就斜着用，先别修门。\n你说那边的人走路不是为了去哪里。请再观察，不要急着下结论。\n这里一切照常。灯还是按时亮，大家还是按时睡。\n记得你也要按时睡。", "kind": 0}
+{"id": "story.letter.002", "event": "letter", "tone": "gentle", "text": "你的天线信号很好，我们这边都收到了。\n你说那边的苗长了叶子。这边很多人第一次知道，叶子是自己长的。\n不用急着回来，把那边住明白。", "kind": 1}
+{"id": "story.letter.003", "event": "letter", "tone": "gentle", "text": "这里下了一场人工的雨，按时开始，按时结束。\n你那边的雨是不是没有时间表？请多写一点。", "kind": 2}
+{"id": "story.letter.004", "event": "letter", "tone": "gentle", "text": "有个孩子问我，地球上的人睡觉要不要有人提醒。\n我说我也不知道，你会去问。", "kind": 3}
+{"id": "story.letter.005", "event": "letter", "tone": "gentle", "text": "你上次写，那边的人会对着天空发呆。\n我们试了一下，效果很好，就是脖子有点酸。", "kind": 4}
+{"id": "story.beat.028", "event": "beat", "tone": "gentle", "text": "对岸的林子里有一点光，跟着天线一闪一闪。", "kind": 8, "band": 0}
+{"id": "story.beat.029", "event": "beat", "tone": "tease", "text": "诶？对岸有光，在学我的天线！", "kind": 8, "band": 0}
+{"id": "story.beat.030", "event": "beat", "tone": "oldFriend", "text": "对岸有光，跟我闪得一模一样。是谁呀？", "kind": 8, "band": 0}
+{"id": "story.beat.031", "event": "beat", "tone": "gentle", "text": "白天也看得见：对岸林子里，有什么在跟着天线闪。", "kind": 8, "band": 1}
+{"id": "story.beat.032", "event": "beat", "tone": "tease", "text": "对岸有东西在学天线！大白天的！", "kind": 8, "band": 1}
+{"id": "story.beat.033", "event": "beat", "tone": "oldFriend", "text": "对岸那点光，学天线学得好像。我想过去看看。", "kind": 8, "band": 1}
+{"id": "story.beat.034", "event": "beat", "tone": "gentle", "text": "我带回来一块木板。跳石头我能过，抱着木板就不行了。", "kind": 9, "band": 0}
+{"id": "story.beat.035", "event": "beat", "tone": "tease", "text": "木板！抱着它跳石头会掉水里的，所以搭桥。", "kind": 9, "band": 0}
+{"id": "story.beat.036", "event": "beat", "tone": "oldFriend", "text": "木板来了。抱着它跳石头？不行不行，搭桥吧。", "kind": 9, "band": 0}
+{"id": "story.beat.037", "event": "beat", "tone": "gentle", "text": "溪边漂来一块木板，刚好够钉一段桥。", "kind": 9, "band": 1}
+{"id": "story.beat.038", "event": "beat", "tone": "tease", "text": "小溪送来一块木板！谢谢小溪~", "kind": 9, "band": 1}
+{"id": "story.beat.039", "event": "beat", "tone": "oldFriend", "text": "小溪送了块木板过来。它也想让我过去看看吧。", "kind": 9, "band": 1}
+{"id": "story.beatAfter.007", "event": "beatAfter", "tone": "gentle", "text": "钉好了！跳石头只能空着手，搬东西就走桥。", "kind": 9, "band": 0}
+{"id": "story.beatAfter.008", "event": "beatAfter", "tone": "tease", "text": "第一段桥！短短的，但很结实。", "kind": 9, "band": 0}
+{"id": "story.beatAfter.009", "event": "beatAfter", "tone": "oldFriend", "text": "钉上了。剩下的，以后出门一块一块捡。", "kind": 9, "band": 0}
+{"id": "story.beatAfter.010", "event": "beatAfter", "tone": "gentle", "text": "第一段桥钉好了，在小溪那边。下次带你去看。", "kind": 9, "band": 1}
+{"id": "story.beatAfter.011", "event": "beatAfter", "tone": "tease", "text": "桥在小溪那边。下次去小溪，你就能看到。", "kind": 9, "band": 1}
+{"id": "story.beatAfter.012", "event": "beatAfter", "tone": "oldFriend", "text": "钉好了，在溪边。以后每次出门回来，就多一块。", "kind": 9, "band": 1}
+{"id": "story.beat.040", "event": "beat", "tone": "gentle", "text": "桥通了！对岸有一个舱，比我的还旧，埋在苔藓里。", "kind": 10, "band": 0}
+{"id": "story.beat.041", "event": "beat", "tone": "tease", "text": "对岸有个舱！比我的还旧……还更斜。", "kind": 10, "band": 0}
+{"id": "story.beat.042", "event": "beat", "tone": "oldFriend", "text": "过河了。那边有个旧舱，好像等了很久很久。", "kind": 10, "band": 0}
+{"id": "story.beat.043", "event": "beat", "tone": "gentle", "text": "我走过桥了！对岸有一个旧舱，比我的还斜。", "kind": 10, "band": 1}
+{"id": "story.beat.044", "event": "beat", "tone": "tease", "text": "我过河回来了！对岸有个舱，比我的还旧。", "kind": 10, "band": 1}
+{"id": "story.beat.045", "event": "beat", "tone": "oldFriend", "text": "过去看了。那边有个旧舱，苔藓比我的厚多了。", "kind": 10, "band": 1}
+{"id": "story.beat.046", "event": "beat", "tone": "gentle", "text": "旧舱里有本笔记，第一页写着：地球人从不运动。可你明明动过！", "kind": 11, "band": 1}
+{"id": "story.beat.047", "event": "beat", "tone": "tease", "text": "旧笔记说，地球人从不运动。错啦，你最近才动过！", "kind": 11, "band": 1}
+{"id": "story.beat.048", "event": "beat", "tone": "oldFriend", "text": "笔记说地球人从不运动。我就认识一个会动的，是你。", "kind": 11, "band": 1}
+{"id": "story.beat.049", "event": "beat", "tone": "gentle", "text": "旧舱里有本笔记，写着：地球人从不运动。可松鼠每天都在跑啊。", "kind": 11, "band": 0}
+{"id": "story.beat.050", "event": "beat", "tone": "tease", "text": "旧笔记说，地球人从不运动。松鼠第一个不同意！", "kind": 11, "band": 0}
+{"id": "story.beat.051", "event": "beat", "tone": "oldFriend", "text": "笔记说这里没人运动。松鼠听了要生气的。", "kind": 11, "band": 0}
+{"id": "story.beat.052", "event": "beat", "tone": "gentle", "text": "我改了一页：地球人会运动。你就动过，我看见了！", "kind": 12, "band": 1}
+{"id": "story.beat.053", "event": "beat", "tone": "tease", "text": "划掉「从不运动」！证人：你。", "kind": 12, "band": 1}
+{"id": "story.beat.054", "event": "beat", "tone": "oldFriend", "text": "这页我改了。证据就是你最近那一趟。", "kind": 12, "band": 1}
+{"id": "story.beat.055", "event": "beat", "tone": "gentle", "text": "我改了一页：这里的大家都会动，松鼠一早就在跑。", "kind": 12, "band": 0}
+{"id": "story.beat.056", "event": "beat", "tone": "tease", "text": "划掉「从不运动」！证人：松鼠。它跑太快了，没留名字。", "kind": 12, "band": 0}
+{"id": "story.beat.057", "event": "beat", "tone": "oldFriend", "text": "这页改了。证据是松鼠，刚刚又跑过去了。", "kind": 12, "band": 0}
+{"id": "story.beat.058", "event": "beat", "tone": "gentle", "text": "划掉「地球人从不睡觉」。你昨晚睡得很好！", "kind": 12, "band": 3}
+{"id": "story.beat.059", "event": "beat", "tone": "tease", "text": "划掉！你昨晚睡得香香的，我知道。", "kind": 12, "band": 3}
+{"id": "story.beat.060", "event": "beat", "tone": "oldFriend", "text": "这页错了。你睡得好好的呢。", "kind": 12, "band": 3}
+{"id": "story.beat.061", "event": "beat", "tone": "gentle", "text": "划掉「地球人从不睡觉」。猫头鹰白天也会睡。", "kind": 12, "band": 2}
+{"id": "story.beat.062", "event": "beat", "tone": "tease", "text": "划掉！猫头鹰白天睡得可香了。", "kind": 12, "band": 2}
+{"id": "story.beat.063", "event": "beat", "tone": "oldFriend", "text": "这页错了。连猫头鹰都要睡觉呢。", "kind": 12, "band": 2}
+{"id": "story.beat.064", "event": "beat", "tone": "gentle", "text": "划掉「地球人只吃电」。你最近吃了真正的饭！", "kind": 12, "band": 5}
+{"id": "story.beat.065", "event": "beat", "tone": "tease", "text": "划掉「只吃电」！你吃的东西，看起来好香。", "kind": 12, "band": 5}
+{"id": "story.beat.066", "event": "beat", "tone": "oldFriend", "text": "这页改了。你吃饭的样子，我记下来了。", "kind": 12, "band": 5}
+{"id": "story.beat.067", "event": "beat", "tone": "gentle", "text": "划掉「地球人只吃电」。松鼠吃的是橡果。", "kind": 12, "band": 4}
+{"id": "story.beat.068", "event": "beat", "tone": "tease", "text": "划掉「只吃电」！橡果又不用插电。", "kind": 12, "band": 4}
+{"id": "story.beat.069", "event": "beat", "tone": "oldFriend", "text": "这页改了。橡果不插电，我检查过了。", "kind": 12, "band": 4}
+{"id": "story.beat.070", "event": "beat", "tone": "gentle", "text": "我给家里写信，问这个旧舱是谁的。还夹了一页笔记。", "kind": 13}
+{"id": "story.beat.071", "event": "beat", "tone": "tease", "text": "我问家里：这个旧舱是谁的？笔记写错那么多，谁写的呀？", "kind": 13}
+{"id": "story.beat.072", "event": "beat", "tone": "oldFriend", "text": "信寄出去了。问了旧舱的事，也写了你。", "kind": 13}
+{"id": "story.beat.073", "event": "beat", "tone": "gentle", "text": "回信到了！我去对岸，修一修那盏灯。", "kind": 14, "band": 0}
+{"id": "story.beat.074", "event": "beat", "tone": "tease", "text": "回信到了，我知道那是谁的舱了。我去修灯，等我！", "kind": 14, "band": 0}
+{"id": "story.beat.075", "event": "beat", "tone": "oldFriend", "text": "信到了。我去对岸一趟，回来告诉你。", "kind": 14, "band": 0}
+{"id": "story.beat.076", "event": "beat", "tone": "gentle", "text": "回信到了！我去对岸，把那盏旧灯修好。", "kind": 14, "band": 1}
+{"id": "story.beat.077", "event": "beat", "tone": "tease", "text": "回信到了！修灯我有经验，天线就是我修的。", "kind": 14, "band": 1}
+{"id": "story.beat.078", "event": "beat", "tone": "oldFriend", "text": "信到了。那边的灯，我去修。", "kind": 14, "band": 1}
+{"id": "story.beatAfter.013", "event": "beatAfter", "tone": "gentle", "text": "从今天起，森林里有两盏灯了。另一盏不说话，但一直都在。", "kind": 14, "band": 0}
+{"id": "story.beatAfter.014", "event": "beatAfter", "tone": "tease", "text": "两盏灯一起闪！另一盏比较安静，说话就交给我。", "kind": 14, "band": 0}
+{"id": "story.beatAfter.015", "event": "beatAfter", "tone": "oldFriend", "text": "两盏灯了。以后夜里，你看见的是我们两个。", "kind": 14, "band": 0}
+{"id": "story.beatAfter.016", "event": "beatAfter", "tone": "gentle", "text": "修好了！森林里有两盏灯，晚上会一起闪。", "kind": 14, "band": 1}
+{"id": "story.beatAfter.017", "event": "beatAfter", "tone": "tease", "text": "两盏灯！晚上它们会一起闪，一闪，一闪~", "kind": 14, "band": 1}
+{"id": "story.beatAfter.018", "event": "beatAfter", "tone": "oldFriend", "text": "修好了。另一盏不说话，但一直都在。", "kind": 14, "band": 1}
+{"id": "story.plank.001", "event": "plank", "tone": "gentle", "text": "第二块木板！桥又长了一段。", "kind": 2, "band": 0}
+{"id": "story.plank.002", "event": "plank", "tone": "tease", "text": "第二块！咚咚咚，钉好啦。", "kind": 2, "band": 0}
+{"id": "story.plank.003", "event": "plank", "tone": "oldFriend", "text": "第二块。离对岸又近一点了。", "kind": 2, "band": 0}
+{"id": "story.plank.004", "event": "plank", "tone": "gentle", "text": "溪边又漂来一块木板！第二块，钉上。", "kind": 2, "band": 1}
+{"id": "story.plank.005", "event": "plank", "tone": "tease", "text": "小溪又送木板来了！它也很着急吧。", "kind": 2, "band": 1}
+{"id": "story.plank.006", "event": "plank", "tone": "oldFriend", "text": "小溪送的第二块。钉上，谢谢小溪。", "kind": 2, "band": 1}
+{"id": "story.plank.007", "event": "plank", "tone": "gentle", "text": "第三块木板！桥过半了。", "kind": 3, "band": 0}
+{"id": "story.plank.008", "event": "plank", "tone": "tease", "text": "第三块！咚咚咚，钉好啦。", "kind": 3, "band": 0}
+{"id": "story.plank.009", "event": "plank", "tone": "oldFriend", "text": "第三块。已经能看清对岸的苔藓了。", "kind": 3, "band": 0}
+{"id": "story.plank.010", "event": "plank", "tone": "gentle", "text": "溪边又漂来一块木板！第三块，钉上。", "kind": 3, "band": 1}
+{"id": "story.plank.011", "event": "plank", "tone": "tease", "text": "小溪又送木板来了！今天水流好快。", "kind": 3, "band": 1}
+{"id": "story.plank.012", "event": "plank", "tone": "oldFriend", "text": "小溪送的第三块。钉上，谢谢小溪。", "kind": 3, "band": 1}
+{"id": "story.plank.013", "event": "plank", "tone": "gentle", "text": "第四块木板！还差一块。", "kind": 4, "band": 0}
+{"id": "story.plank.014", "event": "plank", "tone": "tease", "text": "第四块！咚咚咚……就差一块了！", "kind": 4, "band": 0}
+{"id": "story.plank.015", "event": "plank", "tone": "oldFriend", "text": "第四块。快到了，快到了。", "kind": 4, "band": 0}
+{"id": "story.plank.016", "event": "plank", "tone": "gentle", "text": "溪边又漂来一块木板！第四块，钉上。", "kind": 4, "band": 1}
+{"id": "story.plank.017", "event": "plank", "tone": "tease", "text": "小溪又送木板来了！还差一块哦。", "kind": 4, "band": 1}
+{"id": "story.plank.018", "event": "plank", "tone": "oldFriend", "text": "小溪送的第四块。钉上，谢谢小溪。", "kind": 4, "band": 1}
+{"id": "story.plank.019", "event": "plank", "tone": "gentle", "text": "最后一块木板！桥通了！", "kind": 5, "band": 0}
+{"id": "story.plank.020", "event": "plank", "tone": "tease", "text": "最后一块！咚咚咚——通啦！", "kind": 5, "band": 0}
+{"id": "story.plank.021", "event": "plank", "tone": "oldFriend", "text": "最后一块。好，可以过河了。", "kind": 5, "band": 0}
+{"id": "story.plank.022", "event": "plank", "tone": "gentle", "text": "溪边漂来了最后一块木板！桥通了！", "kind": 5, "band": 1}
+{"id": "story.plank.023", "event": "plank", "tone": "tease", "text": "小溪送来最后一块！它好像也在等这一天。", "kind": 5, "band": 1}
+{"id": "story.plank.024", "event": "plank", "tone": "oldFriend", "text": "小溪送的最后一块。钉上，谢谢小溪。", "kind": 5, "band": 1}
+{"id": "story.oldPodTap.001", "event": "oldPodTap", "tone": "gentle", "text": "这是更早来的人留下的舱。灯还没亮。", "kind": 0}
+{"id": "story.oldPodTap.002", "event": "oldPodTap", "tone": "tease", "text": "它比我的舱还旧，还更斜。原来不是只有我降落不稳。", "kind": 0}
+{"id": "story.oldPodTap.003", "event": "oldPodTap", "tone": "oldFriend", "text": "这个舱在这儿等了好久。我常来看看它。", "kind": 0}
+{"id": "story.oldPodTap.004", "event": "oldPodTap", "tone": "gentle", "text": "它的灯和我的天线一起闪。", "kind": 1}
+{"id": "story.oldPodTap.005", "event": "oldPodTap", "tone": "tease", "text": "两盏灯在对暗号！说的什么，保密。", "kind": 1}
+{"id": "story.oldPodTap.006", "event": "oldPodTap", "tone": "oldFriend", "text": "它不说话，但灯一直亮着。", "kind": 1}
+{"id": "story.notebookWrong.001", "event": "notebookWrong", "tone": "gentle", "text": "地球人从不运动。", "kind": 0}
+{"id": "story.notebookWrong.002", "event": "notebookWrong", "tone": "gentle", "text": "地球人从不睡觉。", "kind": 1}
+{"id": "story.notebookWrong.003", "event": "notebookWrong", "tone": "gentle", "text": "地球人只吃电。", "kind": 2}
+{"id": "story.notebookFix.001", "event": "notebookFix", "tone": "gentle", "text": "改：地球人会运动。我亲眼看见过一个！", "kind": 0, "band": 1}
+{"id": "story.notebookFix.002", "event": "notebookFix", "tone": "gentle", "text": "改：这里的大家都会动，松鼠跑得最快。", "kind": 0, "band": 0}
+{"id": "story.notebookFix.003", "event": "notebookFix", "tone": "gentle", "text": "改：地球人会睡觉。睡得好的早上，会亮亮的。", "kind": 1, "band": 1}
+{"id": "story.notebookFix.004", "event": "notebookFix", "tone": "gentle", "text": "改：大家都要睡觉，猫头鹰只是换了个时间。", "kind": 1, "band": 0}
+{"id": "story.notebookFix.005", "event": "notebookFix", "tone": "gentle", "text": "改：地球人吃真正的饭，看起来好香。", "kind": 2, "band": 1}
+{"id": "story.notebookFix.006", "event": "notebookFix", "tone": "gentle", "text": "改：松鼠吃橡果，橡果不插电。", "kind": 2, "band": 0}
+{"id": "story.notebookReread.001", "event": "notebookReread", "tone": "gentle", "text": "我又翻了翻旧笔记。错的地方，都改好了。"}
+{"id": "story.notebookReread.002", "event": "notebookReread", "tone": "tease", "text": "重读旧笔记。写的人好认真……就是没怎么出过门。"}
+{"id": "story.notebookReread.003", "event": "notebookReread", "tone": "oldFriend", "text": "旧笔记又拿出来了。每次读，都觉得我们改得对。"}
+{"id": "story.letter.006", "event": "letter", "tone": "gentle", "text": "那个舱是很久以前的。那时候我们还不知道外面是什么样，第一个出去的人就去了。\n那本笔记我们也有一份。很多年里，大家都以为地球人从不睡觉。\n谢谢你替它改了。\n慢慢住，不着急。", "kind": 20}
+{"id": "story.shapeNote.001", "event": "shapeNote", "tone": "gentle", "text": "打喷嚏会变成石头，有时是蘑菇。不是故意的。", "kind": 0}
+{"id": "story.shapeNote.002", "event": "shapeNote", "tone": "gentle", "text": "看你在做什么，就想变成那个。憋了半天没变出来，只好学着做。", "kind": 1}
+{"id": "story.shapeNote.003", "event": "shapeNote", "tone": "gentle", "text": "能变出来了。偶尔变回不去，等一会儿就好，别慌。", "kind": 2}
+{"id": "story.shapeNote.004", "event": "shapeNote", "tone": "gentle", "text": "现在想变什么就变什么。还是石头最省力。", "kind": 3}

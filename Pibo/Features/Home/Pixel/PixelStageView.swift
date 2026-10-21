@@ -973,10 +973,45 @@ struct PixelStageView: View {
         )
         deps.appActive = { true }
         controller.bind(deps)
+
+        // The season's beats (decisions 059/062): same plain environment, a real store.
+        let seasons = PiboSeasonStore()
+        let season = HomeSeasonController(store: seasons)
+        season.loadCatalog()
+        var host = HomeSeasonHost(
+            director: { renderer.director },
+            layout: { renderer.currentLayout },
+            scene: { Int(controller.scene.rawValue) },
+            tone: { growth.tone },
+            cursors: { growth },
+            dayCount: { 3 },
+            hour: { Double(hour) },
+            boCollected: { 2 },
+            bodyBands: { [1, 1] },
+            canStage: { true },
+            claim: { true },
+            setWaiting: { _ in },
+            speak: { text in LPLog.day.info("story: \(text, privacy: .public)") },
+            showStoryPaper: { _ in },
+            changed: { controller.revision += 1 },
+            lifeFlags: { controller.lifeFlags(Date().timeIntervalSince1970 * 1000) },
+            feel: { _ in }
+        )
+        host.onBeatTold = { _, _ in }
+        season.bind(host)
+        controller.story = season
+
         renderer.brain = controller
         day = controller
         controller.start()
         controller.onStageLayout(renderer.currentLayout)
+
+        // `-PiboSeasonBeat=2` plays one beat on the spot, for looking at the staging.
+        if let beat = ProcessInfo.processInfo.arguments
+            .first(where: { $0.hasPrefix("-PiboSeasonBeat=") })
+            .flatMap({ Int($0.dropFirst("-PiboSeasonBeat=".count)) }) {
+            LPLog.day.info("debug season: \(season.debugRun("season:beat-\(beat)"), privacy: .public)")
+        }
     }
     #endif
 }
