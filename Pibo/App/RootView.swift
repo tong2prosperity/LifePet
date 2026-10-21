@@ -38,6 +38,8 @@ struct RootView: View {
     #if DEBUG
     @State private var showWaterLab = false
     @State private var showCharacterLab = false
+    @State private var showPixelStage = ProcessInfo.processInfo.arguments.contains("-PiboOpenPixelStage")
+        || ProcessInfo.processInfo.environment["PIBO_PIXEL_STAGE"] == "1"
     @State private var debugOnboardingPreviewStep: DailySetupStep? =
         DailyOnboardingPreviewHost.launchStep()
     /// 小游戏在首发范围外（`PiboReleaseScope.miniGames`）。`-PiboOpenMiniGame`
@@ -71,6 +73,15 @@ struct RootView: View {
         AppLanguage(rawValue: appLanguage) ?? .preferred
     }
 
+    #if DEBUG
+    /// `-PiboPixelHour=19` pins the stage's time of day for screenshots.
+    private static var debugPixelHour: Int? {
+        guard let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("-PiboPixelHour=") }),
+              let hour = Int(argument.dropFirst("-PiboPixelHour=".count)) else { return nil }
+        return hour
+    }
+    #endif
+
     private var gate: RootGate {
         #if DEBUG
         let bypass = debugBypassesOnboarding
@@ -84,6 +95,20 @@ struct RootView: View {
     }
 
     var body: some View {
+        #if DEBUG
+        // The pixel stage on its own, before it replaces Home: Home is not mounted, so its
+        // location explainer and other covers cannot sit on top of the picture.
+        if showPixelStage {
+            PixelStageView(look: .init(), debugHour: Self.debugPixelHour)
+        } else {
+            shell
+        }
+        #else
+        shell
+        #endif
+    }
+
+    private var shell: some View {
         NavigationStack {
             Group {
                 #if DEBUG
