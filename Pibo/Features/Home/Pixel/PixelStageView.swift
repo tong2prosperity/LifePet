@@ -1,4 +1,5 @@
 import Combine
+import os
 import PiboCore
 import SwiftUI
 
@@ -107,6 +108,8 @@ final class PixelStageRenderer {
 
     private(set) var scale: Int = 1
     private(set) var actor = PixelActorFrame()
+    /// The layout the last frame was drawn with, for the gesture layer and the director.
+    var currentLayout: PixelForestLayout { layout }
 
     /// Pibo's day. Home feeds it Core's answers; without a brain it simply stands there.
     let director = PixelDayDirector()
@@ -875,6 +878,9 @@ struct PixelStageView: View {
     @State private var image: CGImage?
     @State private var scale: Int = 3
     @State private var start = Date()
+    #if DEBUG
+    @State private var day: HomeDayController?
+    #endif
 
     private let renderer = PixelStageRenderer()
     private let timer = Timer.publish(every: 1.0 / 20.0, on: .main, in: .common).autoconnect()
@@ -891,7 +897,12 @@ struct PixelStageView: View {
                                height: CGFloat(image.height * scale))
                 }
             }
-            .onAppear { redraw(size: proxy.size) }
+            .onAppear {
+                redraw(size: proxy.size)
+                #if DEBUG
+                startDay(proxy.size)
+                #endif
+            }
             .onChange(of: proxy.size) { _, size in redraw(size: size) }
         }
         .ignoresSafeArea()
@@ -900,6 +911,11 @@ struct PixelStageView: View {
             var current = look
             if let debugHour { current.hour = debugHour }
             image = renderer.render(size: lastSize, scale: scale, now: now, look: current)
+        }
+        .onDisappear {
+            #if DEBUG
+            day?.stop()
+            #endif
         }
     }
 
@@ -913,4 +929,50 @@ struct PixelStageView: View {
         if let debugHour { current.hour = debugHour }
         image = renderer.render(size: size, scale: scale, now: 0, look: current)
     }
+
+    #if DEBUG
+    /// A standalone stage has no Home around it: give the director a plain environment so
+    /// Pibo still lives its day (walks, sits, hides) while the art is being worked on.
+    private func startDay(_ size: CGSize) {
+        guard day == nil else { return }
+        let days = PiboDayStore()
+        let growth = GrowthStore()
+        let controller = HomeDayController(director: renderer.director)
+        let hour = debugHour ?? Calendar.current.component(.hour, from: Date())
+        var deps = HomeDayDependencies(
+            stateID: { "stable" },
+            hour: { Double(hour) },
+            weather: { .clear },
+            ownedDecor: { [] },
+            hammock: { false },
+            observer: { false },
+            growth: { growth },
+            days: { days },
+            dayCount: { 3 },
+            stepsToday: { 4200 },
+            hasStepsData: { true },
+            sleepHours: { 7.4 },
+            mindfulMinutes: { 0 },
+            lastWorkout: { nil },
+            overlays: { HomeDayOverlays() },
+            appActive: { true },
+            voiceBusy: { false },
+            decorLine: { _ in },
+            speak: { line in LPLog.day.info("\(line.text, privacy: .public)") },
+            boCollected: { 2 },
+            bodyBands: { [1, 1] },
+            claimStoryLine: { true },
+            setStoryWaiting: { _ in },
+            lastMealAt: { -1 },
+            mealsToday: { [] },
+            openMeal: { _, _ in }
+        )
+        deps.appActive = { true }
+        controller.bind(deps)
+        renderer.brain = controller
+        day = controller
+        controller.start()
+        controller.onStageLayout(renderer.currentLayout)
+    }
+    #endif
 }

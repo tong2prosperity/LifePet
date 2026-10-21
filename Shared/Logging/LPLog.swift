@@ -61,6 +61,8 @@ nonisolated enum LPLog {
     static let audio        = Logger(subsystem: subsystem, category: "Audio.Soundscape")
     static let weather      = Logger(subsystem: subsystem, category: "Weather")
     static let walkDoodle   = Logger(subsystem: subsystem, category: "WalkDoodle")
+    /// Pibo's day (decision 058): the day director, trips, finds and the diary.
+    static let day          = Logger(subsystem: subsystem, category: "Day")
 
     // MARK: - HealthKit
 
