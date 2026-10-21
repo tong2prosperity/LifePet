@@ -1,3 +1,4 @@
+import os
 import PiboCore
 import SwiftUI
 
@@ -14,6 +15,11 @@ struct HomeView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(BoProgressFeedbackStore.self) private var boProgressFeedback
     @Environment(BoLedgerStore.self) private var boLedger
+    @Environment(GrowthStore.self) private var growth
+    @Environment(DecorStore.self) private var decor
+    @Environment(GrowthCoordinator.self) private var growthCoordinator
+    @Environment(PiboDayStore.self) private var days
+    @Environment(PiboSeasonStore.self) private var seasons
     @Environment(WalkDoodleProgressStore.self) private var walkDoodleProgress
     @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
     @Environment(OrnamentLightStore.self) private var ornamentLights
@@ -43,6 +49,9 @@ struct HomeView: View {
     #endif
     @State private var recognizer = FoodRecognitionService()
     @State private var stageCommands = PiboStageCommandController()
+    /// Decision 069: the pixel stage's day and season, once the stage exists.
+    @State private var pixelDay: HomeDayController?
+    @State private var pixelSeason: HomeSeasonController?
     @State private var contextualActions = HomeContextualActionCoordinator()
     @State private var ornamentDiscovery = OrnamentDiscoveryStore()
     @State private var discoveryTask: Task<Void, Never>?
@@ -457,14 +466,173 @@ struct HomeView: View {
             || presentedStateID == "coolhide"
     }
 
+    // MARK: - Pixel stage (decision 069)
+
+    /// Everything the pixel forest draws, read from the same stores the SpriteKit stage
+    /// reads. Before Core's first growth answer the renderer shows its own defaults.
+    private var pixelLook: PixelStageRenderer.Look {
+        let environment = stageEnvironment
+        let sleeping = animationPresentation.state == .sleeping
+            || animationPresentation.state == .waking
+        return HomePixelStageInput(
+            hour: Int(environment.localHour.rounded()),
+            raining: environment.weather == .rain || environment.weather == .thunderstorm,
+            scene: pixelDay?.scene ?? .clearing,
+            season: Int((pixelDay?.season ?? .summer).rawValue),
+            snow: pixelDay?.snow ?? false,
+            reduceMotion: reduceMotion,
+            animationStateID: animationPresentation.stateID,
+            piboVisible: !companion.mood.hidesBody,
+            holdPibo: sleeping || speechPresentation.line != nil,
+            growth: growth,
+            cues: growthCoordinator.cues,
+            mimic: 0,
+            boProgress: boLedger.growthProgress,
+            leafRipe: boLedger.hasRipeBo,
+            decor: decor,
+            hammock: ornamentUnlocks.isUnlocked(.hammock),
+            observer: PiboReleaseScope.allowsOrnament(.statusObserver)
+                && ornamentUnlocks.isUnlocked(.statusObserver),
+            grass: companion.grassHotspotEnabled,
+            cake: growthCoordinator.anniversaryToday,
+            dayCount: store.dayCount,
+            day: pixelDay,
+            days: days,
+            ambient: pixelDay?.ambient ?? 0,
+            foodLook: 0,
+            foodOnRight: sleeping
+        ).look
+    }
+
+    /// Binds Pibo's day to the stage that was just built. Called once, from the stage's
+    /// `onAppear`, with the renderer Home will keep drawing.
+    private func startPixelDay(_ renderer: PixelStageRenderer) {
+        guard pixelDay == nil else { return }
+        let controller = HomeDayController(director: renderer.director)
+        let season = HomeSeasonController(store: seasons)
+        season.loadCatalog()
+
+        let dependencies = HomeDayDependencies(
+            stateID: { animationPresentation.stateID },
+            hour: { stageEnvironment.localHour },
+            weather: { stageEnvironment.weather },
+            ownedDecor: {
+                decor.ownedIn(Int((pixelDay?.scene ?? .clearing).rawValue)).map { Int($0.rawValue) }
+            },
+            hammock: { ornamentUnlocks.isUnlocked(.hammock) },
+            observer: {
+                PiboReleaseScope.allowsOrnament(.statusObserver)
+                    && ornamentUnlocks.isUnlocked(.statusObserver)
+            },
+            growth: { growth },
+            days: { days },
+            dayCount: { store.dayCount },
+            stepsToday: { history.record(on: .now)?.steps ?? 0 },
+            hasStepsData: { health.dataAvailability.hasReliableData },
+            sleepHours: { (history.record(on: .now)?.sleepTotal ?? 0) / 3600 },
+            mindfulMinutes: { 0 },
+            lastWorkout: {
+                guard let workout = history.workouts(on: .now).max(by: { $0.end < $1.end }) else {
+                    return nil
+                }
+                return (kind: Self.coreWorkout(workout.kindRaw),
+                        endedAt: workout.end.timeIntervalSince1970 * 1000)
+            },
+            overlays: {
+                HomeDayOverlays(
+                    anyOpen: { presentation.activeSheet != nil || fullScreenFeaturePresented },
+                    showDayMap: { _ in },
+                    showShelf: { _ in }
+                )
+            },
+            appActive: { scenePhase == .active },
+            voiceBusy: { speechPresentation.line != nil || companion.holdsSpeech },
+            decorLine: { _ in },
+            speak: { line in
+                speechPresentation.show(PiboSpeechLine(text: line.text,
+                                                      lingerDuration: line.lingerMs / 1000))
+            },
+            boCollected: { boLedger.lifetimeCollected },
+            bodyBands: {
+                guard let cues = growthCoordinator.cues else { return [-1, -1] }
+                return [cues.stepsBand, cues.sleepBand]
+            },
+            claimStoryLine: { true },
+            setStoryWaiting: { _ in },
+            lastMealAt: { -1 },
+            mealsToday: { [] },
+            openMeal: { _, _ in }
+        )
+        controller.bind(dependencies)
+
+        let host = HomeSeasonHost(
+            director: { renderer.director },
+            layout: { renderer.currentLayout },
+            scene: { Int((pixelDay?.scene ?? .clearing).rawValue) },
+            tone: { growth.tone },
+            cursors: { growth },
+            dayCount: { store.dayCount },
+            hour: { stageEnvironment.localHour },
+            boCollected: { boLedger.lifetimeCollected },
+            bodyBands: {
+                guard let cues = growthCoordinator.cues else { return [-1, -1] }
+                return [cues.stepsBand, cues.sleepBand]
+            },
+            canStage: { scenePhase == .active && presentation.activeSheet == nil },
+            claim: { true },
+            setWaiting: { _ in },
+            speak: { text in
+                speechPresentation.show(PiboSpeechLine(text: text))
+            },
+            showStoryPaper: { _ in },
+            changed: { controller.revision += 1 },
+            lifeFlags: { controller.lifeFlags(Date().timeIntervalSince1970 * 1000) },
+            feel: { _ in }
+        )
+        season.bind(host)
+
+        controller.story = season
+        renderer.brain = controller
+        pixelSeason = season
+        pixelDay = controller
+        controller.start()
+        controller.onStageLayout(renderer.currentLayout)
+        LPLog.day.info(
+            "pixel stage layout \(renderer.currentLayout.width, privacy: .public)x\(renderer.currentLayout.height, privacy: .public) ground=\(renderer.currentLayout.groundY, privacy: .public)"
+        )
+    }
+
+    /// `WorkoutRecord.kindRaw` spells the same cases Core's echo workout does.
+    private static func coreWorkout(_ raw: String) -> PiboCoreEchoWorkout {
+        switch raw {
+        case "run": .run
+        case "walk": .walk
+        case "cycle": .cycle
+        case "swim": .swim
+        case "hiit": .hiit
+        case "yoga": .yoga
+        case "other": .other
+        default: .none
+        }
+    }
+
     private var homeScene: some View {
         let input = stageInput
         return ZStack {
-            HomeStageSurface(
-                input: input,
-                commandController: stageCommands,
-                handlers: stageHandlers
-            )
+            if PiboReleaseScope.pixelHome {
+                // Decision 069: the procedural pixel forest. It brings its own day: the
+                // controller below drives Pibo through Core's `day_choose`, and the season
+                // controller stages the story's beats on the same director.
+                PixelStageView(look: pixelLook,
+                               onStageReady: startPixelDay,
+                               onLayoutChanged: { pixelDay?.onStageLayout($0) })
+            } else {
+                HomeStageSurface(
+                    input: input,
+                    commandController: stageCommands,
+                    handlers: stageHandlers
+                )
+            }
 
             HomeStateCaptionOverlay(
                 caption: stateCaption,
@@ -806,6 +974,14 @@ struct HomeView: View {
                     .first(where: { $0.hasPrefix("-PiboCompanion=") })?
                     .dropFirst("-PiboCompanion=".count) {
                     _ = companion.debugRun(String(command))
+                }
+                // `-PiboForestHour=10` pins the forest's light for screenshots, the same
+                // override the 时间覆盖 chip writes.
+                if let raw = ProcessInfo.processInfo.arguments
+                    .first(where: { $0.hasPrefix("-PiboForestHour=") })?
+                    .dropFirst("-PiboForestHour=".count),
+                   let hour = Double(raw) {
+                    store.debugForestHour = hour
                 }
                 #endif
                 shadowSync.setSnapshotDraft(shadowSnapshotDraft)

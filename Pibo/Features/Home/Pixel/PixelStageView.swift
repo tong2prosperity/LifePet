@@ -874,6 +874,14 @@ final class PixelStageRenderer {
 struct PixelStageView: View {
     var look: PixelStageRenderer.Look
     var debugHour: Int?
+    /// Called once, when the stage exists: Home binds its day controller to this stage's
+    /// director here. Without it the renderer owns a director nothing drives, and Pibo
+    /// stands in the middle of the path.
+    var onStageReady: ((PixelStageRenderer) -> Void)?
+    /// Called whenever the stage's size settles into a new layout. The first `onAppear`
+    /// can fire before the view has its final size, so a single layout report would leave
+    /// the director planning walks on a stage that no longer exists.
+    var onLayoutChanged: ((PixelForestLayout) -> Void)?
 
     @State private var image: CGImage?
     @State private var scale: Int = 3
@@ -903,8 +911,10 @@ struct PixelStageView: View {
             }
             .onAppear {
                 redraw(size: proxy.size)
+                onStageReady?(renderer)
+                reportLayoutIfNeeded()
                 #if DEBUG
-                startDay(proxy.size)
+                if onStageReady == nil { startDay(proxy.size) }
                 #endif
             }
             .onChange(of: proxy.size) { _, size in redraw(size: size) }
@@ -915,12 +925,22 @@ struct PixelStageView: View {
             var current = look
             if let debugHour { current.hour = debugHour }
             image = renderer.render(size: lastSize, scale: scale, now: now, look: current)
+            reportLayoutIfNeeded()
         }
         .onDisappear {
             #if DEBUG
             day?.stop()
             #endif
         }
+    }
+
+    @State private var reportedLayout = PixelForestLayout()
+
+    private func reportLayoutIfNeeded() {
+        let layout = renderer.currentLayout
+        guard layout != reportedLayout else { return }
+        reportedLayout = layout
+        onLayoutChanged?(layout)
     }
 
     @State private var lastSize: CGSize = .zero

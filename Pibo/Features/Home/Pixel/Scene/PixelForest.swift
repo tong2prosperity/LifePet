@@ -25,7 +25,7 @@ enum PixelMath {
     }
 }
 
-struct PixelForestLayout {
+struct PixelForestLayout: Equatable {
     var width: Int = 0
     var height: Int = 0
     var horizonY: Int = 0 // where the far hills meet the sky

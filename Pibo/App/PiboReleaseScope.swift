@@ -60,6 +60,11 @@ enum PiboReleaseScope {
     /// 决定 054：陪伴提问、记忆回响、心情与草丛／河面热点。
     static let companionPrompts = true
 
+    /// 决定 069：像素首页。森林、Pibo、季节节拍与白天日程已经全部走像素舞台；
+    /// 外围的 HUD 与各个 Sheet 还是旧 SwiftUI 版，所以默认仍交给 SpriteKit 舞台。
+    /// 用 `-PiboPixelHome` 打开像素舞台（它自带 Pibo 的日程，不需要 Home 的依赖）。
+    static var pixelHome: Bool { on(false, "-PiboPixelHome") }
+
     /// 本版森林是否展示／允许操作这件物件。隐藏物件不跳过：它挡住的后续链一并不出现。
     static func allowsOrnament(_ id: PiboOrnament.ID) -> Bool {
         switch id {
