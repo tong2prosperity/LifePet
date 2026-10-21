@@ -396,7 +396,7 @@ struct PolaroidCard: View {
     var onClose: () -> Void = {}
 
     private var image: UIImage? {
-        UIImage(contentsOfFile: shot.path)
+        UIImage(contentsOfFile: shot.fileURL.path)
     }
 
     var body: some View {

@@ -555,6 +555,15 @@ final class HealthHistoryStore {
         return foodPhotos(on: day).last { $0.mealTypeRaw == raw }
     }
 
+    /// The 1-based specimen number of a food photo (决定 063's 「地球食物样本 No.N」): its place
+    /// among every photo saved so far, oldest first. 0 when the row is gone.
+    func foodSampleNumber(_ id: UUID) -> Int {
+        let d = FetchDescriptor<FoodPhoto>(sortBy: [SortDescriptor(\.capturedAt, order: .forward)])
+        let all = (try? context.fetch(d)) ?? []
+        guard let index = all.firstIndex(where: { $0.id == id }) else { return 0 }
+        return index + 1
+    }
+
     /// Persist a freshly captured (and cut-out) food photo. Bumps `revision`.
     @discardableResult
     func addFoodPhoto(id: UUID = UUID(), pngData: Data, sourceJPEGData: Data? = nil,

@@ -15,6 +15,16 @@ struct PolaroidShot: Codable, Equatable, Identifiable {
     var id: String { "\(day)-\(Int(takenAt))" }
 }
 
+extension PolaroidShot {
+    /// The print's bytes. `path` is absolute; when the data container has moved since it was
+    /// written, the file of the same name in the current folder is the same print.
+    var fileURL: URL {
+        let stored = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: stored.path) { return stored }
+        return PolaroidStore.currentFolder.appending(path: stored.lastPathComponent)
+    }
+}
+
 /// The daily pixel polaroid (decision 057's surprise layer): one print of the forest per
 /// evening. Core decides when it is due; this store only prints, keeps and shares.
 ///
@@ -37,12 +47,19 @@ final class PolaroidStore {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let folder: URL
 
-    init(defaults: UserDefaults = .standard, folder: URL? = nil) {
-        self.defaults = defaults
+    /// Where prints live right now. A stored `path` is absolute, and the data container can
+    /// move (a reinstall in the simulator, an OS update on device), so readers resolve the
+    /// file by name against this folder when the stored path no longer opens.
+    static var currentFolder: URL {
         let base = (try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
                                                  appropriateFor: nil, create: true))
             ?? URL.documentsDirectory
-        self.folder = folder ?? base.appending(path: "polaroids", directoryHint: .isDirectory)
+        return base.appending(path: "polaroids", directoryHint: .isDirectory)
+    }
+
+    init(defaults: UserDefaults = .standard, folder: URL? = nil) {
+        self.defaults = defaults
+        self.folder = folder ?? Self.currentFolder
         restore(raw: defaults.string(forKey: Self.defaultsKey) ?? "")
     }
 

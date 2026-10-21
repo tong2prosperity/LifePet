@@ -14,6 +14,9 @@ struct PiboHistoryView: View {
     @Environment(HealthHistoryStore.self) private var history
     @Environment(HealthDataService.self) private var health
     @Environment(BoLedgerStore.self) private var boLedger
+    /// 决定 063: the diary and the month page read the day's walks and the evening prints.
+    @Environment(PiboDayStore.self) private var days
+    @Environment(PolaroidStore.self) private var polaroids
 
     /// Card to scroll to on open (notification deep link). `nil` = top of page.
     var focus: HistoryFocus?
@@ -23,9 +26,14 @@ struct PiboHistoryView: View {
     @State private var shareSnapshot: TodayPiboShareSnapshot?
     @State private var showHealthStatus = false
     @State private var sleepDetailOpen = Self.debugOpensSleepDetail()
+    @State private var calendarOpen = Self.debugOpensCalendar()
+    @State private var readoutDay: Date?
 
     private let cal = Calendar.current
     private static let topAnchor = "history-top"
+
+    /// 决定 063: the diary above the records, the pixel month page and its pager.
+    private var pixel: Bool { PiboReleaseScope.pixelHistory }
 
     /// 截图验证用：`-PiboHistoryDayOffset=1` 直接落在昨天。
     private static func initialDate() -> Date {
@@ -50,6 +58,15 @@ struct PiboHistoryView: View {
         #endif
     }
 
+    /// 截图验证用：`-PiboHistoryCalendar` 直接摊开像素月历（模拟器无法合成点击）。
+    private static func debugOpensCalendar() -> Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-PiboHistoryCalendar")
+        #else
+        return false
+        #endif
+    }
+
     var body: some View {
         // Observe history writes (backfill / reconcile / new food photo) so the
         // selected day refreshes once data lands.
@@ -59,12 +76,29 @@ struct PiboHistoryView: View {
 
         VStack(spacing: LP.Spacing.s) {
             header
-            HistoryDateBar(selectedDate: selectedDate, onSelect: select)
-                .padding(.horizontal, LP.Spacing.xl)
+            if pixel {
+                pixelDatePager
+            } else {
+                HistoryDateBar(selectedDate: selectedDate, onSelect: select)
+                    .padding(.horizontal, LP.Spacing.xl)
+            }
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: LP.Spacing.s) {
                         Color.clear.frame(height: 0).id(Self.topAnchor)
+                        if pixel {
+                            FootprintsDiary(
+                                items: footprintsDiaryItems(
+                                    day: selectedDate,
+                                    facts: footprintsDayFacts(
+                                        day: selectedDate, history: history,
+                                        days: days, polaroids: polaroids)),
+                                onOpenReadout: { readoutDay = selectedDate },
+                                onOpenMeal: { _, _ in },
+                                onOpenPolaroid: { _ in }
+                            )
+                            .padding(.horizontal, LP.Spacing.xl)
+                        }
                         cardsStack(day)
                             // A new day is a new card tree: selections, reveals
                             // and cached geometry never carry across dates.
@@ -82,6 +116,63 @@ struct PiboHistoryView: View {
         }
         .padding(.top, LP.Spacing.s)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay {
+            if calendarOpen {
+                ZStack {
+                    PixelUIColor.scrim
+                        .ignoresSafeArea()
+                        .onTapGesture { calendarOpen = false }
+                    PixelMonthCalendar(
+                        selected: selectedDate,
+                        meetingDay: cal.startOfDay(for: store.identity.birthDate),
+                        today: cal.startOfDay(for: .now),
+                        recordedDays: footprintsRecordedDays(
+                            history: history, days: days, polaroids: polaroids,
+                            from: cal.startOfDay(for: store.identity.birthDate),
+                            to: cal.startOfDay(for: .now)),
+                        firstDays: [],
+                        onPick: { day in
+                            calendarOpen = false
+                            select(day)
+                        },
+                        onClose: { calendarOpen = false }
+                    )
+                }
+                .transition(.opacity)
+                .zIndex(60)
+            }
+        }
+        .overlay {
+            if let readoutDay {
+                ZStack {
+                    PixelUIColor.scrim
+                        .ignoresSafeArea()
+                        .onTapGesture { self.readoutDay = nil }
+                    // The copy Pibo took home that day: read-only, no printing.
+                    ReadoutReport(
+                        record: history.record(on: readoutDay),
+                        historyRecords: history.records(
+                            from: cal.date(byAdding: .day, value: -6, to: readoutDay) ?? readoutDay,
+                            to: readoutDay),
+                        availability: health.dataAvailability,
+                        usesMock: false,
+                        dayCount: max(1, store.dayCount),
+                        badgeState: 3,
+                        badgeCracked: false,
+                        maxBodyHeight: 520,
+                        anchorDay: readoutDay,
+                        onClose: { self.readoutDay = nil },
+                        onCheckHealth: {
+                            self.readoutDay = nil
+                            showHealthStatus = true
+                        }
+                    )
+                    .frame(maxWidth: 360)
+                    .padding(.horizontal, 16)
+                }
+                .zIndex(61)
+            }
+        }
         .sheet(isPresented: Binding(
             get: { shareSnapshot != nil },
             set: { if !$0 { shareSnapshot = nil } }
@@ -111,16 +202,80 @@ struct PiboHistoryView: View {
 
     // MARK: Header
 
+    /// 决定 063's date pager: ‹ a pixel date plate ▾ ›. The plate opens the month page.
+    private var pixelDatePager: some View {
+        HStack(spacing: 8) {
+            pixelRoundButton(-1)
+            Text("\(dateText()) \(weekdayText()) ▾")
+                .font(PixelFont.font(14))
+                .foregroundStyle(PixelUIColor.ink)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(PixelUIColor.paperDim)
+                .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                .contentShape(Rectangle())
+                .onTapGesture { calendarOpen = true }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel(AppLocalization.format(
+                    "%@，%@，选择日期", dateText(), weekdayText()))
+            pixelRoundButton(1)
+        }
+        .padding(.horizontal, LP.Spacing.xl)
+    }
+
+    private func pixelRoundButton(_ delta: Int) -> some View {
+        let enabled = footprintsCanShift(
+            selectedDate, delta,
+            meetingDay: cal.startOfDay(for: store.identity.birthDate),
+            today: cal.startOfDay(for: .now))
+        return Text(delta < 0 ? "‹" : "›")
+            .font(PixelFont.font(20))
+            .foregroundStyle(enabled ? PixelUIColor.ink : PixelUIColor.off)
+            .frame(width: 44, height: 44)
+            .background(PixelUIColor.paper)
+            .overlay(Rectangle().strokeBorder(enabled ? PixelUIColor.border : PixelUIColor.off,
+                                              lineWidth: 2))
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard enabled else { return }
+                select(footprintsAddDays(selectedDate, delta))
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(AppLocalization.text(delta < 0 ? "前一天" : "后一天"))
+    }
+
+    private func dateText() -> String {
+        AppLocalization.format("%d年%d月%d日",
+                               cal.component(.year, from: selectedDate),
+                               cal.component(.month, from: selectedDate),
+                               cal.component(.day, from: selectedDate))
+    }
+
+    private func weekdayText() -> String {
+        let names = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+        return AppLocalization.text(names[cal.component(.weekday, from: selectedDate) - 1])
+    }
+
     private var header: some View {
         HStack(alignment: .center, spacing: LP.Spacing.m) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(AppLocalization.text("健康记录"))
-                    .lpText(LP.Typography.uiH4)
-                    .foregroundStyle(LP.Content.primary)
-                    .accessibilityAddTraits(.isHeader)
-                Text(AppLocalization.format("陪你走过的 %d 天", totalDays))
-                    .lpText(LP.Typography.c1Regular)
-                    .foregroundStyle(LP.Content.secondary)
+                if pixel {
+                    // 决定 063: the page is 足迹, and it counts the relationship in days.
+                    Text(AppLocalization.text("足迹"))
+                        .font(PixelFont.font(20))
+                        .foregroundStyle(PixelUIColor.ink)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(AppLocalization.format("地球第 %@ 天", "\(pageDayNumber)"))
+                        .font(PixelFont.font(12))
+                        .foregroundStyle(PixelUIColor.inkSoft)
+                } else {
+                    Text(AppLocalization.text("健康记录"))
+                        .lpText(LP.Typography.uiH4)
+                        .foregroundStyle(LP.Content.primary)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(AppLocalization.format("陪你走过的 %d 天", totalDays))
+                        .lpText(LP.Typography.c1Regular)
+                        .foregroundStyle(LP.Content.secondary)
+                }
             }
             Spacer(minLength: 0)
             if cal.isDateInToday(selectedDate) {
@@ -268,6 +423,12 @@ struct PiboHistoryView: View {
 
     /// 相识总天数 (header "陪你走过的 N 天").
     private var totalDays: Int { max(1, store.dayCount) }
+
+    /// 地球第 N 天 of the page's date; today it equals `store.dayCount`.
+    private var pageDayNumber: Int {
+        if cal.isDateInToday(selectedDate) { return max(1, store.dayCount) }
+        return footprintsDayNumber(selectedDate, meetingDay: cal.startOfDay(for: store.identity.birthDate))
+    }
 
     private func prepareTodayShare() {
         guard !preparingShare else { return }
