@@ -16,6 +16,7 @@ struct HomeView: View {
     @Environment(BoProgressFeedbackStore.self) private var boProgressFeedback
     @Environment(BoLedgerStore.self) private var boLedger
     @Environment(GrowthStore.self) private var growth
+    @Environment(WishStore.self) private var wishes
     @Environment(DecorStore.self) private var decor
     @Environment(GrowthCoordinator.self) private var growthCoordinator
     @Environment(PiboDayStore.self) private var days
@@ -1165,7 +1166,10 @@ struct HomeView: View {
 
             HomePrimaryChrome(
                 presentation: presentation,
-                balanceChip: AnyView(boBalanceChip),
+                // Decision 057/069: the pixel HUD owns the top-left corner and shows the
+                // `bo` balance itself, exactly as HarmonyOS's `GrowthChrome` does — so the
+                // old floating chip retires with the SpriteKit stage.
+                balanceChip: PiboReleaseScope.pixelHome ? nil : AnyView(boBalanceChip),
                 cameraEnabled: featureAccess.cameraEnabled,
                 accountLoggedIn: auth.phase == .loggedIn,
                 walkDoodleEnabled: featureAccess.walkDoodleEnabled,
@@ -1182,6 +1186,16 @@ struct HomeView: View {
                     speechPresentation.dismiss()
                     presentation.activeSheet = .shadow(manifest: false)
                 }
+            }
+
+            // Decision 057's growth HUD, top-left over the forest (HarmonyOS
+            // `HomePage.GrowthChrome`). Hidden under full-screen surfaces.
+            if PiboReleaseScope.pixelHome, !fullScreenFeaturePresented {
+                growthHud
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.leading, 12)
+                    .padding(.top, 10)
+                    .zIndex(6)
             }
 
             #if DEBUG
@@ -1244,6 +1258,53 @@ struct HomeView: View {
             guard !Task.isCancelled else { return }
             withAnimation(reduceMotion ? nil : .easeIn(duration: 0.18)) { boBalanceHint = nil }
         }
+    }
+
+    /// Decision 057/062: the growth HUD. Every value here is already a Core answer or a
+    /// ledger balance; the view only shows them and routes taps.
+    private var growthHud: some View {
+        let hour = Int(HomeAtmosphereClock.localHour(at: atmosphereClock.now))
+        let visibleWishes = wishes.visible(localHour: hour)
+        let snapshot = WellnessReadout.snapshot(of: history.record(on: atmosphereClock.now))
+        return GrowthHud(
+            level: growth.level,
+            levelProgress: growth.levelProgress(),
+            xpIntoLevel: growth.xpIntoLevel,
+            xpForNext: growth.xpForNext,
+            hearts: growth.hearts,
+            badgeState: piboPixelActivity(animationPresentation.stateID).rawValue,
+            badgeCracked: !seasons.podFixed,
+            readout: AppLocalization.text(
+                WellnessReadout.conclusion(snapshot, availability: health.dataAvailability)
+            ),
+            boBalance: boLedger.availableBo,
+            wishesDone: visibleWishes.filter(\.done).count,
+            wishesTotal: visibleWishes.count,
+            decorAvailable: decor.hasPurchasable(
+                level: growth.level,
+                balance: boLedger.availableBo
+            ),
+            onOpenGrowth: {
+                LPHaptics.tap()
+                // The pixel growth sheet is not ported yet; the tap must not pretend
+                // otherwise. It starts working with `GrowthSheets`.
+                LPLog.day.notice("growth sheet pending the pixel sheet port")
+            },
+            onOpenWishes: {
+                LPHaptics.tap()
+                wishes.markEveningSeen(localHour: hour)
+                LPLog.day.notice("wish sheet pending the pixel sheet port")
+            },
+            onOpenDecor: {
+                LPHaptics.tap()
+                LPLog.day.notice("decor sheet pending the pixel sheet port")
+            },
+            onOpenReadout: {
+                LPHaptics.tap()
+                PiboSoundEffectService.shared.play(.observerOpen)
+                if !statusObserverPresentation.isOpen { toggleStatusObserver() }
+            }
+        )
     }
 
     private var boBalanceChip: some View {

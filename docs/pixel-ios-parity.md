@@ -48,12 +48,27 @@
 | `Pibo/Services/Day/MealStickerPixels.swift` | `services/day/MealStickerPixels.ets` | 把餐食照片解成 24×24 索引贴纸 |
 | `Pibo/Features/Home/Pixel/HomePixelStageLook.swift` | `components/home/HomeForestScene.ets` | 把 Home 的全部状态读成 `PixelStageRenderer.Look`；舞台本身不认识 store |
 
+### 像素 UI 外壳（进行中）
+
+| Swift 位置 | 对应 ArkTS | 内容 |
+| --- | --- | --- |
+| `.../Pixel/UI/PixelUI.swift` | `pixel/ui/PixelUI.ets` | 纸色／墨色／叶色等语义色、32 个图标 stamp、面板、文字、按钮、分段条、心、标题、开关 |
+| `.../Pixel/UI/GrowthHud.swift` | `pixel/ui/GrowthHud.ets` | 等级章、金色经验条、熟悉度心、读数徽章行、`bo` 与心愿小条 |
+| `.../Pixel/UI/PixelFont.swift` | `pixel/ui/PixelFont.ets` | Fusion Pixel 12px 简体子集（OFL-1.1），12px 整数倍取字号 |
+| `.../Wellness/WellnessReadout.swift` | `models/WellnessReadout.ets` | 今日一句话结论、不可用标题／细节、分段与原因文案、更新时间 |
+
+字体：鸿蒙用 `font.registerFont({ familyName: 'PiboPixel' })` 起别名；Core Text 没有别名，
+iOS 直接向文件里的族名 `Fusion Pixel 12px Prop zh-Hans` 取字，`PixelFont.family` 一处说明。
+`PixelFont.register()` 在 `PiboApp.init()` 里调用一次，首帧不会闪回系统字体。
+
 ### 接线
 
 - 五个 store（成长／心愿／装饰／日程／季节）在 `PiboApp` 里创建并注入环境，
   `GrowthCoordinator` 跟着账本重算一起刷新。
 - 首页可用 `-PiboPixelHome` 切到像素舞台（`PiboReleaseScope.pixelHome`）。它自带 Pibo 的
   一天，并且已经把真实的健康、账本、成长线索、装饰、季节进度接进来。
+- 像素模式下 `GrowthHud` 占左上角（12／10），顶栏的旧 `bo` 浮标同时收起，与鸿蒙
+  `HomePage.GrowthChrome` 的位置和遮挡规则一致（全屏页打开时整块隐藏）。
 - 舞台在尺寸稳定后会重新上报布局；首次 `onAppear` 时视图还没铺满，只报一次会让导演
   按旧舞台量出来的点走路。
 
@@ -72,14 +87,15 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 
 ## 待移植（按依赖顺序）
 
-### 1. 像素 UI 外壳
+### 1. 像素 UI 外壳（剩余）
 
-- `pixel/ui/PixelUI`（267）、`GrowthHud`（150）、`GrowthSheets`（508）、`DaySheets`（291）、
-  `RecordWindows`（309）、`ReadoutReport`（370）、`FootprintsDiary`（196）、
-  `PixelMonthCalendar`（167）、`PixelViewfinder`（144）、`PixelOnboardingArt`（98）、
-  `StorySheets`（88）、`PodPanelArt`（47）、`PixelPortrait`（42）。
-- 像素字体：鸿蒙用 Fusion Pixel 12px 简体子集（OFL-1.1，约 1 MB）。iOS 需同样引入并只在
-  气泡、HUD、标题使用；正文与健康图表保持系统字体。
+- 已完成：`PixelUI`、`GrowthHud`、`PixelFont`、`WellnessReadout`。
+- 待移植：`GrowthSheets`（508）、`DaySheets`（291）、`RecordWindows`（309）、
+  `ReadoutReport`（370）、`FootprintsDiary`（196）、`PixelMonthCalendar`（167）、
+  `PixelViewfinder`（144）、`PixelOnboardingArt`（98）、`StorySheets`（88）、
+  `PodPanelArt`（47）、`PixelPortrait`（42）。
+- HUD 上「成长／心愿／装饰」三个入口目前只记日志，等对应弹层移植后接上；
+  「读数」已经能打开现有的状态观测仪。
 
 ### 2. 舞台交互
 
@@ -118,3 +134,4 @@ xcodebuild ... OTHER_SWIFT_FLAGS='$(inherited) -disable-sandbox'
 | --- | --- |
 | 2026-10-21 | 建立；Core 0.34.1、渲染基础、角色、场景、舞台预览完成并在模拟器出图 |
 | 2026-10-21 | 日导演与 `renderFrame` 合成；成长／心愿／装饰／日程／季节存储与两个协调器；季节分镜；Core 0.34.2；首页像素舞台接线 |
+| 2026-10-21 | 像素 UI 起步：`PixelUI`、`GrowthHud`、像素字体注册、`WellnessReadout`；HUD 挂到首页左上角，旧 `bo` 浮标在像素模式收起 |

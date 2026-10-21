@@ -81,6 +81,9 @@ struct PiboApp: App {
         LocalDataEraser.eraseIfScheduled()
         PiboPersistenceMigrator.runIfNeeded()
         LPLog.app.notice("App launched")
+        // Decision 057's pixel typeface. Registered once, before any view renders, so
+        // the HUD and sheets never flash a fallback face on the first frame.
+        PixelFont.register()
         Analytics.start()
         Analytics.track(.appLaunch)
         let id = PetIdentityStore()

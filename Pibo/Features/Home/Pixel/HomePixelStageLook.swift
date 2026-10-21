@@ -37,7 +37,7 @@ struct HomePixelStageInput {
     var cake = false
     var dayCount = 1
 
-    var day: HomeDayController
+    var day: HomeDayController?
     var days: PiboDayStore
     var ambient: UInt32 = 0
     var foodLook = 0
@@ -83,18 +83,18 @@ struct HomePixelStageInput {
         look.dayCount = dayCount
 
         // The story's things (decisions 059/062), as the day controller last read them.
-        look.podFixed = day.storyPodFixed
-        look.sproutStage = day.storySprout
-        look.mailbox = day.storyMailbox
-        look.planks = day.storyPlanks
-        look.oldPod = day.storyOldPod
-        look.farLight = day.storyFarLight
+        look.podFixed = day?.storyPodFixed ?? false
+        look.sproutStage = day?.storySprout ?? 0
+        look.mailbox = day?.storyMailbox ?? 0
+        look.planks = day?.storyPlanks ?? 0
+        look.oldPod = day?.storyOldPod ?? 0
+        look.farLight = day?.storyFarLight ?? false
         look.ambientMask = PiboCoreAmbient(rawValue: ambient)
         look.basketFull = !days.finds.isEmpty
 
         // The meal mat and the shelf's display spot (decision 065).
-        look.mealStickers = day.mealStickers
-        look.mealFresh = day.mealFresh
+        look.mealStickers = day?.mealStickers ?? []
+        look.mealFresh = day?.mealFresh ?? false
         look.displayedFind = days.displayedIn(Int(scene.rawValue))
         look.foodLook = foodLook
         look.foodOnRight = foodOnRight
