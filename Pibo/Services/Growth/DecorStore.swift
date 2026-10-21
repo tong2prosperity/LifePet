@@ -87,6 +87,12 @@ final class DecorStore {
         return owned.map(\.id)
     }
 
+    /// The owned pieces that stand in `scene` (decision 065: Core says which scene each
+    /// belongs to; the first ten are the clearing's).
+    func ownedIn(_ scene: Int) -> [PiboCoreDecorID] {
+        ownedIDs().filter { PiboCoreDecor.scene($0) == scene }
+    }
+
     func state(_ id: PiboCoreDecorID, level: Int, balance: Int) -> PiboCoreDecorState {
         PiboCoreDecor.state(for: id, level: level, balance: balance, owned: isOwned(id))
     }

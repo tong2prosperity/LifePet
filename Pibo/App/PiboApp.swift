@@ -37,6 +37,19 @@ struct PiboApp: App {
     @State private var boLedger: BoLedgerStore
     /// 已解锁的森林物件。与账本分开：余额可增可减，解锁是只增不减的既成事实。
     @State private var ornamentUnlocks: OrnamentUnlockStore
+    /// Decision 057: level, familiarity, today's health split and the appearance Core
+    /// derives from them. Home's forest draws whatever this says.
+    @State private var growth: GrowthStore
+    /// Decision 057: the daily wish, judged against the person's own baselines.
+    @State private var wishes: WishStore
+    /// Decision 057: forest objects bought with `bo`.
+    @State private var decor: DecorStore
+    /// Glue that reads health + ledger and asks Core what today looks like.
+    @State private var growthCoordinator: GrowthCoordinator
+    /// Decision 058: Pibo's own day — scene, trips, finds, the away diary.
+    @State private var days: PiboDayStore
+    /// Decisions 059/062: the season's beats, letters and notebook.
+    @State private var seasons: PiboSeasonStore
     /// 物件身上被亲手点亮的灯。与解锁再分开一层：解锁是永久的，点灯天亮就作废。
     @State private var ornamentLights = OrnamentLightStore()
     /// One app-wide resolver for all contextual Pibo copy. Views submit cues;
@@ -150,6 +163,19 @@ struct PiboApp: App {
             }
         }
         _boLedger = State(initialValue: ledger)
+        // Growth reads the ledger's totals and health's days; the stores own their own
+        // persisted snapshots, so they can be built before either is refreshed.
+        let growthStore = GrowthStore()
+        let wishStore = WishStore()
+        let decorStore = DecorStore()
+        let coordinatorStore = GrowthCoordinator()
+        coordinatorStore.bind(growth: growthStore, wishes: wishStore)
+        _growth = State(initialValue: growthStore)
+        _wishes = State(initialValue: wishStore)
+        _decor = State(initialValue: decorStore)
+        _growthCoordinator = State(initialValue: coordinatorStore)
+        _days = State(initialValue: PiboDayStore())
+        _seasons = State(initialValue: PiboSeasonStore())
         onboardingState.configureTemporaryCooperation(
             enabled: PiboReleaseScope.temporaryCooperationOnboarding,
             boLifetimeMinted: ledger.lifetimeMinted,
@@ -286,6 +312,12 @@ struct PiboApp: App {
                 .environment(onboarding)
                 .environment(boProgressFeedback)
                 .environment(boLedger)
+                .environment(growth)
+                .environment(wishes)
+                .environment(decor)
+                .environment(growthCoordinator)
+                .environment(days)
+                .environment(seasons)
                 .environment(walkDoodleProgress)
                 .environment(ornamentUnlocks)
                 .environment(ornamentLights)
@@ -470,7 +502,12 @@ struct PiboApp: App {
                     )
                 }
                 .onChange(of: ornamentUnlocks.unlocked) { _, _ in publishWatchSnapshot() }
-                .onChange(of: health.dataAvailability) { _, _ in publishWatchSnapshot() }
+                .onChange(of: health.dataAvailability) { _, _ in
+                    publishWatchSnapshot()
+                    // HealthKit may only become readable after the first launch; until then
+                    // growth treats every fact as unknown.
+                    refreshGrowth()
+                }
                 .onChange(of: auth.phase) { _, phase in
                     publishWatchSnapshot()
                     guard phase == .loggedIn else { return }
@@ -496,6 +533,7 @@ struct PiboApp: App {
 
     private func recomputeBoLedger() {
         boLedger.recompute(history: history)
+        refreshGrowth()
         PetStateWidgetBridge.publishActivitySnapshot(
             petName: store.petName,
             dayCount: store.dayCount,
@@ -509,6 +547,35 @@ struct PiboApp: App {
                 lifetimeCollected: boLedger.lifetimeCollected
             )
         }
+    }
+
+    /// Decision 057: hand Core today's facts. Nil means "not shared" — never a fake zero,
+    /// because a zero would read as a genuinely quiet day and change how Pibo looks.
+    private func refreshGrowth() {
+        let now = Date()
+        let today = history.record(on: now)
+        let reliable = health.dataAvailability.hasReliableData
+        let steps: Double? = reliable ? Double(today?.steps ?? 0) : nil
+        let activeMinutes: Double? = reliable ? Double(today?.exerciseMinutes ?? 0) : nil
+        let lastWorkoutEndedAt = history.workouts(on: now)
+            .map(\.end)
+            .filter { $0 <= now }
+            .max()
+        growthCoordinator.refresh(
+            GrowthRefreshContext(
+                ledger: boLedger,
+                history: history,
+                relationshipDays: store.dayCount,
+                cameraEnabled: PiboReleaseScope.camera,
+                companionEnabled: PiboReleaseScope.companionPrompts,
+                entering: false,
+                now: now,
+                steps: steps,
+                activeMinutes: activeMinutes,
+                fallbackSleepHours: nil,
+                lastWorkoutEndedAt: lastWorkoutEndedAt
+            )
+        )
     }
 
     private func publishWatchSnapshot() {
