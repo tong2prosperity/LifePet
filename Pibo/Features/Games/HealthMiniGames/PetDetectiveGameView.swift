@@ -24,17 +24,20 @@ struct PetDetectiveGameView: View {
             detailText: "最短 \(shortestPath) · 已走 \(moves)",
             onClose: { dismiss() }
         ) {
-            VStack(spacing: LP.Spacing.l) {
-                Spacer(minLength: 0)
+            // The board side is computed, not left to `.aspectRatio` on the
+            // grid: a LazyVGrid sizes its rows from the cells' ideal size, so
+            // the fit collapsed the board to ~170pt in the middle of the field.
+            GeometryReader { proxy in
+                let gridSide = min(360, proxy.size.width, proxy.size.height)
+
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: size), spacing: 8) {
                     ForEach(0..<(size * size), id: \.self) { index in
                         let point = GridPoint(x: index % size, y: index / size)
                         detectiveCell(point)
                     }
                 }
-                .aspectRatio(1, contentMode: .fit)
-                .frame(maxWidth: 360)
-                Spacer(minLength: 0)
+                .frame(width: gridSide, height: gridSide)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } bottomBar: {
             MiniGameControlBar {
@@ -90,9 +93,11 @@ struct PetDetectiveGameView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        // Not `.plain`: that style fades every disabled cell on its own, which
+        // stacked on the opacity below and washed out Pibo and the goal too.
+        .buttonStyle(PetDetectiveCellButtonStyle())
         .aspectRatio(1, contentMode: .fit)
-        .opacity(isBlocked ? 0.58 : (isMovable || point == player ? 1 : 0.72))
+        .opacity(isBlocked ? 0.58 : (isMovable || point == player || point == target ? 1 : 0.72))
         .disabled(showResult || !isMovable)
         .accessibilityLabel(AppLocalization.text(cellAccessibilityLabel(point)))
         .accessibilityHint(AppLocalization.text(
@@ -186,6 +191,14 @@ struct PetDetectiveGameView: View {
             from: player.corePoint,
             to: point.corePoint
         )
+    }
+}
+
+private struct PetDetectiveCellButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 

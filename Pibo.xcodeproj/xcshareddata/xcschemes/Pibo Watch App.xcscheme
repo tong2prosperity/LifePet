@@ -61,7 +61,6 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A7F3FD572F9B1F0200EA90A6"
             BuildableName = "Pibo Watch App.app"
-            BlueprintName = "Pibo Watch App"
             ReferencedContainer = "container:Pibo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -78,7 +77,6 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A7F3FD572F9B1F0200EA90A6"
             BuildableName = "Pibo Watch App.app"
-            BlueprintName = "Pibo Watch App"
             ReferencedContainer = "container:Pibo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

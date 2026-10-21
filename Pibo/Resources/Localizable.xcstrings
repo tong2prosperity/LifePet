@@ -75,9 +75,6 @@
         }
       }
     },
-    " 和 " : {
-
-    },
     " 天" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -289,6 +286,16 @@
         }
       }
     },
+    "%@ — %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ — %2$@"
+          }
+        }
+      }
+    },
     "%@ · %@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -343,6 +350,16 @@
         }
       }
     },
+    "%@ %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
     "%@ %lld" : {
       "localizations" : {
         "zh-Hans" : {
@@ -366,16 +383,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 醒过来一点！+%d 活力星光"
-          }
-        }
-      }
-    },
-    "%@, %lld%%" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@, %2$lld%%"
           }
         }
       }
@@ -727,6 +734,9 @@
     "%lldg" : {
 
     },
+    "%lldh" : {
+
+    },
     "%lld步" : {
 
     },
@@ -1038,6 +1048,9 @@
           }
         }
       }
+    },
+    "0h" : {
+
     },
     "3 次" : {
       "extractionState" : "manual",
@@ -3235,9 +3248,6 @@
         }
       }
     },
-    "or" : {
-
-    },
     "ornament.chime.entry" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4733,9 +4743,6 @@
         }
       }
     },
-    "使用 Apple 登录" : {
-
-    },
     "保存" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5051,6 +5058,9 @@
       }
     },
     "关闭好友面板" : {
+
+    },
+    "关闭登录" : {
 
     },
     "关闭运动记录提示" : {
@@ -5438,6 +5448,9 @@
         }
       }
     },
+    "发送验证码并进入验证码输入页面" : {
+
+    },
     "取消" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5577,6 +5590,9 @@
           }
         }
       }
+    },
+    "同意隐私政策和用户协议" : {
+
     },
     "同时开放" : {
       "extractionState" : "manual",
@@ -5808,9 +5824,6 @@
           }
         }
       }
-    },
-    "基线" : {
-
     },
     "壳里很安静。我还听得见你，别一下子做太多。" : {
       "extractionState" : "manual",
@@ -6377,6 +6390,9 @@
         }
       }
     },
+    "已勾选" : {
+
+    },
     "已升天" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6395,9 +6411,6 @@
       }
     },
     "已发送到 %@" : {
-
-    },
-    "已同意隐私政策和用户协议" : {
 
     },
     "已在森林" : {
@@ -7866,9 +7879,6 @@
         }
       }
     },
-    "无效验证码，请重试" : {
-
-    },
     "无需新增权限。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8473,7 +8483,7 @@
         }
       }
     },
-    "未同意隐私政策和用户协议" : {
+    "未勾选" : {
 
     },
     "未显形" : {
@@ -8492,9 +8502,6 @@
           }
         }
       }
-    },
-    "未注册的手机号验证通过后将自动注册" : {
-
     },
     "来！20 点见 💪" : {
       "extractionState" : "manual",
@@ -8657,9 +8664,6 @@
           }
         }
       }
-    },
-    "欢迎来到 Pibo" : {
-
     },
     "正在估算" : {
       "extractionState" : "manual",
@@ -9370,6 +9374,9 @@
         }
       }
     },
+    "生效日期：%@" : {
+
+    },
     "用临时星光继续" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9405,9 +9412,6 @@
       }
     },
     "用户" : {
-
-    },
-    "用户协议" : {
 
     },
     "用时" : {
@@ -9501,9 +9505,6 @@
       }
     },
     "登录" : {
-
-    },
-    "登录即代表你同意我们的 " : {
 
     },
     "相机不可用" : {
@@ -10980,9 +10981,6 @@
         }
       }
     },
-    "进入验证码输入页面" : {
-
-    },
     "连接后才能计算准备度。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11095,6 +11093,12 @@
 
     },
     "重新发送 %llds" : {
+
+    },
+    "重新发送，%lld 秒后可用" : {
+
+    },
+    "重新发送验证码" : {
 
     },
     "重新开始" : {
@@ -11316,9 +11320,6 @@
           }
         }
       }
-    },
-    "隐私政策" : {
-
     },
     "需要 %d bo" : {
       "extractionState" : "manual",

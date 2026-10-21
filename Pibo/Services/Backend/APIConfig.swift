@@ -4,7 +4,7 @@ import Foundation
 ///
 /// The base URL resolves in this order:
 /// 1. `PIBO_API_BASE_URL` in Info.plist (set per build configuration), else
-/// 2. the shared test deployment `https://test-api.navi-bot.com/pibo/v1` — the
+/// 2. the shared deployment `https://api.navi-bot.com/pibo/v1` — the
 ///    same base HarmonyOS packages. Nginx strips the `/pibo/v1` prefix, so request
 ///    paths keep the server's own `/auth/...` and `/api/v1/...` contract.
 struct APIConfig: Sendable {
@@ -34,6 +34,6 @@ struct APIConfig: Sendable {
             baseURL = url
             return
         }
-        baseURL = URL(string: "https://test-api.navi-bot.com/pibo/v1")!
+        baseURL = URL(string: "https://api.navi-bot.com/pibo/v1")!
     }
 }
