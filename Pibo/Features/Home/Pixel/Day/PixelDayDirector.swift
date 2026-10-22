@@ -288,6 +288,15 @@ final class PixelDayDirector {
             shape.clear()
             shapeBeat = nil
             clearDisguise()
+        } else {
+            // The stage's first pass is often far smaller than the screen, so a beat planned
+            // on it can put Pibo below the ground it now stands on. Back to the ground line
+            // when that happened; otherwise keep it inside the band it can walk.
+            let bounds = pixelWalkBounds(layout, scene)
+            if y < Double(bounds.minY) || y > Double(bounds.maxY) {
+                y = Double(layout.groundY)
+            }
+            x = min(max(x, Double(bounds.minX)), Double(bounds.maxX))
         }
         configured = true
     }

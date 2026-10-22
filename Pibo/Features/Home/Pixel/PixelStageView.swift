@@ -144,6 +144,10 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     var onGrassTapped: (() -> Void)?
     /// A place was poked: the small touch cue.
     var onPokeSound: (() -> Void)?
+    /// A ripe bo was pulled all the way: Home collects it. True when it went through.
+    var onCollectBo: (() -> Bool)?
+    /// Decision 048's pull cues — the leaf arms, then releases.
+    var onHarvestCue: ((OrnamentUnlockSoundService.HarvestCue) -> Void)?
 
     // Scene-change pan: the old scene's last frame, the trail and the view being composed.
     private var shownScene = -1
@@ -163,6 +167,13 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     private var releaseFrom: Double = 1
     private var releaseStartMs: Double = -1
     private var collecting = false
+    /// The leaf was pulled while the bo is still growing (decision 048): it springs back.
+    private var unripePulled = false
+    /// Core's middle phase has been reached, so the leaf armed once for this pull.
+    private var pullArmed = false
+    /// The one-line note above Pibo ("还在长 · 40%", "已收取 1 bo").
+    private var boHint = ""
+    private var hintUntil: Double = 0
     private var star: StarFlight?
     private var lastStarCheck: Double = 0
     private var pokedPlace = -1
@@ -599,7 +610,11 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     /// A tap on the leaf, not a pull: a ripe bo asks to be pulled, a sprout just shivers.
     func leafTap() {
         guard !collecting else { return }
-        if look.leafRipe { return }
+        if look.leafRipe {
+            showHint(AppLocalization.text("往上拉一拉叶子"))
+            return
+        }
+        onPokeSound?()
         let head = headPoint()
         effects.append(makePixelEffect(.sparkle, now, head[0] + 4, head[1] - 6, 0, 2))
     }
@@ -610,13 +625,18 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         if !ripe {
             // Decision 048: an unripe bo answers a pull without letting go — it stretches a
             // little against the grip and springs back on release.
+            unripePulled = true
             pullDistance = min(Self.pullFullVp * 0.3, max(0, -offsetY) * 0.35)
             return
         }
         pullDistance = max(0, -offsetY)
-        if PiboBoContainer.pullPhase(ripe: 1, distance: pullDistance) >= 2 {
+        let phase = PiboBoContainer.pullPhase(ripe: 1, distance: pullDistance)
+        if phase >= 2, !pullArmed {
+            pullArmed = true
             onHaptic?(12)
+            onHarvestCue?(.ready)
         }
+        if phase >= 3 { collect() }
     }
 
     func leafPanEnd() {
@@ -625,7 +645,46 @@ final class PixelStageRenderer: PixelStageMomentTarget {
             releaseFrom = min(1, pullDistance / Self.pullFullVp)
             releaseStartMs = now
         }
+        if unripePulled {
+            unripePulled = false
+            // The sprout answers the pull with its usual touch, then says why nothing came.
+            leafTap()
+            let percent = Int((min(1, max(0, look.leafGrowth)) * 100).rounded())
+            showHint(AppLocalization.format("还在长 · %d%%", percent))
+        }
         pullDistance = 0
+        pullArmed = false
+    }
+
+    /// The pull reached Core's last phase: Home collects, then the leaf lets go.
+    func collect() {
+        guard !collecting, look.leafRipe, let onCollectBo else { return }
+        collecting = true
+        let succeeded = onCollectBo()
+        pullDistance = 0
+        pullArmed = false
+        collecting = false
+        guard succeeded else {
+            showHint(AppLocalization.text("暂时没有收好，请再试一次"))
+            return
+        }
+        releaseFrom = 1
+        releaseStartMs = now
+        onHaptic?(24)
+        onHarvestCue?(.release)
+        playMoment(.boCollected, value: 0, source: -1)
+        showHint(AppLocalization.text("已收取 1 bo"))
+    }
+
+    /// The note above Pibo, or `""` once its 2.2 s are up. The view redraws every frame, so
+    /// reading it in `body` is enough to make it come and go.
+    var currentHint: String {
+        Date().timeIntervalSince1970 * 1000 < hintUntil ? boHint : ""
+    }
+
+    private func showHint(_ text: String) {
+        boHint = text
+        hintUntil = Date().timeIntervalSince1970 * 1000 + 2200
     }
 
     /// A star was caught: a sparkle where it was, then Home's callback.
@@ -1039,10 +1098,17 @@ struct PixelStageView: View {
     var onGrassTapped: (() -> Void)?
     /// A place was poked: the small touch cue.
     var onPokeSound: (() -> Void)?
+    /// A ripe bo was pulled all the way: Home collects it. True when it went through.
+    var onCollectBo: (() -> Bool)?
+    /// Decision 048's pull cues — the leaf arms, then releases.
+    var onHarvestCue: ((OrnamentUnlockSoundService.HarvestCue) -> Void)?
+    /// The accelerometer's peak each sample; Core decides what counts as a shake.
+    var onShake: ((Double) -> Void)?
 
     @State private var image: CGImage?
     @State private var scale: Int = 3
     @State private var start = Date()
+    @State private var shake = PixelShakeSampler()
     #if DEBUG
     @State private var day: HomeDayController?
     #endif
@@ -1065,10 +1131,32 @@ struct PixelStageView: View {
                         .frame(width: CGFloat(image.width * scale),
                                height: CGFloat(image.height * scale))
                 }
+                // Decision 062's note above the leaf ("还在长 · 40%", "已收取 1 bo"). ArkUI
+                // lays a Text over the leaf's box at (leafX − 40, leafY − 28); here it is
+                // centred on that same point and kept inside the stage.
+                if !renderer.currentHint.isEmpty {
+                    let leaf = renderer.actorHits.leaf
+                    let anchor = stagePoint(CGPoint(x: Double(leaf.x + leaf.w / 2 + 10),
+                                                    y: Double(leaf.y) - 18), proxy.size)
+                    Text(renderer.currentHint)
+                        .font(PixelFont.font(13))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color(red: 0x28 / 255, green: 0x30 / 255, blue: 0x38 / 255)
+                            .opacity(0xB3 / 255))
+                        .position(x: min(max(anchor.x, 60), proxy.size.width - 60),
+                                  y: max(anchor.y, 24))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
             }
             .onAppear {
                 redraw(size: proxy.size)
                 bindGestures()
+                startShake()
                 onStageReady?(renderer)
                 reportLayoutIfNeeded()
                 #if DEBUG
@@ -1080,6 +1168,29 @@ struct PixelStageView: View {
                     Task {
                         try? await Task.sleep(for: .seconds(3))
                         debugTap(spec)
+                    }
+                }
+                // `-PiboShake=3.2` feeds one accelerometer peak through the same path the
+                // sampler uses (the simulator has no accelerometer).
+                if let raw = ProcessInfo.processInfo.arguments
+                    .first(where: { $0.hasPrefix("-PiboShake=") })?
+                    .dropFirst("-PiboShake=".count),
+                   let peak = Double(raw) {
+                    Task {
+                        try? await Task.sleep(for: .seconds(3))
+                        onShake?(peak)
+                    }
+                }
+                // `-PiboStagePull=unripe|ripe` drags the leaf and lets go (the simulator
+                // cannot synthesise a drag): unripe shows "还在长 · N%", ripe collects.
+                if let raw = ProcessInfo.processInfo.arguments
+                    .first(where: { $0.hasPrefix("-PiboStagePull=") })?
+                    .dropFirst("-PiboStagePull=".count) {
+                    let ripe = String(raw) == "ripe"
+                    Task {
+                        try? await Task.sleep(for: .seconds(3))
+                        renderer.leafPan(ripe ? -120 : -60, ripe: ripe)
+                        renderer.leafPanEnd()
                     }
                 }
                 #endif
@@ -1111,10 +1222,18 @@ struct PixelStageView: View {
             reportLayoutIfNeeded()
         }
         .onDisappear {
+            shake.stop()
             #if DEBUG
             day?.stop()
             #endif
         }
+    }
+
+    /// Shake is sampled only while Home is on screen; Core decides what counts (decision
+    /// 062). ArkUI reads the same sensor at 100 ms.
+    private func startShake() {
+        guard let onShake else { return }
+        shake.start { peak in onShake(peak) }
     }
 
     @State private var reportedLayout = PixelForestLayout()
@@ -1131,10 +1250,19 @@ struct PixelStageView: View {
     private func redraw(size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
         lastSize = size
-        scale = max(1, Int(size.width) / PixelStageRenderer.targetWidth)
+        scale = max(1, Int((size.width / CGFloat(PixelStageRenderer.targetWidth)).rounded()))
         var current = look
         if let debugHour { current.hour = debugHour }
         image = renderer.render(size: size, scale: scale, now: 0, look: current)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-PiboStageMetrics") {
+            let layout = renderer.currentLayout
+            let leaf = renderer.actorHits.leaf
+            print("stage size=\(size) scale=\(scale) logical=\(renderer.pixelSize) " +
+                  "horizon=\(layout.horizonY) ground=\(layout.groundY) actor=\(renderer.actor.x),\(renderer.actor.y) " +
+                  "leaf=\(leaf.x),\(leaf.y),\(leaf.w)x\(leaf.h)")
+        }
+        #endif
     }
 
     /// Hands the renderer Home's answers once; the closures read Home's state live.
@@ -1145,6 +1273,18 @@ struct PixelStageView: View {
         renderer.onDecorTapped = onDecorTapped
         renderer.onGrassTapped = onGrassTapped
         renderer.onPokeSound = onPokeSound
+        renderer.onCollectBo = onCollectBo
+        renderer.onHarvestCue = onHarvestCue
+    }
+
+    /// A point in the view mapped onto the view's points from a logical position (the
+    /// inverse of `logicalPoint`, for overlays that sit over something in the picture).
+    private func stagePoint(_ logical: CGPoint, _ size: CGSize) -> CGPoint {
+        let pixel = renderer.pixelSize
+        let imageWidth = CGFloat(pixel.width * scale)
+        let imageHeight = CGFloat(pixel.height * scale)
+        return CGPoint(x: (size.width - imageWidth) / 2 + logical.x * CGFloat(scale),
+                       y: (size.height - imageHeight) / 2 + logical.y * CGFloat(scale))
     }
 
     /// A point in the view mapped onto the logical picture (the image is centred in the

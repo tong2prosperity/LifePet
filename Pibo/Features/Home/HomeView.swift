@@ -90,6 +90,8 @@ struct HomeView: View {
     @State private var boBalanceHint: String?
     @State private var boBalanceHintTask: Task<Void, Never>?
     @State private var boBalanceTarget: CGPoint?
+    /// Decision 048's pull cues on the pixel stage (armed, then released).
+    @State private var pixelHarvestSound = OrnamentUnlockSoundService()
     /// Current pose's bo container top (global), for the speech bubble.
     @State private var speechAnchor: CGPoint?
     /// Pibo's feet, reported by the stage, for the state caption.
@@ -727,7 +729,10 @@ struct HomeView: View {
                                onGrassTapped: { companion.onGrassTapped() },
                                onPokeSound: {
                                    PiboSoundEffectService.shared.play(.boSproutTouch)
-                               })
+                               },
+                               onCollectBo: { stageHandlers.collectBo() },
+                               onHarvestCue: { pixelHarvestSound.playHarvest($0) },
+                               onShake: { growthUI.onShake(peakAcceleration: $0) })
             } else {
                 HomeStageSurface(
                     input: input,
