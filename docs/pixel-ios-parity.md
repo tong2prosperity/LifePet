@@ -146,6 +146,8 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 | `-PiboOpenSettings` | 直接进设置页（像素模式下顶部是舱内面板） |
 | `-PiboShareSheet` / `-PiboShareExport` | 打开分享页 / 直接导出分享卡 |
 | `-PiboCameraMetrics` | 打印取景框的可用尺寸 |
+| `-PiboMorningSleep` | 走正常闸门弹一次睡眠回顾，并打印 `hammockOwned` / `reviewGranted` |
+| `-PiboNoLocation` | 不请求定位（系统弹窗会盖住画面，还会让场景变成 inactive，压住所有弹层） |
 
 ## 待移植（按依赖顺序）
 
@@ -199,8 +201,28 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 现在 `grants` 先看 Core 的基础能力，再看权属；`OrnamentUnlockStoreTests` 里那条一直红的
 `capabilitiesAreDerivedFromPermanentItemOwnership` 也按 068 改写了期望。
 
-还差一处产品表现：非拥有者没有别的入口进睡眠回顾（吊床是装饰，不买就没有），要不要在
-读数报告或 HUD 上补一个入口，等产品决定。
+鸿蒙那边的模型是：`MorningSleepCoordinator.canReview` 直接接
+`PiboCoreUnlockableItems.baseAvailable(SleepReview)`，新摘要到了就由
+`HomeOrnamentController.reconcilePendingSleep` 自己弹（不需要任何物件）；吊床只是
+「再打开最近一次回顾」的重复入口，且要点得动它还得先放在林间空地上。所以**不需要**
+在读数报告或 HUD 上另开入口 —— 回顾本来就会自己来。
+
+iOS 按这个模型补齐了四处：
+
+- `grants` 先问 Core 的基础能力（上一轮已改）。
+- 吊床的解锁文案不再把回顾和提醒当成吊床给的：`capability` 改成「森林里的休息落点」，
+  两条说明改成「放在林间空地，让 Pibo 有一处休息的地方」「只改变 Pibo 休息的地方，
+  不影响睡眠回顾和提醒」，权限说明改成「睡眠回顾与提醒从一开始就可用，无需购买吊床。」
+  （与 `models/PiboOrnament.ets` 同源）。
+- 手表快照里的 `hasHammock` 恢复成问权属：它决定 Pibo 睡在吊床还是睡在地上，
+  不是回顾能力；能力列表里的吊床一行也改按权属出现，说明改成「会睡在吊床上，
+  和你一起过夜」，不再借回顾来卖吊床。
+- 足迹页：某天没有日记录时，可以用**同一天**的晨间摘要顶上去（鸿蒙
+  `HistoryFloorView.sleepDetail` 的规则），回顾一落地就能在睡眠详情里读到，
+  不必等日记录落盘；别的日期永远不借今天的夜。
+
+模拟器验证：全新安装（`hammockOwned=false`）启动 `-PiboMorningSleep`，
+回顾照常弹出，日志同时打出 `reviewGranted=true`。
 
 ## 本机环境注意
 
@@ -229,3 +251,4 @@ xcodebuild ... OTHER_SWIFT_FLAGS='$(inherited) -disable-sandbox'
 | 2026-10-22 | 舞台交互补齐：叶子上拉收取 bo 的完整回路与提示气泡、未熟提示、摇一摇走 Core；`PixelStageSounds` 与 43 条 `px_*.m4a` 接入，徽章读数、拍餐、读数报告各自出声 |
 | 2026-10-22 | 四件纯画法落地：`PixelPortrait`（分享卡／场景小图）、`PixelViewfinder`（取景框、扫描线、相机不可用面板）、`PixelOnboardingArt`（首启三页转像素）、`PodPanelArt`（设置页顶部的舱内面板）；新增 `pixelCamera`／`pixelOnboarding` 开关 |
 | 2026-10-22 | 决定 068 对齐：`grants` 先看 Core 的基础能力，睡眠回顾与睡醒提醒不再被吊床权属挡住；`OrnamentUnlockStoreTests` 那条长期红的用例按 068 改写 |
+| 2026-10-22 | 068 收尾：吊床解锁文案改成「休息落点／不影响回顾」，手表快照的 `hasHammock` 回到权属，足迹页可用同一天的晨间摘要顶替未落盘的日记录；`-PiboMorningSleep`／`-PiboNoLocation` 截图入口 |

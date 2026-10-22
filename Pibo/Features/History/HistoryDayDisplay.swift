@@ -30,6 +30,7 @@ struct HistoryDayDisplay: Equatable {
     static func make(
         date: Date,
         record: HealthDayRecord?,
+        morningSleep: MorningSleepSummary? = nil,
         now: Date = .now,
         calendar: Calendar = .current
     ) -> HistoryDayDisplay {
@@ -37,6 +38,17 @@ struct HistoryDayDisplay: Equatable {
         func positive(_ value: Double?) -> Double? {
             guard let value, value.isFinite, value > 0 else { return nil }
             return value
+        }
+        // The persisted morning summary may stand in for a wake day whose record has
+        // not finished landing, but only for the day it describes: a past date must
+        // never borrow today's night. (Harmony `HistoryFloorView.sleepDetail`.)
+        let sleep: SleepNightDetail
+        if let record {
+            sleep = .from(record: record)
+        } else if let morningSleep, calendar.isDate(morningSleep.wakeDay, inSameDayAs: day) {
+            sleep = .from(summary: morningSleep)
+        } else {
+            sleep = .empty(day: day)
         }
         return HistoryDayDisplay(
             date: day,
@@ -49,7 +61,7 @@ struct HistoryDayDisplay: Equatable {
             standGoal: record?.standGoal ?? 0,
             steps: record?.recordedSteps,
             hourlySteps: record?.recordedHourlySteps,
-            sleep: record.map { SleepNightDetail.from(record: $0) } ?? .empty(day: day),
+            sleep: sleep,
             heartRate: positive(record?.heartRateAvg),
             restingHeartRate: positive(record?.restingHR),
             oxygenSaturation: positive(record?.oxygenSaturation)

@@ -42,7 +42,9 @@ final class PiboCompanionSyncService: NSObject, WCSessionDelegate {
             standProgress = value.stand
         }
         let state = store.activityState
-        let hasHammock = unlocks.grants(.sleepReview)
+        // 决定 068：睡眠回顾是基础能力，吊床只是它原来的入口。睡在吊床上仍然需要
+        // 真的有吊床，所以这里问的是权属，不是能力。
+        let hasHammock = unlocks.isUnlocked(.hammock)
         let animationID = PiboAnimationStateMap.presentedAmbientStateID(
             semanticStateID: PiboCoreAnimationAdapter.ambientStateID(for: state),
             state: state,
@@ -141,10 +143,21 @@ final class PiboCompanionSyncService: NSObject, WCSessionDelegate {
 
     private static func capabilities(_ unlocks: OrnamentUnlockStore) -> [PiboCompanionCapability] {
         PiboOrnament.ordered.compactMap { ornament in
+            // The hammock is a resting place, not the way into sleep review: since
+            // decision 068 the review is a base capability, so the row follows the
+            // object itself and never appears on the strength of the review.
+            if ornament.id == .hammock {
+                guard unlocks.isUnlocked(.hammock) else { return nil }
+                return PiboCompanionCapability(
+                    id: ornament.id.rawValue,
+                    title: ornament.localizedName,
+                    detail: "会睡在吊床上，和你一起过夜"
+                )
+            }
             let capability: PiboCoreUnlockableCapability
             let detail: String
             switch ornament.id {
-            case .hammock: (capability, detail) = (.sleepReview, "会使用吊床，和你回看睡眠")
+            case .hammock: return nil
             case .statusObserver: (capability, detail) = (.recoveryStatus, "能和你一起查看个人准备度")
             case .chime: (capability, detail) = (.walkEchoCollection, "能收藏并重播散步回声")
             case .lantern: (capability, detail) = (.lanternLighting, "能点亮森林里的共光声景")

@@ -703,7 +703,7 @@ struct BoUnlockOverlay: View {
 
     private func capability(for id: PiboOrnament.ID) -> String {
         switch id {
-        case .hammock: AppLocalization.text("Pibo 可以在这里睡觉和休息")
+        case .hammock: AppLocalization.text("森林里的休息落点")
         case .chime: AppLocalization.text("Walk Doodle")
         case .statusObserver: AppLocalization.text("查看恢复状态")
         case .lantern: AppLocalization.text("魔法点灯")
@@ -713,10 +713,10 @@ struct BoUnlockOverlay: View {
     private func capabilityDetails(for id: PiboOrnament.ID) -> [String] {
         switch id {
         case .hammock:
+            // 决定 068: the hammock is where Pibo rests, not what unlocks the review.
             [
-                AppLocalization.text("Pibo 睡觉或疲惫时可以使用吊床"),
-                AppLocalization.text("睡眠回顾：在 App 内查看最近一次睡眠"),
-                AppLocalization.text("睡醒通知：每天睡醒后提醒你查看"),
+                AppLocalization.text("放在林间空地，让 Pibo 有一处休息的地方"),
+                AppLocalization.text("只改变 Pibo 休息的地方，不影响睡眠回顾和提醒"),
             ]
         case .chime:
             [
@@ -732,7 +732,7 @@ struct BoUnlockOverlay: View {
     private func permissionNote(for id: PiboOrnament.ID) -> String {
         switch id {
         case .hammock:
-            AppLocalization.text("需要已授权的睡眠记录。拒绝通知权限仍可在 App 内查看睡眠回顾。")
+            AppLocalization.text("睡眠回顾与提醒从一开始就可用，无需购买吊床。")
         case .chime:
             AppLocalization.text("精确定位权限只会在开始 Walk Doodle 时请求。")
         case .statusObserver:

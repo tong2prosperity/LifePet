@@ -9,6 +9,10 @@ import SwiftData
 /// the sleep detail share that same record, so the page never mixes a live
 /// value of unknown date into a day, and never computes wake time from net
 /// sleep. Missing → "—", a recorded 0 stays 0.
+///
+/// One narrow exception, as on HarmonyOS: a day with no record may borrow the
+/// persisted morning summary **for that same wake day**, so a review that has
+/// arrived is readable before the day record finishes landing.
 struct PiboHistoryView: View {
     @Environment(PetStateStore.self) private var store
     @Environment(HealthHistoryStore.self) private var history
@@ -17,6 +21,9 @@ struct PiboHistoryView: View {
     /// 决定 063: the diary and the month page read the day's walks and the evening prints.
     @Environment(PiboDayStore.self) private var days
     @Environment(PolaroidStore.self) private var polaroids
+    /// 决定 068: the morning summary is a base capability, so it can stand in for a
+    /// wake day whose record has not landed yet.
+    @Environment(MorningSleepCoordinator.self) private var morningSleep
 
     /// Card to scroll to on open (notification deep link). `nil` = top of page.
     var focus: HistoryFocus?
@@ -72,7 +79,8 @@ struct PiboHistoryView: View {
         // selected day refreshes once data lands.
         let _ = history.revision
         let record = history.record(on: selectedDate)
-        let day = HistoryDayDisplay.make(date: selectedDate, record: record)
+        let day = HistoryDayDisplay.make(date: selectedDate, record: record,
+                                        morningSleep: morningSleep.latestSummary)
 
         VStack(spacing: LP.Spacing.s) {
             header

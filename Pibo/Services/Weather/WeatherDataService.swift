@@ -76,6 +76,12 @@ final class WeatherDataService: NSObject {
     /// 当地天气 permanently un-grantable and silently dead. Add a production
     /// weather row to `SettingsSheet` first if this should stop prompting.
     func activateForHome() {
+        #if DEBUG
+        // Screenshot hooks must not sit behind a system alert: the Simulator cannot
+        // dismiss one, and an alert also makes the scene inactive, which correctly
+        // defers every presentation that waits for Home to be active.
+        if ProcessInfo.processInfo.arguments.contains("-PiboNoLocation") { return }
+        #endif
         refreshIfStale(requestPermission: true)
     }
 

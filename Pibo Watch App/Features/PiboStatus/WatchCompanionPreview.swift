@@ -39,7 +39,7 @@ enum WatchCompanionPreview {
                 stage: scenario == "ripe" ? "ripe" : "forming",
                 progress: scenario == "ripe" ? 1 : 0.64, ripeCount: scenario == "ripe" ? 1 : 0
             ),
-            capabilities: [PiboCompanionCapability(id: "hammock", title: "吊床", detail: "会使用吊床，和你回看睡眠")],
+            capabilities: [PiboCompanionCapability(id: "hammock", title: "吊床", detail: "会睡在吊床上，和你一起过夜")],
             healthMessage: unknown ? "还没有可读取的健康记录，Pibo 会继续等你" : nil,
             shadowConnection: PiboCompanionShadowConnection(
                 status: scenario == "cached" ? .paused : .active,

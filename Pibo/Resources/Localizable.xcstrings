@@ -981,6 +981,50 @@
         }
       }
     },
+    "只改变 Pibo 休息的地方，不影响睡眠回顾和提醒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It only changes where Pibo rests; sleep review and reminders are unaffected"
+          }
+        }
+      }
+    },
+    "放在林间空地，让 Pibo 有一处休息的地方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placed in the forest clearing, it gives Pibo somewhere to rest"
+          }
+        }
+      }
+    },
+    "森林里的休息落点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A resting spot in the forest"
+          }
+        }
+      }
+    },
+    "睡眠回顾与提醒从一开始就可用，无需购买吊床。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep review and reminders work from the start; the hammock is never required."
+          }
+        }
+      }
+    },
     "🌹 分享到小红书" : {
       "extractionState" : "manual",
       "localizations" : {

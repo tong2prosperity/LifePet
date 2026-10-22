@@ -1213,6 +1213,19 @@ struct HomeView: View {
                         }
                     }
                 }
+                // `-PiboMorningSleep` presents the review through the normal gate. The
+                // point is that it needs no hammock: decision 068 made it a base
+                // capability, so a fresh install must see it too.
+                if ProcessInfo.processInfo.arguments.contains("-PiboMorningSleep") {
+                    Task {
+                        try? await Task.sleep(for: .seconds(2))
+                        LPLog.day.notice(
+                            "morning sleep fixture: hammockOwned=\(ornamentUnlocks.isUnlocked(.hammock), privacy: .public) reviewGranted=\(ornamentUnlocks.grants(.sleepReview), privacy: .public)"
+                        )
+                        morningSleep.debugPresentFixture()
+                        presentationFlow.presentMorningSleepIfPossible()
+                    }
+                }
                 #endif
                 shadowSync.setSnapshotDraft(shadowSnapshotDraft)
                 reconcileShadowFriendFlow()
