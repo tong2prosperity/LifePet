@@ -1,8 +1,9 @@
 # iOS 像素主线补差（决定 057–069）
 
 > 建立：2026-10-21
-> 状态：进行中。渲染基础、角色与场景已移植并可在模拟器出图；日导演、成长／心愿／装饰存储、
-> HUD 与弹层、相机／读数／足迹的像素外壳仍待移植。
+> 状态：进行中。渲染、角色、场景、日导演、成长／心愿／装饰／日程／季节、HUD 与主要弹层、
+> 足迹与分享、舞台交互与音效都已在 iOS 上跑通；相机页、读数报告、餐食详情与设置页还只有
+> 部分像素外壳（取景框、舱内面板已接，页面版式仍是旧 SwiftUI）。
 > 规则源：产品决定见 `docs/narrative-rebuild/decisions/057`–`069`；跨端实施证据见
 > HarmonyPibo `docs/harmony-first/2026-10-19-像素化重构.md` 起的像素系列记录。
 > 本文只是 iOS 侧的移植进度与顺序，不是新的产品规则源。
@@ -132,6 +133,20 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 `-PiboOpenPixelStage` 同样可用；`-PiboPixelHour=19` 固定时段，`-PiboSeasonBeat=N` 当场播放
 第 N 拍，`-PiboForestHour=10` 固定首页森林的光。
 
+2026-10-22 起新增的截图入口（模拟器不能合成触摸）：
+
+| 参数 | 作用 |
+| --- | --- |
+| `-PiboStageTap=actor\|glance\|leaf\|star\|sign\|basket` | 直接点中那个框；`glance` 是单击（徽章读数），`actor` 是双击（拍一拍） |
+| `-PiboStagePull=unripe\|ripe` | 拉一次叶子再松手：未熟出「还在长 · N%」，成熟则收取 |
+| `-PiboShake=3.2` | 喂一个加速度峰值，走 Core 的摇一摇判定 |
+| `-PiboStageMetrics` | 打印舞台尺寸、缩放、地平线、Pibo 与叶子的逻辑坐标 |
+| `-PiboOnboardingPreview[=overview\|health]` | 首启预览；配上 `-PiboPixelHome` 就是像素版 |
+| `-PiboOpenCameraNow` | 越过登录闸门直接开取景框（模拟器没有相机，看到的是「相机不可用」面板） |
+| `-PiboOpenSettings` | 直接进设置页（像素模式下顶部是舱内面板） |
+| `-PiboShareSheet` / `-PiboShareExport` | 打开分享页 / 直接导出分享卡 |
+| `-PiboCameraMetrics` | 打印取景框的可用尺寸 |
+
 ## 待移植（按依赖顺序）
 
 ### 1. 像素 UI 外壳（剩余）
@@ -139,25 +154,30 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 - 已完成：`PixelUI`、`GrowthHud`、`GrowthSheets`（含升级卡与拍立得卡）、`PixelFont`、
   `WellnessReadout`、`PolaroidStore`、`HomeGrowthController`、`DaySheets`、`StorySheets`、
   `ReadoutReport`（含 `HomeStatusObserver` 的纸条外壳）、`RecordWindows`、`FootprintsDiary`、
-  `PixelMonthCalendar`。
-- 待移植：`PixelViewfinder`（144）、`PixelOnboardingArt`（98）、`PodPanelArt`（47）、
-  `PixelPortrait`（42）。这四个是纯画法，等相机页、开场、旧舱面板与形象页转像素时一起接。
+  `PixelMonthCalendar`、`PixelPortrait`、`PixelViewfinder`、`PixelOnboardingArt`、
+  `PodPanelArt`。
+- 这四件纯画法的落点：`PixelPortrait` 进了分享卡与分享页的场景小图；`PixelViewfinder`
+  进了取景框（四角标记 + 探头 Pibo）、识别时的扫描线与「相机不可用」面板；`PixelOnboardingArt`
+  进了首启三页（黄昏森林、纸卡、三张小图）；`PodPanelArt` 进了设置页顶部（舱内控制面板）。
 - 足迹页本身（`HistoryFloorView`）在 iOS 落在健康记录页上（标题、日期翻页、日记、记录卡、
-  月历、读数报告都通了）；**还差三处数据源**：
+  月历、读数报告都通了）；**还差两处数据源**：
   - 决定 056 的时间线记忆（`services/PiboTimelineStore.ets`，256 行）iOS 没有，
     所以日记里的「共同的第一次」与「我说过的小事」两类暂时为空 —— 不猜、不补，
     等这个 store 移植过来再接（`FootprintsDayFacts.firsts/beats` 已经是它的形状）。
   - 月历的「相识那天」红框要 `store.identity.birthDate`，已接；星星要时间线的 firsts。
-  - 旧舱面板（`PodPanelArt`）与形象页（`PixelPortrait`）还没有对应页面。
 - 成长页的拍立得一段还没接上（`PolaroidStore` 已有 `latest`，等足迹页一起做）。
+- 设置页仍是旧的 LP 版式：像素模式下只接了顶部的舱内面板，开关、账号、关于各段还是
+  SwiftUI 卡片；鸿蒙那套 `PixelSwitch`／`PixelIcon`／`pixelCard` 面板还没搬。
 
 ### 2. 舞台交互
 
 - 已完成：命中框与点击分发（地点／装饰／篮子／收藏／贴纸／诱饵／Pibo／叶子／流星）、
-  双击拍一拍、单击瞥一眼、叶子上拉的拖动。
-- 待移植：摇一摇（`onShake`）、收取 bo 的完整回路（`onCollectBo` + 提示气泡）、
-  叶子未熟时的提示与音效、`audio/PixelStageSounds`（徽章读数的 bip-bip 等）。
-- 相机页、读数报告、足迹日记、餐食详情的像素外壳（数据视图沿用现有图表）。
+  双击拍一拍、单击瞥一眼、叶子上拉的拖动、摇一摇（`onShake` → Core `GrowthShakeDetected`）、
+  收取 bo 的完整回路（`onCollectBo` + 提示气泡 + 收好/收不好的两条提示）、叶子未熟时的
+  提示与音效、`audio/PixelStageSounds`（43 条像素音效与逐帧观察者）。
+- 待移植：相机页、读数报告、足迹日记、餐食详情的像素外壳（数据视图沿用现有图表）。
+  取景框的四角与探头 Pibo 已接，但模拟器没有相机，只能在真机上看；扫描线随识别出现。
+
 
 ### 3. 页面接线与旧表现退役
 
@@ -195,3 +215,5 @@ xcodebuild ... OTHER_SWIFT_FLAGS='$(inherited) -disable-sandbox'
 | 2026-10-21 | 成长反馈队列与每晚拍立得；升级卡、拍立得卡在首页播放；气泡补 `fact` 行 |
 | 2026-10-21 | 记录卡的像素画面：`RecordWindows`（夜空条／山坡／池塘）、三张卡换纸框；`pixelHistory` 开关 |
 | 2026-10-21 | 足迹（决定 063）：`FootprintsDiary`、`PixelMonthCalendar`、日记事实源；健康记录页在像素模式下变成足迹页（标题、翻页、日记、月历、读数报告）；拍立得路径改走 `fileURL` 兜底 |
+| 2026-10-22 | 舞台交互补齐：叶子上拉收取 bo 的完整回路与提示气泡、未熟提示、摇一摇走 Core；`PixelStageSounds` 与 43 条 `px_*.m4a` 接入，徽章读数、拍餐、读数报告各自出声 |
+| 2026-10-22 | 四件纯画法落地：`PixelPortrait`（分享卡／场景小图）、`PixelViewfinder`（取景框、扫描线、相机不可用面板）、`PixelOnboardingArt`（首启三页转像素）、`PodPanelArt`（设置页顶部的舱内面板）；新增 `pixelCamera`／`pixelOnboarding` 开关 |

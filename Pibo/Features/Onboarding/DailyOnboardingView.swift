@@ -27,34 +27,18 @@ struct DailyOnboardingView: View {
     @State private var visible = false
     @State private var animationPresentation = HomeAnimationPresentationController()
     @State private var stageCommands = PiboStageCommandController()
+    /// The pixel welcome's own clock: the stone blinks, puffs, and Pibo peeks out.
+    @State private var introAgeMs: Double = 0
+    @State private var introTask: Task<Void, Never>?
 
     private var step: DailySetupStep { onboarding.dailySetupStep }
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack(alignment: .top) {
-                forest
-                VStack(spacing: 0) {
-                    if previewMode { previewBar }
-                    ScrollView {
-                        content
-                            .padding(22)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .scrollBounceBehavior(.basedOnSize)
-                    .frame(maxHeight: cardMaxHeight(in: proxy.size))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(LP.Fill.bgContainer.opacity(0.94))
-                    )
-                    Spacer(minLength: LP.Spacing.l)
-                    actions
-                }
-                .frame(maxWidth: 480)
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 16)
+            if PiboReleaseScope.pixelOnboarding {
+                pixelBody(in: proxy.size)
+            } else {
+                legacyBody(in: proxy.size)
             }
         }
         .background(Color(hex: 0x24372E).ignoresSafeArea())
@@ -64,9 +48,202 @@ struct DailyOnboardingView: View {
                 onboarding.begin(at: .encounter)
             }
             refreshStage()
+            startIntro()
         }
-        .onDisappear { visible = false }
+        .onDisappear {
+            visible = false
+            introTask?.cancel()
+            introTask = nil
+        }
         .animation(.easeInOut(duration: 0.25), value: step)
+    }
+
+    private func legacyBody(in size: CGSize) -> some View {
+        ZStack(alignment: .top) {
+            forest
+            VStack(spacing: 0) {
+                if previewMode { previewBar }
+                ScrollView {
+                    content
+                        .padding(22)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(maxHeight: cardMaxHeight(in: size))
+                .fixedSize(horizontal: false, vertical: true)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(LP.Fill.bgContainer.opacity(0.94))
+                )
+                Spacer(minLength: LP.Spacing.l)
+                actions
+            }
+            .frame(maxWidth: 480)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 16)
+        }
+    }
+
+    // MARK: Pixel first run (decision 059)
+
+    /// ArkTS `pixelSetup`: the dusk forest behind a paper card. The forest is drawn at nine
+    /// device pixels per logical pixel, the same unit the ArkUI canvas uses.
+    private func pixelBody(in size: CGSize) -> some View {
+        // The canvas covers the whole screen, so its logical size comes from the screen
+        // rather than the safe-area-inset size the layout was handed. It is a background,
+        // not a sibling: a full-bleed picture must not decide where the buttons sit.
+        let screen = UIScreen.main.bounds.size
+        return ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                if previewMode { pixelPreviewBar }
+                ScrollView {
+                    pixelContent
+                        .padding(18)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(maxHeight: pixelCardMaxHeight(in: size))
+                .fixedSize(horizontal: false, vertical: true)
+                .background(PixelUIColor.paper)
+                .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 3))
+                .background(alignment: .bottomTrailing) {
+                    Rectangle().fill(PixelUIColor.shadow).offset(x: 4, y: 4)
+                }
+                Spacer(minLength: 12)
+                pixelActions
+            }
+            .frame(maxWidth: 480)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 16)
+        }
+        .background {
+            PixelOnboardingForestView(ageMs: introAgeMs,
+                                     logicalWidth: max(60, Int(screen.width * UIScreen.main.scale / 9)),
+                                     logicalHeight: max(120, Int(screen.height * UIScreen.main.scale / 9)))
+                .frame(width: screen.width, height: screen.height)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private var pixelContent: some View {
+        switch step {
+        case .welcome: pixelIntroduction
+        case .overview: pixelOverview
+        case .health: pixelHealthExplanation
+        }
+    }
+
+    private var pixelIntroduction: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            PixelText(text: "Pibo", textSize: 12, color: PixelUIColor.inkSoft)
+            PixelText(text: DailyOnboardingCopy.hello, textSize: 17)
+                .fixedSize(horizontal: false, vertical: true)
+            PixelText(text: DailyOnboardingCopy.valueTitle, textSize: 14)
+                .fixedSize(horizontal: false, vertical: true)
+            PixelText(text: DailyOnboardingCopy.value, textSize: 13, color: PixelUIColor.inkSoft)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(3)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var pixelOverview: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            PixelText(text: DailyOnboardingCopy.overviewTitle, textSize: 18)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            ForEach(Array(DailyOnboardingCopy.overviewSections.enumerated()), id: \.element.label) { index, section in
+                pixelOverviewRow(PixelOnboardingIcon(rawValue: index) ?? .together, section)
+            }
+        }
+    }
+
+    private func pixelOverviewRow(_ icon: PixelOnboardingIcon,
+                                  _ section: DailyOnboardingCopy.OverviewSection) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            PixelOnboardingIconView(icon: icon)
+                .frame(width: 50, height: 60)
+                .background(PixelUIColor.paperDim)
+                .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                PixelText(text: section.label, textSize: 15, color: PixelUIColor.leaf)
+                PixelText(text: section.body, textSize: 13)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(3)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var pixelHealthExplanation: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            PixelText(text: DailyOnboardingCopy.healthTitle, textSize: 18)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            PixelText(text: DailyOnboardingCopy.healthBody, textSize: 14)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(3)
+            PixelText(text: DailyOnboardingCopy.healthDetails, textSize: 13, color: PixelUIColor.inkSoft)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(3)
+            PixelText(text: DailyOnboardingCopy.healthBoundary, textSize: 12, color: PixelUIColor.inkSoft)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(3)
+        }
+    }
+
+    private var pixelPreviewBar: some View {
+        HStack(spacing: 8) {
+            PixelText(text: DailyOnboardingCopy.previewNotice, textSize: 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            PixelButton(label: DailyOnboardingCopy.previewClose, primary: false,
+                        buttonID: "pibo.onboarding.preview.close") { onClosePreview() }
+        }
+        .padding(8)
+        .background(PixelUIColor.paper)
+        .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+        .padding(.bottom, 8)
+    }
+
+    private var pixelActions: some View {
+        VStack(spacing: 10) {
+            PixelButton(label: primaryLabel, active: !requesting) { advance() }
+            if step == .health {
+                PixelButton(label: DailyOnboardingCopy.later, primary: false) { finish() }
+            }
+            if step != .welcome, !requesting {
+                PixelButton(label: DailyOnboardingCopy.back, primary: false) {
+                    onboarding.moveDailySetup(to: step == .overview ? .welcome : .overview)
+                }
+            }
+        }
+    }
+
+    /// The welcome's own timeline: the stone blinks, puffs, and Pibo is peeking behind the
+    /// pod. ArkTS caps it at `ONBOARDING_INTRO_MS`; after that the forest is still.
+    private func startIntro() {
+        guard PiboReleaseScope.pixelOnboarding, introTask == nil else { return }
+        let start = Date()
+        introTask = Task { @MainActor in
+            while !Task.isCancelled {
+                let age = Date().timeIntervalSince(start) * 1000
+                introAgeMs = min(ONBOARDING_INTRO_MS, age)
+                if introAgeMs >= ONBOARDING_INTRO_MS { break }
+                try? await Task.sleep(for: .milliseconds(60))
+            }
+        }
+    }
+
+    private func pixelCardMaxHeight(in size: CGSize) -> CGFloat {
+        let fraction: CGFloat = step == .overview ? 0.5 : 0.36
+        return max(160, size.height * fraction - (previewMode ? 52 : 0))
     }
 
     // MARK: Forest

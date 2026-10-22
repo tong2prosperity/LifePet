@@ -69,6 +69,11 @@ final class PiboSoundEffectService {
     private var players: [PiboSoundEffect: AVAudioPlayer] = [:]
     private var lastPlayedAt: [PiboSoundEffect: Date] = [:]
     private var missingAssets: Set<PiboSoundEffect> = []
+    // Decision 063: the pixel stage's own cues live in their own folder and have their own
+    // volume table; they are short enough to keep their players alongside the Home cues.
+    private var pixelPlayers: [PiboPixelSound: AVAudioPlayer] = [:]
+    private var lastPixelPlayedAt: [PiboPixelSound: Date] = [:]
+    private var missingPixelAssets: Set<PiboPixelSound> = []
 
     init(
         bundle: Bundle = .main,
@@ -89,10 +94,18 @@ final class PiboSoundEffectService {
             ?? bundle.url(forResource: effect.assetName, withExtension: "m4a")
     }
 
+    /// The pixel stage's own cues, rendered by `tools/render_pixel_sfx.mjs` on the HarmonyOS
+    /// side and copied here unchanged (`px_<rawValue>.m4a`).
+    static func resourceURL(for sound: PiboPixelSound, in bundle: Bundle = .main) -> URL? {
+        bundle.url(forResource: sound.assetName, withExtension: "m4a", subdirectory: "Audio/PixelSFX")
+            ?? bundle.url(forResource: sound.assetName, withExtension: "m4a")
+    }
+
     /// Decodes every cue up front so the first pat is not late.
     func preload() {
         guard isEnabled else { return }
         for effect in PiboSoundEffect.allCases { _ = player(for: effect) }
+        for sound in PiboPixelSound.allCases { _ = pixelPlayer(for: sound) }
     }
 
     /// Settings toggle: drop decoded buffers when off, warm them when back on.
@@ -102,6 +115,8 @@ final class PiboSoundEffectService {
         } else {
             for player in players.values { player.stop() }
             players.removeAll()
+            for player in pixelPlayers.values { player.stop() }
+            pixelPlayers.removeAll()
         }
     }
 
@@ -122,6 +137,23 @@ final class PiboSoundEffectService {
         LPLog.audio.debug("cue \(effect.rawValue, privacy: .public) at \(effect.volume, privacy: .public)")
     }
 
+    /// A pixel stage cue. `hushed` drops it to `PIBO_PIXEL_SOUND_HUSH` — at night or while
+    /// Pibo sleeps, where a shape change should not sound like an alarm.
+    func play(_ sound: PiboPixelSound, hushed: Bool = false) {
+        guard isEnabled,
+              UIApplication.shared.applicationState == .active,
+              !UIAccessibility.isReduceMotionEnabled
+        else { return }
+        let now = Date()
+        if let last = lastPixelPlayedAt[sound], now.timeIntervalSince(last) < Self.minRepeatInterval { return }
+        guard prepareSession(), let player = pixelPlayer(for: sound) else { return }
+        lastPixelPlayedAt[sound] = now
+        player.currentTime = 0
+        player.volume = piboPixelSoundVolume(sound) * (hushed ? PIBO_PIXEL_SOUND_HUSH : 1)
+        player.play()
+        LPLog.audio.debug("pixel cue \(sound.rawValue, privacy: .public) at \(player.volume, privacy: .public)")
+    }
+
     private func player(for effect: PiboSoundEffect) -> AVAudioPlayer? {
         if let player = players[effect] { return player }
         guard let url = Self.resourceURL(for: effect, in: bundle) else {
@@ -138,6 +170,26 @@ final class PiboSoundEffectService {
             return player
         } catch {
             LPLog.audio.error("sound effect \(effect.rawValue, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    private func pixelPlayer(for sound: PiboPixelSound) -> AVAudioPlayer? {
+        if let player = pixelPlayers[sound] { return player }
+        guard let url = Self.resourceURL(for: sound, in: bundle) else {
+            if missingPixelAssets.insert(sound).inserted {
+                LPLog.audio.error("pixel cue missing: \(sound.assetName, privacy: .public).m4a")
+            }
+            return nil
+        }
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.numberOfLoops = 0
+            player.prepareToPlay()
+            pixelPlayers[sound] = player
+            return player
+        } catch {
+            LPLog.audio.error("pixel cue \(sound.rawValue, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }

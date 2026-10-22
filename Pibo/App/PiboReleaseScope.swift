@@ -73,6 +73,16 @@ enum PiboReleaseScope {
     /// 打开；`-PiboPixelShare` 可以单独打开。
     static var pixelShare: Bool { on(false, "-PiboPixelShare", "-PiboPixelHistory", "-PiboPixelHome") }
 
+    /// 决定 063：相机取景框的像素外壳（四角标记、探头的 Pibo、识别时的扫描线）。跟着
+    /// 像素首页一起打开；`-PiboPixelCamera` 可以单独打开。
+    static var pixelCamera: Bool { on(false, "-PiboPixelCamera", "-PiboPixelHome") }
+
+    /// 决定 059：首启流程的像素版（黄昏森林、石头变成 Pibo、纸卡与三张小图）。跟着像素
+    /// 首页一起打开；`-PiboPixelOnboarding` 可以单独打开。
+    static var pixelOnboarding: Bool {
+        on(false, "-PiboPixelOnboarding", "-PiboPixelHome")
+    }
+
     /// 本版森林是否展示／允许操作这件物件。隐藏物件不跳过：它挡住的后续链一并不出现。
     static func allowsOrnament(_ id: PiboOrnament.ID) -> Bool {
         switch id {

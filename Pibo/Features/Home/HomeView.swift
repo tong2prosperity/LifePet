@@ -732,7 +732,10 @@ struct HomeView: View {
                                },
                                onCollectBo: { stageHandlers.collectBo() },
                                onHarvestCue: { pixelHarvestSound.playHarvest($0) },
-                               onShake: { growthUI.onShake(peakAcceleration: $0) })
+                               onShake: { growthUI.onShake(peakAcceleration: $0) },
+                               onPixelCue: { cue, hushed in
+                                   PiboSoundEffectService.shared.play(cue, hushed: hushed)
+                               })
             } else {
                 HomeStageSurface(
                     input: input,
@@ -1157,6 +1160,16 @@ struct HomeView: View {
                 if ProcessInfo.processInfo.arguments.contains("-PiboOpenCamera") {
                     presentation.openMealCapture(isLoggedIn: auth.phase == .loggedIn)
                 }
+                // Art verification: the viewfinder itself, past the account gate. The
+                // Simulator has no camera and no session, so the guard above would stop at
+                // the login sheet before the pixel framing guide is ever laid out.
+                if ProcessInfo.processInfo.arguments.contains("-PiboOpenCameraNow") {
+                    presentation.showCamera = true
+                }
+                // Screenshot hook for the settings page (the gear needs a tap).
+                if ProcessInfo.processInfo.arguments.contains("-PiboOpenSettings") {
+                    presentation.showSettings = true
+                }
                 #endif
                 presentBoProgressFeedbackIfPossible()
                 bindCompanion()
@@ -1522,7 +1535,9 @@ struct HomeView: View {
             onOpenReadout: {
                 LPHaptics.tap()
                 if PiboReleaseScope.pixelHome {
-                    // Decision 062: the badge opens today's readout for everyone.
+                    // Decision 062: the badge opens today's readout for everyone, and the
+                    // report prints with its own little whirr (decision 063).
+                    PiboSoundEffectService.shared.play(.reportPrint)
                     readoutOpen = true
                 } else {
                     PiboSoundEffectService.shared.play(.observerOpen)

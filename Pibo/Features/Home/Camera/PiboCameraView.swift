@@ -47,6 +47,20 @@ struct PiboCameraView: View {
 
                 if camera.hasLivePreview {
                     framingGuide(in: proxy.size)
+                        .onAppear {
+                            #if DEBUG
+                            if ProcessInfo.processInfo.arguments.contains("-PiboCameraMetrics") {
+                                LPLog.camera.notice("camera stage=\(proxy.size.width, privacy: .public)x\(proxy.size.height, privacy: .public) pixel=\(PiboReleaseScope.pixelCamera, privacy: .public)")
+                            }
+                            #endif
+                        }
+                }
+
+                // Decision 063: the scan line sweeps the frame while the photo is checked.
+                if isSaving, PiboReleaseScope.pixelCamera {
+                    PixelScanLine()
+                        .frame(width: proxy.size.width * 0.82, height: proxy.size.height * 0.48)
+                        .position(x: proxy.size.width / 2, y: proxy.size.height * 0.49)
                 }
 
                 VStack(spacing: 0) {
@@ -164,13 +178,31 @@ struct PiboCameraView: View {
     }
 
     private func framingGuide(in size: CGSize) -> some View {
-        RoundedRectangle(cornerRadius: PiboMoss.Radius.card, style: .continuous)
-            .strokeBorder(PiboMoss.Color.foundationTeal.opacity(0.88), lineWidth: 2)
-            .aspectRatio(3.0 / 4.0, contentMode: .fit)
-            .frame(width: max(0, size.width - 40))
-            .position(x: size.width / 2, y: size.height * 0.49)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+        // Decision 063: on the pixel side the frame is four corner marks with Pibo leaning
+        // on its bottom edge, watching with you (ArkTS `FramingGuide`).
+        if PiboReleaseScope.pixelCamera {
+            return AnyView(
+                ZStack(alignment: .bottom) {
+                    PixelFinderCorners(color: camera.hasLivePreview ? .white : .white.opacity(0.6))
+                    PixelPeekPibo(mood: camera.isCapturing ? .snap : .watch, peekSize: 66)
+                        .offset(y: 2)
+                        .accessibilityHidden(true)
+                }
+                .frame(width: size.width * 0.82, height: size.height * 0.48)
+                .position(x: size.width / 2, y: size.height * 0.49)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            )
+        }
+        return AnyView(
+            RoundedRectangle(cornerRadius: PiboMoss.Radius.card, style: .continuous)
+                .strokeBorder(PiboMoss.Color.foundationTeal.opacity(0.88), lineWidth: 2)
+                .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                .frame(width: max(0, size.width - 40))
+                .position(x: size.width / 2, y: size.height * 0.49)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        )
     }
 
     private var captureFailureNotice: some View {
@@ -200,10 +232,17 @@ struct PiboCameraView: View {
 
     private var unavailablePanel: some View {
         VStack(spacing: LP.Spacing.l) {
-            Image(systemName: unavailableIcon)
-                .font(.system(size: 32, weight: .regular))
-                .foregroundStyle(PiboMoss.Color.onDarkSecondary)
-                .accessibilityHidden(true)
+            // Decision 063: Pibo peeks over the edge, puzzled — the pixel side's way of
+            // saying "I can't see anything" (ArkTS `UnavailablePanel`).
+            if PiboReleaseScope.pixelCamera {
+                PixelPeekPibo(mood: .puzzled, peekSize: 80)
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: unavailableIcon)
+                    .font(.system(size: 32, weight: .regular))
+                    .foregroundStyle(PiboMoss.Color.onDarkSecondary)
+                    .accessibilityHidden(true)
+            }
 
             VStack(spacing: LP.Spacing.s) {
                 Text(AppLocalization.text(unavailableTitle))
@@ -366,7 +405,14 @@ struct PiboCameraView: View {
 
     private var savingOverlay: some View {
         VStack(spacing: LP.Spacing.m) {
-            ProgressView().tint(.white)
+            // Decision 063: while the photo is checked, Pibo sniffs at it and a scan line
+            // sweeps the frame (ArkTS `ReviewPanel`).
+            if PiboReleaseScope.pixelCamera {
+                PixelPeekPibo(mood: .sniff, peekSize: 80)
+                    .accessibilityHidden(true)
+            } else {
+                ProgressView().tint(.white)
+            }
             Text(AppLocalization.text("正在确认照片里有餐食"))
                 .lpText(LP.Typography.b4Medium)
                 .foregroundStyle(PiboMoss.Color.onDarkPrimary)

@@ -131,6 +131,9 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     var shootingStarDue: ((Bool) -> Bool)?
     var onShootingStarCaught: (() -> Void)?
     var onHaptic: ((Double) -> Void)?
+    /// A pixel cue the frame earned (decision 063). The second argument hushes it: at night,
+    /// or while Pibo sleeps.
+    var onPixelCue: ((PiboPixelSound, Bool) -> Void)?
 
     // The gesture layer's answers (decision 058): what Home does about a tap lives there.
     /// A double tap on Pibo, after the pat itself has played.
@@ -183,6 +186,10 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     private var look = Look()
     private var now: Double = 0
     private var elapsed: Double = 0
+
+    /// What changed on the stage since the last frame, and which cue that earns.
+    private let sounds = PixelStageSounds()
+    private var soundActor = PixelSoundActor()
 
     private final class StarFlight {
         var startMs: Double = 0
@@ -409,6 +416,7 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         effects = drawPixelEffects(frame, effects, now, false)
         if panning { composeTravel(now) }
         if pokedPlace >= 0 && now - pokedAt > 4000 { pokedPlace = -1 }
+        listen(actor, activity, mood, directed: directed)
 
         return imageRenderer.image(for: frame, palette: palette)
     }
@@ -703,9 +711,10 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         return (star.headX, star.headY)
     }
 
-    /// A glance makes the badge blink (decision 062).
+    /// A glance makes the badge blink and read out (decision 062): a little bip-bip.
     func glance() {
         badgeBlinkUntil = now + Self.badgeBlinkMs
+        onPixelCue?(.badgeRead, false)
     }
 
     /// A verified meal's sticker just landed: Pibo looks at it for a few seconds.
@@ -805,6 +814,27 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         actor.y = Double(layout.groundY)
         actor.depthY = Double(layout.groundY)
         return actor
+    }
+
+    /// Sounds follow what the frame shows (ArkTS `listen`). The baseline keeps moving while
+    /// the stage is covered by a sheet or Pibo is hidden, so closing one never releases a
+    /// burst of old cues.
+    private func listen(_ actor: PixelActorFrame, _ activity: PiboPixelActivity, _ mood: PixelMood,
+                        directed: Bool) {
+        var cues: [PiboPixelSound] = []
+        if directed {
+            soundActor.form = actor.form
+            soundActor.formPhase = actor.formPhase
+            soundActor.formAge = actor.formAge
+            soundActor.emote = actor.emote
+            soundActor.fidget = actor.fidget
+            cues.append(contentsOf: sounds.observe(soundActor))
+            if let scene = sounds.sceneChanged(Int(look.scene.rawValue)) { cues.append(scene) }
+        }
+        if let state = sounds.stateChanged(activity.rawValue) { cues.append(state) }
+        guard look.piboVisible else { return }
+        let hushed = mood == .night || activity == .sleeping
+        for cue in cues { onPixelCue?(cue, hushed) }
     }
 
     /// The badge's lens: steady once the pod is fixed; before that the cracked lens drops out
@@ -1104,6 +1134,8 @@ struct PixelStageView: View {
     var onHarvestCue: ((OrnamentUnlockSoundService.HarvestCue) -> Void)?
     /// The accelerometer's peak each sample; Core decides what counts as a shake.
     var onShake: ((Double) -> Void)?
+    /// A pixel cue the frame earned; the flag hushes it at night or while Pibo sleeps.
+    var onPixelCue: ((PiboPixelSound, Bool) -> Void)?
 
     @State private var image: CGImage?
     @State private var scale: Int = 3
@@ -1275,6 +1307,7 @@ struct PixelStageView: View {
         renderer.onPokeSound = onPokeSound
         renderer.onCollectBo = onCollectBo
         renderer.onHarvestCue = onHarvestCue
+        renderer.onPixelCue = onPixelCue
     }
 
     /// A point in the view mapped onto the view's points from a logical position (the
@@ -1320,13 +1353,15 @@ struct PixelStageView: View {
     }
 
     #if DEBUG
-    /// `-PiboStageTap=actor|sign|basket|leaf|star` taps the middle of that box once the
+    /// `-PiboStageTap=actor|glance|sign|basket|leaf|star` taps the middle of that box once the
     /// stage is up: the simulator cannot synthesise a touch, and the boxes are what needs
     /// checking.
     private func debugTap(_ spec: String) {
         let target: PixelStageTarget?
+        // `glance` is the single tap on Pibo (the badge's bip-bip); `actor` is the pat.
+        let double = spec != "glance"
         switch spec {
-        case "actor": target = .actor
+        case "actor", "glance": target = .actor
         case "leaf": target = .leaf
         case "star": target = .star
         case "sign": target = .place(Int(PiboCoreDayPlace.trailSign.rawValue))
@@ -1340,7 +1375,7 @@ struct PixelStageView: View {
             return
         }
         LPLog.day.notice("stage tap \(spec, privacy: .public) at \(hit.center.x, privacy: .public),\(hit.center.y, privacy: .public)")
-        performTap(atLogical: CGPoint(x: hit.center.x, y: hit.center.y), double: target == .actor)
+        performTap(atLogical: CGPoint(x: hit.center.x, y: hit.center.y), double: double)
     }
     #endif
 

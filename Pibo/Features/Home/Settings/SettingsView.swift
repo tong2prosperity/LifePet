@@ -12,6 +12,7 @@ struct SettingsView: View {
     @Environment(WorkoutCompletionNotifier.self) private var workoutNotifier
     @Environment(OnboardingStateStore.self) private var onboarding
     @Environment(HealthDataService.self) private var health
+    @Environment(PiboSeasonStore.self) private var seasons
 
     @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled)
     private var ambientSoundEnabled = true
@@ -34,6 +35,7 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LP.Spacing.xl) {
+                if PiboReleaseScope.pixelHome { podHeader }
                 accountSection
                 connectionSection
                 soundSection
@@ -93,6 +95,22 @@ struct SettingsView: View {
                     onClose: { showLogin = false }
                 )
             }
+        }
+    }
+
+    /// Decision 063: the pixel settings page opens with Pibo's pod. The antenna is bent until
+    /// season one fixes it, and with the forest sound on it sends little waves (ArkTS
+    /// `podHeader`).
+    private var podHeader: some View {
+        VStack(spacing: 8) {
+            PixelPodPanelView(podFixed: seasons.podFixed, soundOn: ambientSoundEnabled)
+                .background(alignment: .bottomTrailing) {
+                    Rectangle().fill(PixelUIColor.shadow).offset(x: 3, y: 3)
+                }
+            PixelText(text: AppLocalization.format("地球第 %@ 天 · Pibo 的舱",
+                                                   "\(max(1, store.dayCount))"),
+                      textSize: 12, color: PixelUIColor.inkSoft)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 

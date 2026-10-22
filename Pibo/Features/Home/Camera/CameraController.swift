@@ -135,6 +135,8 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
         // Clear the previous attempt's inline error while this retry is running.
         availability = .ready
         isCapturing = true
+        // Decision 063: the shutter has a voice of its own on the pixel side.
+        PiboSoundEffectService.shared.play(.cameraSnap)
         LPLog.camera.debug("capturePhoto requested")
         let settings = AVCapturePhotoSettings()
         let captureID = settings.uniqueID
