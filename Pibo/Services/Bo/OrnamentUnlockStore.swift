@@ -110,11 +110,13 @@ final class OrnamentUnlockStore {
 
     func isUnlocked(_ id: PiboOrnament.ID) -> Bool { unlocked.contains(id) }
 
-    /// Capabilities are always derived from permanent ownership through Core.
-    /// No platform feature keeps a second entitlement flag, so users who
-    /// already own an item automatically receive newly connected routes.
+    /// Capabilities come from Core, never from a second platform flag. Decision 068 made
+    /// sleep review and its reminder base capabilities — available from the first use,
+    /// whatever the hammock's ownership — while the rest still follow permanent ownership,
+    /// so users who already own an item automatically receive newly connected routes.
     func grants(_ capability: PiboCoreUnlockableCapability) -> Bool {
-        unlocked.contains { id in
+        if PiboCoreUnlockableItems.baseAvailable(capability) { return true }
+        return unlocked.contains { id in
             PiboCoreUnlockableItems.grants(capability, from: id.coreID)
         }
     }

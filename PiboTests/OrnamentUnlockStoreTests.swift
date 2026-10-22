@@ -117,7 +117,10 @@ struct OrnamentUnlockStoreTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         ledger.debugSet(balance: 20)
 
-        #expect(!inventory.grants(.sleepReview))
+        // Decision 068: sleep review and its reminder are base capabilities, available from
+        // the first use whether or not the hammock was ever bought.
+        #expect(inventory.grants(.sleepReview))
+        #expect(inventory.grants(.wakeNotification))
         #expect(!inventory.grants(.dewCamera))
         #expect(inventory.purchase(.hammock, using: ledger) == .purchased)
         #expect(inventory.grants(.sleepReview))

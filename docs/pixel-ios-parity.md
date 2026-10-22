@@ -191,6 +191,17 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
 - 玩法：成长基线／上限／跨日、心愿判定、装饰先扣后得、出门与收藏、季节节拍、变形阶段。
 - 真机：拍一拍手感、叶子上拉、摇一摇灵敏度、耗电与帧率。
 
+## 顺手补上的对齐：决定 068
+
+`OrnamentUnlockStore.grants` 原来只查「永久拥有」这一条路，而 Core 从 068 起把睡眠回顾与
+睡醒提醒放进了基础能力（`baseAvailable`），吊床只是装饰。结果是 iOS 上
+`grants(.sleepReview)` 永远为假：点吊床打不开睡眠回顾，睡醒提醒也一直被这条门挡着。
+现在 `grants` 先看 Core 的基础能力，再看权属；`OrnamentUnlockStoreTests` 里那条一直红的
+`capabilitiesAreDerivedFromPermanentItemOwnership` 也按 068 改写了期望。
+
+还差一处产品表现：非拥有者没有别的入口进睡眠回顾（吊床是装饰，不买就没有），要不要在
+读数报告或 HUD 上补一个入口，等产品决定。
+
 ## 本机环境注意
 
 这台机器的命令行沙箱会拦住 Xcode 的嵌套沙箱，`xcodebuild` 默认会以
@@ -217,3 +228,4 @@ xcodebuild ... OTHER_SWIFT_FLAGS='$(inherited) -disable-sandbox'
 | 2026-10-21 | 足迹（决定 063）：`FootprintsDiary`、`PixelMonthCalendar`、日记事实源；健康记录页在像素模式下变成足迹页（标题、翻页、日记、月历、读数报告）；拍立得路径改走 `fileURL` 兜底 |
 | 2026-10-22 | 舞台交互补齐：叶子上拉收取 bo 的完整回路与提示气泡、未熟提示、摇一摇走 Core；`PixelStageSounds` 与 43 条 `px_*.m4a` 接入，徽章读数、拍餐、读数报告各自出声 |
 | 2026-10-22 | 四件纯画法落地：`PixelPortrait`（分享卡／场景小图）、`PixelViewfinder`（取景框、扫描线、相机不可用面板）、`PixelOnboardingArt`（首启三页转像素）、`PodPanelArt`（设置页顶部的舱内面板）；新增 `pixelCamera`／`pixelOnboarding` 开关 |
+| 2026-10-22 | 决定 068 对齐：`grants` 先看 Core 的基础能力，睡眠回顾与睡醒提醒不再被吊床权属挡住；`OrnamentUnlockStoreTests` 那条长期红的用例按 068 改写 |
