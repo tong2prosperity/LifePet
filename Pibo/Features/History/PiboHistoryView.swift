@@ -187,6 +187,16 @@ struct PiboHistoryView: View {
         .sheet(isPresented: $showHealthStatus) {
             HealthDataStatusSheet()
         }
+        .task {
+            #if DEBUG
+            // `-PiboShareSheet` opens the share preview without the health gate, so the
+            // card and the scene chips can be checked in the simulator.
+            if ProcessInfo.processInfo.arguments.contains("-PiboShareSheet") {
+                shareSnapshot = TodayPiboShareSnapshot.make(store: store,
+                                                            record: history.record(on: .now))
+            }
+            #endif
+        }
         .sheet(isPresented: $sleepDetailOpen) {
             // Same record as the summary card above.
             SleepDetailContent(

@@ -69,6 +69,10 @@ enum PiboReleaseScope {
     /// 因为它们是同一个世界的两半；`-PiboPixelHistory` 可以单独打开。
     static var pixelHistory: Bool { on(false, "-PiboPixelHistory", "-PiboPixelHome") }
 
+    /// 决定 063：分享卡与分享页的像素版（森林肖像、场景小图、像素按钮）。跟足迹页一起
+    /// 打开；`-PiboPixelShare` 可以单独打开。
+    static var pixelShare: Bool { on(false, "-PiboPixelShare", "-PiboPixelHistory", "-PiboPixelHome") }
+
     /// 本版森林是否展示／允许操作这件物件。隐藏物件不跳过：它挡住的后续链一并不出现。
     static func allowsOrnament(_ id: PiboOrnament.ID) -> Bool {
         switch id {

@@ -6,7 +6,8 @@ enum TodayPiboShareService {
     static func export(
         snapshot: TodayPiboShareSnapshot,
         scene: PiboFlatWorldScene,
-        characterImage: UIImage?
+        characterImage: UIImage?,
+        pixel: Bool = false
     ) throws -> URL {
         let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         for url in (try? FileManager.default.contentsOfDirectory(at: cache, includingPropertiesForKeys: nil)) ?? []
@@ -16,7 +17,8 @@ enum TodayPiboShareService {
         let renderer = ImageRenderer(content: TodayPiboShareCard(
             snapshot: snapshot,
             scene: scene,
-            characterImage: characterImage
+            characterImage: characterImage,
+            pixel: pixel
         ))
         renderer.scale = 3.375
         renderer.isOpaque = true
