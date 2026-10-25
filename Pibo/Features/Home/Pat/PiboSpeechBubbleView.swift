@@ -1,11 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// Pibo's forest dialogue surface (2026-09-09 visual pass, shared with
-/// HarmonyOS `PiboSpeechBubble`): paper-white 18 pt card, soft shadow, no
-/// outline, and a short curved tail toward Pibo. Content, continuation and
-/// lifetime stay Core-owned — there is deliberately no "tap again to continue"
-/// hint; a body double tap still advances the line.
+/// Pixel paper dialogue with a hard border, offset shadow and stepped tail.
+/// Content, continuation and lifetime stay Core-owned; a body double tap advances text.
 ///
 /// A `.system` line is not Pibo talking — it keeps an info-cyan edge so a
 /// glance tells the two apart. `.angry` is a compatibility presentation only.
@@ -32,7 +29,7 @@ struct PiboSpeechBubbleView: View {
             card
             if line.source != .system {
                 BubbleTail()
-                    .fill(fill)
+                    .fill(PixelUIColor.paper)
                     .frame(width: 18, height: 10)
                     .accessibilityHidden(true)
             }
@@ -77,8 +74,8 @@ struct PiboSpeechBubbleView: View {
                                     .foregroundStyle(LP.Content.primary)
                                     .padding(.horizontal, 14)
                                     .frame(minWidth: 72, minHeight: 44)
-                                    .overlay(Capsule().strokeBorder(LP.Fill.foundationAccent, lineWidth: 1))
-                                    .contentShape(Capsule())
+                                    .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityHint(AppLocalization.text("回答 Pibo"))
@@ -118,15 +115,14 @@ struct PiboSpeechBubbleView: View {
         .frame(maxWidth: min(maxAvailableWidth, hasData ? 280 : 260))
         .fixedSize(horizontal: true, vertical: false)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous).fill(fill)
+            Rectangle().fill(PixelUIColor.paper)
         )
         .overlay {
-            if line.source == .system {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(LP.Fill.foundationInfo, lineWidth: 2)
-            }
+            Rectangle().strokeBorder(line.source == .system ? LP.Fill.foundationInfo : PixelUIColor.border, lineWidth: 2)
         }
-        .shadow(color: Color(red: 0x17 / 255, green: 0x1D / 255, blue: 0x22 / 255).opacity(0.08), radius: 5, x: 0, y: 3)
+        .background {
+            Rectangle().fill(PixelUIColor.shadow).offset(x: 3, y: 3)
+        }
     }
 
     private var hasData: Bool { line.data != nil }
@@ -175,15 +171,19 @@ struct PiboSpeechBubbleView: View {
     }
 }
 
-/// Short curved tail pointing down toward Pibo; never covers the bo.
+/// Stepped paper tail pointing toward Pibo; never covers the bo.
 private struct BubbleTail: Shape {
     func path(in rect: CGRect) -> Path {
         let sx = rect.width / 18, sy = rect.height / 10
         var path = Path()
         path.move(to: CGPoint(x: 0, y: 0))
         path.addLine(to: CGPoint(x: 18 * sx, y: 0))
-        path.addQuadCurve(to: CGPoint(x: 7 * sx, y: 10 * sy), control: CGPoint(x: 12 * sx, y: 3 * sy))
-        path.addQuadCurve(to: CGPoint(x: 0, y: 0), control: CGPoint(x: 8 * sx, y: 4 * sy))
+        path.addLine(to: CGPoint(x: 18 * sx, y: 4 * sy))
+        path.addLine(to: CGPoint(x: 12 * sx, y: 4 * sy))
+        path.addLine(to: CGPoint(x: 12 * sx, y: 8 * sy))
+        path.addLine(to: CGPoint(x: 6 * sx, y: 8 * sy))
+        path.addLine(to: CGPoint(x: 6 * sx, y: 4 * sy))
+        path.addLine(to: CGPoint(x: 0, y: 4 * sy))
         path.closeSubpath()
         return path.offsetBy(dx: rect.minX, dy: rect.minY)
     }

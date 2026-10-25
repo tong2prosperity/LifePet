@@ -153,4 +153,34 @@ struct OrnamentUnlockStoreTests {
         #expect(inventory.owned == [.hammock])
         #expect(defaults.object(forKey: "test.pending") == nil)
     }
+
+    @Test func hammockPlacementTogglingAndPersistence() throws {
+        let (inventory, ledger, defaults, suite) = try fixture()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        ledger.debugSet(balance: 5)
+
+        #expect(!inventory.isHammockPlaced())
+        #expect(!inventory.presentableUnlocked.contains(.hammock))
+
+        #expect(inventory.purchase(.hammock, using: ledger) == .purchased)
+        #expect(inventory.isHammockPlaced())
+        #expect(inventory.presentableUnlocked.contains(.hammock))
+
+        inventory.setHammockPlaced(false)
+        #expect(!inventory.isHammockPlaced())
+        #expect(!inventory.presentableUnlocked.contains(.hammock))
+
+        let restored = OrnamentUnlockStore(
+            defaults: defaults,
+            ownershipKey: "test.owned",
+            eligibilityKey: "test.eligible",
+            pendingPurchaseKey: "test.pending"
+        )
+        #expect(!restored.isHammockPlaced())
+        #expect(!restored.presentableUnlocked.contains(.hammock))
+
+        restored.setHammockPlaced(true)
+        #expect(restored.isHammockPlaced())
+        #expect(restored.presentableUnlocked.contains(.hammock))
+    }
 }

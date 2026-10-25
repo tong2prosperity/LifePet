@@ -15,16 +15,6 @@ struct HomeAchievementPresentationPolicy {
         case dismiss
         case replace(PiboAnimationAchievementPayload)
 
-        func apply(to destination: inout HomeSheetDestination?) {
-            switch self {
-            case .unchanged:
-                break
-            case .dismiss:
-                destination = nil
-            case .replace(let payload):
-                destination = .achievement(payload)
-            }
-        }
     }
 
     static func observedChanges(

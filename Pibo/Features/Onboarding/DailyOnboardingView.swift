@@ -550,7 +550,7 @@ enum DailyOnboardingCopy {
         OverviewSection(
             label: "成长",
             title: "让森林慢慢丰富起来",
-            body: "头顶能量来自真实生活。成熟后收取，用来唤醒吊床等共同物件，让 Pibo 获得新的能力。"
+            body: "你的睡眠和活动让它长大。头顶的 bo 成熟后往上一拉收取，换森林里的装饰。"
         ),
         OverviewSection(
             label: "记录",

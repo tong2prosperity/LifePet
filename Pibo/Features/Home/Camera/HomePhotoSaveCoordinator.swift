@@ -96,6 +96,7 @@ enum HomePhotoSaveCoordinator {
             $0.jpegData(compressionQuality: 0.90)
         }
     ) async -> Outcome {
+        guard !Task.isCancelled else { return .failed }
         let capturedAt = Date()
         let requestID = UUID()
         let analysis: FoodAnalysis?
@@ -107,6 +108,7 @@ enum HomePhotoSaveCoordinator {
                 LPLog.food.notice("meal capture rejected by food-presence gate")
                 return .notFood
             case .failed:
+                guard !Task.isCancelled else { return .failed }
                 presentFailure(.recognition)
                 return .failed
             }
@@ -116,6 +118,7 @@ enum HomePhotoSaveCoordinator {
             analysis = nil
         }
 
+        guard !Task.isCancelled else { return .failed }
         // Only verified food reaches the expensive presentation treatment.
         // Send the full frame to recognition; store a bounded source copy.
         async let cutout = Task.detached { makeSticker(image) }.value

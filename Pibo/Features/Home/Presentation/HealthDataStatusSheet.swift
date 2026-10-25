@@ -13,19 +13,15 @@ struct HealthDataStatusSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LP.Spacing.l) {
-                PiboMossSheetHandle()
-                    .frame(maxWidth: .infinity)
-
-                Text(AppLocalization.text("健康数据"))
-                    .lpText(LP.Typography.c1Medium)
-                    .foregroundStyle(PiboMoss.Color.secondaryInk)
+                PixelSheetTitle(title: AppLocalization.text("健康数据"), onClose: { dismiss() })
 
                 HStack(alignment: .top, spacing: LP.Spacing.m) {
                     Image(systemName: statusIcon)
                         .font(.system(size: 24, weight: .medium))
                         .foregroundStyle(PiboMoss.Color.foundationTeal)
                         .frame(width: 52, height: 52)
-                        .background(Circle().fill(PiboMoss.Color.raisedNeutral.opacity(0.62)))
+                        .background(Rectangle().fill(PixelUIColor.paperDim))
+                        .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: LP.Spacing.s) {
@@ -67,38 +63,29 @@ struct HealthDataStatusSheet: View {
                     .padding(LP.Spacing.m)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
-                        RoundedRectangle(cornerRadius: PiboMoss.Radius.control)
-                            .fill(PiboMoss.Color.raisedNeutral.opacity(0.48))
+                        Rectangle().fill(PixelUIColor.paperDim)
                     )
 
                 if let actionLabel {
-                    PiboMossPrimaryButton(
-                        title: actionLabel,
-                        disabledReason: AppLocalization.text("正在检查"),
-                        isEnabled: !isWorking,
-                        action: runPrimaryAction
-                    )
+                    PixelButton(label: actionLabel, active: !isWorking, onTap: runPrimaryAction)
                 }
 
                 if shouldOfferSettings {
-                    PiboMossSecondaryButton(
-                        title: AppLocalization.text("打开设置"),
-                        isEnabled: !isWorking,
-                        action: openSettings
-                    )
+                    PixelButton(label: AppLocalization.text("打开设置"), primary: false,
+                                active: !isWorking, onTap: openSettings)
                 } else {
-                    PiboMossSecondaryButton(
-                        title: AppLocalization.text("稍后"),
-                        isEnabled: !isWorking,
-                        action: { dismiss() }
-                    )
+                    PixelButton(label: AppLocalization.text("稍后"), primary: false,
+                                active: !isWorking, onTap: { dismiss() })
                 }
             }
             .padding(.horizontal, LP.Spacing.xl)
             .padding(.top, LP.Spacing.m)
             .padding(.bottom, LP.Spacing.xxl)
         }
-        .piboMossSheet(detents: [.fraction(0.64), .large])
+        .presentationDetents([.fraction(0.64), .large])
+        .presentationDragIndicator(.hidden)
+        .presentationCornerRadius(0)
+        .presentationBackground(PixelUIColor.paper)
     }
 
     private var statusIcon: String {

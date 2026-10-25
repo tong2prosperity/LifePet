@@ -140,6 +140,7 @@ enum GrowthPresentation {
         case .steps: return "\(Int(slot.value.rounded())) / \(Int(slot.target.rounded()))"
         case .activeMinutes: return "\(Int(slot.value.rounded())) / \(Int(slot.target.rounded())) 分钟"
         case .pats: return "\(Int(slot.value.rounded())) / \(Int(slot.target.rounded()))"
+        case .answerPrompt: return "Pibo 正在琢磨一件事，去拍拍它"
         case .sleepEnough:
             return slot.night == .tonight ? "明早看结果" : "\(hours(slot.value)) 小时"
         default: return "还没有"

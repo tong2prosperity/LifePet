@@ -8,6 +8,7 @@ struct HomeStateObservationModifier: ViewModifier {
     let morningSleepPresentationID: String?
     let scenePhase: ScenePhase
     let pendingStressCardOpen: Bool
+    let foregroundOverlayPresented: Bool
     let hasRipeBo: Bool
     let animationStateID: String
     let sproutPhase: SproutFlowPhase
@@ -30,6 +31,11 @@ struct HomeStateObservationModifier: ViewModifier {
                     isActive: phase == .active,
                     handlers: handlers
                 )
+            }
+            .onChange(of: foregroundOverlayPresented) { _, blocked in
+                guard !blocked else { return }
+                handlers.presentMorningSleep()
+                handlers.presentStressCard()
             }
             .onChange(of: pendingStressCardOpen) { _, _ in
                 handlers.presentStressCard()
@@ -90,6 +96,7 @@ enum HomeStateObservationCoordinator {
         handlers.refreshOrnamentLights()
         handlers.presentAchievement()
         handlers.presentMorningSleep()
+        handlers.presentStressCard()
     }
 
     static func ripeBoChanged(_ isRipe: Bool, handlers: Handlers) {

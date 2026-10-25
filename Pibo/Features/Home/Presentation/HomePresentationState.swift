@@ -24,6 +24,9 @@ final class HomePresentationState {
     /// Card the history cover should land on. Set only by the stress-notification
     /// deep link; the 足迹 icon opens with `nil` (top of the 足迹 tab).
     var historyFocus: HistoryFocus?
+    /// Date the history cover should land on. Set by the stress-notification
+    /// deep link if the alert arrived with a date timestamp.
+    var historyInitialDate: Date?
     var showWalkDoodle = false
     /// A meal passed by the detail sheet's “重拍” action. Normal home entry leaves
     /// this nil and lets the camera own purpose + meal selection.
@@ -165,8 +168,15 @@ final class HomePresentationState {
     /// Settings and everything local stay where the user left them.
     func closeAccountSurfacesForSessionEnd() {
         showLogin = false
+        showCamera = false
         cameraResumeAfterLogin = nil
-        if case .shadow = activeSheet { activeSheet = nil }
+        cameraInitialMeal = nil
+        queuedCameraMeal = nil
+        pendingFoodProjection = nil
+        switch activeSheet {
+        case .shadow, .mealCaptureSelection: activeSheet = nil
+        default: break
+        }
     }
 
     private func requestCameraLogin(resume: CameraLoginResume) {

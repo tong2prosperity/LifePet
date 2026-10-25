@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import PhotosUI
 @preconcurrency import AVFoundation
@@ -23,9 +24,9 @@ struct PiboCameraView: View {
     @State private var lastThumb: UIImage?
     @State private var galleryItem: PhotosPickerItem?
     @State private var flash = false
-    @State private var isSaving = false
+    @State private var captureTasks = CameraCaptureTaskController()
+    private var isSaving: Bool { captureTasks.isProcessing }
     @State private var gateMessage: String?
-    @State private var saveTask: Task<Void, Never>?
     private let meal: MealType
 
     init(
@@ -119,7 +120,7 @@ struct PiboCameraView: View {
             loadGalleryItem(item)
         }
         .onDisappear {
-            saveTask?.cancel()
+            captureTasks.cancel()
             camera.stop()
         }
         .preferredColorScheme(.dark)
@@ -131,11 +132,12 @@ struct PiboCameraView: View {
                 CameraPreview(session: camera.session)
                     .ignoresSafeArea()
             } else {
-                Image("onboarding_forest_empty")
-                    .resizable()
-                    .scaledToFill()
+                PixelCanvas(logicalWidth: 160, logicalHeight: 360, mood: .night,
+                            fitPhysicalPixels: true) { frame in
+                    drawPixelForestStatic(frame, pixelForestLayout(160, 360), 2026, .night)
+                }
                     .ignoresSafeArea()
-                    .overlay(PiboMoss.Color.forestVeil.opacity(0.92))
+                    .overlay(Color.black.opacity(0.35))
             }
         }
     }
@@ -143,7 +145,7 @@ struct PiboCameraView: View {
     private var cameraHeader: some View {
         ZStack {
             Text(AppLocalization.format("记录%@", AppLocalization.text(meal.title)))
-                .lpText(LP.Typography.uiH5)
+                .font(PixelFont.font(18))
                 .foregroundStyle(PiboMoss.Color.onDarkPrimary)
                 .accessibilityAddTraits(.isHeader)
 
@@ -155,8 +157,8 @@ struct PiboCameraView: View {
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(PiboMoss.Color.onDarkPrimary)
                         .frame(width: PiboMoss.Control.minimumHit, height: PiboMoss.Control.minimumHit)
-                        .background(Circle().fill(PiboMoss.Color.cameraControl))
-                        .overlay(Circle().strokeBorder(PiboMoss.Color.cameraHairline, lineWidth: 1))
+                        .background(Rectangle().fill(PiboMoss.Color.cameraControl))
+                        .overlay(Rectangle().strokeBorder(PiboMoss.Color.cameraHairline, lineWidth: 2))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(AppLocalization.text("返回森林"))
@@ -173,7 +175,7 @@ struct PiboCameraView: View {
             .foregroundStyle(PiboMoss.Color.onDarkPrimary)
             .padding(.horizontal, LP.Spacing.m)
             .frame(minHeight: 36)
-            .background(Capsule().fill(Color.black.opacity(0.42)))
+            .background(Rectangle().fill(Color.black.opacity(0.6)))
             .padding(.top, LP.Spacing.s)
     }
 
@@ -273,9 +275,9 @@ struct PiboCameraView: View {
             )
         }
         .padding(LP.Spacing.xl)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: PiboMoss.Radius.card))
+        .background(Color.black.opacity(0.86), in: Rectangle())
         .overlay {
-            RoundedRectangle(cornerRadius: PiboMoss.Radius.card)
+            Rectangle()
                 .strokeBorder(PiboMoss.Color.cameraHairline, lineWidth: 1)
         }
     }
@@ -313,11 +315,12 @@ struct PiboCameraView: View {
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, minHeight: PiboMoss.Control.buttonHeight)
                 .background(
-                    RoundedRectangle(cornerRadius: PiboMoss.Radius.control, style: .continuous)
+                    Rectangle()
                         .fill(PiboMoss.Color.foundationTeal)
                 )
         }
         .buttonStyle(.plain)
+        .disabled(captureTasks.isRunning)
         .accessibilityLabel(AppLocalization.text("从相册选择餐食照片"))
     }
 
@@ -343,7 +346,7 @@ struct PiboCameraView: View {
                 .foregroundStyle(PiboMoss.Color.onDarkPrimary)
                 .frame(width: 58, height: 58)
                 .overlay {
-                    RoundedRectangle(cornerRadius: PiboMoss.Radius.control, style: .continuous)
+                    Rectangle()
                         .strokeBorder(PiboMoss.Color.cameraHairline, lineWidth: 1)
                 }
                 .accessibilityLabel(AppLocalization.text("画幅比例 4 比 3"))
@@ -351,7 +354,7 @@ struct PiboCameraView: View {
         .padding(.horizontal, LP.Spacing.xl)
         .padding(.top, LP.Spacing.l)
         .padding(.bottom, bottomInset + LP.Spacing.m)
-        .background(.ultraThinMaterial)
+        .background(Color.black.opacity(0.86))
         .overlay(alignment: .top) {
             Rectangle().fill(PiboMoss.Color.cameraHairline).frame(height: 1)
         }
@@ -359,7 +362,7 @@ struct PiboCameraView: View {
 
     private var galleryThumbnail: some View {
         PhotosPicker(selection: $galleryItem, matching: .images) {
-            RoundedRectangle(cornerRadius: PiboMoss.Radius.control, style: .continuous)
+            Rectangle()
                 .fill(Color.black.opacity(0.58))
                 .frame(width: 58, height: 58)
                 .overlay {
@@ -373,13 +376,14 @@ struct PiboCameraView: View {
                             .foregroundStyle(PiboMoss.Color.onDarkSecondary)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: PiboMoss.Radius.control, style: .continuous))
+                .clipShape(Rectangle())
                 .overlay {
-                    RoundedRectangle(cornerRadius: PiboMoss.Radius.control, style: .continuous)
+                    Rectangle()
                         .strokeBorder(PiboMoss.Color.cameraHairline, lineWidth: 1)
                 }
         }
         .buttonStyle(.plain)
+        .disabled(captureTasks.isRunning)
         .accessibilityLabel(AppLocalization.text("从相册选择餐食照片"))
     }
 
@@ -398,7 +402,7 @@ struct PiboCameraView: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(!camera.hasLivePreview || camera.isCapturing || isSaving)
+        .disabled(!camera.hasLivePreview || camera.isCapturing || captureTasks.isRunning)
         .accessibilityLabel(AppLocalization.text("拍摄餐食"))
         .accessibilityHint(camera.hasLivePreview ? "" : AppLocalization.text("相机不可用，请从相册选择"))
     }
@@ -417,75 +421,66 @@ struct PiboCameraView: View {
                 .lpText(LP.Typography.b4Medium)
                 .foregroundStyle(PiboMoss.Color.onDarkPrimary)
             Button(AppLocalization.text("取消识别")) {
-                saveTask?.cancel()
-                saveTask = nil
-                isSaving = false
+                captureTasks.cancel()
+                galleryItem = nil
+                flash = false
             }
             .buttonStyle(.plain)
             .lpText(LP.Typography.c1Medium)
             .foregroundStyle(PiboMoss.Color.onDarkSecondary)
         }
         .padding(LP.Spacing.xl)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: PiboMoss.Radius.media))
+        .background(Color.black.opacity(0.86), in: Rectangle())
         .accessibilityElement(children: .combine)
     }
 
     private func shutter() {
-        guard camera.hasLivePreview, !camera.isCapturing, !isSaving else { return }
+        guard camera.hasLivePreview, !camera.isCapturing, !captureTasks.isRunning else { return }
         gateMessage = nil
         LPHaptics.tap()
         LPLog.camera.notice("meal shutter tapped (aspect=4:3)")
         if !reduceMotion {
             withAnimation(.linear(duration: 0.06)) { flash = true }
         }
-        saveTask?.cancel()
-        saveTask = Task {
-            defer { saveTask = nil }
+        captureTasks.run(processing: false) { id in
             let image = await camera.capturePhoto()
+            guard captureTasks.isCurrent(id) else { return }
             if !reduceMotion {
                 withAnimation(.easeOut(duration: 0.16)) { flash = false }
             }
-            guard let image, !Task.isCancelled else { return }
-            await saveAndExit(image)
+            guard let image else { return }
+            await saveAndExit(image, captureID: id)
         }
     }
 
     private func loadGalleryItem(_ item: PhotosPickerItem) {
-        guard !isSaving else { return }
+        guard !captureTasks.isRunning else { return }
         gateMessage = nil
-        isSaving = true
-        saveTask?.cancel()
-        saveTask = Task {
-            defer { saveTask = nil }
-            defer {
-                galleryItem = nil
-                if !Task.isCancelled { isSaving = false }
-            }
+        captureTasks.run { id in
+            defer { if captureTasks.isCurrent(id) { galleryItem = nil } }
             guard let data = try? await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data), !Task.isCancelled else {
-                return
-            }
-            await saveAndExit(image)
+                  let image = UIImage(data: data), captureTasks.isCurrent(id) else { return }
+            await saveAndExit(image, captureID: id)
         }
     }
 
-    private func saveAndExit(_ image: UIImage) async {
-        isSaving = true
+    private func saveAndExit(_ image: UIImage, captureID: UUID) async {
+        guard captureTasks.isCurrent(captureID) else { return }
+        captureTasks.markProcessing(captureID)
         let outcome = await onPhotoSaved(image, nil, meal)
-        guard !Task.isCancelled else { return }
+        guard captureTasks.isCurrent(captureID) else { return }
         switch outcome {
         case .saved:
             await Task.detached { PiboPhotoStore.saveLatest(image) }.value
+            guard captureTasks.isCurrent(captureID) else { return }
             lastThumb = image
             LPHaptics.success()
             PiboSoundEffectService.shared.play(.mealStickerPop)
             dismiss()
         case .notFood:
             gateMessage = AppLocalization.text("照片里没有识别到餐食，请调整取景后重拍。")
-            isSaving = false
         case .failed:
             gateMessage = AppLocalization.text("餐食识别没有完成，请检查网络后重试。")
-            isSaving = false
         }
     }
 

@@ -37,9 +37,7 @@ struct PiboWidgetsLiveActivity: Widget {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } compactLeading: {
-                Text("P")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(PiboLivePalette.coral)
+                PiboPixelWidgetGlyph(stateTag: context.state.stateTag).frame(width: 28, height: 28)
             } compactTrailing: {
                 Text(context.state.isComplete ? "已记录" : "同步")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -103,47 +101,7 @@ private struct PiboLiveActivityLockScreenView: View {
 
 private struct PiboLivePetGlyph: View {
     let stateTag: String
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 13)
-                .fill(PiboLivePalette.paperCool)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 13)
-                        .stroke(PiboLivePalette.ink, lineWidth: 2)
-                )
-
-            VStack(spacing: 5) {
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(accent)
-                        .frame(width: 7, height: 7)
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(accent)
-                        .frame(width: 7, height: 7)
-                }
-                Capsule()
-                    .fill(PiboLivePalette.ink)
-                    .frame(width: stateTag == "deepSleep" ? 14 : 22, height: 4)
-            }
-
-            if stateTag == "active" {
-                Circle()
-                    .fill(PiboLivePalette.sticky)
-                    .frame(width: 8, height: 8)
-                    .offset(x: 22, y: -22)
-            }
-        }
-    }
-
-    private var accent: Color {
-        switch stateTag {
-        case "active": return PiboLivePalette.coral
-        case "deepSleep", "waking": return PiboLivePalette.sage
-        case "irritated", "disturbed": return PiboLivePalette.muted
-        default: return PiboLivePalette.ink
-        }
-    }
+    var body: some View { PiboPixelWidgetGlyph(stateTag: stateTag) }
 }
 
 private enum PiboLivePalette {

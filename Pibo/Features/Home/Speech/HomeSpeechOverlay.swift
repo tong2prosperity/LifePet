@@ -38,9 +38,11 @@ enum HomeSpeechOverlay {
     static func make(
         line: PiboSpeechLine,
         anchorY: CGFloat? = nil,
+        anchorX: CGFloat? = nil,
         onDetail: @escaping () -> Void,
         onChoice: ((String) -> Void)? = nil,
-        onCustomReply: (() -> Void)? = nil
+        onCustomReply: (() -> Void)? = nil,
+        onDismiss: (() -> Void)? = nil
     ) -> some View {
         GeometryReader { geometry in
             let global = geometry.frame(in: .global)
@@ -62,10 +64,15 @@ enum HomeSpeechOverlay {
                     onChoice: onChoice,
                     onCustomReply: onCustomReply
                 )
+                .onTapGesture { onDismiss?() }
                 .transition(PiboSpeechBubbleView.transition)
             }
             .frame(width: geometry.size.width, height: max(0, bottom))
+            .offset(x: anchorX.map {
+                min(max($0 - global.minX, min(150, geometry.size.width / 2)),
+                    geometry.size.width - min(150, geometry.size.width / 2)) - geometry.size.width / 2
+            } ?? 0)
         }
-        .allowsHitTesting(line.data != nil || line.interaction != nil)
+        .allowsHitTesting(line.data != nil || line.interaction != nil || onDismiss != nil)
     }
 }

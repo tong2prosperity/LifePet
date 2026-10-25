@@ -43,6 +43,10 @@ struct SleepSegmentValue: Codable, Sendable, Equatable {
 /// statistics) and thereafter only re-touched if HK reports edits.
 @Model
 final class HealthDayRecord {
+    /// Acquisition time of activity queries, distinct from unrelated row edits.
+    var activeEnergyObservedAt: Date?
+    var exerciseObservedAt: Date?
+    var standObservedAt: Date?
     /// `Calendar.current.startOfDay(for:)` — the unique key for the day.
     @Attribute(.unique) var date: Date
 

@@ -15,16 +15,16 @@ final class OrnamentUnlockSoundService {
     }
 
     private let bundle: Bundle
-    private let session: AVAudioSession
-    private var player: AVAudioPlayer?
+    private let session = AVAudioSession.sharedInstance()
+    private let playback: PiboCuePlayback
     private var enabled = true
     private var interrupted = false
     private var externalAudioSuppressed = false
     private var missingAssets: Set<String> = []
 
-    init(bundle: Bundle = .main, session: AVAudioSession = .sharedInstance()) {
+    init(bundle: Bundle = .main, runtime: PiboAudioRuntime = .shared) {
         self.bundle = bundle
-        self.session = session
+        self.playback = PiboCuePlayback(runtime: runtime, category: .playback, allowsOverlap: false)
     }
 
     func setEnabled(_ enabled: Bool) {
@@ -71,8 +71,7 @@ final class OrnamentUnlockSoundService {
     }
 
     func stop() {
-        player?.stop()
-        player = nil
+        playback.stop()
     }
 
     private var canPlay: Bool {
@@ -85,8 +84,7 @@ final class OrnamentUnlockSoundService {
         volume: Float = 0.72
     ) {
         guard canPlay else { return }
-        player?.stop()
-        player = nil
+        playback.stop()
         guard let url = bundle.url(
             forResource: name,
             withExtension: "m4a",
@@ -97,18 +95,7 @@ final class OrnamentUnlockSoundService {
             }
             return
         }
-        do {
-            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            try session.setActive(true)
-            let next = try AVAudioPlayer(contentsOf: url)
-            next.numberOfLoops = 0
-            next.volume = volume
-            next.prepareToPlay()
-            next.play()
-            player = next
-        } catch {
-            LPLog.audio.error("ornament sound failed: \(error.localizedDescription, privacy: .public)")
-        }
+        playback.play(url, volume: volume)
     }
 }
 

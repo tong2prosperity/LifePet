@@ -276,6 +276,11 @@ final class PixelDayDirector {
             x = pixelDayRound(x * Double(layout.width) / Double(max(1, self.layout.width)))
             y = pixelDayRound(Double(layout.groundY) + (y - Double(self.layout.groundY)) *
                          Double(layout.height) / Double(max(1, self.layout.height)))
+            // SwiftUI can first report a short provisional stage. Fixed-size
+            // places may lie beyond that temporary viewport; scaling that
+            // offset must not strand Pibo below the final forest for seconds.
+            let bounds = pixelWalkBounds(layout, scene)
+            y = min(Double(bounds.maxY), max(Double(bounds.minY), y))
             dropBeats()
         }
         self.layout = layout
@@ -288,15 +293,6 @@ final class PixelDayDirector {
             shape.clear()
             shapeBeat = nil
             clearDisguise()
-        } else {
-            // The stage's first pass is often far smaller than the screen, so a beat planned
-            // on it can put Pibo below the ground it now stands on. Back to the ground line
-            // when that happened; otherwise keep it inside the band it can walk.
-            let bounds = pixelWalkBounds(layout, scene)
-            if y < Double(bounds.minY) || y > Double(bounds.maxY) {
-                y = Double(layout.groundY)
-            }
-            x = min(max(x, Double(bounds.minX)), Double(bounds.maxX))
         }
         configured = true
     }

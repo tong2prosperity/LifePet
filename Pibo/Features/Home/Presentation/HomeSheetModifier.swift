@@ -13,7 +13,6 @@ struct HomeSheetModifier: ViewModifier {
     let onDismiss: () -> Void
     let replayWalkEcho: (WalkDoodleRecord) -> Void
     let startMealCapture: (MealType) -> Void
-    let confirmAchievement: (PiboAnimationAchievementPayload) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -27,10 +26,15 @@ struct HomeSheetModifier: ViewModifier {
         switch destination {
         case .mealCaptureSelection:
             MealCaptureSelectionSheet(onSelect: startMealCapture)
-        case .meal(let meal):
-            MealDetailView(meal: meal, onRecapture: startMealCapture)
-                .environment(history)
-                .environment(recognizer)
+        case .meal(let meal, let photoId):
+            MealDetailView(
+                meal: meal,
+                photoId: photoId ?? "",
+                mealTypeRaw: meal.rawValue,
+                onRecapture: startMealCapture
+            )
+            .environment(history)
+            .environment(recognizer)
         case .morningSleep(let presentation, let consumesPending):
             MorningSleepCard(presentation: presentation, history: history)
             .onAppear {
@@ -43,12 +47,6 @@ struct HomeSheetModifier: ViewModifier {
                 status: model.status,
                 message: model.message
             )
-        case .achievement(let payload):
-            PiboAchievementModal(
-                payload: payload,
-                boFillProgress: boLedger.growthProgress
-            ) { confirmAchievement(payload) }
-                .interactiveDismissDisabled()
         case .ornamentUnlock(let id):
             OrnamentAwakeningSheet(ornamentID: id)
         case .chimeEcho:

@@ -57,6 +57,8 @@ nonisolated struct PiboCompanionSnapshot: Codable, Equatable, Sendable {
     var healthMessage: String?
     var shadowConnection: PiboCompanionShadowConnection?
     var standMinutes: Int?
+    /// Optional v2 extension; old watch/phone snapshots continue to decode.
+    var pixel: PiboCompanionPixelState? = nil
 
     func isAcceptable(now: Date = .now, calendar: Calendar = .current) -> Bool {
         guard (1...2).contains(schemaVersion),
@@ -69,6 +71,7 @@ nonisolated struct PiboCompanionSnapshot: Codable, Equatable, Sendable {
               generatedAt <= now.addingTimeInterval(300),
               stateGeneratedAt.map({ $0.timeIntervalSince1970.isFinite && $0 <= now.addingTimeInterval(300) }) ?? true,
               growth.map({ $0.isAcceptable }) ?? true,
+              pixel.map({ $0.isAcceptable }) ?? true,
               capabilities.map({ $0.count <= 16 && $0.allSatisfy(\.isAcceptable) }) ?? true,
               healthMessage.map({ $0.count <= 200 }) ?? true,
               patActionID.map({ Self.patActionIDs.contains($0) }) ?? true,
@@ -149,6 +152,7 @@ nonisolated struct PiboCompanionShadowConnection: Codable, Equatable, Sendable {
 nonisolated enum PiboCompanionSnapshotCoding {
     static let applicationContextKey = "pibo.companion.snapshot.v1"
     static let requestKey = "pibo.companion.request.v1"
+    static let collectKey = "pibo.companion.collect.v1"
 
     static func encode(_ value: PiboCompanionSnapshot) -> Data? {
         try? JSONEncoder().encode(value)
@@ -157,5 +161,59 @@ nonisolated enum PiboCompanionSnapshotCoding {
     static func decode(_ data: Data?) -> PiboCompanionSnapshot? {
         guard let data else { return nil }
         return try? JSONDecoder().decode(PiboCompanionSnapshot.self, from: data)
+    }
+}
+
+nonisolated struct PiboCompanionPixelState: Codable, Hashable, Sendable {
+    var level: Int
+    var bodyStage: Int
+    var leafStage: Int
+    var accessoryMask: Int
+    var form: Int
+    var formStuck: Bool
+    var balance: Int
+    /// Phone-issued token identifies the current container, not a watch tap.
+    var collectionToken: String?
+    var wishes: [PiboCompanionWish]
+    var steps: Int?
+    var finds: [Int]
+    var thought: Bool
+    var stations: [PiboCompanionExploreStation] = []
+    var patLine: String = ""
+    var patCooldownSeconds: Double = 3
+    var boProgress: Double? = nil
+
+    var isAcceptable: Bool {
+        (1...1000).contains(level) && (0...2).contains(bodyStage) && (0...4).contains(leafStage)
+            && (0...15).contains(accessoryMask) && (0...10).contains(form) && balance >= 0
+            && (collectionToken.map { !$0.isEmpty && $0.count <= 160 } ?? true)
+            && wishes.count <= 4 && wishes.allSatisfy(\.isAcceptable)
+            && (steps.map { $0 >= 0 } ?? true)
+            && finds.count <= 24 && finds.allSatisfy { (0...123).contains($0) }
+            && stations.count <= 8 && stations.allSatisfy(\.isAcceptable)
+            && patLine.count <= 120 && patCooldownSeconds.isFinite && patCooldownSeconds >= 0
+            && (boProgress.map { $0.isFinite && (0...1).contains($0) } ?? true)
+    }
+}
+
+nonisolated struct PiboCompanionExploreStation: Codable, Hashable, Sendable {
+    var title: String
+    var steps: Int
+    var item: Int
+
+    var isAcceptable: Bool {
+        !title.isEmpty && title.count <= 40 && steps > 0 && (0...123).contains(item)
+    }
+}
+
+nonisolated struct PiboCompanionWish: Codable, Hashable, Sendable {
+    var kind: Int
+    var title: String
+    var done: Bool
+    var fraction: Double
+
+    var isAcceptable: Bool {
+        (0...5).contains(kind) && !title.isEmpty && title.count <= 80
+            && fraction.isFinite && (0...1).contains(fraction)
     }
 }

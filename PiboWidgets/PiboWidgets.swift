@@ -16,23 +16,19 @@ struct PiboWidgetProvider: TimelineProvider {
             ?? now.addingTimeInterval(86_400)
         let rollover = calendar.date(byAdding: .minute, value: 5, to: tomorrow)
             ?? tomorrow.addingTimeInterval(300)
-        var entries = [entry(at: now)]
-        // A companion mood phrase falls back to the state label when it expires.
-        if let expiry = stored.companionStatusExpiresAt, expiry > now, expiry < rollover {
-            entries.append(entry(at: expiry))
-        }
-        entries.append(entry(at: rollover))
-        completion(Timeline(entries: entries, policy: .after(rollover.addingTimeInterval(86_400))))
+        let entries = PiboWidgetTimeline.dates(from: now, calendar: calendar).map { entry(at: $0, stored: stored) }
+        completion(Timeline(entries: entries.sorted { $0.date < $1.date }, policy: .after(rollover)))
     }
 
-    private func entry(at date: Date) -> PiboWidgetEntry {
-        var snapshot = PiboWidgetSnapshotStore.load()
+    private func entry(at date: Date, stored: PiboWidgetSnapshot = PiboWidgetSnapshotStore.load()) -> PiboWidgetEntry {
+        var snapshot = stored
         snapshot.sceneID = PiboFlatWorldScene.recommended(
             petName: snapshot.petName,
             date: date,
             choices: PiboFlatWorldScene.widgetCycle
         )
         snapshot.stateLabel = snapshot.displayStateLabel(at: date)
+        snapshot = snapshot.activitySnapshotForDisplay(at: date)
         return PiboWidgetEntry(date: date, snapshot: snapshot)
     }
 }
@@ -48,11 +44,11 @@ struct PiboWidgetsEntryView: View {
 
     var body: some View {
         switch family {
-        case .systemMedium: PiboMediumWidget(snapshot: entry.snapshot)
+        case .systemMedium: PiboMediumWidget(snapshot: entry.snapshot, date: entry.date)
         case .accessoryCircular: PiboAccessoryCircularWidget(snapshot: entry.snapshot)
         case .accessoryRectangular: PiboAccessoryRectangularWidget(snapshot: entry.snapshot)
         case .accessoryInline: Text("Pibo · \(entry.snapshot.stateLabel)")
-        default: PiboSmallWidget(snapshot: entry.snapshot)
+        default: PiboSmallWidget(snapshot: entry.snapshot, date: entry.date)
         }
     }
 }
@@ -63,138 +59,136 @@ struct PiboWidgets: Widget {
             PiboWidgetsEntryView(entry: entry)
                 .containerBackground(.clear, for: .widget)
         }
-        .configurationDisplayName("Pibo 运动")
-        .description("在 Flat World 中查看 Pibo 和今天的三项活动。")
+        .configurationDisplayName("Pibo")
+        .description("一小片像素森林，陪你看看今天的生活。")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular, .accessoryInline])
+        .contentMarginsDisabled()
     }
 }
 
+private let widgetPaper = Color(red: 0.98, green: 0.96, blue: 0.87)
+private let widgetInk = Color(red: 0.18, green: 0.25, blue: 0.23)
+
 private struct PiboSmallWidget: View {
     let snapshot: PiboWidgetSnapshot
+    let date: Date
 
     var body: some View {
-        ZStack {
-            PiboFlatWorldBackground(scene: snapshot.sceneID ?? .rainGorge, compact: true)
-            VStack(spacing: 4) {
-                HStack {
-                    Text(snapshot.petName).font(.system(size: 14, weight: .bold, design: .rounded)).lineLimit(1)
-                    Spacer(minLength: 4)
-                    Text(snapshot.stateLabel).font(.system(size: 9, weight: .semibold, design: .rounded)).lineLimit(1)
+        VStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                PiboPixelWidgetForest(snapshot: snapshot, date: date, compact: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(snapshot.petName).font(.system(size: 13, weight: .bold, design: .monospaced))
+                    Text(snapshot.stateLabel).font(.system(size: 9, design: .monospaced))
                 }
-                .foregroundStyle(.white)
-                Spacer(minLength: 0)
-                HStack(spacing: 6) {
-                    PiboActivityRing(color: .pink, progress: snapshot.moveProgress, value: value(snapshot.activeEnergy, suffix: "kcal"), label: "活动")
-                    PiboActivityRing(color: .mint, progress: snapshot.exerciseProgress, value: value(snapshot.exerciseMinutes.map(Double.init), suffix: "min"), label: "锻炼")
-                    PiboActivityRing(color: .cyan, progress: snapshot.standProgress, value: value(snapshot.standHours.map(Double.init), suffix: "h"), label: "站立")
-                }
+                .foregroundStyle(.white).shadow(color: .black.opacity(0.7), radius: 0, x: 1, y: 1)
+                .padding(8)
             }
-            .padding(2)
+            HStack(spacing: 6) {
+                fact("活动", snapshot.activeEnergyText, "kcal")
+                fact("锻炼", snapshot.exerciseMinutesText, "min")
+                fact("站立", snapshot.standHoursText, "h")
+            }
+            .padding(6).frame(maxWidth: .infinity).background(widgetPaper)
+            Text(snapshot.activityStatus(at: date))
+                .font(.system(size: 8)).foregroundStyle(widgetInk.opacity(0.7))
+                .lineLimit(1).frame(maxWidth: .infinity).padding(.bottom, 4).background(widgetPaper)
         }
+        .overlay(Rectangle().strokeBorder(widgetInk, lineWidth: 2))
+        .widgetURL(URL(string: "pibo://home"))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(snapshot.petName)，\(snapshot.stateLabel)，\(activitySummary)")
     }
 
-    private func value(_ number: Double?, suffix: String) -> String {
-        number.map { "\(Int($0.rounded()))\(suffix)" } ?? "--"
-    }
-
-    private var activitySummary: String {
-        "活动 \(snapshot.activeEnergy.map { "\(Int($0.rounded())) 千卡" } ?? "无数据")，锻炼 \(snapshot.exerciseMinutes.map { "\($0) 分钟" } ?? "无数据")，站立 \(snapshot.standHours.map { "\($0) 小时" } ?? "无数据")"
+    private func fact(_ title: String, _ value: String, _ unit: String) -> some View {
+        VStack(spacing: 1) {
+            Text(title).font(.system(size: 8))
+            Text("\(value)\(unit)").font(.system(size: 9, weight: .bold, design: .monospaced))
+                .lineLimit(1).minimumScaleFactor(0.7)
+        }.frame(maxWidth: .infinity).foregroundStyle(widgetInk)
     }
 }
 
 private struct PiboMediumWidget: View {
     let snapshot: PiboWidgetSnapshot
+    let date: Date
 
     var body: some View {
-        ZStack {
-            PiboFlatWorldBackground(scene: snapshot.sceneID ?? .nightClouds, compact: false)
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(snapshot.petName).font(.system(size: 17, weight: .bold, design: .rounded))
-                    Text(snapshot.stateLabel).font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.white.opacity(0.75))
-                    Spacer(minLength: 0)
-                }
-                .frame(width: 112, alignment: .leading)
-                VStack(spacing: 12) {
-                    PiboActivityBar(label: "活动", value: snapshot.activeEnergy.map { "\(Int($0.rounded())) kcal" } ?? "--", progress: snapshot.moveProgress, color: .pink)
-                    PiboActivityBar(label: "锻炼", value: snapshot.exerciseMinutes.map { "\($0) min" } ?? "--", progress: snapshot.exerciseProgress, color: .mint)
-                    PiboActivityBar(label: "站立", value: snapshot.standHours.map { "\($0) h" } ?? "--", progress: snapshot.standProgress, color: .cyan)
-                }
+        HStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                PiboPixelWidgetForest(snapshot: snapshot, date: date, compact: true)
+                Text(snapshot.petName).font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white).shadow(color: .black.opacity(0.7), radius: 0, x: 1, y: 1).padding(8)
             }
-            .padding(4)
-            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 7) {
+                Text(snapshot.stateLabel).font(.system(size: 11, weight: .bold, design: .monospaced)).lineLimit(1)
+                PiboPixelActivityBar(label: "活动", value: "\(snapshot.activeEnergyText) kcal", progress: snapshot.moveProgress)
+                PiboPixelActivityBar(label: "锻炼", value: "\(snapshot.exerciseMinutesText) min", progress: snapshot.exerciseProgress)
+                PiboPixelActivityBar(label: "站立", value: "\(snapshot.standHoursText) h", progress: snapshot.standProgress)
+                Text(snapshot.activityStatus(at: date)).font(.system(size: 8)).lineLimit(1)
+            }
+            .foregroundStyle(widgetInk).padding(10).frame(maxWidth: .infinity).background(widgetPaper)
         }
+        .background(widgetPaper)
+        .overlay(Rectangle().strokeBorder(widgetInk, lineWidth: 2))
+        .widgetURL(URL(string: "pibo://home"))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(snapshot.petName)，\(snapshot.stateLabel)，今日活动")
     }
 }
 
-private struct PiboActivityRing: View {
-    let color: Color
-    let progress: Double?
-    let value: String
-    let label: String
+private struct PiboPixelActivityBar: View {
+    var label: String
+    var value: String
+    var progress: Double?
 
     var body: some View {
-        VStack(spacing: 2) {
-            ZStack {
-                Circle().stroke(.white.opacity(0.20), lineWidth: 3)
-                Circle().trim(from: 0, to: min(1, max(0, progress ?? 0)))
-                    .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Text(value).font(.system(size: 6.5, weight: .bold, design: .rounded)).minimumScaleFactor(0.6)
-            }
-            .frame(width: 31, height: 31)
-            Text(label).font(.system(size: 6, weight: .medium))
-        }
-        .foregroundStyle(.white)
-    }
-}
-
-private struct PiboActivityBar: View {
-    let label: String
-    let value: String
-    let progress: Double?
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 3) {
             HStack {
-                Text(label).font(.system(size: 10, weight: .semibold, design: .rounded))
-                Spacer()
-                Text(value).font(.system(size: 10, weight: .bold, design: .rounded))
-            }
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.18))
-                    Capsule().fill(color).frame(width: proxy.size.width * min(1, max(0, progress ?? 0)))
+                Text(label)
+                Spacer(minLength: 2)
+                Text(value).monospacedDigit()
+            }.font(.system(size: 9))
+            HStack(spacing: 2) {
+                ForEach(0..<10) { i in
+                    Rectangle().fill(Double(i) < (progress ?? 0) * 10 ? Color.green.opacity(0.8) : widgetInk.opacity(0.12))
                 }
-            }
-            .frame(height: 6)
+            }.frame(height: 5)
         }
     }
 }
 
-private struct PiboFlatWorldBackground: View {
-    let scene: PiboFlatWorldScene
+private struct PiboPixelWidgetForest: View {
+    let snapshot: PiboWidgetSnapshot
+    let date: Date
     let compact: Bool
 
     var body: some View {
-        Image(resourceName)
-            .resizable()
-            .scaledToFill()
+        let hour = Calendar.current.component(.hour, from: date)
+        let mood: PixelMood = hour < 6 || hour >= 20 ? .night : (hour >= 17 ? .dusk : .day)
+        let look = snapshot.pixelLook
+        GeometryReader { proxy in
+            if let image = PiboPixelCompanionArt.forestImage(look: look, mood: mood, width: 88, height: 88) {
+                Image(decorative: image, scale: 1).resizable().interpolation(.none)
+                    .scaledToFill().frame(width: proxy.size.width, height: proxy.size.height).clipped()
+            }
+        }
+    }
+}
+
+struct PiboPixelWidgetGlyph: View {
+    var stateTag: String
+    var pixel: PiboCompanionPixelState? = nil
+
+    private var look: PiboPixelCompanionArt.Look {
+        var snapshot = PiboWidgetSnapshot.fallback
+        snapshot.stateTag = stateTag
+        snapshot.pixel = pixel
+        return snapshot.pixelLook
     }
 
-    private var resourceName: String {
-        let suffix = compact ? "_compact" : ""
-        return switch scene {
-        case .rainGorge: "pibo_widget_cobalt_rain\(suffix)"
-        case .nightClouds: "pibo_widget_moonlit_river\(suffix)"
-        case .riverValley: "pibo_widget_acid_lime_trail\(suffix)"
-        case .dawnCreek: "pibo_widget_moonlit_river\(suffix)"
-        case .coralDusk: "pibo_widget_cobalt_rain\(suffix)"
+    var body: some View {
+        if let image = PiboPixelCompanionArt.image(look: look, reduceMotion: true) {
+            Image(decorative: image, scale: 1).resizable().interpolation(.none).scaledToFit()
         }
     }
 }
@@ -204,8 +198,7 @@ private struct PiboAccessoryCircularWidget: View {
     var body: some View {
         ZStack {
             AccessoryWidgetBackground()
-            Text("P")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+            PiboPixelWidgetGlyph(stateTag: snapshot.stateTag, pixel: snapshot.pixel)
         }
         .accessibilityLabel("Pibo，\(snapshot.stateLabel)")
     }
@@ -216,7 +209,7 @@ private struct PiboAccessoryRectangularWidget: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(snapshot.petName) · \(snapshot.stateLabel)").font(.headline).lineLimit(1)
-            Text(snapshot.activeEnergy.map { "活动 \(Int($0.rounded())) kcal" } ?? "活动数据待同步").font(.caption).lineLimit(1)
+            Text(snapshot.activeEnergy.map { _ in "活动 \(snapshot.activeEnergyText) kcal" } ?? "活动数据待同步").font(.caption).lineLimit(1)
         }
     }
 }

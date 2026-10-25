@@ -3,9 +3,9 @@ import Observation
 import PiboCore
 import os
 
-/// Decision 054 companion prompts, memory echoes and moods on Home.
+/// Decision 054 companion prompts and memory echoes on Home.
 ///
-/// Every budget, slot, tier, selection, expiry and mood rule is decided by
+/// Every budget, slot, tier, selection and expiry rule is decided by
 /// pibo-core (`PiboCoreCompanionPolicy`); this controller gathers facts from
 /// Home, renders authored copy and records what the user actually did. Mirrors
 /// HarmonyOS `HomeCompanionController.ets`.
@@ -16,14 +16,13 @@ final class HomeCompanionController {
     struct Environment {
         var appActive: () -> Bool = { false }
         var state: () -> PiboActivityState = { .dataUnknown }
-        var patBehavior: () -> PiboCorePatBehavior = { .default }
-        var isThinking: () -> Bool = { false }
         var patEpisodeKey: () -> String = { "" }
         var overlayOpen: () -> Bool = { false }
+        /// Speech waits until the pixel actor can be seen.
+        var actorPresent: () -> Bool = { true }
         var foodProjectionVisible: () -> Bool = { false }
         var achievementVisible: () -> Bool = { false }
         var sproutBusy: () -> Bool = { false }
-        var hasRipeBo: () -> Bool = { false }
         var dailyGuideActive: () -> Bool = { false }
         var speechVisible: () -> Bool = { false }
         var currentLine: () -> PiboSpeechLine? = { nil }
@@ -32,6 +31,10 @@ final class HomeCompanionController {
         var speechValues: () -> [String: String] = { [:] }
         var show: (PiboSpeechLine) -> Void = { _ in }
         var dismiss: () -> Void = {}
+        var hasAnswerWish: () -> Bool = { false }
+        var onAnswer: () -> Void = {}
+        var timeline: () -> PiboTimelineStore? = { nil }
+        var relationshipDay: () -> Int = { 1 }
     }
 
     struct ActivePrompt {
@@ -44,7 +47,6 @@ final class HomeCompanionController {
     static let lineAdvanceSeconds: Double = 2.6
     static let readingSecondsPerCharacter: Double = 0.2
     static let returnOfferDelaySeconds: Double = 1.8
-    static let statusLineTTLSeconds: Double = 30 * 60
     static let hammockReplyDelaySeconds: Double = 0.6
     private static let echoDelayToday: Double = 10 * 60
     private static let echoDelayRecent: Double = 8 * 3600
@@ -54,17 +56,11 @@ final class HomeCompanionController {
         | PiboCoreCompanionSlot.returnShort.mask
         | PiboCoreCompanionSlot.returnLong.mask
 
-    struct Mood: Equatable {
-        var mood: PiboCoreCompanionMood = .none
-        var cause: PiboCoreCompanionMoodCause = .none
-        var hidesBody = false
-    }
-
-    private(set) var mood = Mood()
     private(set) var replySheetOpen = false
     /// True while a companion sequence owns the bubble; other speech waits.
     private(set) var holdsSpeech = false
     private(set) var active: ActivePrompt?
+    var storyWaiting = false
 
     @ObservationIgnored var environment = Environment()
     @ObservationIgnored let store: PiboCompanionStore
@@ -76,7 +72,6 @@ final class HomeCompanionController {
     @ObservationIgnored private var returnOffered = false
     @ObservationIgnored private var pendingPatContext: PiboCorePatContext?
     @ObservationIgnored private var lastWeather: PiboWeather?
-    @ObservationIgnored private var thinkingSince: Double = 0
     @ObservationIgnored private var hammockVisitAt: Double = 0
     @ObservationIgnored private let clock: () -> Double
 
@@ -105,7 +100,6 @@ final class HomeCompanionController {
         pendingPatContext = nil
         lastWeather = environment.weather()
         scheduleReturnOffer()
-        refreshMood()
     }
 
     func leaveHome() {
@@ -120,8 +114,6 @@ final class HomeCompanionController {
     /// Called about once a second while Home is visible.
     func tick() {
         guard enabled, environment.appActive() else { return }
-        trackThinking()
-        refreshMood()
         reconcileHammockVisit()
         if let active, !replySheetOpen, !sequenceRunning, environment.currentLine() != active.line {
             ignoreActivePrompt(reason: "dismissed")
@@ -144,6 +136,10 @@ final class HomeCompanionController {
         // A pat interrupts a finished reply or echo instead of queueing behind it.
         clearSequence()
         holdsSpeech = false
+        if environment.hasAnswerWish(), offerWishPrompt() {
+            pendingPatContext = nil
+            return true
+        }
         guard let context = pendingPatContext else { return false }
         pendingPatContext = nil
         if environment.state() == .waking,
@@ -161,6 +157,38 @@ final class HomeCompanionController {
     }
 
     func onMealObserved() { _ = offer(.eventMeal) }
+
+    var wishPromptReady: Bool {
+        environment.hasAnswerWish() && wishPromptCandidate() != nil
+    }
+
+    /// A user requested wish bypasses incidental echoes and multi-line pat
+    /// continuations, while preserving Core's daily budget and ignored-prompt backoff.
+    @discardableResult
+    func offerWishPrompt() -> Bool {
+        guard let prompt = wishPromptCandidate() else { return false }
+        clearSequence()
+        startPrompt(prompt, slot: .patAfter, now: clock())
+        return true
+    }
+
+    private func wishPromptCandidate() -> PiboCompanionCatalog.Prompt? {
+        guard enabled, let catalog, environment.appActive(), active == nil,
+              !environment.overlayOpen(), environment.actorPresent(), !environment.foodProjectionVisible(),
+              !environment.sproutBusy(), !environment.dailyGuideActive(),
+              !environment.achievementVisible(), environment.state() != .sleeping,
+              store.canOfferPromptsToday(now: clock()) else { return nil }
+        let context: PiboCorePatContext
+        switch environment.state() {
+        case .stable: context = .stableIdle
+        case .energetic: context = .energeticReady
+        case .tired: context = .tiredAwake
+        case .waking: context = .wakingGreeted
+        default: context = .dataUnknownWaitingData
+        }
+        return selectPrompt(context: selectionContext(slot: .patAfter, state: environment.state(), patContext: context),
+                            catalog: catalog, now: clock())
+    }
     func onBoCollected() { _ = offer(.eventBoCollected) }
     func onRiverTapped() { _ = offer(.sceneRiver) }
 
@@ -171,30 +199,19 @@ final class HomeCompanionController {
         hammockVisitAt = clock()
     }
 
-    var riverHotspotEnabled: Bool { enabled && moodAnimationID != "dive" }
-
-    var grassHotspotEnabled: Bool { enabled && (mood.hidesBody || moodAnimationID != "coolhide") }
-
     func onGrassTapped() {
         guard enabled else { return }
-        if mood.cause == .hideAndSeek {
-            store.markHideSeekFound()
-            refreshMood()
-            Analytics.track(.companionMoodShown, screen: "home", ["mood": .string("hideSeekFound")])
-            _ = offer(.sceneGrass, hideSeek: .found)
-            return
-        }
-        _ = offer(.sceneGrass, hideSeek: .none)
+        _ = offer(.sceneGrass)
     }
 
     /// Tries echo → prompt → scene line for a slot. Returns true if Pibo spoke.
     @discardableResult
     func offer(
         _ slot: PiboCoreCompanionSlot,
-        patContext: PiboCorePatContext? = nil,
-        hideSeek: PiboCompanionCatalog.HideSeekCondition = .none
+        patContext: PiboCorePatContext? = nil
     ) -> Bool {
         guard enabled, let catalog, environment.appActive(), active == nil else { return false }
+        if storyWaiting && (slot == .returnShort || slot == .returnLong) { return false }
         let state = environment.state()
         let context = selectionContext(slot: slot, state: state, patContext: patContext)
         let now = clock()
@@ -209,13 +226,28 @@ final class HomeCompanionController {
             playLines(echo.lines, customText: echo.answer.customText)
             return true
         }
+        if allowed(.timeline, slot: slot, state: state),
+           let telling = firstRecall(slot: slot, state: state, catalog: catalog)
+                ?? threadBeat(slot: slot, state: state, catalog: catalog, now: now) {
+            telling.commit()
+            store.recordLineShown(now: now, proactive: true, prompt: false, topic: nil)
+            playLines(telling.lines, customText: nil)
+            return true
+        }
+        if allowed(.remark, slot: slot, state: state),
+           let remark = selectRemark(context: context, catalog: catalog, now: now) {
+            environment.timeline()?.markRemarkUsed(remark.id, now: now)
+            store.recordLineShown(now: now, proactive: !Self.userInitiated(slot), prompt: false, topic: nil)
+            playLines(remark.lines, customText: nil)
+            return true
+        }
         if allowed(.prompt, slot: slot, state: state),
-           let prompt = selectPrompt(context: context, catalog: catalog, hideSeek: hideSeek, now: now) {
+           let prompt = selectPrompt(context: context, catalog: catalog, now: now) {
             startPrompt(prompt, slot: slot, now: now)
             return true
         }
         if allowed(.sceneLine, slot: slot, state: state),
-           let line = selectSceneLine(slot: slot, state: state, hideSeek: hideSeek, catalog: catalog) {
+           let line = selectSceneLine(slot: slot, state: state, catalog: catalog) {
             store.recordSceneUsed(line.id, now: now)
             store.recordLineShown(now: now, proactive: !Self.userInitiated(slot), prompt: false, topic: nil)
             playLines(line.lines, customText: nil)
@@ -232,16 +264,14 @@ final class HomeCompanionController {
         finishPrompt()
         store.recordAnswer(
             answerRecord(prompt: active.prompt, optionID: option.id, customText: nil, now: now),
-            askedAt: active.askedAt,
-            positive: option.mood == .coolhide,
-            tired: option.mood == .dive
+            askedAt: active.askedAt
         )
         Analytics.track(.companionPromptAnswered, screen: "home", [
             "item": .string(active.prompt.id),
             "input": .string(option.id),
             "trigger": .string(PiboCompanionCatalog.key(for: active.slot)),
         ])
-        refreshMood()
+        environment.onAnswer()
         playLines(option.reaction, customText: nil)
     }
 
@@ -282,9 +312,7 @@ final class HomeCompanionController {
         finishPrompt()
         store.recordAnswer(
             answerRecord(prompt: active.prompt, optionID: PiboCompanionStore.customOptionID, customText: reply, now: now),
-            askedAt: active.askedAt,
-            positive: false,
-            tired: false
+            askedAt: active.askedAt
         )
         // Only the fact that a custom reply exists is tracked — never its text or length.
         Analytics.track(.companionPromptAnswered, screen: "home", [
@@ -295,10 +323,96 @@ final class HomeCompanionController {
         let pool = customReactions(state: environment.state(), catalog: catalog)
         let reaction = pool[Int(Self.hash(active.prompt.id).magnitude % UInt32(pool.count))]
         playLines(reaction.lines, customText: reply)
+        environment.onAnswer()
         return true
     }
 
     // MARK: Debug
+
+    func claimStoryLine() -> Bool {
+        guard environment.appActive(), active == nil else { return false }
+        if !enabled { return !environment.overlayOpen() && environment.actorPresent() && !environment.dailyGuideActive() }
+        guard allowed(.timeline, slot: .returnShort, state: environment.state()) else { return false }
+        store.recordLineShown(now: clock(), proactive: true, prompt: false, topic: nil)
+        return true
+    }
+
+    private struct TimelineTelling {
+        var lines: [String]
+        var commit: () -> Void
+    }
+
+    private func firstRecall(slot: PiboCoreCompanionSlot, state: PiboActivityState,
+                             catalog: PiboCompanionCatalog) -> TimelineTelling? {
+        guard let timeline = environment.timeline() else { return nil }
+        let day = environment.relationshipDay()
+        guard let choice = PiboCoreTimeline.selectedFirstRecall(.init(
+            slot: slot, state: state.core.rawValue, dayNumber: day, recordedMask: timeline.recordedMask,
+            recalledMask: timeline.recalledMask, lastRecallDay: timeline.lastRecallDay)),
+              let record = timeline.first(choice.first),
+              let recall = catalog.firstRecalls.first(where: { $0.first == choice.first }),
+              !catalog.recallOpeners.isEmpty else { return nil }
+        let at = Date(timeIntervalSince1970: record.at)
+        let components = Calendar.current.dateComponents([.hour, .minute], from: at)
+        let phase = PiboCoreCompanionPolicy.phase(localMinuteOfDay: (components.hour ?? 0) * 60 + (components.minute ?? 0))
+        guard catalog.phaseWords.indices.contains(Int(phase.rawValue)) else { return nil }
+        let values = ["day": "第\(record.day)天", "phase": catalog.phaseWords[Int(phase.rawValue)]]
+        let opener = catalog.recallOpeners[min(choice.ordinal, catalog.recallOpeners.count - 1)]
+        return TimelineTelling(lines: [opener] + recall.lines.map { Self.render($0, values: values, customText: nil) },
+                                commit: { timeline.markRecalled(choice.first, relationshipDay: day) })
+    }
+
+    private func threadBeat(slot: PiboCoreCompanionSlot, state: PiboActivityState,
+                            catalog: PiboCompanionCatalog, now: Double) -> TimelineTelling? {
+        guard let timeline = environment.timeline() else { return nil }
+        var candidates: [PiboCoreTimelineBeatCandidate] = []
+        var tellings: [(PiboCompanionCatalog.ThreadBeat, [String])] = []
+        for beat in catalog.threadBeats {
+            let told = timeline.beatTold(timelineBeatKey(beat.threadKey, beat.beat))
+            for telling in [PiboCompanionCatalog.BeatTelling(stateMask: 0, lines: beat.lines)] + beat.variants {
+                candidates.append(.init(thread: beat.thread, beat: beat.beat, dueDay: beat.day,
+                                        stateMask: telling.stateMask, told: told))
+                tellings.append((beat, telling.lines))
+            }
+        }
+        let day = timeline.storyDay(now: now)
+        guard let choice = PiboCoreTimeline.selectedBeat(candidates: candidates,
+            facts: .init(slot: slot, state: state.core.rawValue, dayNumber: day, lastBeatDay: timeline.lastBeatDay)),
+              tellings.indices.contains(choice.index) else { return nil }
+        let (beat, lines) = tellings[choice.index]
+        let text = choice.away && !beat.awayLines.isEmpty ? beat.awayLines : lines
+        return TimelineTelling(lines: text, commit: {
+            timeline.markBeatTold(timelineBeatKey(beat.threadKey, beat.beat), storyDay: day, at: now, lines: text)
+        })
+    }
+
+    private func answersRemembered(_ conditions: PiboCompanionCatalog.Conditions, now: Double) -> Bool {
+        let remembered: (String) -> Bool = { key in
+            let parts = key.split(separator: ":", maxSplits: 1).map(String.init)
+            guard let id = parts.first, let answer = self.store.answer(id),
+                  answer.optionId != PiboCompanionStore.customOptionID,
+                  PiboCoreCompanionPolicy.memoryActive(expiresAt: answer.expiresAt, now: now) else { return false }
+            return parts.count == 1 || answer.optionId == parts[1]
+        }
+        return conditions.requiresAnswers.allSatisfy(remembered) && !conditions.excludesAnswers.contains(where: remembered)
+    }
+
+    private func selectRemark(context: PiboCoreCompanionSelectionContext,
+                              catalog: PiboCompanionCatalog, now: Double) -> PiboCompanionCatalog.Remark? {
+        guard let timeline = environment.timeline() else { return nil }
+        let candidates = catalog.remarks.map { remark in
+            let last = timeline.remarkLastAt(remark.id)
+            return PiboCoreTimelineRemarkCandidate(
+                slotMask: remark.slotMask, stateMask: remark.conditions.stateMask,
+                weatherMask: remark.conditions.weatherMask, phaseMask: remark.conditions.phaseMask,
+                requirementMet: answersRemembered(remark.conditions, now: now)
+                    && Self.templateAvailable(remark.lines, values: environment.speechValues()),
+                secondsSinceUsed: last > 0 ? now - last : nil, cooldownDays: remark.cooldownDays)
+        }
+        guard let index = PiboCoreTimeline.selectedRemarkIndex(candidates: candidates, context: context),
+              catalog.remarks.indices.contains(index) else { return nil }
+        return catalog.remarks[index]
+    }
 
     #if DEBUG
     func debugRun(_ command: String) -> String {
@@ -313,19 +427,16 @@ final class HomeCompanionController {
             store.debugSimulateAbsence(seconds: 4 * 3600, now: now)
             returnOffered = false
             scheduleReturnOffer()
-            refreshMood()
             return "已模拟离开 4 小时"
         case "absence-long":
             finishPrompt()
             store.debugSimulateAbsence(seconds: 25 * 3600, now: now)
             returnOffered = false
             scheduleReturnOffer()
-            refreshMood()
             return "已模拟离开 25 小时"
         case "reset":
             finishPrompt()
             store.reset()
-            refreshMood()
             return "陪伴记忆已清空"
         default:
             return ""
@@ -333,96 +444,11 @@ final class HomeCompanionController {
     }
     #endif
 
-    // MARK: Mood
-
-    /// Clip ID for the current mood, or nil when the durable expression applies.
-    var moodAnimationID: String? {
-        guard enabled else { return nil }
-        switch mood.mood {
-        case .boring: return "boring"
-        case .coolhide: return "coolhide"
-        case .dive: return "dive"
-        case .none: return nil
-        }
-    }
-
-    /// Short widget phrase for the current mood; never user text.
-    static func statusLine(for cause: PiboCoreCompanionMoodCause) -> String? {
-        switch cause {
-        case .longAbsence, .quietAfterThinking: "在森林里转圈"
-        case .positiveAnswer: "在草丛里耍酷"
-        case .hideAndSeek: "躲在草丛里"
-        case .tiredAnswer: "泡在水里"
-        case .none: nil
-        }
-    }
-
-    func refreshMood() {
-        guard enabled else { return }
-        let now = clock()
-        let state = environment.state()
-        var blockers: PiboCoreCompanionBlockers = []
-        if environment.overlayOpen() { blockers.insert(.overlay) }
-        if environment.achievementVisible() { blockers.insert(.achievement) }
-        if environment.sproutBusy() { blockers.insert(.sprout) }
-        if environment.hasRipeBo() { blockers.insert(.boRipe) }
-        let since = { (at: Double) -> Double? in at > 0 ? now - at : nil }
-        let previous = mood
-        let resolved = PiboCoreCompanionPolicy.resolveMood(PiboCoreCompanionMoodFacts(
-            state: state.core.rawValue,
-            patBehavior: environment.patBehavior().rawValue,
-            blockers: blockers,
-            secondsSincePositiveAnswer: since(store.positiveAnswerAt),
-            secondsSinceTiredAnswer: since(store.tiredAnswerAt),
-            absenceSecondsAtEntry: store.hasPreviousVisit ? store.absenceSecondsAtEntry : nil,
-            secondsSinceEntry: max(0, now - store.entryAt),
-            hideSeekUsedToday: store.hideSeekUsedToday(now: now),
-            hideSeekFound: store.hideSeekFound,
-            isThinking: environment.isThinking(),
-            quietSeconds: thinkingSince > 0 ? now - thinkingSince : 0
-        ))
-        let next = Mood(mood: resolved.mood, cause: resolved.cause, hidesBody: resolved.hidesBody)
-        guard next.mood != previous.mood || next.cause != previous.cause || next.hidesBody != previous.hidesBody else {
-            mood = next
-            return
-        }
-        mood = next
-        if next.cause == .hideAndSeek { store.markHideSeekStarted(now: now) }
-        if next.mood != .none {
-            Analytics.track(.companionMoodShown, screen: "home", ["mood": .string(Self.moodKey(next.cause))])
-            PiboCompanionStatusLine.publish(Self.statusLine(for: next.cause), until: now + Self.statusLineTTLSeconds)
-        }
-        if previous.cause == .hideAndSeek, !store.hideSeekFound, next.cause != .hideAndSeek, blockers.isEmpty {
-            _ = offer(.hideSeekTimeout)
-        }
-    }
-
-    private func trackThinking() {
-        // Hiding, cooling off or diving is not quiet thinking; restart the clock after a mood ends.
-        let otherMood = mood.mood != .none && mood.cause != .quietAfterThinking
-        if environment.isThinking(), !otherMood {
-            if thinkingSince == 0 { thinkingSince = clock() }
-        } else {
-            thinkingSince = 0
-        }
-    }
-
     private func reconcileHammockVisit() {
         guard hammockVisitAt > 0, !environment.overlayOpen(),
               clock() - hammockVisitAt >= Self.hammockReplyDelaySeconds else { return }
         hammockVisitAt = 0
         _ = offer(.sceneHammock)
-    }
-
-    private static func moodKey(_ cause: PiboCoreCompanionMoodCause) -> String {
-        switch cause {
-        case .longAbsence: "boringReturn"
-        case .quietAfterThinking: "boringQuiet"
-        case .positiveAnswer: "coolhide"
-        case .hideAndSeek: "hideSeek"
-        case .tiredAnswer: "dive"
-        case .none: "none"
-        }
     }
 
     // MARK: Budget and selection facts
@@ -434,7 +460,7 @@ final class HomeCompanionController {
     private func allowed(_ utterance: PiboCoreCompanionUtterance, slot: PiboCoreCompanionSlot, state: PiboActivityState) -> Bool {
         let now = clock()
         var blockers: PiboCoreCompanionBlockers = []
-        if environment.overlayOpen() || environment.foodProjectionVisible() { blockers.insert(.overlay) }
+        if environment.overlayOpen() || !environment.actorPresent() || environment.foodProjectionVisible() { blockers.insert(.overlay) }
         if environment.achievementVisible() { blockers.insert(.achievement) }
         if environment.sproutBusy() { blockers.insert(.sprout) }
         if environment.dailyGuideActive() { blockers.insert(.dailyGuide) }
@@ -453,7 +479,7 @@ final class HomeCompanionController {
             secondsSinceLastSpeech: environment.lastSpeechAt().map { max(0, now - $0) },
             consecutiveIgnoredPrompts: store.consecutiveIgnored,
             daysSinceLastIgnored: store.daysSinceLastIgnored(now: now),
-            relationshipDays: store.relationshipDays,
+            relationshipDays: environment.relationshipDay(),
             recentAnswerRatePercent: store.recentAnswerRatePercent()
         ))
         if decision != .allowed {
@@ -477,7 +503,7 @@ final class HomeCompanionController {
             phase: PiboCoreCompanionPolicy.phase(localMinuteOfDay: minute),
             unlockedTier: PiboCoreCompanionPolicy.unlockedTier(
                 answeredTotal: store.answeredTotal,
-                relationshipDays: store.relationshipDays,
+                relationshipDays: environment.relationshipDay(),
                 recentAnswerRatePercent: store.recentAnswerRatePercent()
             )
         )
@@ -496,13 +522,11 @@ final class HomeCompanionController {
     private func selectPrompt(
         context: PiboCoreCompanionSelectionContext,
         catalog: PiboCompanionCatalog,
-        hideSeek: PiboCompanionCatalog.HideSeekCondition,
         now: Double
     ) -> PiboCompanionCatalog.Prompt? {
         let values = environment.speechValues()
         let candidates = catalog.prompts.map { prompt -> PiboCoreCompanionPromptCandidate in
             let answer = store.answer(prompt.id)
-            let hideSeekMet = prompt.conditions.hideSeek == .any || prompt.conditions.hideSeek == hideSeek
             return PiboCoreCompanionPromptCandidate(
                 slotMask: prompt.slotMask,
                 stateMask: prompt.conditions.stateMask,
@@ -512,7 +536,8 @@ final class HomeCompanionController {
                 tier: prompt.tier,
                 weight: prompt.weight,
                 retention: prompt.retention,
-                requirementMet: hideSeekMet && Self.templateAvailable(prompt.lines, values: values),
+                requirementMet: answersRemembered(prompt.conditions, now: now)
+                    && Self.templateAvailable(prompt.lines, values: values),
                 hasActiveMemory: answer.map { PiboCoreCompanionPolicy.memoryActive(expiresAt: $0.expiresAt, now: now) } ?? false,
                 secondsSinceAsked: store.lastAsked(prompt.id).map { now - $0 },
                 cooldownDays: prompt.cooldownDays,
@@ -592,14 +617,12 @@ final class HomeCompanionController {
     private func selectSceneLine(
         slot: PiboCoreCompanionSlot,
         state: PiboActivityState,
-        hideSeek: PiboCompanionCatalog.HideSeekCondition,
         catalog: PiboCompanionCatalog
     ) -> PiboCompanionCatalog.Line? {
         let stateBit = UInt32(1) << UInt32(state.core.rawValue)
         let matches = catalog.sceneLines.filter { line in
             line.slotMask & slot.mask != 0
                 && (line.conditions.stateMask == 0 || line.conditions.stateMask & stateBit != 0)
-                && (line.conditions.hideSeek == .any || line.conditions.hideSeek == hideSeek)
         }
         // Least used first; catalog order breaks ties.
         return matches.reduce(nil) { best, line in
@@ -782,16 +805,5 @@ final class HomeCompanionController {
             value = value &* 31 &+ Int32(unit)
         }
         return value
-    }
-}
-
-/// Widget-visible mood phrase with an expiry. Never user text.
-enum PiboCompanionStatusLine {
-    static func publish(_ line: String?, until expiresAt: Double) {
-        var snapshot = PiboWidgetSnapshotStore.load()
-        snapshot.companionStatusLabel = line
-        snapshot.companionStatusExpiresAt = line == nil ? nil : Date(timeIntervalSince1970: expiresAt)
-        guard PiboWidgetSnapshotStore.save(snapshot) else { return }
-        PetStateWidgetBridge.reloadHomeWidget()
     }
 }

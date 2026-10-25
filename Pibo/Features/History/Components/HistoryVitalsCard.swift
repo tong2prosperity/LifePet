@@ -79,6 +79,8 @@ private struct VitalTile: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, LP.Spacing.xl)
         .padding(.vertical, LP.Spacing.l)
-        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(bg))
+        .background(bg)
+        .clipShape(RoundedRectangle(cornerRadius: PiboReleaseScope.pixelHistory ? 0 : 24))
+        .overlay(Rectangle().strokeBorder(PiboReleaseScope.pixelHistory ? PixelUIColor.border : .clear, lineWidth: 1))
     }
 }

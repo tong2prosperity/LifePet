@@ -32,6 +32,10 @@ final class PetStateStore {
     /// `@Environment(PetStateStore.self)`.
     let identity: PetIdentityStore
     let animationExperience = PiboAnimationExperienceStore()
+    @ObservationIgnored private let workoutObservationStartedAt: () -> Date?
+    #if DEBUG
+    @ObservationIgnored private var simulatedWorkoutIDs: Set<UUID> = []
+    #endif
     private(set) var piboAmbientState: PiboActivityState = .dataUnknown
 
     func publishPiboState(_ state: PiboActivityState) {
@@ -217,6 +221,7 @@ final class PetStateStore {
     @discardableResult
     func debugInjectWorkout() -> UUID {
         let id = UUID()
+        simulatedWorkoutIDs.insert(id)
         ingest(.workoutFinished(
             id: id,
             kind: .run,
@@ -342,14 +347,14 @@ final class PetStateStore {
     /// `applyGain`. The home view watches this with `.onChange` to fire a
     /// sparkle burst on the pet stage.
     var lastDelta: StatDelta? = nil
-    /// Set by `handleNewWorkout` when a fresh workout lands. `HomeView`
-    /// observes this and pops `WorkoutAlertSheet` from the bottom. Single-slot
+    /// Set by `handleNewWorkout` when an eligible workout lands. Home answers
+    /// in the forest without a sheet or confirmation (decision 055). Single-slot
     /// — if a second fresh workout arrives while one is still pending, the
     /// previous gets silently consumed first (rare in practice; only happens
     /// on cold launch with two unfetched workouts).
     ///
     /// `didSet` mirrors changes to `UserDefaults` so a force-quit while the
-    /// sheet is up doesn't lose the workout's done card on next launch (B3
+    /// response is pending doesn't lose the workout's done card on next launch (B3
     /// fix). Restore on init has a freshness cap to avoid showing stale
     /// notifications hours later.
     var pendingWorkout: PendingWorkout? = nil {
@@ -359,9 +364,6 @@ final class PetStateStore {
             publishWidgetSnapshot()
             if let oldValue, let pendingWorkout, oldValue.id != pendingWorkout.id {
                 finishPendingWorkoutActivity(for: oldValue, completed: false)
-            }
-            if let pendingWorkout {
-                startOrUpdatePendingWorkoutActivity(for: pendingWorkout)
             }
         }
     }
@@ -441,8 +443,10 @@ final class PetStateStore {
     init(identity: PetIdentityStore = PetIdentityStore(),
          snapshots: DailySnapshotStore = DailySnapshotStore(),
          events: AsyncStream<HealthEvent>? = nil,
-         demoMode: Bool = false) {
+         demoMode: Bool = false,
+         workoutObservationStartedAt: @escaping () -> Date? = { nil }) {
         self.identity = identity
+        self.workoutObservationStartedAt = workoutObservationStartedAt
         self.snapshots = snapshots
         self.demoMode = demoMode
         self.stats = Self.demoStats
@@ -527,7 +531,8 @@ final class PetStateStore {
             if PiboCoreWorkoutAdapter.pendingWorkoutIsRestorable(
                 ageSeconds: age,
                 sameDay: sameDay
-            ) {
+            ), PiboCoreWorkoutAdapter.responseEligible(endedAt: restored.endedAt,
+                                                       observationStartedAt: workoutObservationStartedAt()) {
                 self.pendingWorkout = restored
                 LPLog.petState.notice("Restored pendingWorkout: \(restored.label, privacy: .public) \(restored.durationMin, privacy: .public)min (age \(Int(age/60), privacy: .public)min)")
             } else {
@@ -536,10 +541,13 @@ final class PetStateStore {
             }
         }
 
-        publishWidgetSnapshot()
-        if let pendingWorkout {
-            startOrUpdatePendingWorkoutActivity(for: pendingWorkout)
+        if let payload = animationExperience.pendingAchievement, payload.kind == .pigu,
+           !PiboCoreWorkoutAdapter.responseEligible(endedAt: payload.occurredAt,
+                                                    observationStartedAt: workoutObservationStartedAt()) {
+            _ = animationExperience.confirmPending()
         }
+        publishWidgetSnapshot()
+        PetStateWidgetBridge.endRetiredWorkoutActivities()
 
         guard let events else { return }
         ingestTask = Task { [weak self] in
@@ -848,15 +856,8 @@ final class PetStateStore {
             petName: petName,
             dayCount: dayCount,
             activityState: activityState,
-            pendingWorkoutTitle: pendingWorkout?.titleLabel
-        )
-    }
-
-    private func startOrUpdatePendingWorkoutActivity(for workout: PendingWorkout) {
-        PetStateWidgetBridge.startOrUpdatePendingWorkoutActivity(
-            for: workout,
-            petName: petName,
-            activityState: activityState
+            pendingWorkoutTitle: pendingWorkout?.titleLabel,
+            petID: identity.currentPetId
         )
     }
 
@@ -1126,10 +1127,14 @@ final class PetStateStore {
 
         // Core's wall-clock policy decides freshness. HealthKit's historical
         // bit only says whether an anchor existed before this query.
-        if PiboCoreWorkoutAdapter.achievementShouldQueue(
-            policy: policy,
-            occurredToday: Calendar.current.isDateInToday(end)
-        ) {
+        var observationStart = workoutObservationStartedAt()
+        #if DEBUG
+        if simulatedWorkoutIDs.remove(id) != nil { observationStart = end }
+        #endif
+        if PiboCoreWorkoutAdapter.responseEligible(endedAt: end, observationStartedAt: observationStart) {
+            // Anchored batches are not chronological. Preserve the latest event's
+            // presentation and workout fact together, even if an older one arrives last.
+            if let pendingWorkout, pendingWorkout.endedAt >= end { return }
             // If a previous pending workout never got consumed (e.g. user
             // killed app with sheet open), silently apply its gain + insert
             // its done card before overwriting — never lose data.
@@ -1149,7 +1154,7 @@ final class PetStateStore {
             pendingWorkout = pw
             animationExperience.queueWorkout(pw)
             scheduleWorkoutAchievementNotification(pw, piboState: notificationState)
-            LPLog.petState.notice("workout fresh → pendingWorkout: \(label, privacy: .public) \(durMin, privacy: .public)min +\(gain, privacy: .public) (awaiting review)")
+            LPLog.petState.notice("workout fresh → pendingWorkout: \(label, privacy: .public) \(durMin, privacy: .public)min (awaiting forest response)")
             return
         }
 
@@ -1203,11 +1208,18 @@ final class PetStateStore {
     func consumePendingWorkout() {
         guard let pw = pendingWorkout else { return }
         LPLog.petState.notice("consume pending workout: \(pw.label, privacy: .public) \(pw.durationMin, privacy: .public)min (user-confirmed)")
+        finishWorkoutResponse(id: pw.id)
+        showToast(AppLocalization.text("运动记录已同步"))
+        feedToken = UUID()
+    }
+
+    /// The forest already supplied the response: retain the record without a
+    /// second toast, collection celebration or user-confirmation dependency.
+    func finishWorkoutResponse(id: UUID) {
+        guard let pw = pendingWorkout, pw.id == id else { return }
         pendingWorkout = nil
         applySproutGrowth(for: pw)
         insertDoneCard(for: pw, time: AppLocalization.text("刚刚"))
-        showToast(AppLocalization.text("运动记录已同步"))
-        feedToken = UUID()
         finishPendingWorkoutActivity(for: pw, completed: true)
     }
 

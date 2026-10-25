@@ -34,7 +34,6 @@ final class HomeGrowthController {
     private static let lineLinger: TimeInterval = 4.2
     /// Quiet gap after any bubble before a growth moment speaks, so lines never stack.
     private static let speechGap: TimeInterval = 1.5
-    private static let levelCardDelay: Duration = .milliseconds(1500)
     private static let patPopWindow: TimeInterval = 0.6
     /// Let Home settle (away summary, morning line) before the evening polaroid.
     private static let polaroidSettle: TimeInterval = 8
@@ -52,7 +51,8 @@ final class HomeGrowthController {
     @ObservationIgnored private var dependencies: Dependencies?
     @ObservationIgnored private var catalog: GrowthCopyCatalog?
     @ObservationIgnored private var tickTask: Task<Void, Never>?
-    @ObservationIgnored private var cardTask: Task<Void, Never>?
+    @ObservationIgnored private var levelCardDueAt: Date?
+    @ObservationIgnored private var pendingLevelEventID: String?
     @ObservationIgnored private var lastShakeAt: Date?
     @ObservationIgnored private var busyUntil = Date.distantPast
     @ObservationIgnored private var homeSince = Date()
@@ -79,16 +79,14 @@ final class HomeGrowthController {
     func stop() {
         tickTask?.cancel()
         tickTask = nil
-        cardTask?.cancel()
-        cardTask = nil
+        // Keep the persisted level event pending across a covered or stopped Home.
     }
 
     // MARK: - Queue
 
-    private func tick() {
+    func tick(now: Date = .now) {
         guard let deps = dependencies, deps.appActive() else { return }
-        let now = Date()
-        guard now >= busyUntil else { return }
+        guard levelCardDueAt != nil || now >= busyUntil else { return }
         if deps.overlayOpen() || deps.companionBusy() { return }
         let speech = deps.speech()
         if speech.line != nil { return }
@@ -96,11 +94,19 @@ final class HomeGrowthController {
             return
         }
         let growth = deps.growth()
+        if let due = levelCardDueAt {
+            guard now >= due else { return }
+            levelUpVisible = true
+            if let id = pendingLevelEventID { growth.consume(id: id) }
+            levelCardDueAt = nil
+            pendingLevelEventID = nil
+            return
+        }
         guard let event = growth.peek() else {
             maybePolaroid(now)
             return
         }
-        growth.consume(id: event.id)
+        if event.kind != .level { growth.consume(id: event.id) }
         present(event, now: now)
     }
 
@@ -137,16 +143,13 @@ final class HomeGrowthController {
 
         case .level:
             let level = event.level ?? deps.growth().level
+            Analytics.track(.levelUp, screen: "home", ["level": .int(level)])
             effects.play(.levelUp, value: Double(level), source: -1)
             levelUpLevel = level
             levelUpLine = line("levelUp", level: level) ?? ""
             revision += 1
-            cardTask?.cancel()
-            cardTask = Task { [weak self] in
-                try? await Task.sleep(for: Self.levelCardDelay)
-                guard let self, !Task.isCancelled, !deps.overlayOpen() else { return }
-                levelUpVisible = true
-            }
+            pendingLevelEventID = preview ? nil : event.id
+            levelCardDueAt = now.addingTimeInterval(1.5)
             busyUntil = now.addingTimeInterval(1.9)
 
         case .heart:
@@ -236,7 +239,7 @@ final class HomeGrowthController {
     }
 
     func onDecorTapped(_ id: Int) {
-        guard let deps = dependencies,
+        guard dependencies != nil,
               PiboCoreDecorID(rawValue: Int32(id)) != nil else { return }
         say("decorTapped", band: nil, kind: id, level: nil, fact: "")
     }
@@ -274,6 +277,7 @@ final class HomeGrowthController {
 
     func onShootingStarCaught() {
         _ = dependencies?.coordinator().onShootingStar()
+        Analytics.track(.shootingStarCaught, screen: "home")
     }
 
     func onShake(peakAcceleration: Double) {
@@ -284,6 +288,7 @@ final class HomeGrowthController {
                                            secondsSinceLast: since) else { return }
         guard !deps.overlayOpen() else { return }
         lastShakeAt = now
+        Analytics.track(.deviceShake, screen: "home")
         stageEffects.play(.dizzy, value: 0, source: -1)
         if deps.speech().line == nil { say("shake", band: nil, kind: nil, level: nil, fact: "") }
     }

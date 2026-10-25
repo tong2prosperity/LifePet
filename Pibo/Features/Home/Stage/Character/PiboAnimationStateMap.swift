@@ -69,7 +69,7 @@ enum PiboAnimationStateMap {
         PiboAnimationResourceID.sleepingGroundA,
         PiboAnimationResourceID.wakingGroundRecovering,
         PiboAnimationResourceID.tired,
-        "weak", "angry", "boring", "dive", "coolhide",
+        "weak", "angry", "boring", "dive",
     ]
 
     /// Core chooses expression intent; item ownership only changes the physical

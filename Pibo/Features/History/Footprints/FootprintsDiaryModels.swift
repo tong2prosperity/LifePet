@@ -127,10 +127,10 @@ func footprintsAddDays(_ day: Date, _ delta: Int) -> Date {
 
 /// A stable day ordinal in UTC, so a day is one number regardless of DST.
 private func dayOrdinal(_ day: Date) -> Int {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-    let parts = calendar.dateComponents([.year, .month, .day], from: day)
-    let stamp = calendar.date(from: parts) ?? day
+    let localParts = Calendar.current.dateComponents([.year, .month, .day], from: day)
+    var utcCalendar = Calendar(identifier: .gregorian)
+    utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+    let stamp = utcCalendar.date(from: localParts) ?? day
     return Int((stamp.timeIntervalSince1970 / 86_400).rounded())
 }
 

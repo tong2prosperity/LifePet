@@ -20,6 +20,7 @@ struct BoLedgerSnapshot: Codable, Equatable, Sendable {
     var firstBoMintedAt: Date?
     var firstBoCollectedAt: Date?
     var processedCollectionEventIDs: Set<String> = []
+    var processedSpendEventIDs: Set<String> = []
     var processedBonusEnergyEventIDs: Set<String> = []
     var grantedEnergyByDay: [String: Double] = [:]
     /// Legacy day-level boundary retained for migration diagnostics.
@@ -43,6 +44,7 @@ struct BoLedgerSnapshot: Codable, Equatable, Sendable {
         case energyPool, ripeCount, balance, spentTotal, lifetimeMinted, lifetimeCollected
         case unlockedItems
         case firstBoMintedAt, firstBoCollectedAt, processedCollectionEventIDs
+        case processedSpendEventIDs
         case processedBonusEnergyEventIDs
         case grantedEnergyByDay, startedOn, acceptedAt, eligibilitySource, eligibilityEnabled
         case firstEligibleAt, scoringVersion
@@ -118,5 +120,6 @@ struct BoLedgerSnapshot: Codable, Equatable, Sendable {
             Set<String>.self,
             forKey: .processedBonusEnergyEventIDs
         ) ?? []).filter { $0.hasPrefix("walk-doodle:") }.suffix(512))
+        processedSpendEventIDs = try values.decodeIfPresent(Set<String>.self, forKey: .processedSpendEventIDs) ?? []
     }
 }

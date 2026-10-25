@@ -40,7 +40,7 @@ struct HomeStateObservationCoordinatorTests {
         )
 
         #expect(events.values == [
-            "refresh", "lights", "achievement", "morning-sleep",
+            "refresh", "lights", "achievement", "morning-sleep", "stress",
         ])
     }
 

@@ -100,6 +100,10 @@ final class HealthDataService {
     /// long enough to overflow.
     let events: AsyncStream<HealthEvent>
 
+    /// Persist extension-facing facts before completing a HealthKit delivery;
+    /// background updates must not depend on a SwiftUI onChange render pass.
+    @ObservationIgnored var onActivityUpdate: ((HealthActivityUpdate) -> Void)?
+
     // MARK: - Private state
 
     /// Internal (not private) so the history backfill extension in
@@ -454,8 +458,13 @@ final class HealthDataService {
             options: .cumulativeSum
         )
         do {
-            guard let stats = try await descriptor.result(for: store) else { return }
-            let raw = stats.sumQuantity()?.doubleValue(for: unit) ?? 0
+            let stats = try await descriptor.result(for: store)
+            let quantity = stats?.sumQuantity()?.doubleValue(for: unit)
+            if let metric = HealthActivityUpdate.metric(for: id) {
+                onActivityUpdate?(.init(metric: metric, value: quantity, dayStart: start, asOf: now))
+            }
+            guard stats != nil else { return }
+            let raw = quantity ?? 0
             LPLog.healthKit.debug("postSum \(id.rawValue, privacy: .public)=\(raw, privacy: .public)")
             continuation.yield(wrap(cast(raw)))
         } catch {

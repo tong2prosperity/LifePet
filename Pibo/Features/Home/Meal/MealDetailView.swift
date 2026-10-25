@@ -1,25 +1,372 @@
 import SwiftUI
 import UIKit
 
-/// Moss Glass meal estimate. The photo is already saved before this opens; the
-/// sheet presents processing, success, and retry states without blocking Home.
+/// One meal sample's page (决定 063): the sticker pinned on Pibo's specimen card, what Pibo
+/// noticed, then your estimate.
+/// Ported from HarmonyPibo `components/MealDetailView.ets`.
 struct MealDetailView: View {
-    let meal: MealType
-    var onRecapture: (MealType) -> Void
+    var meal: MealType = .lunch
+    var photoId: String = ""
+    var mealTypeRaw: String = ""
+    var onClose: (() -> Void)? = nil
+    var onRecapture: (MealType) -> Void = { _ in }
 
     @Environment(HealthHistoryStore.self) private var history
-    @Environment(FoodRecognitionService.self) private var recognizer
+    @Environment(FoodRecognitionService.self) private var recognizer: FoodRecognitionService?
     @Environment(\.dismiss) private var dismiss
     @State private var retryFailed = false
     @State private var isEditing = false
     @State private var draftAnalysis: FoodAnalysis?
 
+    private var effectiveMeal: MealType {
+        if !mealTypeRaw.isEmpty, let matched = MealType(rawValue: mealTypeRaw) {
+            return matched
+        }
+        return meal
+    }
+
     private var photo: FoodPhoto? {
         _ = history.revision
-        return history.foodPhoto(on: .now, mealType: meal)
+        if !photoId.isEmpty, let uuid = UUID(uuidString: photoId) {
+            return history.foodPhoto(uuid)
+        }
+        return history.foodPhoto(on: .now, mealType: effectiveMeal)
+    }
+
+    private func sampleNumber(_ photo: FoodPhoto) -> Int {
+        photo.analysis?.isFood == false ? 0 : history.foodSampleNumber(photo.id)
+    }
+
+    private func titleString(_ photo: FoodPhoto?) -> String {
+        guard let photo else { return AppLocalization.text("这一餐") }
+        let sample = sampleNumber(photo)
+        return sample > 0 ? AppLocalization.format("地球食物样本 No.%@", "\(sample)")
+            : AppLocalization.text("这一餐")
+    }
+
+    private func handleClose() {
+        if let onClose {
+            onClose()
+        } else {
+            dismiss()
+        }
     }
 
     var body: some View {
+        if PiboReleaseScope.pixelHome {
+            pixelBody
+        } else {
+            legacyBody
+        }
+    }
+
+    // MARK: - Pixel Specimen View
+
+    private var pixelBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            PixelSheetTitle(title: titleString(photo), onClose: handleClose)
+
+            if let photo {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        pixelSpecimenHeader(photo)
+                        pixelStates(photo)
+                    }
+                    .padding(.bottom, 24)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(AppLocalization.text("这一餐的照片找不到了"))
+                        .font(.system(size: 14))
+                        .foregroundStyle(PixelUIColor.inkSoft)
+                    PixelButton(label: AppLocalization.text("关闭"), primary: false, onTap: handleClose)
+                }
+                .padding(.top, 24)
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(PixelUIColor.paper.ignoresSafeArea())
+    }
+
+    private func pixelSpecimenHeader(_ photo: FoodPhoto) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                if let uiImage = UIImage(data: photo.pngData) {
+                    Image(uiImage: uiImage)
+                        .interpolation(.none)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                } else if let image = displayImage(photo) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 48, height: 48)
+                        .clipped()
+                } else {
+                    Text("🍽️")
+                        .font(.system(size: 28))
+                }
+            }
+            .frame(width: 58, height: 58)
+            .background(Color.white)
+            .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+            .background(alignment: .bottomTrailing) {
+                Rectangle().fill(PixelUIColor.shadow).offset(x: 3, y: 3)
+            }
+            .rotationEffect(.degrees(-2))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(mealIdentity(photo))
+                    .font(PixelFont.font(16))
+                    .foregroundStyle(PixelUIColor.ink)
+                    .lineLimit(1)
+                Text("\(AppLocalization.text(effectiveMeal.title)) · \(captureTime(photo))")
+                    .font(PixelFont.font(12))
+                    .foregroundStyle(PixelUIColor.inkSoft)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(PixelUIColor.paperDim)
+        .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+    }
+
+    @ViewBuilder
+    private func pixelStates(_ photo: FoodPhoto) -> some View {
+        if recognizer?.isAnalyzing(photo.id) == true {
+            pixelNotice(
+                mood: .sniff,
+                headline: AppLocalization.text("Pibo 正在重新看这张照片"),
+                body: AppLocalization.text("可以先关上，看完会写在这里。"),
+                offerRetry: false,
+                photo: photo
+            )
+        } else if photo.analysis?.isFood == false {
+            pixelNotice(
+                mood: .puzzled,
+                headline: AppLocalization.text("这次没认出是吃的"),
+                body: AppLocalization.text("它暂时不算进食物样本。可以再试一次，或者重拍这一餐。"),
+                offerRetry: true,
+                photo: photo
+            )
+        } else if let analysis = photo.analysis {
+            pixelSuccess(photo: photo, analysis: analysis)
+        } else {
+            pixelNotice(
+                mood: .puzzled,
+                headline: AppLocalization.text("这一餐还没看清"),
+                body: AppLocalization.text("照片还在。可以再试一次，或者重拍这一餐。"),
+                offerRetry: true,
+                photo: photo
+            )
+        }
+    }
+
+    private func pixelNotice(mood: PixelPeekMood, headline: String, body: String,
+                             offerRetry: Bool, photo: FoodPhoto) -> some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 12) {
+                PixelPeekPibo(mood: mood, peekSize: 56)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(headline)
+                        .font(PixelFont.font(15))
+                        .foregroundStyle(PixelUIColor.ink)
+                    Text(body)
+                        .font(.system(size: 13))
+                        .foregroundStyle(PixelUIColor.inkSoft)
+                        .lineSpacing(4)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(12)
+            .background(PixelUIColor.paperDim)
+            .overlay(
+                Rectangle()
+                    .strokeBorder(PixelUIColor.border, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+            )
+
+            if offerRetry {
+                PixelButton(label: AppLocalization.text("用这张照片重试"), onTap: { retry(photo) })
+                PixelButton(label: AppLocalization.text("重拍这一餐"), primary: false, onTap: recapture)
+            } else {
+                PixelButton(label: AppLocalization.text("先关上"), primary: false, onTap: handleClose)
+            }
+        }
+    }
+
+    private func pixelSuccess(photo: FoodPhoto, analysis: FoodAnalysis) -> some View {
+        let displayed = isEditing ? (draftAnalysis ?? analysis) : analysis
+        return VStack(alignment: .leading, spacing: 14) {
+            // Pibo's Observation
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    PixelIcon(rows: PixelIcons.note, iconSize: 12)
+                    Text(AppLocalization.text("Pibo 的观察"))
+                        .font(PixelFont.font(13))
+                        .foregroundStyle(PixelUIColor.inkSoft)
+                }
+                Text(piboObservation(displayed))
+                    .font(.system(size: 13))
+                    .foregroundStyle(PixelUIColor.ink)
+                    .lineSpacing(3)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(PixelUIColor.paperDim)
+            .overlay(
+                Rectangle()
+                    .strokeBorder(PixelUIColor.border, style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+            )
+
+            // Your Estimate
+            VStack(alignment: .leading, spacing: 8) {
+                Text(AppLocalization.text("你的估算"))
+                    .font(PixelFont.font(14))
+                    .foregroundStyle(PixelUIColor.ink)
+
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(displayed.totalCalories)")
+                        .font(PixelFont.font(28))
+                        .foregroundStyle(PixelUIColor.ink)
+                    Text(AppLocalization.text("千卡"))
+                        .font(PixelFont.font(13))
+                        .foregroundStyle(PixelUIColor.inkSoft)
+                }
+
+                HStack(spacing: 8) {
+                    pixelMacroBox(label: AppLocalization.text("蛋白质"), grams: displayed.proteinG, color: PixelUIColor.heart)
+                    pixelMacroBox(label: AppLocalization.text("碳水"), grams: displayed.carbG, color: PixelUIColor.gold)
+                    pixelMacroBox(label: AppLocalization.text("脂肪"), grams: displayed.fatG, color: PixelUIColor.sleep)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(PixelUIColor.paper)
+            .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+
+            // Food Items
+            VStack(alignment: .leading, spacing: 8) {
+                Text(AppLocalization.text("食物明细"))
+                    .font(PixelFont.font(14))
+                    .foregroundStyle(PixelUIColor.ink)
+
+                ForEach(displayed.items.indices, id: \.self) { index in
+                    if isEditing {
+                        pixelEditableItemRow(index: index)
+                    } else {
+                        pixelItemRow(displayed.items[index])
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(PixelUIColor.paper)
+            .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+
+            Text(AppLocalization.text("数字是按照片估的，不一定准。改了热量以后，三大营养素会清空，免得留着旧的估算。"))
+                .font(.system(size: 12))
+                .foregroundStyle(PixelUIColor.inkSoft)
+                .lineSpacing(3)
+
+            HStack(spacing: 10) {
+                PixelButton(
+                    label: AppLocalization.text(isEditing ? "取消调整" : "调整份量"),
+                    primary: false,
+                    active: !displayed.items.isEmpty,
+                    onTap: {
+                        if isEditing {
+                            draftAnalysis = nil
+                            isEditing = false
+                        } else {
+                            draftAnalysis = analysis
+                            isEditing = true
+                        }
+                    }
+                )
+                PixelButton(
+                    label: AppLocalization.text(isEditing ? "保存调整" : "完成"),
+                    onTap: {
+                        if isEditing {
+                            saveDraft(photo: photo)
+                        } else {
+                            handleClose()
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    private func pixelMacroBox(label: String, grams: Double?, color: Color) -> some View {
+        VStack(spacing: 4) {
+            Text(label)
+                .font(PixelFont.font(11))
+                .foregroundStyle(PixelUIColor.inkSoft)
+            Text(grams.map { "\(Int($0.rounded()))g" } ?? "—")
+                .font(PixelFont.font(13))
+                .foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(PixelUIColor.paperDim)
+        .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 1))
+    }
+
+    private func pixelItemRow(_ item: FoodItem) -> some View {
+        HStack {
+            Text(item.name)
+                .font(PixelFont.font(13))
+                .foregroundStyle(PixelUIColor.ink)
+            if let qty = item.quantity, !qty.isEmpty {
+                Text(qty)
+                    .font(.system(size: 12))
+                    .foregroundStyle(PixelUIColor.inkSoft)
+            }
+            Spacer()
+            Text("\(item.calories) kcal")
+                .font(PixelFont.font(12))
+                .foregroundStyle(PixelUIColor.inkSoft)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func pixelEditableItemRow(index: Int) -> some View {
+        HStack(spacing: 8) {
+            Text(draftAnalysis?.items[safe: index]?.name ?? "")
+                .font(PixelFont.font(13))
+                .foregroundStyle(PixelUIColor.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            TextField(AppLocalization.text("份量"), text: quantityBinding(index))
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .multilineTextAlignment(.trailing)
+                .frame(width: 72)
+                .padding(.horizontal, 6)
+                .frame(height: 32)
+                .background(PixelUIColor.paperDim)
+                .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 1))
+
+            TextField(AppLocalization.text("热量"), text: caloriesBinding(index))
+                .keyboardType(.numberPad)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .multilineTextAlignment(.trailing)
+                .frame(width: 56)
+                .padding(.horizontal, 6)
+                .frame(height: 32)
+                .background(PixelUIColor.paperDim)
+                .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 1))
+        }
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - Legacy View
+
+    private var legacyBody: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LP.Spacing.l) {
                 PiboMossSheetHandle()
@@ -64,7 +411,7 @@ struct MealDetailView: View {
             .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: LP.Spacing.s) {
-                Text("\(AppLocalization.text(meal.title)) · \(captureTime(photo))")
+                Text("\(AppLocalization.text(effectiveMeal.title)) · \(captureTime(photo))")
                     .lpText(LP.Typography.b4Regular)
                     .foregroundStyle(PiboMoss.Color.secondaryInk)
 
@@ -80,7 +427,7 @@ struct MealDetailView: View {
 
     @ViewBuilder
     private func analysisSection(_ photo: FoodPhoto) -> some View {
-        if recognizer.isAnalyzing(photo.id) {
+        if recognizer?.isAnalyzing(photo.id) == true {
             processingState
         } else if let analysis = photo.analysis {
             successState(photo: photo, analysis: analysis)
@@ -99,58 +446,19 @@ struct MealDetailView: View {
                     .background(Circle().fill(PiboMoss.Color.foundationTeal.opacity(0.10)))
 
                 VStack(alignment: .leading, spacing: LP.Spacing.xs) {
-                    Text(AppLocalization.text("正在估算"))
-                        .lpText(LP.Typography.b2Medium)
+                    Text(AppLocalization.text("Pibo 正在观察这顿饭…"))
+                        .lpText(LP.Typography.uiH5)
                         .foregroundStyle(PiboMoss.Color.forestInk)
-                    Text(AppLocalization.text("正在估算，不用留在这里"))
+                    Text(AppLocalization.text("识别完成后会自动保存，稍后可在历史记录中查看。"))
                         .lpText(LP.Typography.b4Regular)
                         .foregroundStyle(PiboMoss.Color.secondaryInk)
                 }
             }
-
-            VStack(spacing: LP.Spacing.m) {
-                PiboMossSkeletonBar(width: 136, height: 36)
-                PiboMossSkeletonBar(width: 190, height: 14)
-                HStack {
-                    PiboMossSkeletonBar(width: 82)
-                    Spacer()
-                    PiboMossSkeletonBar(width: 82)
-                    Spacer()
-                    PiboMossSkeletonBar(width: 82)
-                }
-            }
-            .frame(maxWidth: .infinity)
             .padding(.vertical, LP.Spacing.m)
-
-            Text(AppLocalization.text("识别到的食物"))
-                .lpText(LP.Typography.b2Medium)
-
-            VStack(spacing: 0) {
-                ForEach(0..<4, id: \.self) { _ in
-                    HStack {
-                        Circle()
-                            .fill(PiboMoss.Color.hairline.opacity(0.52))
-                            .frame(width: 36, height: 36)
-                        PiboMossSkeletonBar(width: 142)
-                        Spacer()
-                        PiboMossSkeletonBar(width: 68)
-                    }
-                    .padding(.vertical, LP.Spacing.m)
-                    .overlay(alignment: .bottom) {
-                        Rectangle()
-                            .fill(PiboMoss.Color.hairline.opacity(0.38))
-                            .frame(height: 1)
-                    }
-                }
-            }
-
-            Text(AppLocalization.text("照片已经保存，稍后可以再来看。"))
-                .lpText(LP.Typography.c1Regular)
-                .foregroundStyle(PiboMoss.Color.secondaryInk)
 
             PiboMossSecondaryButton(
                 title: AppLocalization.text("关闭"),
-                action: { dismiss() }
+                action: handleClose
             )
         }
     }
@@ -220,7 +528,7 @@ struct MealDetailView: View {
             VStack(spacing: LP.Spacing.s) {
                 PiboMossPrimaryButton(
                     title: AppLocalization.text(isEditing ? "保存调整" : "完成"),
-                    action: { isEditing ? saveDraft(photo: photo) : dismiss() }
+                    action: { isEditing ? saveDraft(photo: photo) : handleClose() }
                 )
                 PiboMossSecondaryButton(
                     title: AppLocalization.text(isEditing ? "取消" : "调整份量"),
@@ -392,7 +700,7 @@ struct MealDetailView: View {
                 VStack(alignment: .leading, spacing: LP.Spacing.xs) {
                     Text(mealIdentity(photo))
                         .lpText(LP.Typography.b3Medium)
-                    Text("\(AppLocalization.text(meal.title)) · \(captureTime(photo))")
+                    Text("\(AppLocalization.text(effectiveMeal.title)) · \(captureTime(photo))")
                         .lpText(LP.Typography.c1Regular)
                         .foregroundStyle(PiboMoss.Color.secondaryInk)
                     Text(AppLocalization.text("照片已保存，稍后可以继续识别估算。"))
@@ -417,7 +725,7 @@ struct MealDetailView: View {
     private var emptyState: some View {
         VStack(spacing: LP.Spacing.l) {
             PiboMossSheetHandle()
-            Image(systemName: meal.symbol)
+            Image(systemName: effectiveMeal.symbol)
                 .font(.system(size: 36, weight: .medium))
                 .foregroundStyle(PiboMoss.Color.foundationTeal)
             Text(AppLocalization.text("还没有这一餐的照片"))
@@ -429,7 +737,7 @@ struct MealDetailView: View {
             )
             PiboMossSecondaryButton(
                 title: AppLocalization.text("关闭"),
-                action: { dismiss() }
+                action: handleClose
             )
         }
         .frame(maxWidth: .infinity)
@@ -438,9 +746,13 @@ struct MealDetailView: View {
     private func retry(_ photo: FoodPhoto) {
         retryFailed = false
         Task { @MainActor in
+            guard let recognizer else {
+                retryFailed = true
+                return
+            }
             let succeeded = await recognizer.retry(
                 photo: photo,
-                meal: meal,
+                meal: effectiveMeal,
                 history: history
             )
             retryFailed = !succeeded
@@ -449,8 +761,8 @@ struct MealDetailView: View {
 
     private func recapture() {
         LPHaptics.tap()
-        dismiss()
-        onRecapture(meal)
+        handleClose()
+        onRecapture(effectiveMeal)
     }
 
     private func saveDraft(photo: FoodPhoto) {
@@ -458,6 +770,10 @@ struct MealDetailView: View {
         if !draftAnalysis.items.isEmpty {
             draftAnalysis.totalCalories = draftAnalysis.items.reduce(0) { $0 + $1.calories }
         }
+        // Manual calorie edits clear macros so stale data is not presented.
+        draftAnalysis.proteinG = nil
+        draftAnalysis.carbG = nil
+        draftAnalysis.fatG = nil
         guard let data = try? JSONEncoder().encode(draftAnalysis) else { return }
         history.updateFoodPhoto(id: photo.id) { record in
             record.totalCalories = draftAnalysis.totalCalories
@@ -518,7 +834,7 @@ struct MealDetailView: View {
             return observation
         }
         let names = analysis.items.prefix(3).map(\.name).filter { !$0.isEmpty }
-        let subject = names.isEmpty ? analysis.dishName : names.joined(separator: "、")
+        let subject = names.isEmpty ? (analysis.dishName.isEmpty ? AppLocalization.text("吃的") : analysis.dishName) : names.joined(separator: "、")
         return AppLocalization.format("我看见了%@。", subject)
     }
 }

@@ -1,66 +1,81 @@
 import Foundation
 import UserNotifications
+import UIKit
 import os
 
-/// Decision 048: one local reminder per real maturity cycle.
-///
-/// Delivery follows the confirmed ledger fact only — never an estimated ripen
-/// time. A cycle is identified by the next collection ordinal
-/// (`lifetimeCollected + 1`), so a reminder is posted once per unit, withdrawn
-/// on collection, and never re-sent for the same cycle after a relaunch.
-/// Tapping it simply opens the forest; nothing is collected automatically.
+@MainActor
+protocol BoMaturityNotificationCenter {
+    func authorizationStatus() async -> UNAuthorizationStatus
+    func add(_ request: UNNotificationRequest) async throws
+    func withdraw()
+}
+
+@MainActor
+private final class SystemBoMaturityNotificationCenter: BoMaturityNotificationCenter {
+    private let center = UNUserNotificationCenter.current()
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await center.notificationSettings().authorizationStatus
+    }
+    func add(_ request: UNNotificationRequest) async throws { try await center.add(request) }
+    func withdraw() {
+        let ids = [BoMaturityNotifier.requestID, "pibo.bo.first-ripe"]
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+        center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
+}
+
+/// Decisions 048/049/055: existing permission only, no first-bo banner, and no
+/// banner over the foreground forest. Collection invalidates in-flight delivery.
 @MainActor
 final class BoMaturityNotifier {
     static let shared = BoMaturityNotifier()
     static let requestID = "pibo.bo.maturity"
     private static let deliveredKey = "pibo.bo.maturity.delivered.v1"
-
-    private let center: UNUserNotificationCenter
+    private let center: any BoMaturityNotificationCenter
     private let defaults: UserDefaults
+    private let isBackground: @MainActor () -> Bool
     private var latest = ""
     private var generation = 0
+    private var publication: Task<Void, Never>?
 
-    init(center: UNUserNotificationCenter = .current(), defaults: UserDefaults = .standard) {
-        self.center = center
+    init(center: (any BoMaturityNotificationCenter)? = nil,
+         defaults: UserDefaults = .standard,
+         isBackground: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .background }) {
+        self.center = center ?? SystemBoMaturityNotificationCenter()
         self.defaults = defaults
+        self.isBackground = isBackground
     }
 
     func reconcile(ripe: Bool, cycle: Int) {
         let key = ripe ? String(cycle) : ""
+        if !ripe || cycle <= 1 || !isBackground() {
+            generation += 1
+            latest = key
+            if ripe { defaults.set(key, forKey: Self.deliveredKey) }
+            center.withdraw()
+            return
+        }
         guard key != latest else { return }
         latest = key
         generation += 1
-        guard ripe else {
-            withdraw()
-            return
-        }
-        let generation = generation
-        Task { await publish(key: key, generation: generation) }
+        let expected = generation
+        publication = Task { await publish(key: key, generation: expected) }
     }
 
-    /// Collection happened; an immediate refill from the reserve is already on
-    /// screen, so its cycle counts as seen.
     func collected(nextRipe: Bool, nextCycle: Int) {
         generation += 1
         latest = nextRipe ? String(nextCycle) : ""
         defaults.set(latest, forKey: Self.deliveredKey)
-        withdraw()
+        center.withdraw()
     }
 
-    private func withdraw() {
-        center.removePendingNotificationRequests(withIdentifiers: [Self.requestID])
-        center.removeDeliveredNotifications(withIdentifiers: [Self.requestID])
-    }
+    func waitForPending() async { await publication?.value }
 
     private func publish(key: String, generation: Int) async {
         guard defaults.string(forKey: Self.deliveredKey) != key else { return }
-        var settings = await center.notificationSettings()
-        if settings.authorizationStatus == .notDetermined {
-            _ = try? await center.requestAuthorization(options: [.alert, .sound])
-            settings = await center.notificationSettings()
-        }
-        guard generation == self.generation else { return }
-        switch settings.authorizationStatus {
+        let authorization = await center.authorizationStatus()
+        guard generation == self.generation, isBackground() else { return }
+        switch authorization {
         case .authorized, .provisional, .ephemeral: break
         default: return
         }
@@ -71,8 +86,8 @@ final class BoMaturityNotifier {
         content.threadIdentifier = "pibo.bo.ripe"
         do {
             try await center.add(UNNotificationRequest(identifier: Self.requestID, content: content, trigger: nil))
-            guard generation == self.generation else {
-                withdraw()
+            guard generation == self.generation, isBackground() else {
+                center.withdraw()
                 return
             }
             defaults.set(key, forKey: Self.deliveredKey)

@@ -46,7 +46,7 @@ final class HomeDebugAutomationController {
                 showMorningSleep: { morningSleep.debugPresentFixture() },
                 presentAchievementIfAvailable: { payload in
                     guard sheetIsAbsent() else { return }
-                    presentSheet(.achievement(payload))
+                    store.animationExperience.queuePreview(payload)
                 },
                 bounceToAnimationState: { target in
                     // Deterministic Simulator capture hook. The delay leaves

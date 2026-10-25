@@ -139,7 +139,7 @@ final class PixelFrame {
 
     private static func inksOf(_ line: String) -> [PixelInk] {
         if let cached = rowInks[line] { return cached }
-        let inks = line.map(PixelPalette.glyphInk)
+        let inks = line.map { PixelPalette.glyphInk($0) }
         if rowInks.count >= rowInksLimit { rowInks.removeAll(keepingCapacity: true) }
         rowInks[line] = inks
         return inks

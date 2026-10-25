@@ -57,11 +57,6 @@ enum ForestSceneManifest {
                 frame: CGRect(x: -31, y: 90.8, width: 322, height: 322),
                 zPosition: 20
             )
-        case "coolhide":
-            return PiboPlayerPlacement(
-                frame: CGRect(x: 138, y: 240, width: 299, height: 299),
-                zPosition: 5.5
-            )
         case "dive":
             return PiboPlayerPlacement(
                 frame: CGRect(x: -10.5, y: 508, width: 414, height: 414),

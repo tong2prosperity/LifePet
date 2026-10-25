@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import Pibo
 
 @Suite
@@ -38,6 +39,36 @@ struct HomeStressCardPresentationCoordinatorTests {
         )
 
         #expect(events.values == ["pending", "clear", "focus", "present"])
+    }
+
+    @Test(arguments: [0, 1, 2, 3])
+    func blockedRouteWaitsWithoutConsumingItsRequest(boundary: Int) {
+        let events = EventLog()
+        let presentation = HomePresentationState()
+        presentation.sheetDismissalInProgress = boundary == 1
+        let guarded = HomePresentationPolicy(
+            sceneIsActive: boundary != 0, presentation: presentation,
+            sproutFlowIsIdle: boundary != 3, foregroundOverlayPresented: boundary == 2)
+        HomeStressCardPresentationCoordinator.presentIfPossible(
+            policy: guarded, pendingCardOpen: true, handlers: handlers(events))
+        #expect(events.values.isEmpty)
+    }
+
+    @Test func pixelWindowDefersBothSleepAndNotificationUntilItCloses() {
+        let presentation = HomePresentationState()
+        final class Window { var open = true }
+        let window = Window()
+        let guarded = HomePresentationPolicy(
+            sceneIsActive: true, presentation: presentation, sproutFlowIsIdle: true,
+            foregroundOverlayPresented: window.open)
+        let review = "pending-review"
+        #expect(guarded.morningSleepPresentation(sleepReviewGranted: true,
+                                                 consumablePresentation: review) == nil)
+        #expect(!guarded.shouldPresentStressCard(pendingCardOpen: true))
+        window.open = false
+        #expect(guarded.morningSleepPresentation(sleepReviewGranted: true,
+                                                 consumablePresentation: review) == review)
+        #expect(guarded.shouldPresentStressCard(pendingCardOpen: true))
     }
 
     private func policy(coverPresented: Bool = false) -> HomePresentationPolicy {

@@ -61,8 +61,6 @@ final class PiboStageScene: SKScene {
     struct CompanionHotspots: Equatable {
         var grass = false
         var river = false
-        /// Hide-and-seek: Pibo's body in the grass becomes a single-tap "found".
-        var findsHiddenPibo = false
         static let none = CompanionHotspots()
     }
     static let grassHotspotDesignRect = CGRect(x: 271.3, y: 416.1, width: 150.6, height: 114.2)
@@ -721,10 +719,6 @@ final class PiboStageScene: SKScene {
     private func handleTap(at p: CGPoint, tapCount: Int) {
         if shadow.contains(p, in: self) {
             onShadowTapped?()
-            return
-        }
-        if companionHotspots.findsHiddenPibo, character.hitRegion(at: p, in: self) != .none {
-            onCompanionHotspot?(.grass)
             return
         }
         if character.hitRegion(at: p, in: self) == .body {

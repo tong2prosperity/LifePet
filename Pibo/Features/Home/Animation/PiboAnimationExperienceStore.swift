@@ -69,6 +69,10 @@ final class PiboAnimationExperienceStore {
         )
     }
 
+    #if DEBUG
+    func queuePreview(_ payload: PiboAnimationAchievementPayload) { queue(payload) }
+    #endif
+
     func requestNotificationPresentation() {
         notificationPresentationRequestID = UUID()
     }

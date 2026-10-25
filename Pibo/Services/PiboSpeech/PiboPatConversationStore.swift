@@ -40,6 +40,7 @@ struct PiboPatUnit: Codable, Equatable {
     let action: PiboPatAction
     let speaker: PiboPatSpeaker
     let lines: [PiboPatLine]
+    var minTone: Int? = nil
 }
 
 struct PiboPatEventCandidate: Equatable {
@@ -57,6 +58,7 @@ struct PiboPatConversationInput {
     let storyStage: String
     var values: [String: String] = [:]
     var events: [PiboPatEventCandidate] = []
+    var tone = 0
 }
 
 struct PiboPatResolution: Equatable {
@@ -103,9 +105,9 @@ struct PiboPatCatalog {
         return PiboPatCatalog(units: units)
     }
 
-    func units(for context: PiboCorePatContext, storyStage: String) -> [PiboPatUnit] {
+    func units(for context: PiboCorePatContext, storyStage: String, tone: Int = 0) -> [PiboPatUnit] {
         guard let key = context.catalogKey else { return [] }
-        return (unitsByKey[key] ?? []).compactMap { unit in
+        return (unitsByKey[key] ?? []).filter { ($0.minTone ?? 0) <= tone }.compactMap { unit in
             let lines = unit.lines.filter { line in
                 guard let stages = line.stages, !stages.isEmpty else { return true }
                 return stages.contains(storyStage)
@@ -116,7 +118,7 @@ struct PiboPatCatalog {
                 context: unit.context,
                 action: unit.action,
                 speaker: unit.speaker,
-                lines: lines
+                lines: lines, minTone: unit.minTone
             )
         }
     }
@@ -317,7 +319,7 @@ final class PiboPatConversationStore {
             event: event,
             dataUnknownReason: input.dataUnknownReason
         )
-        var units = catalog.units(for: context, storyStage: input.storyStage)
+        var units = catalog.units(for: context, storyStage: input.storyStage, tone: input.tone)
         var selected = selectedRecord(context: context, units: units, values: values)
 
         if selected == nil, event != .none {
@@ -329,7 +331,7 @@ final class PiboPatConversationStore {
                 event: input.ambientEvent,
                 dataUnknownReason: input.dataUnknownReason
             )
-            units = catalog.units(for: context, storyStage: input.storyStage)
+            units = catalog.units(for: context, storyStage: input.storyStage, tone: input.tone)
             selected = selectedRecord(context: context, units: units, values: input.values)
         }
         guard let selected, units.indices.contains(selected) else { return .speechSuppressed }
@@ -386,7 +388,7 @@ final class PiboPatConversationStore {
         active current: ActiveUnit,
         at date: Date
     ) -> PiboPatResolution? {
-        let units = catalog.units(for: current.context, storyStage: input.storyStage)
+        let units = catalog.units(for: current.context, storyStage: input.storyStage, tone: input.tone)
         guard units.indices.contains(current.recordIndex) else { return nil }
         let unit = units[current.recordIndex]
         guard piboPatUnitFingerprint(unit) == current.fingerprint,

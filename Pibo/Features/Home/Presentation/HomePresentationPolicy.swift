@@ -2,6 +2,7 @@ import PiboCore
 
 struct HomePresentationPolicy {
     private let sceneIsActive: () -> Bool
+    private let foregroundOverlayPresented: () -> Bool
     private let cameraPresented: () -> Bool
     private let gamesPresented: () -> Bool
     private let historyPresented: () -> Bool
@@ -24,9 +25,11 @@ struct HomePresentationPolicy {
         sheetPresented: @autoclosure @escaping () -> Bool,
         sheetDismissalInProgress: @autoclosure @escaping () -> Bool,
         sproutFlowIsIdle: @autoclosure @escaping () -> Bool,
-        loginPresented: @autoclosure @escaping () -> Bool = false
+        loginPresented: @autoclosure @escaping () -> Bool = false,
+        foregroundOverlayPresented: @autoclosure @escaping () -> Bool = false
     ) {
         self.sceneIsActive = sceneIsActive
+        self.foregroundOverlayPresented = foregroundOverlayPresented
         self.loginPresented = loginPresented
         self.cameraPresented = cameraPresented
         self.gamesPresented = gamesPresented
@@ -45,9 +48,11 @@ struct HomePresentationPolicy {
     init(
         sceneIsActive: @autoclosure @escaping () -> Bool,
         presentation: HomePresentationState,
-        sproutFlowIsIdle: @autoclosure @escaping () -> Bool
+        sproutFlowIsIdle: @autoclosure @escaping () -> Bool,
+        foregroundOverlayPresented: @autoclosure @escaping () -> Bool = false
     ) {
         self.sceneIsActive = sceneIsActive
+        self.foregroundOverlayPresented = foregroundOverlayPresented
         cameraPresented = { presentation.showCamera }
         gamesPresented = { presentation.showGames }
         historyPresented = { presentation.showHistory }
@@ -119,6 +124,8 @@ struct HomePresentationPolicy {
         pendingAchievement: @autoclosure () -> PiboAnimationAchievementPayload?
     ) -> PiboAnimationAchievementPayload? {
         guard sceneIsActive(),
+              !foregroundOverlayPresented(),
+              !sheetDismissalInProgress(),
               !sheetPresented(),
               !fullScreenFeaturePresented,
               PiboCoreAnimationAdapter.achievementPresentationAllowed(
@@ -134,6 +141,8 @@ struct HomePresentationPolicy {
         consumablePresentation: @autoclosure () -> Presentation?
     ) -> Presentation? {
         guard sceneIsActive(),
+              !foregroundOverlayPresented(),
+              !sheetDismissalInProgress(),
               sleepReviewGranted(),
               !sheetPresented(),
               !fullScreenFeaturePresented,
@@ -147,6 +156,10 @@ struct HomePresentationPolicy {
         pendingCardOpen: @autoclosure () -> Bool
     ) -> Bool {
         pendingCardOpen()
+            && sceneIsActive()
+            && !foregroundOverlayPresented()
+            && !sheetDismissalInProgress()
+            && sproutFlowIsIdle()
             && !fullScreenFeaturePresented
             && !sheetPresented()
     }
@@ -161,6 +174,8 @@ struct HomePresentationPolicy {
             && !wasAnnounced()
             && sceneIsActive()
             && !stagePaused
+            && !foregroundOverlayPresented()
+            && !sheetDismissalInProgress()
             && sproutFlowIsIdle()
             && speechIsAbsent()
             && idleSpeechContextAvailable()

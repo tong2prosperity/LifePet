@@ -44,6 +44,18 @@ enum WatchCompanionPreview {
             shadowConnection: PiboCompanionShadowConnection(
                 status: scenario == "cached" ? .paused : .active,
                 accountID: "preview", relationshipID: "preview-friend", displayName: "小岚", snapshot: friend
+            ),
+            pixel: PiboCompanionPixelState(
+                level: 5, bodyStage: 1, leafStage: 2, accessoryMask: 5,
+                form: scenario == "stone" ? 1 : (scenario == "lamp" ? 8 : 0), formStuck: scenario == "stone",
+                balance: 3, collectionToken: scenario == "ripe" ? "preview" : nil,
+                wishes: [.init(kind: 2, title: "拍拍我 3 次", done: true, fraction: 1),
+                         .init(kind: 0, title: "出门走走", done: false, fraction: 0.5),
+                         .init(kind: 4, title: "回答我一个问题", done: false, fraction: 0)],
+                steps: 4300, finds: [5], thought: true,
+                stations: [.init(title: "草坡", steps: 2000, item: 5), .init(title: "松林", steps: 5000, item: 0),
+                           .init(title: "河边", steps: 8000, item: 1), .init(title: "山顶", steps: 12000, item: 23)],
+                patLine: "嗯，我在这儿。"
             )
         )
     }

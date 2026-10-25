@@ -44,6 +44,7 @@ struct PiboMealSource: Equatable {
     var id = ""
     var capturedAt: Double = 0
     var pngPath = ""
+    var pngData: Data? = nil
     var mealTypeRaw = ""
 }
 
@@ -85,6 +86,7 @@ struct HomeDayDependencies {
     var mealsToday: () -> [PiboMealSource]
     /// Opens a meal's detail (a sticker on the mat was tapped).
     var openMeal: (_ photoID: String, _ mealTypeRaw: String) -> Void
+    var dismissSpeech: () -> Void = {}
 }
 
 /// The two sheets the day opens from the stage.
@@ -234,12 +236,14 @@ final class HomeDayController: PixelDayBrain {
     // --- Lifecycle -----------------------------------------------------------------------
 
     func start() {
-        guard let deps, timer == nil else { return }
+        guard let deps, deps.appActive(), timer == nil else { return }
         scene = PiboCoreDayScene(rawValue: Int32(deps.days().scene)) ?? .clearing
         refreshWorld(nowMs())
         refreshMealMat(nowMs())
-        greetPending = true
-        if director.isConfigured { greet() }
+        // A return must not replace a partially performed season script with
+        // a greeting: that drops its completion callback and strands the season.
+        greetPending = !director.busyScripted
+        if director.isConfigured && greetPending { greet() }
         let timer = Timer.scheduledTimer(withTimeInterval: tickMs / 1000, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -247,11 +251,13 @@ final class HomeDayController: PixelDayBrain {
     }
 
     func stop() {
+        let wasRunning = timer != nil
         timer?.invalidate()
         timer = nil
         lineTask?.cancel()
         lineTask = nil
-        dependencies?.days().noteSeen(nowMs(), flush: true)
+        greetPending = false
+        if wasRunning { dependencies?.days().noteSeen(nowMs(), flush: true) }
     }
 
     /// The stage knows its size: place Pibo, then greet if Home just opened.
@@ -316,7 +322,7 @@ final class HomeDayController: PixelDayBrain {
         var shown: [PiboMealSource] = []
         var inks: [String] = []
         for meal in meals {
-            guard let pixels = stickerPixels.peek(meal.id, meal.pngPath, onReady: { [weak self] in
+            guard let pixels = stickerPixels.peek(meal.id, meal.pngPath, data: meal.pngData, onReady: { [weak self] in
                 guard let self else { return }
                 self.refreshMealMat(self.nowMs())
             }) else { continue }
@@ -579,6 +585,7 @@ final class HomeDayController: PixelDayBrain {
     // --- Tick -------------------------------------------------------------------------------
 
     func tick() {
+        PiboPixelStageProjection.shared.update(form: director.form, stuck: director.stuck)
         guard let deps, deps.appActive() else { return }
         let now = nowMs()
         deps.days().noteSeen(now, flush: false)
@@ -716,6 +723,11 @@ final class HomeDayController: PixelDayBrain {
                                                       seed: seed())
             disguise = Int(shape.form.rawValue)
             decoys = shape.decoys
+            if disguise > 0 {
+                Analytics.track(.disguiseStart, screen: "home", [
+                    "form": .string(PiboAnalyticsKeys.form(disguise)), "decoys": .int(decoys)
+                ])
+            }
             LPLog.day.info("hide disguise=\(disguise, privacy: .public) decoys=\(decoys, privacy: .public)")
         }
         let carried = find >= 0 ? days.takePendingFind() : -1
@@ -753,8 +765,8 @@ final class HomeDayController: PixelDayBrain {
         var narrow = DayLineNarrowing()
         narrow.kind = entry.destination
         let text = line("diary", narrow, ["item": piboFindName(entry.item)])
-        days.markDiaryRead()
         guard let text else { return nil }
+        days.markDiaryRead()
         var line = PiboDayLine(text: text)
         line.lingerMs = lineLingerMs + 800
         line.fact = "\(entry.steps) 步 · \(piboDestinationName(entry.destination))"
@@ -770,11 +782,20 @@ final class HomeDayController: PixelDayBrain {
         if place >= PixelHotspot.mealSticker.rawValue &&
             place < PixelHotspot.mealSticker.rawValue + mealOnMat.count {
             let meal = mealOnMat[place - PixelHotspot.mealSticker.rawValue]
+            Analytics.track(.mealStickerTap, screen: "home", [
+                "slot_index": .int(place - PixelHotspot.mealSticker.rawValue),
+                "is_fresh": .bool(PiboCoreDayRules.mealFresh(
+                    minutesSinceSaved: Int((nowMs() - meal.capturedAt) / 60000),
+                    sniffed: deps.days().sniffedMeal(meal.id)))
+            ])
             deps.openMeal(meal.id, meal.mealTypeRaw)
             return false
         }
         if director.hiding {
             if place == director.hidingPlace {
+                if director.disguise > 0 {
+                    Analytics.track(.disguiseFound, screen: "home", ["form": .string(PiboAnalyticsKeys.form(director.disguise))])
+                }
                 director.found()
                 feel(.found, count: 0)
                 say("hideFound", DayLineNarrowing(), "")
@@ -784,6 +805,10 @@ final class HomeDayController: PixelDayBrain {
             var narrow = DayLineNarrowing()
             if place >= PixelHotspot.decoy.rawValue && place < PixelHotspot.mealSticker.rawValue {
                 narrow.kind = director.disguise
+                Analytics.track(.decoyTapped, screen: "home", [
+                    "form": .string(PiboAnalyticsKeys.form(director.disguise)),
+                    "index": .int(place - PixelHotspot.decoy.rawValue)
+                ])
             }
             say(narrow.kind != nil ? "hideDecoy" : "hideWrong", narrow, "")
             return false
@@ -819,6 +844,9 @@ final class HomeDayController: PixelDayBrain {
         let now = nowMs()
         let answer = PiboCoreDay.invite(context(), extras: extras(), place: place,
                                              invitesToday: days.invitesToday(now), seed: seed())
+        if place == .mealMat {
+            Analytics.track(.mealMatInvite, screen: "home", ["accepted": .bool(answer.accepted)])
+        }
         LPLog.day.info("invite place=\(place.rawValue, privacy: .public) accepted=\(answer.accepted, privacy: .public) reason=\(answer.reason.rawValue, privacy: .public)")
         var narrow = DayLineNarrowing()
         if !answer.accepted {
@@ -851,7 +879,12 @@ final class HomeDayController: PixelDayBrain {
     // --- Scenes ----------------------------------------------------------------------------------
 
     func sceneUnlocked(_ scene: PiboCoreDayScene) -> Bool {
-        PiboCoreDayRules.sceneUnlocked(scene, level: deps?.growth().level ?? 1)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-PiboUnlockScenes") {
+            return true
+        }
+        #endif
+        return PiboCoreDayRules.sceneUnlocked(scene, level: deps?.growth().level ?? 1)
     }
 
     func sceneMinLevel(_ scene: PiboCoreDayScene) -> Int {
@@ -864,6 +897,7 @@ final class HomeDayController: PixelDayBrain {
         guard let deps, scene != self.scene, sceneUnlocked(scene) else { return false }
         targetScene = scene
         deps.overlays().showDayMap(false)
+        deps.dismissSpeech()
         director.travel()
         LPLog.day.info("travel scene=\(scene.rawValue, privacy: .public)")
         return true
@@ -893,6 +927,7 @@ final class HomeDayController: PixelDayBrain {
             try? await Task.sleep(nanoseconds: UInt64(max(0, delayMs) * 1_000_000))
             if Task.isCancelled { return }
             self.lineTask = nil
+            guard self.deps?.appActive() == true, self.deps?.overlays().anyOpen() == false else { return }
             body()
         }
     }

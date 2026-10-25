@@ -9,6 +9,7 @@ nonisolated enum AppNotificationCategory {
     /// Stress readings + the every-reading diagnostic. Tapping opens the history
     /// surface focused on the 压力卡 — the screen the notification is about.
     static let stress = "pibo.notification.stress"
+    static let stressDayUserInfoKey = "piboStressDay"
     static let wakeDayUserInfoKey = "piboWakeDay"
     static let workoutIDUserInfoKey = "piboWorkoutID"
     static let achievementKindUserInfoKey = "piboAnimationAchievementKind"
@@ -18,15 +19,15 @@ nonisolated enum AppNotificationCategory {
 /// delegate hops to the main queue. Keeping UIKit objects out of that hop makes
 /// the executor boundary explicit and gives the routing contract a test seam.
 nonisolated enum AppNotificationRoute: Equatable, Sendable {
-    case stress
+    case stress(dayTimestamp: Double? = nil)
     case achievement
     case morningSleep(wakeDayKey: String?, isMock: Bool)
     case none
 
-    init(category: String, wakeDayKey: String?) {
+    init(category: String, wakeDayKey: String?, stressDay: Double? = nil) {
         switch category {
         case AppNotificationCategory.stress:
-            self = .stress
+            self = .stress(dayTimestamp: stressDay)
         case AppNotificationCategory.workoutCompleted,
              AppNotificationCategory.achievement:
             self = .achievement
@@ -48,8 +49,8 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = AppNotificationRouter()
 
     var onMorningSleepOpened: ((String?, Bool) -> Void)?
-    /// Fired when a stress notification is tapped.
-    var onStressOpened: (() -> Void)?
+    /// Fired when a stress notification is tapped, passing the day it was said if known.
+    var onStressOpened: ((Double?) -> Void)?
     var onAchievementOpened: (() -> Void)?
 
     private override init() {
@@ -58,6 +59,20 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
 
     func install() {
         UNUserNotificationCenter.current().delegate = self
+    }
+
+    /// Delivery can race a foreground return after the sender's final check.
+    /// The foreground delegate is the last opportunity to avoid duplicate banners.
+    nonisolated static func foregroundOptions(category: String, identifier: String,
+                                               stressPushEnabled: Bool = true) -> UNNotificationPresentationOptions {
+        if category == AppNotificationCategory.stress && !stressPushEnabled { return [] }
+        if category == AppNotificationCategory.morningSleep
+            || category == AppNotificationCategory.workoutCompleted
+            || category == AppNotificationCategory.achievement
+            || identifier == "pibo.bo.maturity" || identifier == "pibo.bo.first-ripe" {
+            return []
+        }
+        return [.banner, .sound]
     }
 
     // Use the protocol's native completion-handler requirements rather than the
@@ -72,18 +87,12 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         let category = notification.request.content.categoryIdentifier
-        let options: UNNotificationPresentationOptions
-        if category == AppNotificationCategory.morningSleep {
-            // When already foregrounded, the coordinator presents the native
-            // morning sheet. Avoid showing a duplicate banner above it.
-            options = []
-        } else {
-            // The DEBUG sleep mock intentionally uses a separate category so the
-            // complete banner-tap-card path can be rehearsed without backgrounding.
-            options = [.banner, .sound]
-        }
+        let identifier = notification.request.identifier
         DispatchQueue.main.async {
-            completionHandler(options)
+            // A settings change can arrive after add() but before this delegate.
+            let stressEnabled = category != AppNotificationCategory.stress || StressNotifier.shared.pushEnabled
+            completionHandler(Self.foregroundOptions(category: category, identifier: identifier,
+                                                    stressPushEnabled: stressEnabled))
         }
     }
 
@@ -95,7 +104,8 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let content = response.notification.request.content
         let route = AppNotificationRoute(
             category: content.categoryIdentifier,
-            wakeDayKey: content.userInfo[AppNotificationCategory.wakeDayUserInfoKey] as? String
+            wakeDayKey: content.userInfo[AppNotificationCategory.wakeDayUserInfoKey] as? String,
+            stressDay: content.userInfo[AppNotificationCategory.stressDayUserInfoKey] as? Double
         )
         dispatch(route, completionHandler: completionHandler)
     }
@@ -114,8 +124,8 @@ final class AppNotificationRouter: NSObject, UNUserNotificationCenterDelegate {
 
     private func open(_ route: AppNotificationRoute) {
         switch route {
-        case .stress:
-            onStressOpened?()
+        case let .stress(day):
+            onStressOpened?(day)
         case .achievement:
             onAchievementOpened?()
         case let .morningSleep(wakeDayKey, isMock):

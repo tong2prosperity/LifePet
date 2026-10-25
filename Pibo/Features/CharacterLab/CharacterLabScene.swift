@@ -64,7 +64,7 @@ final class CharacterLabScene: SKScene {
             PiboAnimationResourceID.stable, "weak",
             PiboAnimationResourceID.workoutCelebrate,
             PiboAnimationResourceID.activityMilestoneCelebrate,
-            PiboAnimationResourceID.tired, "angry", "dive", "boring", "coolhide",
+            PiboAnimationResourceID.tired, "angry", "dive", "boring",
             PiboAnimationResourceID.sleepingGroundA,
             PiboAnimationResourceID.wakingGroundRecovering,
             PiboAnimationResourceID.sleepingHammockA,

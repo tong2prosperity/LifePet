@@ -23,9 +23,14 @@ final class PixelShakeSampler {
         manager.startAccelerometerUpdates(to: .main) { data, _ in
             guard let data else { return }
             let a = data.acceleration
-            let peak = (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot()
+            let peak = Self.peakMetersPerSecondSquared(x: a.x, y: a.y, z: a.z)
             Task { @MainActor in onPeak(peak) }
         }
+    }
+
+    /// Core/Harmony use m/s²; CoreMotion reports multiples of standard gravity.
+    nonisolated static func peakMetersPerSecondSquared(x: Double, y: Double, z: Double) -> Double {
+        (x * x + y * y + z * z).squareRoot() * 9.80665
     }
 
     func stop() {

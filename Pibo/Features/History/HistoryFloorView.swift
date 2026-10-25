@@ -15,13 +15,15 @@ struct HistoryFloorView: View {
     /// Deep-link target. Resolved to a tab **in `init`** rather than in
     /// `onAppear`, so a routed open never flashes the default tab first.
     var focus: HistoryFocus?
+    var initialDate: Date?
 
     @State private var selection: FloorTab
 
     private enum FloorTab: Hashable { case footprints, classic }
 
-    init(focus: HistoryFocus? = nil) {
+    init(focus: HistoryFocus? = nil, initialDate: Date? = nil) {
         self.focus = focus
+        self.initialDate = initialDate
         _selection = State(initialValue: focus == .stress ? .classic : .footprints)
     }
 
@@ -32,12 +34,12 @@ struct HistoryFloorView: View {
                     PiboFootprintsView()
                 }
                 Tab("原版", systemImage: "chart.bar.xaxis", value: FloorTab.classic) {
-                    PiboHistoryView(focus: focus)
+                    PiboHistoryView(focus: focus, initialDate: initialDate)
                 }
             }
         } else {
             // 单页形态。`focus` 直接透传，压力卡深链不再需要先切 tab。
-            PiboHistoryView(focus: focus)
+            PiboHistoryView(focus: focus, initialDate: initialDate)
         }
     }
 }

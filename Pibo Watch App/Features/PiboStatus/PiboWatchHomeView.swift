@@ -4,56 +4,38 @@ struct PiboWatchHomeView: View {
     @StateObject private var status = WatchPiboStatusStore()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("pibo.watch.haptics") private var haptics = true
+    @AppStorage("pibo.watch.reduceMotion") private var reduceMotion = false
     @State private var showsDetails = false
 
-    private var animates: Bool { scenePhase == .active && !isLuminanceReduced && !showsDetails }
+    private var active: Bool { scenePhase == .active && !isLuminanceReduced && !showsDetails }
 
     var body: some View {
         GeometryReader { proxy in
-            let compact = proxy.size.width < 180
-            ScrollView {
-                VStack(spacing: 12) {
-                    VStack(spacing: compact ? 2 : 3) {
-                        Text(status.petName)
-                            .font(.headline).lineLimit(1).minimumScaleFactor(0.8)
-                        WatchPiboCharacter(
-                            state: status.vectorState,
-                            boProgress: status.growth?.progress ?? 0,
-                            actionID: status.snapshot?.patActionID,
-                            isInteractive: true,
-                            animates: animates,
-                            petName: status.petName
-                        )
-                        .frame(height: compact ? 64 : max(88, min(132, proxy.size.height - 114)))
-                        Text(status.stateLabel).font(.callout).fontWeight(.medium)
-                        Text("双击 Pibo，打个招呼")
-                            .font(.caption2).foregroundStyle(.white.opacity(0.72))
-                        if let updated = status.stateUpdatedAt {
-                            Text("状态于 \(updated.formatted(.dateTime.month(.twoDigits).day(.twoDigits).hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)))")
-                                .font(.caption2).foregroundStyle(.white.opacity(0.65))
-                                .lineLimit(1).minimumScaleFactor(0.85)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, compact ? 8 : 10)
-                    .background(sceneColor.gradient, in: RoundedRectangle(cornerRadius: 20))
-
-                    WatchGrowthSummary(growth: status.growth)
-
-                    Button { showsDetails = true } label: {
-                        Label("近况与同步", systemImage: "info.circle")
-                            .font(.callout)
-                            .frame(maxWidth: .infinity, minHeight: 40)
-                    }
-                    .buttonStyle(.bordered)
-
-                    if let connection = status.shadowConnection {
-                        WatchShadowCard(connection: connection, animates: animates)
+        ScrollView {
+            VStack(spacing: 12) {
+                HStack {
+                    Text(status.petName).font(.headline).lineLimit(1)
+                    Spacer(minLength: 2)
+                    if let pixel = status.pixel {
+                        Text("Lv.\(pixel.level) · \(pixel.balance) bo").font(.caption2).foregroundStyle(.yellow)
                     }
                 }
-                .padding(.horizontal, 6)
-                .padding(.bottom, 10)
+                WatchPixelStage(status: status, animates: active, haptics: haptics && !reduceMotion && !systemReduceMotion, reduceMotion: reduceMotion,
+                                stageHeight: max(88, min(112, proxy.size.height - 100)))
+                Text(status.stateLabel).font(.caption).foregroundStyle(.secondary)
+                if let growth = status.growth {
+                    ProgressView(value: growth.progress).tint(.green)
+                        .accessibilityLabel("这枚 bo 的生长")
+                }
+                today
+                Button("近况与同步") { showsDetails = true }.font(.caption)
+                Toggle("轻触觉", isOn: $haptics).font(.caption)
+                Toggle("减弱动态", isOn: $reduceMotion).font(.caption)
             }
+            .padding(.horizontal, 6).padding(.bottom, 16)
+        }
         }
         .background(.black)
         .task { status.refresh() }
@@ -61,86 +43,41 @@ struct PiboWatchHomeView: View {
         .sheet(isPresented: $showsDetails) { WatchPiboDetailsView(status: status) }
     }
 
-    private var sceneColor: Color {
-        switch status.scene {
-        case .nightClouds: Color(red: 0.08, green: 0.10, blue: 0.28)
-        case .dawnCreek: Color(red: 0.08, green: 0.28, blue: 0.27)
-        case .riverValley: Color(red: 0.08, green: 0.30, blue: 0.20)
-        case .rainGorge: Color(red: 0.05, green: 0.17, blue: 0.28)
-        case .coralDusk: Color(red: 0.25, green: 0.16, blue: 0.34)
-        }
-    }
-}
-
-private struct WatchGrowthSummary: View {
-    let growth: PiboCompanionGrowth?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let growth {
-                Text(title(growth)).font(.callout).fontWeight(.semibold)
-                ProgressView(value: growth.progress).tint(.mint)
-                    .accessibilityLabel("这枚 bo 的生长")
-                    .accessibilityValue(Text(growth.progress, format: .percent.precision(.fractionLength(0))))
-                Text(growth.stage == "ripe" ? "在 iPhone 的森林里，投入共同物件" : "真实睡眠与活动，慢慢长成 bo")
-                    .font(.caption2).foregroundStyle(.secondary)
+    @ViewBuilder private var today: some View {
+        if let pixel = status.pixel {
+            Divider()
+            Text("今日小心愿").font(.headline)
+            if status.snapshot?.hasCurrentActivity() == true {
+                ForEach(Array(pixel.wishes.enumerated()), id: \.offset) { _, wish in
+                    HStack(alignment: .top) {
+                        Text(wish.done ? "✓" : "□").foregroundStyle(wish.done ? .green : .secondary)
+                        Text(wish.title).font(.caption2).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             } else {
-                Text("等你的生活传过来")
-                    .font(.callout).fontWeight(.semibold)
-                Text("在 iPhone 打开 Pibo，状态和成长会一起来到手腕上。")
-                    .font(.caption2).foregroundStyle(.secondary)
+                Text("今天的小心愿等 iPhone 同步。").font(.caption2).foregroundStyle(.secondary)
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func title(_ growth: PiboCompanionGrowth) -> String {
-        switch growth.stage {
-        case "sprouting": "bo 正在发芽"
-        case "forming": "bo 正在慢慢成形"
-        case "ripe": "\(growth.ripeCount) 枚 bo 已成熟"
-        default: "bo 正在等待生长"
-        }
-    }
-}
-
-private struct WatchShadowCard: View {
-    let connection: PiboCompanionShadowConnection
-    let animates: Bool
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Text("远方的 Pibo").font(.caption2).foregroundStyle(.secondary)
-            Text(connection.displayName).font(.headline).lineLimit(2)
-            if let snapshot = connection.snapshot {
-                WatchPiboCharacter(
-                    state: WatchPiboStatusStore.vectorState(
-                        animationID: snapshot.visualVariantKey, publicStateID: snapshot.publicStateID
-                    ),
-                    animates: animates,
-                    petName: connection.displayName
-                )
-                .frame(height: 84)
-                .opacity(0.62)
-                .accessibilityHidden(true)
-                Text(WatchPiboStatusStore.stateLabel(for: snapshot.publicStateID)).font(.callout)
-                Text(connection.status == .paused ? "映照暂停更新" : "最近一次映照")
-                    .font(.caption2).foregroundStyle(.secondary)
-                Text(snapshot.syncedAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2).foregroundStyle(.secondary)
-            } else {
-                Text(connection.status == .paused ? "映照暂停更新" : "等待第一次映照")
-                    .font(.callout)
-                Text("你们的连接还在")
-                    .font(.caption2).foregroundStyle(.secondary)
+            Text("林间散步小收获").font(.headline)
+            ForEach(Array(pixel.stations.enumerated()), id: \.offset) { _, station in
+                HStack {
+                    Text(status.todaySteps.map { $0 >= station.steps } == true ? "✓" : "□")
+                        .foregroundStyle(.green)
+                    VStack(alignment: .leading) {
+                        Text(station.title).font(.caption)
+                        Text("\(station.steps) 步").font(.caption2).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 2)
+                }
             }
+            Text(status.todaySteps.map { "今天走了 \($0) 步" } ?? "今日步数待同步")
+                .font(.caption2).foregroundStyle(.secondary)
+            if !pixel.finds.isEmpty && status.snapshot?.hasCurrentActivity() == true {
+                Text("今天带回 \(pixel.finds.count) 件小发现").font(.caption2).foregroundStyle(.green)
+            }
+        } else {
+            Text("在 iPhone 打开 Pibo，成长与小心愿会一起来到手腕上。")
+                .font(.caption2).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
-        .padding(10)
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
-        .accessibilityElement(children: .combine)
     }
 }
 

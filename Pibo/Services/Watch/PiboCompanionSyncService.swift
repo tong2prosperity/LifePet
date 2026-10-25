@@ -6,6 +6,7 @@ import WatchConnectivity
 @MainActor
 final class PiboCompanionSyncService: NSObject, WCSessionDelegate {
     private var latest: PiboCompanionSnapshot?
+    var onCollect: ((String) -> Bool)?
 
     func activate() {
         guard WCSession.isSupported() else { return }
@@ -23,6 +24,7 @@ final class PiboCompanionSyncService: NSObject, WCSessionDelegate {
         ledger: BoLedgerStore,
         unlocks: OrnamentUnlockStore,
         availability: HealthDataService.DataAvailability,
+        pixel: PiboCompanionPixelState? = nil,
         now: Date = .now
     ) {
         var moveProgress: Double?
@@ -43,8 +45,8 @@ final class PiboCompanionSyncService: NSObject, WCSessionDelegate {
         }
         let state = store.activityState
         // 决定 068：睡眠回顾是基础能力，吊床只是它原来的入口。睡在吊床上仍然需要
-        // 真的有吊床，所以这里问的是权属，不是能力。
-        let hasHammock = unlocks.isUnlocked(.hammock)
+        // 真的有吊床并放置，所以这里问的是放置状态，不是能力。
+        let hasHammock = unlocks.isHammockPlaced()
         let animationID = PiboAnimationStateMap.presentedAmbientStateID(
             semanticStateID: PiboCoreAnimationAdapter.ambientStateID(for: state),
             state: state,
@@ -79,7 +81,8 @@ final class PiboCompanionSyncService: NSObject, WCSessionDelegate {
             shadowConnection: Self.shadowConnection(
                 from: shadowView, accountID: shadowAccountID, hidden: shadowHidden
             ),
-            standMinutes: record.flatMap { $0.standMinutes > 0 ? $0.standMinutes : nil }
+            standMinutes: record.flatMap { $0.standMinutes > 0 ? $0.standMinutes : nil },
+            pixel: pixel
         )
         latest = snapshot
         send(snapshot)
@@ -199,6 +202,15 @@ final class PiboCompanionSyncService: NSObject, WCSessionDelegate {
         replyHandler: @escaping ([String: Any]) -> Void
     ) {
         Task { @MainActor [weak self] in
+            if let token = message[PiboCompanionSnapshotCoding.collectKey] as? String {
+                let success = self?.onCollect?(token) ?? false
+                var reply: [String: Any] = ["collected": success]
+                if let latest = self?.latest, let data = PiboCompanionSnapshotCoding.encode(latest) {
+                    reply[PiboCompanionSnapshotCoding.applicationContextKey] = data
+                }
+                replyHandler(reply)
+                return
+            }
             guard message[PiboCompanionSnapshotCoding.requestKey] != nil,
                   let value = self?.latest,
                   let data = PiboCompanionSnapshotCoding.encode(value) else {

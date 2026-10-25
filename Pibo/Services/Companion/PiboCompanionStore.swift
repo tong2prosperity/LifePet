@@ -50,10 +50,6 @@ final class PiboCompanionStore {
         var echoUsage: [UsageRecord] = []
         var topicUsage: [UsageRecord] = []
         var sceneUsage: [UsageRecord] = []
-        var hideSeekDayKey = 0
-        var hideSeekStartedAt: Double = 0
-        var positiveAnswerAt: Double = 0
-        var tiredAnswerAt: Double = 0
         var wakingFirstEpisode = ""
 
         init(now: Double) {
@@ -68,7 +64,6 @@ final class PiboCompanionStore {
     private(set) var linesThisEntry = 0
     private(set) var absenceSecondsAtEntry: Double = 0
     private(set) var hasPreviousVisit = false
-    private(set) var hideSeekFound = false
     private(set) var snapshot: Snapshot
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -109,7 +104,6 @@ final class PiboCompanionStore {
         entryAt = now
         entryID = String(Int64(now * 1000))
         linesThisEntry = 0
-        hideSeekFound = false
         snapshot.lastVisibleAt = now
         pruneExpired(now)
         persist()
@@ -122,15 +116,12 @@ final class PiboCompanionStore {
         snapshot.firstSeenAt = back(snapshot.firstSeenAt)
         snapshot.lastVisibleAt = now - seconds
         snapshot.lastIgnoredAt = back(snapshot.lastIgnoredAt)
-        snapshot.positiveAnswerAt = back(snapshot.positiveAnswerAt)
-        snapshot.tiredAnswerAt = back(snapshot.tiredAnswerAt)
         for index in snapshot.answers.indices { snapshot.answers[index].answeredAt = back(snapshot.answers[index].answeredAt) }
         for index in snapshot.asks.indices { snapshot.asks[index].askedAt = back(snapshot.asks[index].askedAt) }
         for index in snapshot.echoUsage.indices { snapshot.echoUsage[index].lastAt = back(snapshot.echoUsage[index].lastAt) }
         for index in snapshot.topicUsage.indices { snapshot.topicUsage[index].lastAt = back(snapshot.topicUsage[index].lastAt) }
         for index in snapshot.sceneUsage.indices { snapshot.sceneUsage[index].lastAt = back(snapshot.sceneUsage[index].lastAt) }
         if Self.localDayKey(now - seconds) != Self.localDayKey(now) { snapshot.dayKey = 0 }
-        snapshot.hideSeekDayKey = 0
         beginEntry(now: now)
     }
 
@@ -144,8 +135,6 @@ final class PiboCompanionStore {
     var promptsToday: Int { snapshot.dayKey == Self.localDayKey(clock()) ? snapshot.promptsToday : 0 }
     var consecutiveIgnored: Int { snapshot.consecutiveIgnored }
     var answeredTotal: Int { snapshot.answeredTotal }
-    var positiveAnswerAt: Double { snapshot.positiveAnswerAt }
-    var tiredAnswerAt: Double { snapshot.tiredAnswerAt }
     var answers: [AnswerRecord] { snapshot.answers }
 
     func daysSinceLastIgnored(now: Double) -> Int? {
@@ -157,6 +146,22 @@ final class PiboCompanionStore {
         guard !recent.isEmpty else { return nil }
         let answered = recent.filter(\.answered).count
         return Int((Double(answered) * 100 / Double(recent.count)).rounded())
+    }
+
+    /// Plan only wishes the daily Core budget can still fulfill. Transient
+    /// presentation and speech cooldowns do not make a whole day unavailable.
+    func canOfferPromptsToday(relationshipDays: Int? = nil, now: Double? = nil) -> Bool {
+        let now = now ?? clock()
+        let decision = PiboCoreCompanionPolicy.budgetDecision(PiboCoreCompanionBudgetFacts(
+            utterance: .prompt, slot: .patAfter, state: PiboActivityState.stable.core.rawValue,
+            blockers: [], linesThisEntry: 0, proactiveLinesToday: 0,
+            promptsToday: snapshot.dayKey == Self.localDayKey(now) ? snapshot.promptsToday : 0,
+            secondsSinceLastSpeech: nil, consecutiveIgnoredPrompts: consecutiveIgnored,
+            daysSinceLastIgnored: daysSinceLastIgnored(now: now),
+            relationshipDays: relationshipDays ?? self.relationshipDays,
+            recentAnswerRatePercent: recentAnswerRatePercent()
+        ))
+        return decision != .blockedBackoff && decision != .blockedDailyPrompts && decision != .blockedInvalid
     }
 
     func lastAsked(_ promptId: String) -> Double? {
@@ -177,22 +182,6 @@ final class PiboCompanionStore {
 
     func answer(_ promptId: String) -> AnswerRecord? {
         snapshot.answers.first { $0.promptId == promptId }
-    }
-
-    func hideSeekUsedToday(now: Double) -> Bool {
-        snapshot.hideSeekDayKey == Self.localDayKey(now) && snapshot.hideSeekStartedAt < entryAt
-    }
-
-    func markHideSeekStarted(now: Double) {
-        if snapshot.hideSeekDayKey == Self.localDayKey(now), snapshot.hideSeekStartedAt >= entryAt { return }
-        snapshot.hideSeekDayKey = Self.localDayKey(now)
-        snapshot.hideSeekStartedAt = now
-        persist()
-    }
-
-    func markHideSeekFound() {
-        hideSeekFound = true
-        revision += 1
     }
 
     func claimWakingFirst(episode: String) -> Bool {
@@ -230,7 +219,7 @@ final class PiboCompanionStore {
         persist()
     }
 
-    func recordAnswer(_ record: AnswerRecord, askedAt: Double, positive: Bool, tired: Bool) {
+    func recordAnswer(_ record: AnswerRecord, askedAt: Double) {
         pushAsk(AskRecord(promptId: record.promptId, askedAt: askedAt, answered: true))
         snapshot.answers.removeAll { $0.promptId == record.promptId }
         snapshot.answers.append(record)
@@ -238,8 +227,6 @@ final class PiboCompanionStore {
         snapshot.echoUsage.removeAll { $0.key.hasPrefix("\(record.promptId):") }
         snapshot.consecutiveIgnored = 0
         snapshot.answeredTotal += 1
-        if positive { snapshot.positiveAnswerAt = record.answeredAt }
-        if tired { snapshot.tiredAnswerAt = record.answeredAt }
         persist()
     }
 

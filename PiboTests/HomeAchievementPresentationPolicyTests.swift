@@ -77,27 +77,6 @@ final class HomeAchievementPresentationPolicyTests: XCTestCase {
         )
     }
 
-    func testReconciliationAppliesOnlyItsSpecifiedDestinationMutation() {
-        let presented = achievement(id: uuid(1))
-        let replacement = achievement(id: uuid(2), kind: .pigu)
-        var destination: HomeSheetDestination? = .achievement(presented)
-
-        HomeAchievementPresentationPolicy.Reconciliation.unchanged.apply(
-            to: &destination
-        )
-        XCTAssertEqual(destination, .achievement(presented))
-
-        HomeAchievementPresentationPolicy.Reconciliation.replace(replacement).apply(
-            to: &destination
-        )
-        XCTAssertEqual(destination, .achievement(replacement))
-
-        HomeAchievementPresentationPolicy.Reconciliation.dismiss.apply(
-            to: &destination
-        )
-        XCTAssertNil(destination)
-    }
-
     func testOnlyAnEnabledStaleFixtureShouldDismiss() {
         XCTAssertTrue(
             HomeAchievementPresentationPolicy.shouldDismissStaleFixture(

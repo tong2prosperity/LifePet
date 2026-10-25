@@ -52,6 +52,8 @@ struct PiboApp: App {
     @State private var seasons: PiboSeasonStore
     /// Decision 057's evening print of the forest, kept on this phone.
     @State private var polaroids: PolaroidStore
+    /// Decision 056: Pibo's timeline memory — which beats told, firsts verified, remarks last said.
+    @State private var timeline: PiboTimelineStore
     /// 物件身上被亲手点亮的灯。与解锁再分开一层：解锁是永久的，点灯天亮就作废。
     @State private var ornamentLights = OrnamentLightStore()
     /// One app-wide resolver for all contextual Pibo copy. Views submit cues;
@@ -94,11 +96,12 @@ struct PiboApp: App {
         AppNotificationRouter.shared.onMorningSleepOpened = { [weak morning] wakeDay, isMock in
             morning?.handleNotificationOpen(wakeDayKey: wakeDay, isMock: isMock)
         }
-        // Tapping a stress push lands on the 压力卡. Raised here rather than
-        // presented directly because the tap can arrive on a cold launch, before
-        // any view exists — `HomeView` drains the flag once it's on screen.
-        AppNotificationRouter.shared.onStressOpened = {
+        // Tapping a stress push lands on the 压力卡 (and focuses the notification day).
+        // Raised here rather than presented directly because the tap can arrive on a cold launch,
+        // before any view exists — `HomeView` drains the flag once it's on screen.
+        AppNotificationRouter.shared.onStressOpened = { stressDay in
             StressNotifier.shared.pendingCardOpen = true
+            StressNotifier.shared.pendingStressDay = stressDay
         }
         AppNotificationRouter.shared.install()
         let h = HealthDataService(morningSleepCoordinator: morning)
@@ -107,7 +110,14 @@ struct PiboApp: App {
         morning.onRecheckNeeded = { [weak h] in
             await h?.refreshMorningSleep()
         }
-        let s = PetStateStore(identity: id, snapshots: snaps, events: h.events)
+        let onboardingState = OnboardingStateStore()
+        let s = PetStateStore(identity: id, snapshots: snaps, events: h.events,
+                              workoutObservationStartedAt: { onboardingState.snapshot.completedAt })
+        h.onActivityUpdate = { [weak s] update in
+            guard let s else { return }
+            PetStateWidgetBridge.publishActivityUpdate(update, petName: s.petName, dayCount: s.dayCount,
+                                                       activityState: s.activityState, petID: s.identity.currentPetId)
+        }
         AppNotificationRouter.shared.onAchievementOpened = { [weak s] in
             s?.animationExperience.requestNotificationPresentation()
         }
@@ -125,7 +135,6 @@ struct PiboApp: App {
         _health = State(initialValue: h)
         _morningSleep = State(initialValue: morning)
         _store = State(initialValue: s)
-        let onboardingState = OnboardingStateStore()
         _onboarding = State(initialValue: onboardingState)
         let boFeedback = BoProgressFeedbackStore()
         _boProgressFeedback = State(initialValue: boFeedback)
@@ -173,6 +182,7 @@ struct PiboApp: App {
         let growthStore = GrowthStore()
         let wishStore = WishStore()
         let decorStore = DecorStore()
+        decorStore.recoverPendingPurchase(using: ledger)
         let coordinatorStore = GrowthCoordinator()
         coordinatorStore.bind(growth: growthStore, wishes: wishStore)
         _growth = State(initialValue: growthStore)
@@ -182,19 +192,6 @@ struct PiboApp: App {
         _days = State(initialValue: PiboDayStore())
         _seasons = State(initialValue: PiboSeasonStore())
         _polaroids = State(initialValue: PolaroidStore())
-        onboardingState.configureTemporaryCooperation(
-            enabled: PiboReleaseScope.temporaryCooperationOnboarding,
-            boLifetimeMinted: ledger.lifetimeMinted,
-            boLifetimeCollected: ledger.lifetimeCollected
-        )
-        _piboSpeech = State(initialValue: PiboSpeechService(
-            narrativeProgress: {
-                guard PiboReleaseScope.temporaryCooperationOnboarding else {
-                    return Int(PiboCoreStorySpeechStage.unresponded.rawValue)
-                }
-                return Int(onboardingState.eventProjection().speechStage.rawValue)
-            }
-        ))
         let inventory = OrnamentUnlockStore()
         inventory.recoverPendingPurchase(using: ledger)
         ledger.mergeUnlockedItems(inventory.unlockedBitmask)
@@ -208,6 +205,30 @@ struct PiboApp: App {
             }
         )
         _ornamentUnlocks = State(initialValue: inventory)
+
+        let timelineStore = PiboTimelineStore()
+        timelineStore.start(
+            raw: UserDefaults.standard.string(forKey: PiboTimelineStore.defaultsKey) ?? "",
+            facts: TimelineSeedFacts(
+                relationshipStarted: !onboardingState.shouldPresentFirstRun,
+                boCollectedBefore: ledger.lifetimeCollected > 0,
+                hammockUnlocked: inventory.isUnlocked(.hammock)
+            )
+        )
+        _timeline = State(initialValue: timelineStore)
+        onboardingState.configureTemporaryCooperation(
+            enabled: PiboReleaseScope.temporaryCooperationOnboarding,
+            boLifetimeMinted: ledger.lifetimeMinted,
+            boLifetimeCollected: ledger.lifetimeCollected
+        )
+        _piboSpeech = State(initialValue: PiboSpeechService(
+            narrativeProgress: {
+                guard PiboReleaseScope.temporaryCooperationOnboarding else {
+                    return Int(PiboCoreStorySpeechStage.unresponded.rawValue)
+                }
+                return Int(onboardingState.eventProjection().speechStage.rawValue)
+            }
+        ))
 
         let a = AuthService()
         let e = EconomyService()
@@ -325,6 +346,7 @@ struct PiboApp: App {
                 .environment(days)
                 .environment(seasons)
                 .environment(polaroids)
+                .environment(timeline)
                 .environment(walkDoodleProgress)
                 .environment(ornamentUnlocks)
                 .environment(ornamentLights)
@@ -419,6 +441,10 @@ struct PiboApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     LPLog.app.debug("scenePhase → \(String(describing: phase), privacy: .public)")
+                    if phase == .active {
+                        BoMaturityNotifier.shared.reconcile(ripe: boLedger.hasRipeBo,
+                                                          cycle: boLedger.lifetimeCollected + 1)
+                    }
                     morningSleep.setAppActive(phase == .active)
                     if PiboReleaseScope.shadow {
                         shadowSync.setAppActive(phase == .active)
@@ -434,6 +460,7 @@ struct PiboApp: App {
                     // refetch slams new values into a stale `RawMetrics`.
                     if phase == .active {
                         weather.refreshIfStale()
+                        WorkoutCompletionNotifier.shared.invalidatePendingReminder()
                         // Order matters: rollover first (clears stale day-bound
                         // state), decay catchup second (applies any 4h ticks
                         // that elapsed in the background), reconcile last
@@ -501,6 +528,12 @@ struct PiboApp: App {
                 .onChange(of: identity.petName) { _, _ in publishWatchSnapshot() }
                 .onChange(of: identity.currentPetId) { _, _ in publishWatchSnapshot() }
                 .onChange(of: boLedger.growthProgress) { _, _ in publishWatchSnapshot() }
+                .onChange(of: boLedger.availableBo) { _, _ in publishWatchSnapshot() }
+                .onChange(of: growth.revision) { _, _ in publishWatchSnapshot() }
+                .onChange(of: wishes.revision) { _, _ in publishWatchSnapshot() }
+                .onChange(of: days.revision) { _, _ in publishWatchSnapshot() }
+                .onChange(of: PiboPixelStageProjection.shared.form) { _, _ in publishWatchSnapshot() }
+                .onChange(of: PiboPixelStageProjection.shared.stuck) { _, _ in publishWatchSnapshot() }
                 .onChange(of: boLedger.state.ripeCount) { _, ripe in
                     publishWatchSnapshot()
                     BoMaturityNotifier.shared.reconcile(
@@ -541,12 +574,6 @@ struct PiboApp: App {
     private func recomputeBoLedger() {
         boLedger.recompute(history: history)
         refreshGrowth()
-        PetStateWidgetBridge.publishActivitySnapshot(
-            petName: store.petName,
-            dayCount: store.dayCount,
-            activityState: store.activityState,
-            record: history.record(on: .now)
-        )
         publishWatchSnapshot()
         if PiboReleaseScope.temporaryCooperationOnboarding {
             onboarding.observeBoProgress(
@@ -562,8 +589,7 @@ struct PiboApp: App {
         let now = Date()
         let today = history.record(on: now)
         let reliable = health.dataAvailability.hasReliableData
-        let steps: Double? = reliable ? Double(today?.steps ?? 0) : nil
-        let activeMinutes: Double? = reliable ? Double(today?.exerciseMinutes ?? 0) : nil
+        let activity = GrowthActivityFacts(record: today, reliable: reliable)
         let lastWorkoutEndedAt = history.workouts(on: now)
             .map(\.end)
             .filter { $0 <= now }
@@ -574,11 +600,12 @@ struct PiboApp: App {
                 history: history,
                 relationshipDays: store.dayCount,
                 cameraEnabled: PiboReleaseScope.camera,
-                companionEnabled: PiboReleaseScope.companionPrompts,
+                companionEnabled: HomeCompanionController.shared.enabled
+                    && HomeCompanionController.shared.store.canOfferPromptsToday(relationshipDays: store.dayCount),
                 entering: false,
                 now: now,
-                steps: steps,
-                activeMinutes: activeMinutes,
+                steps: activity.steps,
+                activeMinutes: activity.activeMinutes,
                 fallbackSleepHours: nil,
                 lastWorkoutEndedAt: lastWorkoutEndedAt
             )
@@ -587,10 +614,27 @@ struct PiboApp: App {
 
     private func publishWatchSnapshot() {
         guard watchIdentityReady else { return }
+        let pixel = watchPixelSnapshot()
+        // Local widgets don't depend on friendship/account hydration or a
+        // paired watch. Publish their complete, identity-scoped payload first.
+        PetStateWidgetBridge.publishPixelSnapshot(
+            petName: store.petName, dayCount: store.dayCount, activityState: store.activityState,
+            record: history.verifiedHealthRecords(from: .now, to: .now).first,
+            petID: identity.currentPetId, pixel: pixel)
         let accountID = auth.userId ?? ""
         // Account restoration is asynchronous. Do not revoke a cached friendship
         // with the temporary empty store before that account has hydrated.
         guard accountID.isEmpty || shadowStore.activeUserID == accountID else { return }
+        watchSync.onCollect = { token in
+            guard token == watchCollectionToken else { return false }
+            let collected = boLedger.collect(eventID: token)
+            if collected {
+                timeline.recordFirst(.boCollected, at: Date().timeIntervalSince1970, day: store.dayCount)
+                Analytics.track(.boCollect, screen: "watch")
+                publishWatchSnapshot()
+            }
+            return collected
+        }
         watchSync.publish(
             store: store,
             record: history.record(on: .now),
@@ -599,8 +643,52 @@ struct PiboApp: App {
             shadowHidden: shadowStore.hideOnHome,
             ledger: boLedger,
             unlocks: ornamentUnlocks,
-            availability: health.dataAvailability
+            availability: health.dataAvailability,
+            pixel: pixel
         )
+    }
+
+    private var watchCollectionToken: String? {
+        boLedger.hasRipeBo ? "\(identity.currentPetId.uuidString):\(boLedger.lifetimeCollected + 1)" : nil
+    }
+
+    private func watchPixelSnapshot(now: Date = .now) -> PiboCompanionPixelState {
+        let appearance = growth.appearance
+        let today = history.record(on: now)
+        let stations = (0..<PiboCoreExplore.tripsEarned(stepsToday: Int.max)).map { index in
+            let trip = PiboCoreExplore.trip(stepsToday: Int.max, tripsToday: index, foundMask: 0,
+                                            season: PiboCoreDayRules.season(month: Calendar.current.component(.month, from: now)),
+                                            daySeed: UInt32(clamping: growthDaySeed(now)))
+            return PiboCompanionExploreStation(title: piboDestinationName(Int(trip.destination.rawValue)),
+                                               steps: trip.stepsThreshold, item: trip.item)
+        }
+        return PiboCompanionPixelState(
+            level: growth.level, bodyStage: appearance?.bodyStage ?? 0, leafStage: appearance?.leafStage ?? 0,
+            accessoryMask: Int(appearance?.accessoryMask ?? 0), form: PiboPixelStageProjection.shared.form,
+            formStuck: PiboPixelStageProjection.shared.stuck, balance: boLedger.availableBo,
+            collectionToken: watchCollectionToken,
+            wishes: wishes.visible(localHour: Calendar.current.component(.hour, from: now)).map {
+                PiboCompanionWish(kind: Int($0.kind.rawValue), title: GrowthPresentation.wishTitle($0),
+                                   done: $0.done, fraction: $0.fraction)
+            },
+            steps: health.dataAvailability.hasReliableData ? today?.steps : nil,
+            finds: days.diary.filter { $0.day == growthDayKey(now) }.map(\.item),
+            thought: wishes.hasUncompletedWish(.answerPrompt), stations: stations,
+            patLine: watchPatLine,
+            patCooldownSeconds: PiboCorePatAdapter.speechCooldownDurationSeconds,
+            boProgress: boLedger.growthProgress
+        )
+    }
+
+    private var watchPatLine: String {
+        switch store.activityState {
+        case .sleeping: "呼……我再眯一会儿。"
+        case .waking: "早。叶子也醒了。"
+        case .stable: "嗯，我在这儿。"
+        case .energetic: "今天有点想蹦跶。"
+        case .tired: "我在这儿歇一会儿。"
+        case .dataUnknown: "我在等你的生活传过来。"
+        }
     }
 
     #if DEBUG

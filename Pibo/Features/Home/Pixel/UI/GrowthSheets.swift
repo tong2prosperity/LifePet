@@ -6,9 +6,8 @@ import UIKit
 // Everything they show is Core's answer or the ledger's balance — the sheets only word and
 // lay it out.
 //
-// Ported from HarmonyPibo `pixel/ui/GrowthSheets.ets`. The 拍立得 card waits for a
-// `PolaroidStore` (决定 063), which iOS does not have yet; every day's print belongs to the
-// footprints page anyway.
+// Ported from HarmonyPibo `pixel/ui/GrowthSheets.ets`. The newest print is shown here;
+// PolaroidStore keeps each day's print reachable from the footprints.
 
 /// Pibo at a given level, standing on a strip of grass — sheet hero art.
 func paintPiboAtLevel(_ frame: PixelFrame, level: Int, happy: Bool) {
@@ -41,6 +40,7 @@ extension View {
             .overlay(alignment: .top) {
                 Rectangle().fill(PixelUIColor.border).frame(height: 3)
             }
+            .lpDynamicTypeScaling()
     }
 }
 
@@ -48,46 +48,72 @@ extension View {
 
 /// The current look, how far to the next level, today's sources and what is next.
 struct GrowthSheet: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var growth: GrowthStore
+    var polaroids: PolaroidStore? = nil
     var onClose: () -> Void = {}
+    var onOpenPolaroid: (PolaroidShot) -> Void = { _ in }
+    var onOpenFootprints: (Double) -> Void = { _ in }
 
     private var next: GrowthPresentation.NextUnlock? {
         GrowthPresentation.nextUnlock(growth.level)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            PixelSheetTitle(title: AppLocalization.text("Pibo 的成长"), onClose: onClose)
+        PixelReadingSheet(title: AppLocalization.text("Pibo 的成长"), onClose: onClose) {
+            details
+        }
+    }
 
-            HStack(alignment: .top, spacing: 14) {
-                PixelCanvas(logicalWidth: 56, logicalHeight: 60, revision: growth.level) { frame in
-                    paintPiboAtLevel(frame, level: growth.level, happy: false)
-                }
-                .frame(width: 112, height: 120)
-                .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Lv.\(growth.level)")
-                        .font(PixelFont.font(24))
-                        .foregroundStyle(PixelUIColor.leaf)
-                    PixelBar(fraction: growth.levelProgress(), segments: 12,
-                             color: PixelUIColor.gold, barHeight: 10)
-                    Text(AppLocalization.format("还差 %@ 经验升级",
-                                                "\(max(0, growth.xpForNext - growth.xpIntoLevel))"))
-                        .font(PixelFont.font(12))
-                        .foregroundStyle(PixelUIColor.inkSoft)
-                    PixelHearts(hearts: growth.hearts, iconSize: 11)
-                    Text(AppLocalization.format("熟悉度：%@",
-                                                GrowthPresentation.toneName(growth.tone)))
-                        .font(PixelFont.font(12))
-                        .foregroundStyle(PixelUIColor.inkSoft)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+    @ViewBuilder
+    private var overview: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 16) {
+                portrait
+                statistics
             }
-            .padding(.top, 8)
+        } else {
+            HStack(alignment: .top, spacing: 16) {
+                portrait
+                statistics
+            }
+        }
+    }
+
+    private var portrait: some View {
+        PixelCanvas(logicalWidth: 56, logicalHeight: 60, revision: growth.level) { frame in
+            paintPiboAtLevel(frame, level: growth.level, happy: false)
+        }
+        .frame(width: 112, height: 120)
+        .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+    }
+
+    private var statistics: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Lv.\(growth.level)")
+                .font(PixelFont.font(24))
+                .foregroundStyle(PixelUIColor.leaf)
+            PixelBar(fraction: growth.levelProgress(), segments: 12,
+                     color: PixelUIColor.gold, barHeight: 10)
+            Text(AppLocalization.format("还差 %@ 经验升级",
+                                        "\(max(0, growth.xpForNext - growth.xpIntoLevel))"))
+                .lpText(LP.Typography.b3Regular)
+                .foregroundStyle(PixelUIColor.inkSoft)
+            PixelHearts(hearts: growth.hearts, iconSize: 13)
+            Text(AppLocalization.format("熟悉度：%@",
+                                        GrowthPresentation.toneName(growth.tone)))
+                .lpText(LP.Typography.b3Regular)
+                .foregroundStyle(PixelUIColor.inkSoft)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            overview
 
             Text(AppLocalization.text("今天叶子收到的能量"))
-                .font(PixelFont.font(14))
+                .font(PixelFont.font(18))
                 .foregroundStyle(PixelUIColor.ink)
                 .padding(.top, 16)
                 .padding(.bottom, 4)
@@ -98,7 +124,7 @@ struct GrowthSheet: View {
             sourceRow(AppLocalization.text("活动"), growth.todaySplit.activity, PixelUIColor.activity)
 
             Text(AppLocalization.text("能量来自你真实的睡眠、步数和活动；拍拍、心愿、吃饭和聊天也会给一点经验，每天有上限。"))
-                .font(.system(size: 12))
+                .lpText(LP.Typography.b3Regular)
                 .foregroundStyle(PixelUIColor.inkSoft)
                 .padding(.top, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -106,13 +132,13 @@ struct GrowthSheet: View {
             if let next {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(AppLocalization.format("Lv.%@ 会解锁", "\(next.level)"))
-                        .font(PixelFont.font(14))
+                        .font(PixelFont.font(18))
                         .foregroundStyle(PixelUIColor.ink)
                     ForEach(next.changes, id: \.self) { line in
                         HStack(spacing: 6) {
                             PixelIcon(rows: PixelIcons.lock, iconSize: 12)
                             Text(line)
-                                .font(PixelFont.font(13))
+                                .lpText(LP.Typography.b3Regular)
                                 .foregroundStyle(PixelUIColor.inkSoft)
                         }
                     }
@@ -123,21 +149,56 @@ struct GrowthSheet: View {
                 .background(PixelUIColor.paperDim)
                 .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
             }
+
+            // Only the newest print lives here; every day's is in the footprints (决定 063).
+            if let latest = polaroids?.latest, let image = UIImage(contentsOfFile: latest.fileURL.path) {
+                Text(AppLocalization.text("森林拍立得"))
+                    .font(PixelFont.font(18))
+                    .foregroundStyle(PixelUIColor.ink)
+                    .padding(.top, 16)
+                    .padding(.bottom, 6)
+
+                HStack(spacing: 10) {
+                    Button {
+                        onOpenPolaroid(latest)
+                    } label: {
+                        Image(uiImage: image)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 56, height: 60)
+                            .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                    }
+                    .accessibilityLabel(AppLocalization.format("%@ 的拍立得", latest.day))
+
+                    Button {
+                        onOpenFootprints(latest.takenAt)
+                    } label: {
+                        Text(AppLocalization.text("在足迹里翻看每一天 ›"))
+                            .lpText(LP.Typography.b3Regular)
+                            .foregroundStyle(PixelUIColor.leaf)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(height: 44)
+                    }
+                    .accessibilityIdentifier("growth-open-footprints")
+                }
+            }
         }
-        .pixelSheetFrame()
     }
 
     private func sourceRow(_ label: String, _ value: Double, _ color: Color) -> some View {
-        HStack {
+        HStack(spacing: 10) {
+            Rectangle().fill(color).frame(width: 8, height: 8).accessibilityHidden(true)
             Text(label)
-                .font(PixelFont.font(13))
-                .foregroundStyle(PixelUIColor.inkSoft)
+                .lpText(LP.Typography.b3Regular)
+                .foregroundStyle(PixelUIColor.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("+\(Int(value.rounded()))")
-                .font(PixelFont.font(13))
-                .foregroundStyle(color)
+                .lpText(LP.Typography.b3Medium)
+                .monospacedDigit()
+                .foregroundStyle(PixelUIColor.ink)
         }
-        .frame(height: 24)
+        .frame(minHeight: 36)
     }
 }
 
@@ -150,34 +211,43 @@ struct WishSheet: View {
     var onClose: () -> Void = {}
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            PixelSheetTitle(title: AppLocalization.text("今日小心愿"), onClose: onClose)
-            Text(AppLocalization.text("Pibo 每天会想要几件小事。做到了它会很开心，没做到也没关系。"))
-                .font(.system(size: 12))
-                .foregroundStyle(PixelUIColor.inkSoft)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 10)
+        PixelReadingSheet(title: AppLocalization.text("今日小心愿"), onClose: onClose) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(AppLocalization.text("Pibo 每天会想要几件小事。做到了它会很开心，没做到也没关系。"))
+                    .lpText(LP.Typography.b3Regular)
+                    .foregroundStyle(PixelUIColor.inkSoft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 10)
 
-            VStack(spacing: 10) {
-                ForEach(Array(wishes.visible(localHour: localHour).enumerated()), id: \.offset) { _, slot in
-                    row(slot)
+                VStack(spacing: 10) {
+                    ForEach(Array(wishes.visible(localHour: localHour).enumerated()), id: \.offset) { _, slot in
+                        row(slot)
+                    }
                 }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         }
-        .pixelSheetFrame()
     }
 
+    @ViewBuilder
     private func row(_ slot: WishSlot) -> some View {
+        if slot.kind == .answerPrompt && !slot.done {
+            Button(action: onClose) { rowContent(slot) }.buttonStyle(.plain)
+        } else {
+            rowContent(slot)
+        }
+    }
+
+    private func rowContent(_ slot: WishSlot) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(GrowthPresentation.wishTitle(slot))
-                    .font(PixelFont.font(14))
+                    .font(PixelFont.font(16))
                     .foregroundStyle(PixelUIColor.ink)
                 PixelBar(fraction: slot.done ? 1 : slot.fraction, segments: 10,
                          color: slot.done ? PixelUIColor.leaf : PixelUIColor.gold, barHeight: 8)
                 Text(GrowthPresentation.wishProgressText(slot))
-                    .font(PixelFont.font(12))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.inkSoft)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -203,6 +273,7 @@ struct WishSheet: View {
 
 /// The Core catalog, gated by level and paid with collected `bo`.
 struct DecorSheet: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var decor: DecorStore
     var ornamentUnlocks: OrnamentUnlockStore
     var ledger: BoLedgerStore
@@ -220,41 +291,52 @@ struct DecorSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            PixelSheetTitle(title: AppLocalization.text("森林装饰"), onClose: onClose)
+        PixelReadingSheet(title: AppLocalization.text("森林装饰"), onClose: onClose) {
+            contents
+        }
+    }
+
+    private var contents: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text(AppLocalization.format("手里有 %@ 枚 bo · 当前 Lv.%@", "\(balance)", "\(level)"))
                 .font(PixelFont.font(13))
                 .foregroundStyle(PixelUIColor.inkSoft)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 8)
 
-            ScrollView {
-                VStack(spacing: 10) {
-                    hammock
-                    // Grouped by the scene each piece stands in (decision 065).
-                    ForEach([0, 1, 2], id: \.self) { scene in
-                        let items = inScene(scene)
-                        if !items.isEmpty {
-                            Text(AppLocalization.text(GrowthPresentation.decorSceneTitle(scene)))
-                                .font(PixelFont.font(13))
-                                .foregroundStyle(PixelUIColor.inkSoft)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .accessibilityAddTraits(.isHeader)
-                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
-                                                GridItem(.flexible(), spacing: 10)],
-                                      spacing: 10) {
-                                ForEach(items, id: \.id) { item in
-                                    itemCell(item)
-                                }
+            if ledger.hasRipeBo || balance == 0 {
+                PixelPanel(fill: ledger.hasRipeBo ? PixelUIColor.ripePaper : PixelUIColor.paperDim, inset: 8) {
+                    Text(AppLocalization.text(ledger.hasRipeBo
+                        ? "头顶有 1 枚已成熟的 bo，去森林往上一拉收取"
+                        : "日常睡眠与活动会让头顶凝聚成 bo，成熟后上拉存入库存"))
+                        .lpText(LP.Typography.b3Regular)
+                        .foregroundStyle(PixelUIColor.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.bottom, 8)
+            }
+
+            VStack(spacing: 10) {
+                hammock
+                // Grouped by the scene each piece stands in (decision 065).
+                ForEach([0, 1, 2], id: \.self) { scene in
+                    let items = inScene(scene)
+                    if !items.isEmpty {
+                        Text(AppLocalization.text(GrowthPresentation.decorSceneTitle(scene)))
+                            .font(PixelFont.font(13))
+                            .foregroundStyle(PixelUIColor.inkSoft)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityAddTraits(.isHeader)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 260 : 148), spacing: 10)],
+                                  spacing: 10) {
+                            ForEach(items, id: \.id) { item in
+                                itemCell(item)
                             }
                         }
                     }
                 }
             }
-            .scrollIndicators(.hidden)
-            .frame(height: 420)
         }
-        .pixelSheetFrame()
     }
 
     private func inScene(_ scene: Int) -> [PiboCoreDecorDefinition] {
@@ -283,17 +365,19 @@ struct DecorSheet: View {
                 .font(PixelFont.font(14))
                 .foregroundStyle(PixelUIColor.ink)
             Text(AppLocalization.text("给 Pibo 一处休息落点，睡眠回顾无需购买"))
-                .font(.system(size: 11))
+                .lpText(LP.Typography.b3Regular)
                 .foregroundStyle(PixelUIColor.inkSoft)
                 .multilineTextAlignment(.center)
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
 
             if ornamentUnlocks.isUnlocked(.hammock) {
-                // iOS has no separate placement state yet: unlocking the hammock is what
-                // puts it in the forest, so the sheet only reports it.
-                Text(AppLocalization.text("已经放在森林里了"))
-                    .font(PixelFont.font(12))
-                    .foregroundStyle(PixelUIColor.inkSoft)
+                PixelButton(label: hammockBusy
+                                ? AppLocalization.text("正在保存…")
+                                : AppLocalization.text(ornamentUnlocks.isHammockPlaced() ? "收起吊床" : "放置吊床"),
+                            active: !hammockBusy,
+                            buttonID: "decor-hammock-placement") {
+                    changeHammock()
+                }
             } else {
                 PixelButton(label: hammockBusy
                                 ? AppLocalization.text("正在保存…")
@@ -304,13 +388,13 @@ struct DecorSheet: View {
                 }
                 if balance < hammockCost {
                     Text(AppLocalization.format("需要 %@ bo", "\(hammockCost)"))
-                        .font(.system(size: 11))
+                        .lpText(LP.Typography.b3Regular)
                         .foregroundStyle(PixelUIColor.inkSoft)
                 }
             }
             if !hammockMessage.isEmpty {
                 Text(hammockMessage)
-                    .font(.system(size: 11))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.inkSoft)
             }
         }
@@ -346,11 +430,10 @@ struct DecorSheet: View {
                 .font(PixelFont.font(14))
                 .foregroundStyle(PixelUIColor.ink)
             Text(GrowthPresentation.decorNote(item.id))
-                .font(.system(size: 11))
+                .lpText(LP.Typography.b3Regular)
                 .foregroundStyle(PixelUIColor.inkSoft)
                 .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .frame(height: 30)
+                .fixedSize(horizontal: false, vertical: true)
 
             if state == .purchasable {
                 PixelButton(label: stateLabel(item, .purchasable),
@@ -359,9 +442,9 @@ struct DecorSheet: View {
                 }
             } else {
                 Text(stateLabel(item, state))
-                    .font(PixelFont.font(12))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.inkSoft)
-                    .frame(height: 40)
+                    .frame(minHeight: 44)
             }
         }
         .padding(8)
@@ -375,14 +458,19 @@ struct DecorSheet: View {
         hammockBusy = true
         hammockMessage = ""
         defer { hammockBusy = false }
-        let result = ornamentUnlocks.purchase(.hammock, using: ledger)
-        switch result {
-        case .purchased, .alreadyOwned:
-            hammockMessage = ""
-        case .unavailable:
-            hammockMessage = AppLocalization.text("暂时没能保存，请重试")
-        case .insufficientBalance, .prerequisiteMissing:
-            hammockMessage = AppLocalization.text("bo 还不够，等收取后再来看看")
+        if ornamentUnlocks.isUnlocked(.hammock) {
+            ornamentUnlocks.setHammockPlaced(!ornamentUnlocks.isHammockPlaced())
+        } else {
+            let result = ornamentUnlocks.purchase(.hammock, using: ledger)
+            switch result {
+            case .purchased, .alreadyOwned:
+                ornamentUnlocks.setHammockPlaced(true)
+                hammockMessage = ""
+            case .unavailable:
+                hammockMessage = AppLocalization.text("暂时没能保存，请重试")
+            case .insufficientBalance, .prerequisiteMissing:
+                hammockMessage = AppLocalization.text("bo 还不够，等收取后再来看看")
+            }
         }
     }
 }
@@ -424,16 +512,16 @@ struct PolaroidCard: View {
             }
 
             Text(shot.day)
-                .font(PixelFont.font(12))
+                .lpText(LP.Typography.b3Regular)
                 .foregroundStyle(PixelUIColor.inkSoft)
             if !shot.caption.isEmpty {
                 Text("「\(shot.caption)」")
-                    .font(PixelFont.font(13))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.inkSoft)
                     .multilineTextAlignment(.center)
             }
             HStack(spacing: 12) {
-                ShareLink(item: URL(fileURLWithPath: shot.path)) {
+                ShareLink(item: shot.fileURL) {
                     Text(AppLocalization.text("分享 / 保存"))
                         .font(PixelFont.font(14))
                         .foregroundStyle(PixelUIColor.ink)
@@ -495,30 +583,37 @@ struct PixelSheetHost: View {
     var days: PiboDayStore
     var day: HomeDayController?
     var season = 1
+    var polaroids: PolaroidStore? = nil
     var onClose: () -> Void = {}
+    var onOpenPolaroid: (PolaroidShot) -> Void = { _ in }
     /// The diary row hands the footprints the day it was written.
     var onOpenFootprints: (Double) -> Void = { _ in }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            PixelUIColor.scrim
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onClose)
-                .accessibilityLabel(AppLocalization.text("关闭"))
-                .accessibilityAddTraits(.isButton)
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                PixelUIColor.scrim
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: onClose)
+                    .accessibilityLabel(AppLocalization.text("关闭"))
+                    .accessibilityAddTraits(.isButton)
 
-            sheet
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                sheet
+                    .frame(maxHeight: proxy.size.height * 0.86, alignment: .bottom)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .accessibilityIdentifier(kind.id)
+        .onAppear { Analytics.track(.growthSheetOpen, screen: "home", ["trigger": .string(kind.id)]) }
     }
 
     @ViewBuilder
     private var sheet: some View {
         switch kind {
         case .growth:
-            GrowthSheet(growth: growth, onClose: onClose)
+            GrowthSheet(growth: growth, polaroids: polaroids, onClose: onClose,
+                        onOpenPolaroid: onOpenPolaroid, onOpenFootprints: onOpenFootprints)
         case .wishes:
             WishSheet(wishes: wishes, localHour: localHour, onClose: onClose)
         case .dayMap:
@@ -527,6 +622,9 @@ struct PixelSheetHost: View {
                         season: season,
                         minLevel: { scene in
                             day?.sceneMinLevel(PiboCoreDayScene(rawValue: Int32(scene)) ?? .clearing) ?? 1
+                        },
+                        isUnlocked: { scene in
+                            day?.sceneUnlocked(PiboCoreDayScene(rawValue: Int32(scene)) ?? .clearing) ?? false
                         },
                         onClose: onClose,
                         onTravel: { scene in
@@ -539,7 +637,7 @@ struct PixelSheetHost: View {
             ShelfSheet(days: days,
                        scene: days.scene,
                        onClose: onClose,
-                       onOpenFootprints: onOpenFootprints)
+                       onOpenFootprints: { milliseconds in onOpenFootprints(milliseconds / 1000) })
         case .decor:
             DecorSheet(decor: decor, ornamentUnlocks: ornaments, ledger: ledger,
                        level: growth.level, balance: ledger.availableBo, dayCount: dayCount,
@@ -548,6 +646,7 @@ struct PixelSheetHost: View {
                            // Core gates the price and the level; a successful purchase puts
                            // the piece in the forest, so the sheet steps aside.
                            if decor.purchase(id, level: growth.level, ledger: ledger) {
+                               growth.push(GrowthFeedbackEvent(kind: .decor, id: "", decor: Int(id.rawValue)))
                                onClose()
                            }
                        })
@@ -583,7 +682,7 @@ struct LevelUpCard: View {
             }
             if !line.isEmpty {
                 Text("「\(line)」")
-                    .font(PixelFont.font(13))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.inkSoft)
                     .multilineTextAlignment(.center)
             }

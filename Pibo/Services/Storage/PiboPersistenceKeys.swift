@@ -36,6 +36,8 @@ nonisolated enum PiboPersistenceKeys {
         static let boOwnedOrnaments = "pibo.bo.inventory.owned.v2"
         static let boEligibleOrnaments = "pibo.bo.inventory.eligible.v2"
         static let boPendingOrnamentPurchase = "pibo.bo.inventory.pendingPurchase.v2"
+        /// 吊床在林间空地的放置偏好（决定 068）。旧数据默认已放置。
+        static let hammockPlaced = "hammockPlaced.v1"
         /// 物件身上被亲手点亮的灯 + 它们所属的「点灯日」。天亮作废，和解锁分开存。
         static let boOrnamentLights = "pibo.bo.ornamentLights.v1"
         static let boUnlockGuideSeen = "pibo.bo.unlockGuideSeen.v1"

@@ -5,6 +5,28 @@ import Testing
 
 @MainActor
 struct PiboCompanionTests {
+    @Test func retiredPresentationFieldsDoNotEraseRememberedAnswers() throws {
+        let suite = "RetiredCompanionFields.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let now = Date().timeIntervalSince1970
+        let store = PiboCompanionStore(defaults: defaults, key: "memory", clock: { now })
+        store.recordAnswer(.init(promptId: "pref.rain_or_sun", optionId: "rain", retention: 1,
+                                 answeredAt: now, expiresAt: now + 3600), askedAt: now)
+        let data = try JSONEncoder().encode(store.snapshot)
+        var old = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let retired = ["hideSeekDayKey", "hideSeekStartedAt", "positiveAnswerAt", "tiredAnswerAt"]
+        for key in retired { old[key] = now }
+        defaults.set(try JSONSerialization.data(withJSONObject: old), forKey: "memory")
+        let restored = PiboCompanionStore(defaults: defaults, key: "memory", clock: { now })
+        #expect(restored.answers == store.answers)
+        #expect(restored.answeredTotal == 1)
+        restored.beginEntry(now: now)
+        let saved = try #require(defaults.data(forKey: "memory"))
+        let normalized = try #require(JSONSerialization.jsonObject(with: saved) as? [String: Any])
+        #expect(retired.allSatisfy { normalized[$0] == nil })
+    }
+
     @Test func bundledCatalogMatchesHarmonyContract() throws {
         let catalog = try #require(PiboCompanionCatalog.bundled())
         #expect(catalog.prompts.count >= 30)
@@ -35,7 +57,7 @@ struct PiboCompanionTests {
         #expect(!store.hasPreviousVisit)
         store.recordAnswer(.init(promptId: "p", optionId: "custom", customText: "你好",
                                  retention: PiboCoreCompanionRetention.today.rawValue,
-                                 answeredAt: now, expiresAt: now + 60), askedAt: now, positive: false, tired: false)
+                                 answeredAt: now, expiresAt: now + 60), askedAt: now)
         store.recordIgnored(promptId: "q", askedAt: now, now: now)
         #expect(store.recentAnswerRatePercent() == 50)
         store.markVisible(now: now)

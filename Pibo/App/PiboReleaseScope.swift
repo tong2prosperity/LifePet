@@ -2,18 +2,14 @@ import Foundation
 
 /// 首发（MVP）范围开关。
 ///
-/// 被关掉的功能**代码原样保留**；这里同时收起入口并暂停对应状态观察 —— 恢复某项时
-/// 把对应的 base 改回 `true` 即可，不需要还原任何实现。把范围集中在一个文件里，是为了让"首发
-/// 到底关了什么"一眼能看全，而不是散成各处的注释。
+/// 隐藏的权属与历史继续兼容。退役功能没有 Debug 旁路，重新开放需要产品决定。
 ///
 /// 写法沿用 `PiboVectorCharacterFlag`：Release 一律按 base 走；DEBUG 允许用启动
 /// 参数临时打开，好让这些功能在开发和验收时仍然跑得起来。
 enum PiboReleaseScope {
     /// 新六场面「临时合作」叙事与事件 01–03。当前发布暂时回到旧 Onboarding；
     /// 代码和持久化状态保留，后续确认后可重新打开。
-    static var temporaryCooperationOnboarding: Bool {
-        on(false, "-PiboEnableTemporaryCooperation")
-    }
+    static let temporaryCooperationOnboarding = false
 
     /// 餐食相机 + 餐照识别链路（`PiboCameraView` / `FoodRecognitionService` /
     /// `MealDetailView`）。关闭后首页右上角不出相机按钮，餐详情不出「重拍」。
@@ -25,23 +21,10 @@ enum PiboReleaseScope {
     /// 旁路），保留实现与历史数据；重新开放需要新的产品决定。
     static let walkDoodle = false
 
-    /// 游戏场（`GameListView` 及其下除 Walk Doodle 外的工程存量）。
-    /// 横向逛场景被删后 Release 本就没有入口，这个开关是把"关着"这件事写明，
-    /// 免得后面有人重新接线时以为它只是忘了接。
-    ///
-    /// 已有的 `-PiboOpenGames` / `-PiboOpenMiniGame` 直接算作打开，这样现成的
-    /// 调试流程不用再多带一个参数。
-    static var miniGames: Bool {
-        on(false, "-PiboEnableGames", "-PiboOpenGames", "-PiboOpenMiniGame")
-    }
-
-    /// 历史页的新版「足迹」tab（`PiboFootprintsView`）。关闭后历史页只剩「原版」
-    /// `PiboHistoryView`（带云朵睡眠卡），且不再套 `TabView`。
-    static var footprintsHistory: Bool { on(false, "-PiboEnableFootprints") }
-
-    /// 自定义 Pibo 形象页（`CustomPiboPage`）。此前是在 `HistoryFloorView` 里
-    /// 注释掉 tab，现归口到这里。
-    static var customizePibo: Bool { on(false, "-PiboEnableCustomize") }
+    /// 决定 069：旧游戏与旧页面没有调试旁路。
+    static let miniGames = false
+    static let footprintsHistory = false
+    static let customizePibo = false
 
     // MARK: 决定 057：移出路线图（原依据决定 051 已由 064 废止）
     //
@@ -60,28 +43,12 @@ enum PiboReleaseScope {
     /// 决定 054：陪伴提问、记忆回响、心情与草丛／河面热点。
     static let companionPrompts = true
 
-    /// 决定 069：像素首页。森林、Pibo、季节节拍与白天日程已经全部走像素舞台；
-    /// 外围的 HUD 与各个 Sheet 还是旧 SwiftUI 版，所以默认仍交给 SpriteKit 舞台。
-    /// 用 `-PiboPixelHome` 打开像素舞台（它自带 Pibo 的日程，不需要 Home 的依赖）。
-    static var pixelHome: Bool { on(false, "-PiboPixelHome") }
-
-    /// 决定 063：记录卡（睡眠／步数／活动）的像素画面与纸框。跟着像素首页一起打开，
-    /// 因为它们是同一个世界的两半；`-PiboPixelHistory` 可以单独打开。
-    static var pixelHistory: Bool { on(false, "-PiboPixelHistory", "-PiboPixelHome") }
-
-    /// 决定 063：分享卡与分享页的像素版（森林肖像、场景小图、像素按钮）。跟足迹页一起
-    /// 打开；`-PiboPixelShare` 可以单独打开。
-    static var pixelShare: Bool { on(false, "-PiboPixelShare", "-PiboPixelHistory", "-PiboPixelHome") }
-
-    /// 决定 063：相机取景框的像素外壳（四角标记、探头的 Pibo、识别时的扫描线）。跟着
-    /// 像素首页一起打开；`-PiboPixelCamera` 可以单独打开。
-    static var pixelCamera: Bool { on(false, "-PiboPixelCamera", "-PiboPixelHome") }
-
-    /// 决定 059：首启流程的像素版（黄昏森林、石头变成 Pibo、纸卡与三张小图）。跟着像素
-    /// 首页一起打开；`-PiboPixelOnboarding` 可以单独打开。
-    static var pixelOnboarding: Bool {
-        on(false, "-PiboPixelOnboarding", "-PiboPixelHome")
-    }
+    /// 用户 2026-10-23 要求全量对齐：像素是所有发布面的唯一表现。
+    static let pixelHome = true
+    static let pixelHistory = true
+    static let pixelShare = true
+    static let pixelCamera = true
+    static let pixelOnboarding = true
 
     /// 本版森林是否展示／允许操作这件物件。隐藏物件不跳过：它挡住的后续链一并不出现。
     static func allowsOrnament(_ id: PiboOrnament.ID) -> Bool {
@@ -94,12 +61,20 @@ enum PiboReleaseScope {
     /// `debugArguments` 里任意一个命中即视为打开；`-PiboOpenMiniGame=huarongRoad`
     /// 这类带值的写法按前缀匹配。
     private static func on(_ base: Bool, _ debugArguments: String...) -> Bool {
+        on(base, enabling: debugArguments, disabling: [])
+    }
+
+    private static func on(_ base: Bool, enabling: [String], disabling: [String] = []) -> Bool {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
-        let hit = debugArguments.contains { flag in
+        let disableHit = disabling.contains { flag in
             arguments.contains { $0 == flag || $0.hasPrefix(flag + "=") }
         }
-        if hit { return true }
+        if disableHit { return false }
+        let enableHit = enabling.contains { flag in
+            arguments.contains { $0 == flag || $0.hasPrefix(flag + "=") }
+        }
+        if enableHit { return true }
         #endif
         return base
     }

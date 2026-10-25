@@ -177,6 +177,7 @@ final class HealthHistoryStore {
     /// - A sleep summary without stages keeps cached stage segments that
     ///   belong to the same night instead of wiping the drawn timeline.
     private func apply(_ v: HealthDayValues, to record: HealthDayRecord, isToday: Bool) {
+        let activityObservedAt = v.activityObservedAt ?? .now
         if v.stepsArrived {
             let regresses = isToday
                 && record.stepsRecorded == true
@@ -189,17 +190,20 @@ final class HealthHistoryStore {
         } else if v.hourlySteps.count == 24, record.hourlySteps.count != 24 {
             record.hourlySteps = v.hourlySteps
         }
-        if v.activeEnergyArrived {
+        if v.activeEnergyArrived, activityObservedAt >= (record.activeEnergyObservedAt ?? .distantPast) {
             record.activeEnergy = max(0, v.activeEnergy)
             record.activeEnergyRecorded = true
+            record.activeEnergyObservedAt = activityObservedAt
         }
-        if v.exerciseArrived {
+        if v.exerciseArrived, activityObservedAt >= (record.exerciseObservedAt ?? .distantPast) {
             record.exerciseMinutes = max(0, v.exerciseMinutes)
             record.exerciseRecorded = true
+            record.exerciseObservedAt = activityObservedAt
         }
-        if v.standArrived {
+        if v.standArrived, activityObservedAt >= (record.standObservedAt ?? .distantPast) {
             record.standMinutes = max(0, v.standMinutes)
             record.standRecorded = true
+            record.standObservedAt = activityObservedAt
         }
         if v.distanceMeters > 0 { record.distanceMeters = v.distanceMeters }
         if v.flightsClimbed > 0 { record.flightsClimbed = v.flightsClimbed }
@@ -427,6 +431,9 @@ final class HealthHistoryStore {
         record.activeEnergyRecorded = nil
         record.exerciseRecorded = nil
         record.standRecorded = nil
+        record.activeEnergyObservedAt = nil
+        record.exerciseObservedAt = nil
+        record.standObservedAt = nil
         record.restingHR = 0
         record.heartRateAvg = 0
         record.heartRateMin = 0
@@ -547,6 +554,12 @@ final class HealthHistoryStore {
             predicate: #Predicate { $0.day == key },
             sortBy: [SortDescriptor(\.capturedAt, order: .forward)])
         return (try? context.fetch(d)) ?? []
+    }
+
+    /// A single food photo by its persistent identifier, if still present.
+    func foodPhoto(_ id: UUID) -> FoodPhoto? {
+        let d = FetchDescriptor<FoodPhoto>(predicate: #Predicate { $0.id == id })
+        return (try? context.fetch(d))?.first
     }
 
     /// The latest food photo captured for `mealType` on `day`, if any.

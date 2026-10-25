@@ -25,7 +25,6 @@ final class HomeIdleSpeechContextResolverTests: XCTestCase {
             "boring": .idle,
             "pibo-state-tired-forest-idle": .lowSleep,
             "dive": .idle,
-            "coolhide": .idle,
         ]
 
         XCTAssertEqual(Set(expectations.keys), PiboAnimationStateMap.available)

@@ -14,6 +14,7 @@ struct HomeFeatureCoversModifier: ViewModifier {
     let walkDoodleRouteEchoEnabled: Bool
     let store: PetStateStore
     let history: HealthHistoryStore
+    let recognizer: FoodRecognitionService
     let cameraDismissed: () -> Void
     let resumePendingFlows: () -> Void
     let historyDismissed: () -> Void
@@ -52,11 +53,15 @@ struct HomeFeatureCoversModifier: ViewModifier {
             }
             .fullScreenCover(
                 isPresented: presentation.historyBinding,
-                onDismiss: historyDismissed
+                onDismiss: {
+                    presentation.historyInitialDate = nil
+                    historyDismissed()
+                }
             ) {
-                HistoryScreen(focus: presentation.historyFocus)
+                HistoryScreen(focus: presentation.historyFocus, initialDate: presentation.historyInitialDate)
                     .environment(store)
                     .environment(history)
+                    .environment(recognizer)
             }
             .fullScreenCover(isPresented: presentation.storyRecoveryBinding) {
                 HealthAuthView(mode: .storyRecovery) {

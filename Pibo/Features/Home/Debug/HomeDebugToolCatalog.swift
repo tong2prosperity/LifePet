@@ -38,7 +38,6 @@ enum HomeDebugToolCatalog {
         "angry": ("生气 · angry", true),
         "boring": ("树旁观察 · boring", false),
         "dive": ("石后探头 · dive", false),
-        "coolhide": ("草丛躲藏 · coolhide", false),
     ]
 
     static var tools: [HomeDebugTool] {

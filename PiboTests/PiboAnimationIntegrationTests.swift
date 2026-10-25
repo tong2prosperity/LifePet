@@ -16,7 +16,7 @@ struct PiboAnimationIntegrationTests {
             PiboAnimationResourceID.wakingGreeted, PiboAnimationResourceID.wakingRecoveringGreeted,
             PiboAnimationResourceID.energetic,
             "pibo-state-stable-forest-idle", "pibo-state-waking-hammock-idle", "pibo-state-tired-forest-idle", "boring", "weak", "pibo-event-workout-celebrate",
-            "pibo-event-activity-milestone-celebrate", "angry", "dive", "coolhide", "pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b",
+            "pibo-event-activity-milestone-celebrate", "angry", "dive", "pibo-state-sleeping-hammock-idle-a", "pibo-state-sleeping-hammock-idle-b",
             "pibo-state-sleeping-ground-idle-a", "pibo-state-waking-ground-behavior-recovering",
         ]
         #expect(Set(data.states.keys) == expectedStates)
@@ -42,7 +42,6 @@ struct PiboAnimationIntegrationTests {
             "treeTraverse": ["boring"],
             "treeRest": ["weak"],
             "water": ["dive"],
-            "grassHide": ["coolhide"],
         ]
         #expect(Set(data.transition.zones.keys) == Set(expectedZones.keys))
         for (zone, states) in expectedZones {
@@ -55,7 +54,7 @@ struct PiboAnimationIntegrationTests {
         let requiredPrimitives: Set<String> = [
             "expression",
             "bring-to-front", "pop-loop", "bubble-breathe",
-            "wink-morph", "blink", "path-wiggle", "shake", "bob", "sway",
+            "wink-morph", "blink", "path-wiggle", "shake", "bob",
         ]
         let shippedPrimitives = Set(data.states.values.flatMap { state in
             state.idle?.resolvedParts.map(\.kind) ?? []
@@ -150,11 +149,9 @@ struct PiboAnimationIntegrationTests {
         #expect(placement("pibo-state-stable-forest-idle").frame == CGRect(x: 61.5, y: 356, width: 270, height: 270))
         #expect(placement("weak").frame == CGRect(x: 61.5, y: 442, width: 270, height: 270))
         #expect(placement("dive").frame == CGRect(x: 61.5, y: 580, width: 270, height: 270))
-        #expect(placement("coolhide").frame == CGRect(x: 190, y: 292, width: 195, height: 195))
         #expect(placement("pibo-state-waking-hammock-idle").frame == CGRect(x: 25, y: 146.8, width: 210, height: 210))
         #expect(placement("pibo-state-sleeping-hammock-idle-a") == placement("pibo-state-sleeping-hammock-idle-b"))
 
-        #expect(placement("coolhide").zPosition < 6)       // grass circle
         #expect(placement("boring").zPosition < 11)       // main tree
         #expect(placement("dive").zPosition > 11)         // main tree
         #expect(placement("dive").zPosition < 12)         // left stone
@@ -185,7 +182,6 @@ struct PiboAnimationIntegrationTests {
             "angry": (CGRect(x: -10.5, y: 284, width: 414, height: 414), 20),
             "weak": (CGRect(x: -10.5, y: 370, width: 414, height: 414), 20),
             "dive": (CGRect(x: -10.5, y: 508, width: 414, height: 414), 11.5),
-            "coolhide": (CGRect(x: 138, y: 240, width: 299, height: 299), 5.5),
             "pibo-state-waking-hammock-idle": (CGRect(x: -31, y: 90.8, width: 322, height: 322), 20),
             "pibo-state-sleeping-hammock-idle-a": (CGRect(x: -31, y: 90.8, width: 322, height: 322), 20),
             "pibo-state-sleeping-hammock-idle-b": (CGRect(x: -31, y: 90.8, width: 322, height: 322), 20),
@@ -213,7 +209,6 @@ struct PiboAnimationIntegrationTests {
             "angry": CGRect(x: 42, y: 67, width: 217, height: 167),
             "dive": CGRect(x: 48, y: 82, width: 203, height: 136),
             "boring": CGRect(x: 42, y: 42, width: 216, height: 217),
-            "coolhide": CGRect(x: 35, y: 15, width: 232, height: 245),
             "pibo-state-sleeping-hammock-idle-a": CGRect(x: 80, y: 96, width: 129, height: 125),
             "pibo-state-sleeping-hammock-idle-b": CGRect(x: 80, y: 93, width: 129, height: 119),
             "pibo-state-waking-hammock-idle": CGRect(x: 52, y: 111, width: 156, height: 164),
@@ -326,7 +321,7 @@ struct PiboAnimationIntegrationTests {
             data: try PiboCharacterData.load(),
             stateID: "pibo-state-stable-forest-idle"
         )
-        transition.bounceCut(to: "coolhide")
+        transition.bounceCut(to: "boring")
 
         transition.update(deltaTime: 0.189)
         #expect(transition.displayStateID == "pibo-state-stable-forest-idle")
@@ -337,12 +332,12 @@ struct PiboAnimationIntegrationTests {
         #expect(before.zPosition == 20)
 
         transition.update(deltaTime: 0.001)
-        #expect(transition.displayStateID == "coolhide")
+        #expect(transition.displayStateID == "boring")
         let after = ForestSceneManifest.piboPlayerPlacement(
             stateID: transition.displayStateID
         )
-        #expect(after.frame == CGRect(x: 138, y: 240, width: 299, height: 299))
-        #expect(after.zPosition == 5.5)
+        #expect(after.frame == CGRect(x: -372, y: 292, width: 414, height: 414))
+        #expect(after.zPosition == 10.5)
         #expect(transition.presentationScaleX == 0.04)
         #expect(transition.presentationScaleY == 0.04)
         #expect(transition.visualAlpha == 0)

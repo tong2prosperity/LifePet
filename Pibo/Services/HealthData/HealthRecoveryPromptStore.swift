@@ -18,11 +18,12 @@ nonisolated enum HealthRecoveryPromptPolicy {
         now: Date,
         lastPromptDay: String?,
         onboardingCompletedAt: Date?,
+        allowAuthorizationOnboardingDay: Bool = false,
         calendar: Calendar = .current
     ) -> Bool {
         let today = dayKey(now, calendar: calendar)
         if lastPromptDay == today { return false }
-        if let onboardingCompletedAt,
+        if !allowAuthorizationOnboardingDay, let onboardingCompletedAt,
            dayKey(onboardingCompletedAt, calendar: calendar) == today {
             return false
         }
@@ -39,11 +40,13 @@ struct HealthRecoveryPromptStore {
         defaults.string(forKey: PiboPersistenceKeys.Defaults.healthRecoveryPatPromptDay)
     }
 
-    func patPromptAllowed(at now: Date = .now, onboardingCompletedAt: Date?) -> Bool {
+    func patPromptAllowed(at now: Date = .now, onboardingCompletedAt: Date?,
+                          allowAuthorizationOnboardingDay: Bool = false) -> Bool {
         HealthRecoveryPromptPolicy.patPromptAllowed(
             now: now,
             lastPromptDay: lastPatPromptDay,
-            onboardingCompletedAt: onboardingCompletedAt
+            onboardingCompletedAt: onboardingCompletedAt,
+            allowAuthorizationOnboardingDay: allowAuthorizationOnboardingDay
         )
     }
 

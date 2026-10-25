@@ -260,14 +260,6 @@ final class PiboIdleAnimator {
                 offset: CGPoint(x: 0, y: CGFloat(-lift)),
                 origin: origin(part.origin)
             ))
-        case "sway":
-            let degrees = (part.amplitude ?? 2)
-                * sin(wave(part, elapsed: elapsed, defaultPeriod: 1.5) * 2 * .pi)
-                * Double(strength)
-            character.setBodyTransform(.init(
-                rotation: radians(designDegrees: degrees),
-                origin: origin(part.origin)
-            ))
         case "pop-loop":
             applyPopLoop(part, stateID: stateID, character: character, elapsed: elapsed, strength: amplitude)
         case "bubble-breathe":

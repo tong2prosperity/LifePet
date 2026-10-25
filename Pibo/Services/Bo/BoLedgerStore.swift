@@ -248,8 +248,12 @@ final class BoLedgerStore {
     }
 
     @discardableResult
-    func spend(_ cost: Int) -> Bool {
+    func spend(_ cost: Int, eventID: String? = nil) -> Bool {
         guard cost > 0 else { return false }
+        if let eventID {
+            guard !eventID.isEmpty else { return false }
+            if state.processedSpendEventIDs.contains(eventID) { return true }
+        }
         // Only the collected balance is spendable; the head container is untouched.
         let result = PiboBoContainer.invest(
             ripe: UInt32(clamping: state.ripeCount),
@@ -261,17 +265,22 @@ final class BoLedgerStore {
         let spent = state.balance - Int(result.stored)
         state.balance = Int(result.stored)
         state.spentTotal += spent
+        if let eventID { state.processedSpendEventIDs.insert(eventID) }
         appendSyncRecord(
             kind: .ledgerEvent,
             semanticKey: "bo.spend",
             occurredAt: .now,
-            payload: BoLedgerSyncPayload(amount: Double(spent))
+            payload: BoLedgerSyncPayload(amount: Double(spent), eventID: eventID)
         )
         commit()
         LPLog.bo.notice(
             "invested=\(spent, privacy: .public) → available=\(self.availableBo, privacy: .public)"
         )
         return true
+    }
+
+    func hasProcessedSpend(eventID: String) -> Bool {
+        state.processedSpendEventIDs.contains(eventID)
     }
 
     func hasProcessedBonusEnergy(eventID: String) -> Bool {

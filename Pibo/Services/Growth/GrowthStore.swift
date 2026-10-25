@@ -30,7 +30,7 @@ struct GrowthSyncInput {
 @MainActor
 @Observable
 final class GrowthStore: GrowthCopyCursorStore {
-    static let defaultsKey = "pibo_growth/snapshot.v1"
+    nonisolated static let defaultsKey = "pibo_growth/snapshot.v1"
 
     private(set) var level = 1
     private(set) var xpIntoLevel = 0

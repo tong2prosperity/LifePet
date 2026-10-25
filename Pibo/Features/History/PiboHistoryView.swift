@@ -21,20 +21,30 @@ struct PiboHistoryView: View {
     /// 决定 063: the diary and the month page read the day's walks and the evening prints.
     @Environment(PiboDayStore.self) private var days
     @Environment(PolaroidStore.self) private var polaroids
+    @Environment(PiboTimelineStore.self) private var timeline
     /// 决定 068: the morning summary is a base capability, so it can stand in for a
     /// wake day whose record has not landed yet.
     @Environment(MorningSleepCoordinator.self) private var morningSleep
 
     /// Card to scroll to on open (notification deep link). `nil` = top of page.
     var focus: HistoryFocus?
+    var initialDate: Date?
 
-    @State private var selectedDate: Date = Self.initialDate()
+    @State private var selectedDate: Date
+
+    init(focus: HistoryFocus? = nil, initialDate: Date? = nil) {
+        self.focus = focus
+        self.initialDate = initialDate
+        _selectedDate = State(initialValue: initialDate ?? Self.initialDate())
+    }
     @State private var preparingShare = false
     @State private var shareSnapshot: TodayPiboShareSnapshot?
     @State private var showHealthStatus = false
     @State private var sleepDetailOpen = Self.debugOpensSleepDetail()
     @State private var calendarOpen = Self.debugOpensCalendar()
     @State private var readoutDay: Date?
+    @State private var activeMealPhoto: (id: String, mealType: String)?
+    @State private var activePolaroid: PolaroidShot?
 
     private let cal = Calendar.current
     private static let topAnchor = "history-top"
@@ -100,10 +110,15 @@ struct PiboHistoryView: View {
                                     day: selectedDate,
                                     facts: footprintsDayFacts(
                                         day: selectedDate, history: history,
-                                        days: days, polaroids: polaroids)),
+                                        days: days, polaroids: polaroids,
+                                        timeline: timeline)),
                                 onOpenReadout: { readoutDay = selectedDate },
-                                onOpenMeal: { _, _ in },
-                                onOpenPolaroid: { _ in }
+                                onOpenMeal: { photoID, mealTypeRaw in
+                                    activeMealPhoto = (photoID, mealTypeRaw)
+                                },
+                                onOpenPolaroid: { path in
+                                    activePolaroid = polaroids.shots.first(where: { $0.path == path || $0.fileURL.path == path })
+                                }
                             )
                             .padding(.horizontal, LP.Spacing.xl)
                         }
@@ -136,9 +151,10 @@ struct PiboHistoryView: View {
                         today: cal.startOfDay(for: .now),
                         recordedDays: footprintsRecordedDays(
                             history: history, days: days, polaroids: polaroids,
+                            timeline: timeline,
                             from: cal.startOfDay(for: store.identity.birthDate),
                             to: cal.startOfDay(for: .now)),
-                        firstDays: [],
+                        firstDays: footprintsFirstDays(timeline: timeline),
                         onPick: { day in
                             calendarOpen = false
                             select(day)
@@ -179,6 +195,36 @@ struct PiboHistoryView: View {
                     .padding(.horizontal, 16)
                 }
                 .zIndex(61)
+            }
+        }
+        .overlay {
+            if let meal = activeMealPhoto {
+                ZStack {
+                    PixelUIColor.scrim
+                        .ignoresSafeArea()
+                        .onTapGesture { activeMealPhoto = nil }
+                    MealDetailView(
+                        photoId: meal.id,
+                        mealTypeRaw: meal.mealType,
+                        onClose: { activeMealPhoto = nil }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: UIScreen.main.bounds.height * 0.90)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                }
+                .transition(.opacity)
+                .zIndex(70)
+            }
+        }
+        .overlay {
+            if let shot = activePolaroid {
+                ZStack {
+                    PixelUIColor.scrim
+                        .ignoresSafeArea()
+                        .onTapGesture { activePolaroid = nil }
+                    PolaroidCard(shot: shot, onClose: { activePolaroid = nil })
+                }
+                .transition(.opacity)
+                .zIndex(80)
             }
         }
         .sheet(isPresented: Binding(
@@ -305,7 +351,9 @@ struct PiboHistoryView: View {
                         else { Image(systemName: "square.and.arrow.up") }
                     }
                     .frame(width: 44, height: 44)
-                    .background(Circle().fill(LP.Fill.bgContainer))
+                    .background(PixelUIColor.paper)
+                    .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                    .background { Rectangle().fill(PixelUIColor.shadow).offset(x: 2, y: 2) }
                 }
                 .buttonStyle(.plain)
                 .disabled(preparingShare)
@@ -320,7 +368,8 @@ struct PiboHistoryView: View {
                         .foregroundStyle(LP.Content.accent)
                         .padding(.horizontal, LP.Spacing.l)
                         .frame(minHeight: 44)
-                        .background(Capsule().fill(LP.Fill.bgContainer))
+                        .background(PixelUIColor.paper)
+                        .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(AppLocalization.text("回到今天"))
@@ -328,8 +377,8 @@ struct PiboHistoryView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.leading, LP.Spacing.xl)
-        // Leave room for `HistoryScreen`'s close button (36pt + margins).
-        .padding(.trailing, 64)
+        // Reserve the close button's 44pt hit area, outer margin and button gap.
+        .padding(.trailing, LP.Spacing.xl + 44 + LP.Spacing.m)
     }
 
     // MARK: Cards
@@ -380,9 +429,10 @@ struct PiboHistoryView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(LP.Spacing.l)
                     .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(LP.Fill.bgContainer)
+                        Rectangle().fill(PixelUIColor.paper)
                     )
+                    .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                    .background { Rectangle().fill(PixelUIColor.shadow).offset(x: 3, y: 3) }
             }
             // 压力 — today only. 派生分随每分钟心率刷新（HRV 锚点 + 心率调制）。
             if day.isToday, let stress = store.derivedStress {

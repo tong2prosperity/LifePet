@@ -64,22 +64,16 @@ enum PiboCoreStressAdapter {
         ))
     }
 
-    static func alertKind(
-        level: StressLevel,
-        previousAlertedLevel: StressLevel?,
-        localHour: Double,
-        secondsSinceLastAlert: Double?
-    ) -> StressAlertKind? {
-        switch PiboCoreStress.alertDecision(
-            level: coreLevel(level),
-            previousAlertedLevel: previousAlertedLevel.map { coreLevel($0) },
-            localHour: localHour,
+    static func changeAlertKind(level: StressLevel, lowerAlertedToday: Bool, recoveredAlertedToday: Bool,
+                                localHour: Double, secondsSinceLastAlert: Double?) -> StressAlertKind? {
+        switch PiboCoreStress.changeAlertDecision(
+            level: coreLevel(level), lowerAlertedToday: lowerAlertedToday,
+            recoveredAlertedToday: recoveredAlertedToday, localHour: localHour,
             secondsSinceLastAlert: secondsSinceLastAlert
         ) {
-        case .none: nil
         case .elevated: .elevated
         case .recovered: .recovered
-        case .excellent: .excellent
+        case .none, .excellent: nil
         }
     }
 

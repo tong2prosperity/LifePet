@@ -35,6 +35,16 @@ struct HealthRecoveryPromptPolicyTests {
         #expect(!Self.allowed(Self.at(28, 23, 59), last: nil, onboarded: onboarded))
     }
 
+    @Test func anExplicitAuthorizationPatCanHelpOnDayOneButOnlyOnce() {
+        let now = Self.at(28, 10)
+        #expect(HealthRecoveryPromptPolicy.patPromptAllowed(
+            now: now, lastPromptDay: nil, onboardingCompletedAt: Self.at(28, 9),
+            allowAuthorizationOnboardingDay: true, calendar: Self.calendar))
+        #expect(!HealthRecoveryPromptPolicy.patPromptAllowed(
+            now: now, lastPromptDay: Self.day(now), onboardingCompletedAt: Self.at(28, 9),
+            allowAuthorizationOnboardingDay: true, calendar: Self.calendar))
+    }
+
     @Test func theNextDayAsksOnce() {
         let onboarded = Self.at(28, 9)
         let morning = Self.at(29, 8)

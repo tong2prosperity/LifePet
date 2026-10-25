@@ -17,6 +17,8 @@ enum PixelUIColor {
     static let shadow = Color(pixelHex: 0x2E3B45).opacity(0.35)
     static let leaf = Color(pixelHex: 0x20937A)
     static let leafLight = Color(pixelHex: 0x6FDCA8)
+    static let ripePaper = Color(pixelHex: 0xFFF8E7)
+    static let ripeBorder = Color(pixelHex: 0xE5A93B)
     static let gold = Color(pixelHex: 0xF5B94A)
     static let heart = Color(pixelHex: 0xF27A9A)
     static let sleep = Color(pixelHex: 0x6C8FD9)
@@ -45,6 +47,7 @@ enum PixelIcons {
     static let moon = ["..KKK.", ".KK...", "KK....", "KK....", ".KK...", "..KKK."]
     static let foot = [".gg.g", "gggg.", "gggg.", ".gg..", ".gg..", "..g.."]
     static let flame = ["..x...", "..xx..", ".xxXx.", "xxXXxx", "xXXXXx", ".xxxx."]
+    static let boRipe = ["....KK", "..KKkK", ".KKkKK", "KKkKK.", "KkKK..", "G....."]
     static let leaf = ["....gg", "..gglg", ".gglgg", "gglgg.", "glgg..", "G....."]
     static let note = ["dddddd", "djjjjd", "dJJJjd", "djjjjd", "dJJjjd", "dddddd"]
     static let heart = [".b.b.", "bbbbb", "bbbbb", ".bbb.", "..b.."]
@@ -226,14 +229,14 @@ struct PixelSheetTitle: View {
     var body: some View {
         HStack {
             Text(title)
-                .font(PixelFont.font(18))
+                .font(PixelFont.font(20))
                 .foregroundStyle(PixelUIColor.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
             Text("×")
                 .font(PixelFont.font(20))
                 .foregroundStyle(PixelUIColor.ink)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onClose)
                 .accessibilityLabel(AppLocalization.text("关闭"))
@@ -284,5 +287,25 @@ struct PixelSwitch: View {
         .accessibilityValue(isOn ? "on" : "off")
         .accessibilityLabel(label)
         .accessibilityIdentifier(switchID)
+    }
+}
+
+/// Keep short sheets compact, with a fixed close row and a scrolling fallback
+/// when readable text or an accessibility text size needs more vertical room.
+struct PixelReadingSheet<Content: View>: View {
+    var title: String
+    var onClose: () -> Void
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            PixelSheetTitle(title: title, onClose: onClose)
+            ViewThatFits(in: .vertical) {
+                content.fixedSize(horizontal: false, vertical: true)
+                ScrollView { content.padding(.bottom, 4) }
+                    .scrollBounceBehavior(.basedOnSize)
+            }
+        }
+        .pixelSheetFrame()
     }
 }

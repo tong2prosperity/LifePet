@@ -1,5 +1,4 @@
 import Foundation
-import PiboCore
 
 // The forest is generated from a seed and the frame size, so every device draws the same
 // world and a wider phone simply sees more of it. Static layers render once per
@@ -10,21 +9,6 @@ import PiboCore
 /// ArkTS number helpers the port needs to stay pixel-identical: `Math.round` sends halves
 /// up (Swift's `.rounded()` sends them away from zero), and inks are plain numbers there,
 /// so art adds to them.
-enum PixelMath {
-    static func round(_ value: Double) -> Int {
-        Int((value + 0.5).rounded(.down))
-    }
-
-    static func floor(_ value: Double) -> Int {
-        Int(value.rounded(.down))
-    }
-
-    /// The ink `offset` steps after `ink` in the palette (`PixelInk.StarA + i % 3`).
-    static func ink(_ ink: PixelInk, _ offset: Int) -> PixelInk {
-        PixelInk(rawValue: UInt8(clamping: ink.index + offset)) ?? ink
-    }
-}
-
 struct PixelForestLayout: Equatable {
     var width: Int = 0
     var height: Int = 0
@@ -48,15 +32,7 @@ struct PixelWorldLook {
     var trailFrom: Int = 0
     var trailTo: Int = 0
 
-    init(scene: PiboCoreDayScene = .clearing, season: PiboCoreDaySeason = .summer, snow: Bool = false,
-         wind: Int = 0, trailFrom: PiboCoreDayScene = .clearing, trailTo: PiboCoreDayScene = .clearing) {
-        self.scene = Int(scene.rawValue)
-        self.season = Int(season.rawValue)
-        self.snow = snow
-        self.wind = wind
-        self.trailFrom = Int(trailFrom.rawValue)
-        self.trailTo = Int(trailTo.rawValue)
-    }
+    init() {}
 
     func key() -> String {
         "\(scene):\(season):\(snow ? 1 : 0):\(wind)"

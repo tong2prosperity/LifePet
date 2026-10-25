@@ -46,4 +46,9 @@ struct PiboSoundEffectServiceTests {
         #expect(!service.isEnabled)
         #expect(PiboPersistenceKeys.Defaults.soundEffectsEnabled != PiboPersistenceKeys.Defaults.ambientSoundEnabled)
     }
+
+    @Test func playCuesDoesNotCrash() {
+        PiboSoundEffectService.shared.preload()
+        PiboSoundEffectService.shared.play(.patStable)
+    }
 }

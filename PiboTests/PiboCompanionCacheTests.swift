@@ -6,6 +6,33 @@ struct PiboCompanionCacheTests {
     private let now = Date(timeIntervalSince1970: 1_788_400_000)
     private let petID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
 
+    @Test func olderPhoneKeepsPixelAppearanceButClearsCrossDayWishes() {
+        var first = makeSnapshot(at: now.addingTimeInterval(-86_400))
+        first.pixel = PiboCompanionPixelState(
+            level: 8, bodyStage: 2, leafStage: 3, accessoryMask: 7, form: 0, formStuck: false,
+            balance: 4, collectionToken: "pet:1",
+            wishes: [.init(kind: 4, title: "回答我一个问题", done: true, fraction: 1)],
+            steps: 5000, finds: [1], thought: true)
+        var cache = PiboCompanionCache()
+        let loadedFirst = cache.apply(first, now: now)
+        #expect(loadedFirst)
+        var incoming = makeSnapshot(at: now, state: "dataUnknown")
+        incoming.growth = nil
+        let loadedIncoming = cache.apply(incoming, now: now)
+        #expect(loadedIncoming)
+        #expect(cache.snapshot?.pixel?.level == 8)
+        #expect(cache.snapshot?.pixel?.collectionToken == "pet:1")
+        #expect(cache.snapshot?.growth == first.growth)
+        #expect(cache.snapshot?.pixel?.wishes.isEmpty == true)
+        #expect(cache.snapshot?.pixel?.steps == nil)
+        #expect(cache.snapshot?.pixel?.finds.isEmpty == true)
+        var replacement = makeSnapshot(at: now.addingTimeInterval(1), state: "dataUnknown")
+        replacement.petID = UUID()
+        let loadedReplacement = cache.apply(replacement, now: now)
+        #expect(loadedReplacement)
+        #expect(cache.snapshot?.pixel == nil, "a new Pibo cannot inherit the previous appearance or currency token")
+    }
+
     @Test func crossDayReloadPreservesPetGrowthAndFriendButNotDailyFacts() throws {
         let earlier = now.addingTimeInterval(-172_800)
         let value = makeSnapshot(at: earlier, connection: connection(at: earlier))

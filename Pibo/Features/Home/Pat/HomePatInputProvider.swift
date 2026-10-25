@@ -8,6 +8,7 @@ struct HomePatInputProvider {
     let animationPresentation: HomeAnimationPresentationController
     let healthAvailability: HealthDataService.DataAvailability
     let storyStage: PiboCoreStorySpeechStage
+    var tone = 0
 
     func input() -> PiboPatConversationInput {
         let state = animationPresentation.patState
@@ -19,7 +20,7 @@ struct HomePatInputProvider {
             dataUnknownReason: Self.dataUnknownReason(for: healthAvailability),
             storyStage: storyStageKey,
             values: baseValues,
-            events: eventCandidates(for: state)
+            events: eventCandidates(for: state), tone: tone
         )
     }
 

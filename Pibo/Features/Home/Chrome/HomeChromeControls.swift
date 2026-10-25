@@ -124,34 +124,13 @@ struct HomeCornerActions: View {
             dismissSpeech()
             action()
         } label: {
-            Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(isCamera
-                                 ? PiboMoss.Color.foundationTeal
-                                 : LP.Content.secondary)
+            PixelIcon(rows: isCamera ? PixelIcons.camera : (systemImage == "map.fill" ? PixelIcons.walk : PixelIcons.gear), iconSize: 18)
                 .frame(width: size, height: size)
-                .background(
-                    RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
-                        .fill(isCamera
-                              ? PiboMoss.Color.sheetMoss.opacity(0.94)
-                              : LP.Fill.bgContainer.opacity(0.90))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: LP.Radius.m, style: .continuous)
-                        .strokeBorder(
-                            isCamera
-                                ? PiboMoss.Color.hairline.opacity(0.72)
-                                : .white.opacity(0.55),
-                            lineWidth: LP.BorderWidth.hair
-                        )
-                )
-                .shadow(
-                    color: isCamera ? Color(hex: 0x17342B, alpha: 0.18) : .clear,
-                    radius: isCamera ? 8 : 0,
-                    y: isCamera ? 3 : 0
-                )
-                .lpShadow(LP.Shadow.elevation1)
-                .rotationEffect(.degrees(rotation))
+                .background(isCamera ? PixelUIColor.leafLight : PixelUIColor.paper)
+                .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                .background {
+                    Rectangle().fill(PixelUIColor.shadow).offset(x: 3, y: 3)
+                }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(AppLocalization.text(label))
@@ -181,20 +160,20 @@ struct HomeBottomControls: View {
             onOpenHistory()
         } label: {
             HStack(spacing: 7) {
-                Image(systemName: "book")
-                    .font(.system(size: 17, weight: .medium))
-                    .accessibilityHidden(true)
+                PixelIcon(rows: PixelIcons.footprints, iconSize: 18).accessibilityHidden(true)
                 Text(AppLocalization.text("足迹"))
-                    .font(.system(size: 16, weight: .medium))
+                    .font(PixelFont.font(16))
             }
             .foregroundStyle(Color(hex: 0x245343))
             .padding(.leading, 16)
             .padding(.trailing, 18)
             .frame(height: 48)
-            .background(Capsule().fill(Color(hex: 0xFBFCFC, alpha: 0.9)))
-            .overlay(Capsule().strokeBorder(.white.opacity(0.55), lineWidth: 1))
-            .lpShadow(LP.Shadow.elevation1)
-            .contentShape(Capsule())
+            .background(PixelUIColor.paper)
+            .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+            .background {
+                Rectangle().fill(PixelUIColor.shadow).offset(x: 3, y: 3)
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(HomeHistoryPillStyle())
         .accessibilityLabel(AppLocalization.text("足迹"))
@@ -237,7 +216,7 @@ struct HomeBoBalanceChip: View {
                 .background(
                     Capsule().fill(Color(red: 0xF4 / 255, green: 0xEB / 255, blue: 0xDD / 255).opacity(0.93))
                 )
-                .contentShape(Capsule())
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(AppLocalization.format("已收取 %d bo", balance))

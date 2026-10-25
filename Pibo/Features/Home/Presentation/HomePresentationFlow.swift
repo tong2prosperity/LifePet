@@ -10,35 +10,20 @@ struct HomePresentationFlow {
     let morningSleep: MorningSleepCoordinator
     let stressNotifier: StressNotifier
     let currentPolicy: () -> HomePresentationPolicy
-    let currentAnimationStateID: () -> String
-    let applyDebugReward: (PiboAnimationAchievementPayload) -> Void
+    let presentForestResponse: () -> Void
     let refreshAnimationState: () -> Void
     let announceFirstRipeBo: () -> Void
 
     func presentAchievementIfPossible() {
-        let policy = currentPolicy()
-        var destination = presentation.activeSheet
-        HomeAchievementPresentationCoordinator.presentIfPossible(
-            policy: policy,
-            animationStateID: currentAnimationStateID(),
-            pendingAchievement: store.animationExperience.pendingAchievement,
-            destination: &destination
-        )
-        presentation.activeSheet = destination
+        presentForestResponse()
     }
 
-    func reconcilePresentedAchievement() {
-        var destination = presentation.activeSheet
-        HomeAchievementPresentationCoordinator.reconcile(
-            destination: &destination,
-            pendingAchievement: store.animationExperience.pendingAchievement
-        )
-        presentation.activeSheet = destination
-    }
+    func reconcilePresentedAchievement() { presentForestResponse() }
 
-    func confirm(_ payload: PiboAnimationAchievementPayload) {
+    func finishResponse(_ payload: PiboAnimationAchievementPayload) {
         HomeAchievementConfirmationCoordinator.confirm(
             presentedAchievement: payload,
+            staleFixtureEnabled: false,
             handlers: .init(
                 currentPendingAchievementID: {
                     store.animationExperience.pendingAchievement?.id
@@ -46,13 +31,10 @@ struct HomePresentationFlow {
                 dismissStaleFixture: { presentation.activeSheet = nil },
                 confirmPending: { _ = store.animationExperience.confirmPending() },
                 currentPendingWorkoutID: { store.pendingWorkout?.id },
-                consumePendingWorkout: { store.consumePendingWorkout() },
-                applyDebugReward: { applyDebugReward(payload) },
+                consumePendingWorkout: { store.finishWorkoutResponse(id: payload.id) },
+                applyDebugReward: {},
                 refreshAnimationState: refreshAnimationState,
-                beginSheetDismissal: {
-                    presentation.sheetDismissalInProgress = true
-                    presentation.activeSheet = nil
-                }
+                beginSheetDismissal: announceFirstRipeBo
             )
         )
     }

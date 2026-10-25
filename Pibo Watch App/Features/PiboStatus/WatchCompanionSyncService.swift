@@ -15,6 +15,33 @@ final class WatchCompanionSyncService: NSObject, WCSessionDelegate {
     private var requestID: UUID?
     private var timeoutTask: Task<Void, Never>?
 
+    /// No optimistic balance changes or offline currency. The phone checks the
+    /// exact container token and returns its reconciled authoritative snapshot.
+    func collect(token: String) async -> Bool {
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isReachable else { return false }
+        return await withCheckedContinuation { continuation in
+            var finished = false
+            let complete: @MainActor (Bool) -> Void = { value in
+                guard !finished else { return }
+                finished = true
+                continuation.resume(returning: value)
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(8))
+                complete(false)
+            }
+            session.sendMessage([PiboCompanionSnapshotCoding.collectKey: token], replyHandler: { [weak self] reply in
+                let data = reply[PiboCompanionSnapshotCoding.applicationContextKey] as? Data
+                let success = reply["collected"] as? Bool ?? false
+                Task { @MainActor in
+                    if let data { self?.apply(data) }
+                    complete(success)
+                }
+            }, errorHandler: { _ in Task { @MainActor in complete(false) } })
+        }
+    }
+
     override init() {
         super.init()
         let defaults = UserDefaults.standard

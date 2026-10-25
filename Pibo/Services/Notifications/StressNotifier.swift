@@ -4,21 +4,17 @@ import os
 
 /// The moment a stress reading is worth a push. Not every reading notifies —
 /// only these transitions do.
-enum StressAlertKind: Sendable {
-    /// 注意 / 超载 — stress is elevated (escalation or a sustained re-remind).
+enum StressAlertKind: Sendable, Equatable {
+    /// Once-per-day lower reading, and a same-day return to usual.
     case elevated
-    /// Back down to 正常 after having been 注意 / 超载 — the "缓过来了" beat.
     case recovered
-    /// Reached 优秀 — the best tier, worth a small congratulation.
-    case excellent
 
     /// Body copy reports only the measured HRV tier. It does not infer emotion
     /// or imply that the user's reading changes Pibo's physical condition.
     func body(for level: StressLevel) -> String {
         switch self {
-        case .elevated:  return level.notificationBody
-        case .recovered: return "stress.notification.recovered"
-        case .excellent: return "stress.notification.excellent"
+        case .elevated:  return "这次 HRV 比你平时低一些，我先不下结论。"
+        case .recovered: return "HRV 回到你平时的样子了。"
         }
     }
 }
@@ -28,21 +24,8 @@ enum StressAlertKind: Sendable {
 /// runs on every HealthKit wake (foreground *and* background delivery), so a
 /// stress change can push even while the app is backgrounded.
 ///
-/// Fires on three transitions (see `alertKind`): stress turning **elevated**
-/// (注意/超载), **recovering** back to 正常, and reaching **优秀** — so the user
-/// hears both the warning and the "缓过来了 / 今天不错" all-clear.
-///
-/// Delivery model:
-/// - **Foreground** notifications are shown as banners via `AppNotificationRouter`
-///   (iOS otherwise suppresses them).
-/// - Authorization is requested **provisionally** at launch (quiet, no prompt),
-///   so a passive user is covered without ever opening settings; toggling the
-///   settings switch on upgrades to a full (audible) authorization.
-/// - **Escalation** (a strictly higher tier than last alerted) bypasses the
-///   normal cooldown — a worsening spike is the whole point. A sustained
-///   elevated tier re-reminds on a long cadence instead of going silent.
-/// - **Recovery / 优秀** are one-shot transitions off the last *alerted* tier,
-///   floored only enough to dedupe the observer+reconcile race.
+/// Decisions 049/055: daily lower-than-usual / same-day return-to-usual
+/// reminders. Fresh installs opt in explicitly; launch only reads authorization.
 @MainActor
 @Observable
 final class StressNotifier {
@@ -51,16 +34,30 @@ final class StressNotifier {
     /// User-facing toggle (settings). Off silences pushes without revoking the
     /// system authorization. Persisted in standard defaults.
     var pushEnabled: Bool {
-        didSet { UserDefaults.standard.set(pushEnabled, forKey: Self.enabledKey) }
+        didSet {
+            preferences.set(pushEnabled, forKey: Self.enabledKey)
+            if !pushEnabled { deliveryGeneration += 1 }
+        }
     }
 
     /// Report the result of **every** HRV computation (not just tier
     /// transitions), carrying the reading + tier. Bypasses the throttle/quiet-hours
     /// logic — frequent by design, for a user who wants to see that the
     /// measurement is actually running. Sits *under* `pushEnabled` (that's still
-    /// the master switch). Exposed in production settings; default off.
+    /// the master switch). Available only in DEBUG diagnostics; default off.
     var notifyEveryReading: Bool {
-        didSet { UserDefaults.standard.set(notifyEveryReading, forKey: Self.everyKey) }
+        get {
+            #if DEBUG
+            preferences.bool(forKey: Self.everyKey)
+            #else
+            false
+            #endif
+        }
+        set {
+            #if DEBUG
+            preferences.set(newValue, forKey: Self.everyKey)
+            #endif
+        }
     }
 
     /// Whether the once-a-morning sleep summary may post a system banner
@@ -68,12 +65,13 @@ final class StressNotifier {
     /// notification grant with stress alerts — turning it on requests full
     /// authorization, which also un-silences stress banners. Default on.
     var sleepSummaryPushEnabled: Bool {
-        didSet { UserDefaults.standard.set(sleepSummaryPushEnabled, forKey: Self.sleepEnabledKey) }
+        didSet { preferences.set(sleepSummaryPushEnabled, forKey: Self.sleepEnabledKey) }
     }
 
     /// System authorization state, refreshed lazily. `false` until authorized
     /// (provisional counts).
     private(set) var authorized = false
+    private(set) var alertsVisible = false
 
     /// Raised when the user taps a stress notification, cleared by `HomeView`
     /// once it has opened the history surface on the 压力卡.
@@ -83,19 +81,20 @@ final class StressNotifier {
     /// also has to survive a **cold** launch — the tap can arrive before
     /// `HomeView` exists, so the view checks it on appear as well as on change.
     var pendingCardOpen = false
+    /// Day start timestamp (seconds since 1970) of the stress notification, if any.
+    var pendingStressDay: Double? = nil
 
     /// In-flight guard: `maybeNotify` has `await` suspension points between the
     /// throttle check and the state write, and two HK triggers (observer +
     /// `reconcile`) can call it concurrently for the same reading. This blocks
     /// the reentrant second call so they can't both pass the throttle.
     private var isNotifying = false
+    private var deliveryGeneration = 0
 
     // Persisted keys.
     private static let enabledKey = "pibo.stress.push.enabled.v1"
     private static let everyKey = "pibo.stress.push.every.v1"
     private static let sleepEnabledKey = "pibo.sleep.push.enabled.v1"
-    private static let lastAtKey = "pibo.stress.push.lastAt.v1"
-    private static let lastLevelKey = "pibo.stress.push.lastLevel.v1"
     /// App-Group defaults so the throttle/escalation ratchet survives a
     /// background relaunch (the process that pushed may not be the one still
     /// alive when the user next opens the app).
@@ -103,10 +102,20 @@ final class StressNotifier {
         UserDefaults(suiteName: PiboWidgetConstants.appGroupID) ?? .standard
     }
 
-    private init() {
-        pushEnabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true
-        notifyEveryReading = UserDefaults.standard.bool(forKey: Self.everyKey)   // default off
-        sleepSummaryPushEnabled = UserDefaults.standard.object(forKey: Self.sleepEnabledKey) as? Bool ?? true
+    private let changeAlerts: StressChangeAlertStore
+    private let preferences: UserDefaults
+    private let notifications: any StressNotificationScheduling
+    private let clock: @MainActor () -> Date
+
+    init(notifications: (any StressNotificationScheduling)? = nil,
+         preferences: UserDefaults = .standard, deliveryDefaults: UserDefaults? = nil,
+         clock: @escaping @MainActor () -> Date = { .now }) {
+        self.notifications = notifications ?? SystemStressNotificationCenter()
+        self.preferences = preferences
+        self.clock = clock
+        pushEnabled = StressChangeAlertStore.initialPushEnabled(in: preferences)
+        changeAlerts = StressChangeAlertStore(defaults: deliveryDefaults ?? Self.defaults, now: clock())
+        sleepSummaryPushEnabled = preferences.object(forKey: Self.sleepEnabledKey) as? Bool ?? true
     }
 
     /// Called once at launch. Only restores the current authorization state:
@@ -126,21 +135,21 @@ final class StressNotifier {
         var options: UNAuthorizationOptions = [.alert, .sound]
         if provisional { options.insert(.provisional) }
         do {
-            let granted = try await UNUserNotificationCenter.current()
-                .requestAuthorization(options: options)
-            authorized = granted
+            let granted = try await notifications.stressRequestAuthorization(options: options)
+            await refreshAuthState()
             LPLog.app.notice("notification auth granted=\(granted, privacy: .public) provisional=\(provisional, privacy: .public)")
         } catch {
             authorized = false
+            alertsVisible = false
             LPLog.app.error("notification auth threw: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     /// Refresh `authorized` from the current system settings (no prompt).
     func refreshAuthState() async {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        authorized = settings.authorizationStatus == .authorized
-            || settings.authorizationStatus == .provisional
+        let settings = await notifications.stressSettings()
+        authorized = settings.status == .authorized || settings.status == .provisional
+        alertsVisible = settings.status == .authorized && settings.alertsEnabled
     }
 
     /// Human-readable snapshot of every gate that can stop a stress push —
@@ -162,15 +171,13 @@ final class StressNotifier {
         let hour = Calendar.current.component(.hour, from: Date())
         let quiet = hour >= PiboCoreStressAdapter.alertQuietStartHour
             || hour < PiboCoreStressAdapter.alertQuietEndHour
-        let lastLevel = (Self.defaults.object(forKey: Self.lastLevelKey) as? Int)
-            .flatMap { StressLevel(rawValue: $0)?.displayName } ?? "无"
         return """
         系统授权: \(status)
         横幅: \(banner) · 声音: \(sound)
         当前静默时段(\(PiboCoreStressAdapter.alertQuietStartHour)–\(PiboCoreStressAdapter.alertQuietEndHour)): \(quiet ? "是（智能模式此刻不推）" : "否")
-        总开关 高压力提醒: \(pushEnabled ? "开" : "关")
+        HRV 变化提醒: \(pushEnabled ? "开" : "关")
         HRV 测量提醒: \(notifyEveryReading ? "开" : "关")
-        上次已通知档位: \(lastLevel)
+        \(changeAlerts.deliverySummary())
         """
     }
 
@@ -188,7 +195,7 @@ final class StressNotifier {
             identifier: "pibo.test.\(UUID().uuidString)",
             content: content,
             trigger: nil)
-        do { try await UNUserNotificationCenter.current().add(request); return true }
+        do { try await notifications.stressAdd(request); return true }
         catch {
             LPLog.app.error("test push add threw: \(error.localizedDescription, privacy: .public)")
             return false
@@ -211,13 +218,15 @@ final class StressNotifier {
     /// caveat belongs on the 压力卡, where there is room for it; a notification
     /// body that explains its own metric has already lost the reader.
     func notifyMeasurement(level: StressLevel?, rmssd: Double) async -> Bool {
+        #if DEBUG
         guard pushEnabled, notifyEveryReading else { return false }
         guard !isNotifying else { return false }
         isNotifying = true
         defer { isNotifying = false }
 
+        let generation = deliveryGeneration
         await refreshAuthState()
-        guard authorized else { return false }
+        guard authorized, pushEnabled, !Task.isCancelled, generation == deliveryGeneration else { return false }
 
         let content = UNMutableNotificationContent()
         content.title = AppLocalization.text("Pibo")
@@ -228,18 +237,28 @@ final class StressNotifier {
                                               result)
         content.sound = .default
         content.categoryIdentifier = AppNotificationCategory.stress
+        content.userInfo = [
+            AppNotificationCategory.stressDayUserInfoKey: Calendar.current.startOfDay(for: clock()).timeIntervalSince1970
+        ]
         let request = UNNotificationRequest(
             identifier: "pibo.stress.\(UUID().uuidString)",
             content: content,
             trigger: nil)
         do {
-            try await UNUserNotificationCenter.current().add(request)
+            try await notifications.stressAdd(request)
+            guard pushEnabled, notifyEveryReading, !Task.isCancelled, generation == deliveryGeneration else {
+                notifications.stressWithdraw(request.identifier)
+                return false
+            }
             LPLog.app.notice("stress verbose push level=\(level?.displayName ?? "record-only", privacy: .public) rmssd=\(rmssd, privacy: .public)")
             return true
         } catch {
             LPLog.app.error("stress verbose push add threw: \(error.localizedDescription, privacy: .public)")
             return false
         }
+        #else
+        return false
+        #endif
     }
 
     /// Fire a stress notification if this reading warrants one, respecting all
@@ -249,55 +268,40 @@ final class StressNotifier {
     @discardableResult
     func maybeNotify(level: StressLevel, rmssd: Double) async -> Bool {
         guard pushEnabled else { return false }
-        // Diagnostic mode: every reading pushes, no throttle. Short-circuits the
-        // whole transition/quiet-hours machine below.
+        // This branch is available only in the separately compiled debug diagnostics.
         if notifyEveryReading { return await notifyMeasurement(level: level, rmssd: rmssd) }
         guard !isNotifying else { return false }
 
-        // `lastLevelKey` tracks the last *alerted* tier — the anchor for both
-        // escalation ("higher than last alerted") and recovery ("was elevated,
-        // now calm"). Only a fired push updates it.
-        let prev = (Self.defaults.object(forKey: Self.lastLevelKey) as? Int)
-            .flatMap { StressLevel(rawValue: $0) }
-        let hour = Calendar.current.component(.hour, from: Date())
-        let now = Date()
-        let lastAt = Self.defaults.object(forKey: Self.lastAtKey) as? Date
-        let secondsSinceLastAlert = lastAt.flatMap { value -> TimeInterval? in
-            let elapsed = now.timeIntervalSince(value)
-            return elapsed.isFinite && elapsed >= 0 ? elapsed : nil
-        }
-        if lastAt != nil, secondsSinceLastAlert == nil {
-            // A clock rollback or damaged future write must not suppress smart
-            // notifications until the wall clock catches up.
-            Self.defaults.removeObject(forKey: Self.lastAtKey)
-        }
-        guard let kind = PiboCoreStressAdapter.alertKind(
-            level: level,
-            previousAlertedLevel: prev,
-            localHour: Double(hour),
-            secondsSinceLastAlert: secondsSinceLastAlert
-        ) else { return false }
+        let now = clock()
+        guard let kind = changeAlerts.kind(for: level, now: now) else { return false }
 
         isNotifying = true
         defer { isNotifying = false }
 
+        let generation = deliveryGeneration
         await refreshAuthState()
-        guard authorized else { return false }
+        guard authorized, pushEnabled, !Task.isCancelled, generation == deliveryGeneration else { return false }
 
         let content = UNMutableNotificationContent()
         content.title = AppLocalization.text("Pibo")
         content.body = AppLocalization.text(kind.body(for: level))
         content.sound = .default
         content.categoryIdentifier = AppNotificationCategory.stress
+        content.userInfo = [
+            AppNotificationCategory.stressDayUserInfoKey: Calendar.current.startOfDay(for: now).timeIntervalSince1970
+        ]
         let request = UNNotificationRequest(
             identifier: "pibo.stress.\(UUID().uuidString)",
             content: content,
             trigger: nil)   // immediate delivery — valid from a background wake
 
         do {
-            try await UNUserNotificationCenter.current().add(request)
-            Self.defaults.set(now, forKey: Self.lastAtKey)
-            Self.defaults.set(level.rawValue, forKey: Self.lastLevelKey)
+            try await notifications.stressAdd(request)
+            guard pushEnabled, !Task.isCancelled, generation == deliveryGeneration else {
+                notifications.stressWithdraw(request.identifier)
+                return false
+            }
+            changeAlerts.recordDelivered(kind, at: now)
             LPLog.app.notice("stress push fired kind=\(String(describing: kind), privacy: .public) level=\(level.displayName, privacy: .public) rmssd=\(rmssd, privacy: .public)")
             return true
         } catch {

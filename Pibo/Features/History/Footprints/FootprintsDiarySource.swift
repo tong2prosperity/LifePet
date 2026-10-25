@@ -4,10 +4,7 @@ import PiboCore
 // Gathers what each store already recorded into the footprints diary's plain facts (决定 063).
 // Read-only: the diary never writes back, and nothing new is inferred about a day.
 //
-// Ported from HarmonyPibo `services/FootprintsDiarySource.ets`. Two kinds are empty here on
-// purpose: the shared firsts and the told beats come from 决定 056's timeline memory, which
-// iOS does not have yet — a day without that store simply lists nothing of that kind rather
-// than guessing (see `docs/pixel-ios-parity.md`).
+// Ported from HarmonyPibo `services/FootprintsDiarySource.ets`.
 
 /// That day's readout conclusion, only when a current-algorithm snapshot gave a band.
 func footprintsReadoutLine(history: HealthHistoryStore, day: Date) -> String {
@@ -20,9 +17,18 @@ func footprintsReadoutLine(history: HealthHistoryStore, day: Date) -> String {
 
 @MainActor
 func footprintsDayFacts(day: Date, history: HealthHistoryStore, days: PiboDayStore,
-                        polaroids: PolaroidStore) -> FootprintsDayFacts {
+                        polaroids: PolaroidStore,
+                        timeline: PiboTimelineStore? = nil) -> FootprintsDayFacts {
     var facts = FootprintsDayFacts()
     facts.readout = footprintsReadoutLine(history: history, day: day)
+    if let timeline {
+        facts.firsts = timeline.firsts.map { first in
+            FootprintsFirstFact(kind: first.kind, at: first.at)
+        }
+        facts.beats = timeline.toldLog.map { told in
+            FootprintsBeatFact(key: told.key, at: told.at, lines: told.lines)
+        }
+    }
     facts.walks = days.diary.map { entry in
         FootprintsWalkFact(
             at: entry.at,
@@ -49,12 +55,26 @@ func footprintsDayFacts(day: Date, history: HealthHistoryStore, days: PiboDaySto
     return facts
 }
 
-/// Days the calendar dots: any reading, meal, workout, walk or polaroid.
+/// Days the calendar dots: any reading, meal, workout, walk, polaroid or told beat.
 @MainActor
 func footprintsRecordedDays(history: HealthHistoryStore, days: PiboDayStore,
-                            polaroids: PolaroidStore, from start: Date, to end: Date) -> [Date] {
+                            polaroids: PolaroidStore,
+                            timeline: PiboTimelineStore? = nil,
+                            from start: Date, to end: Date) -> [Date] {
     let readings = history.records(from: start, to: end).filter(\.hasData).map(\.date)
     let walks = days.diary.map { Date(timeIntervalSince1970: $0.at) }
     let shots = polaroids.shots.map { Date(timeIntervalSince1970: $0.takenAt) }
-    return readings + walks + shots
+    var result = readings + walks + shots
+    if let timeline {
+        let told = timeline.toldLog.filter { !$0.lines.isEmpty }.map { Date(timeIntervalSince1970: $0.at) }
+        result += told
+    }
+    return result
+}
+
+/// Days the calendar stars: a shared first happened on them.
+@MainActor
+func footprintsFirstDays(timeline: PiboTimelineStore?) -> [Date] {
+    guard let timeline else { return [] }
+    return timeline.firsts.map { Date(timeIntervalSince1970: $0.at) }
 }

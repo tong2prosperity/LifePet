@@ -29,6 +29,7 @@ struct HomeStageInteractions {
     let showResolvedSpeech: (PiboSpeech) -> Void
     let presentSheet: (HomeSheetDestination) -> Void
     var companion: HomeCompanionController? = nil
+    var growthTone: () -> PiboCoreGrowthTone = { .gentle }
     var healthPrompts = HealthRecoveryPromptStore()
     /// DEBUG pat rehearsal: an isolated scenario input and resolution.
     var debugPat: (input: () -> PiboPatConversationInput, resolve: () -> PiboPatResolution)? = nil
@@ -67,7 +68,7 @@ struct HomeStageInteractions {
             history: history,
             animationPresentation: animationPresentation,
             healthAvailability: healthAvailability(),
-            storyStage: storyStage()
+            storyStage: storyStage(), tone: Int(growthTone().rawValue)
         ).input()
         animationPresentation.noteAttention()
         // Decision 049: the first guided pat uses the ordinary Core reaction,
@@ -85,15 +86,21 @@ struct HomeStageInteractions {
             contextualActions: contextualActions,
             stageCommands: stageCommands,
             presentHealthStatus: {
-                guard !isDailyGuidePat else { return }
-                // 2026-09-28: a pat offers health help at most once per local
-                // day and never on the onboarding day; a sheet that could not
-                // open does not use up the day.
-                guard healthPrompts.patPromptAllowed(onboardingCompletedAt: onboardingCompletedAt),
-                      canPresentSheet()
-                else { return }
-                healthPrompts.markPatPromptShown()
-                presentSheet(.healthDataStatus)
+                let authorization = input.state == .dataUnknown && input.dataUnknownReason == .authorization
+                guard !isDailyGuidePat || authorization else { return }
+                // 2026-10-22: an explicit authorization pat can help on day one.
+                // Let Pibo's line land first; only an actually opened sheet uses the day.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(1200))
+                    guard !Task.isCancelled, canPresentSheet(),
+                          animationPresentation.patState == input.state,
+                          HomePatInputProvider.dataUnknownReason(for: healthAvailability()) == input.dataUnknownReason,
+                          healthPrompts.patPromptAllowed(onboardingCompletedAt: onboardingCompletedAt,
+                                                        allowAuthorizationOnboardingDay: authorization)
+                    else { return }
+                    healthPrompts.markPatPromptShown()
+                    presentSheet(.healthDataStatus)
+                }
             },
             show: { line in
                 if input.state == .stable { animationPresentation.stableThinking = false }
@@ -140,7 +147,7 @@ struct HomeStageInteractions {
     }
 
     private func handleOrnamentTap(_ id: PiboOrnament.ID) {
-        if id == .hammock, ornamentUnlocks.isUnlocked(.hammock) { companion?.onHammockTapped() }
+        if id == .hammock, ornamentUnlocks.isHammockPlaced() { companion?.onHammockTapped() }
         HomeOrnamentInteractionCoordinator.handleTap(
             ornamentID: id,
             canPresent: canPresentSheet,

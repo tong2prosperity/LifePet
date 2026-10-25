@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import UserNotifications
+import UIKit
 import os
 
 /// Small testable FIFO used for the shared achievement notification slot.
@@ -25,6 +26,26 @@ final class AchievementNotificationPublicationQueue {
     }
 }
 
+@MainActor
+protocol WorkoutNotificationScheduling: AnyObject {
+    func workoutAuthorizationStatus() async -> UNAuthorizationStatus
+    func workoutRequestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
+    func workoutAdd(_ request: UNNotificationRequest) async throws
+    func workoutWithdraw(_ identifier: String)
+}
+
+extension UNUserNotificationCenter: WorkoutNotificationScheduling {
+    func workoutAuthorizationStatus() async -> UNAuthorizationStatus { await notificationSettings().authorizationStatus }
+    func workoutRequestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
+        try await requestAuthorization(options: options)
+    }
+    func workoutAdd(_ request: UNNotificationRequest) async throws { try await add(request) }
+    func workoutWithdraw(_ identifier: String) {
+        removePendingNotificationRequests(withIdentifiers: [identifier])
+        removeDeliveredNotifications(withIdentifiers: [identifier])
+    }
+}
+
 /// Sends one immediate local notification when a newly synced HealthKit
 /// workout completes. HealthKit's UUID is the durable deduplication key, so a
 /// background observer wake and a later foreground reconcile cannot notify
@@ -36,13 +57,17 @@ final class WorkoutCompletionNotifier {
 
     var pushEnabled: Bool {
         didSet {
-            UserDefaults.standard.set(pushEnabled, forKey: Self.enabledKey)
+            preferenceDefaults.set(pushEnabled, forKey: Self.enabledKey)
+            if !pushEnabled { invalidatePendingReminder() }
         }
     }
 
     private(set) var authorized = false
 
-    @ObservationIgnored private let notificationCenter: UNUserNotificationCenter
+    @ObservationIgnored private let notificationCenter: any WorkoutNotificationScheduling
+    @ObservationIgnored private let preferenceDefaults: UserDefaults
+    @ObservationIgnored private let isBackground: @MainActor () -> Bool
+    @ObservationIgnored private var publicationGeneration = 0
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var inFlightIDs: Set<UUID> = []
     /// Serializes writes to the one replaceable achievement request. A steps
@@ -56,32 +81,34 @@ final class WorkoutCompletionNotifier {
     private static let deliveredIDsKey = "pibo.workout.push.deliveredIDs.v1"
     private static let retainedIDLimit = 64
     private static let achievementRequestID = "pibo.animation.achievement.latest"
-    private static let firstBoRipeRequestID = "pibo.bo.first-ripe"
 
-    private init(
-        notificationCenter: UNUserNotificationCenter = .current(),
-        defaults: UserDefaults? = nil
+    init(
+        notificationCenter: any WorkoutNotificationScheduling = UNUserNotificationCenter.current(),
+        defaults: UserDefaults? = nil,
+        preferenceDefaults: UserDefaults = .standard,
+        isBackground: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .background }
     ) {
         self.notificationCenter = notificationCenter
+        self.preferenceDefaults = preferenceDefaults
+        self.isBackground = isBackground
         self.defaults = defaults
             ?? UserDefaults(suiteName: PiboWidgetConstants.appGroupID)
             ?? .standard
-        self.pushEnabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true
+        self.pushEnabled = preferenceDefaults.object(forKey: Self.enabledKey) as? Bool ?? true
     }
 
     /// Restores the current authorization state only. Launch never requests
     /// notification permission (decision 049); the Home guide and the explicit
     /// settings toggle request full alert + sound authorization.
     func start() async {
-        let settings = await notificationCenter.notificationSettings()
-        authorized = Self.isAuthorized(settings.authorizationStatus)
+        authorized = Self.isAuthorized(await notificationCenter.workoutAuthorizationStatus())
     }
 
     func requestAuthorization(provisional: Bool = false) async {
         var options: UNAuthorizationOptions = [.alert, .sound]
         if provisional { options.insert(.provisional) }
         do {
-            authorized = try await notificationCenter.requestAuthorization(options: options)
+            authorized = try await notificationCenter.workoutRequestAuthorization(options: options)
         } catch {
             authorized = false
             LPLog.workout.error(
@@ -92,15 +119,17 @@ final class WorkoutCompletionNotifier {
 
     @discardableResult
     func maybeNotify(workout: PendingWorkout, piboState: PiboActivityState) async -> Bool {
-        guard pushEnabled,
+        guard isBackground(),
+              pushEnabled,
               !deliveredIDs.contains(workout.id),
               inFlightIDs.insert(workout.id).inserted
         else { return false }
         defer { inFlightIDs.remove(workout.id) }
 
-        let settings = await notificationCenter.notificationSettings()
-        guard !Task.isCancelled else { return false }
-        authorized = Self.isAuthorized(settings.authorizationStatus)
+        let generation = publicationGeneration
+        let status = await notificationCenter.workoutAuthorizationStatus()
+        guard !Task.isCancelled, canPublish(generation) else { return false }
+        authorized = Self.isAuthorized(status)
         guard authorized else { return false }
 
         let content = UNMutableNotificationContent()
@@ -122,7 +151,8 @@ final class WorkoutCompletionNotifier {
             content: content,
             trigger: nil
         )
-        if await enqueueAchievementRequest(request) {
+        guard canPublish(generation) else { return false }
+        if await enqueueAchievementRequest(request, generation: generation) {
             rememberDelivered(workout.id)
             LPLog.workout.notice(
                 "workout notification delivered id=\(workout.id.uuidString, privacy: .public) state=\(piboState.rawValue, privacy: .public)"
@@ -134,10 +164,11 @@ final class WorkoutCompletionNotifier {
 
     @discardableResult
     func notifyStepsAchievement() async -> Bool {
-        guard pushEnabled else { return false }
-        let settings = await notificationCenter.notificationSettings()
-        guard !Task.isCancelled else { return false }
-        authorized = Self.isAuthorized(settings.authorizationStatus)
+        guard isBackground(), pushEnabled else { return false }
+        let generation = publicationGeneration
+        let status = await notificationCenter.workoutAuthorizationStatus()
+        guard !Task.isCancelled, canPublish(generation) else { return false }
+        authorized = Self.isAuthorized(status)
         guard authorized else { return false }
         let content = UNMutableNotificationContent()
         content.title = "Pibo"
@@ -150,52 +181,28 @@ final class WorkoutCompletionNotifier {
         content.threadIdentifier = "pibo.animation.achievement"
         content.userInfo = [AppNotificationCategory.achievementKindUserInfoKey: "muscle"]
         guard !Task.isCancelled else { return false }
+        guard canPublish(generation) else { return false }
         return await enqueueAchievementRequest(UNNotificationRequest(
             identifier: Self.achievementRequestID,
             content: content,
             trigger: nil
-        ))
-    }
-
-    /// 首枚 `bo` 长熟时的一次性提醒。成熟事实不会过期或冻结后续积累。
-    @discardableResult
-    func notifyFirstBoRipened() async -> Bool {
-        guard pushEnabled else { return false }
-        let settings = await notificationCenter.notificationSettings()
-        guard !Task.isCancelled else { return false }
-        authorized = Self.isAuthorized(settings.authorizationStatus)
-        guard authorized else { return false }
-
-        let content = UNMutableNotificationContent()
-        content.title = "Pibo"
-        content.body = AppLocalization.narrative("home.bo.firstRipe")
-        content.sound = .default
-        content.threadIdentifier = "pibo.bo.ripe"
-        do {
-            try await notificationCenter.add(UNNotificationRequest(
-                identifier: Self.firstBoRipeRequestID,
-                content: content,
-                trigger: nil
-            ))
-            LPLog.bo.notice("first-ripe notification delivered")
-            return true
-        } catch {
-            LPLog.bo.error("first-ripe notification failed: \(error.localizedDescription, privacy: .public)")
-            return false
-        }
+        ), generation: generation)
     }
 
     /// Queueing, rather than merely cancelling the previous caller, is what
     /// guarantees that the most recently observed achievement owns the final
     /// delivered notification. Cancellation cannot reliably stop an
     /// `UNUserNotificationCenter.add` that is already in flight.
-    private func enqueueAchievementRequest(_ request: UNNotificationRequest) async -> Bool {
-        let publication = achievementPublicationQueue.submit { @MainActor [notificationCenter] in
-            notificationCenter.removeDeliveredNotifications(
-                withIdentifiers: [Self.achievementRequestID]
-            )
+    private func enqueueAchievementRequest(_ request: UNNotificationRequest, generation: Int) async -> Bool {
+        let publication = achievementPublicationQueue.submit { @MainActor [self] in
+            guard canPublish(generation) else { return false }
+            notificationCenter.workoutWithdraw(Self.achievementRequestID)
             do {
-                try await notificationCenter.add(request)
+                try await notificationCenter.workoutAdd(request)
+                guard canPublish(generation) else {
+                    notificationCenter.workoutWithdraw(Self.achievementRequestID)
+                    return false
+                }
                 return true
             } catch {
                 LPLog.workout.error(
@@ -205,6 +212,17 @@ final class WorkoutCompletionNotifier {
             }
         }
         return await publication.value
+    }
+
+    /// Called after a foreground return and when the user disables reminders.
+    /// Invalidating the generation also cancels work waiting in the FIFO.
+    func invalidatePendingReminder() {
+        publicationGeneration += 1
+        notificationCenter.workoutWithdraw(Self.achievementRequestID)
+    }
+
+    private func canPublish(_ generation: Int) -> Bool {
+        generation == publicationGeneration && pushEnabled && isBackground()
     }
 
     private var deliveredIDs: Set<UUID> {

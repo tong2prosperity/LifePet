@@ -187,9 +187,7 @@ struct PiboStageView: View, Equatable {
                 }
                 .accessibilityHint(AppLocalization.text("查看功能和唤醒所需的 bo"))
             }
-            if companionHotspots.findsHiddenPibo {
-                Button(AppLocalization.text("草丛里好像有动静")) { onCompanionHotspot(.grass) }
-            } else if companionHotspots.grass {
+            if companionHotspots.grass {
                 Button(AppLocalization.text("草丛")) { onCompanionHotspot(.grass) }
             }
             if companionHotspots.river {

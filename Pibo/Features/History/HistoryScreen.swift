@@ -25,28 +25,31 @@ struct HistoryScreen: View {
 
     /// Where to land when the surface opens. `nil` = the normal 足迹 entry.
     var focus: HistoryFocus?
+    var initialDate: Date?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            LP.Fill.bgSurfaceSecondary.ignoresSafeArea()
+            PixelUIColor.paperDim.ignoresSafeArea()
 
-            HistoryFloorView(focus: focus)
+            HistoryFloorView(focus: focus, initialDate: initialDate)
 
             Button {
                 LPHaptics.tap()
                 dismiss()
             } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(LP.Content.secondary)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(LP.Fill.bgContainer))
-                    .lpShadow(LP.Shadow.elevation1)
+                Text("×")
+                    .font(PixelFont.font(18))
+                    .foregroundStyle(PixelUIColor.ink)
+                    .frame(width: 44, height: 44)
+                    .background(PixelUIColor.paper)
+                    .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                    .background { Rectangle().fill(PixelUIColor.shadow).offset(x: 2, y: 2) }
             }
             .buttonStyle(.plain)
             .padding(.trailing, LP.Spacing.xl)
-            .padding(.top, LP.Spacing.l)
+            .padding(.top, LP.Spacing.s)
             .accessibilityLabel(AppLocalization.text("关闭"))
+            .accessibilityIdentifier("pibo.history.close")
         }
     }
 }

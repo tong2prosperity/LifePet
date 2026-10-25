@@ -138,7 +138,7 @@ private extension WishSlot {
 @MainActor
 @Observable
 final class WishStore {
-    static let defaultsKey = "pibo_growth_wishes/wishes.v1"
+    nonisolated static let defaultsKey = "pibo_growth_wishes/wishes.v1"
 
     private(set) var day = ""
     private(set) var slots: [WishSlot] = []
@@ -188,6 +188,10 @@ final class WishStore {
         slots.filter { slot in
             slot.night == .lastNight || PiboCoreWishes.visible(slot.kind, localHour: localHour)
         }
+    }
+
+    func hasUncompletedWish(_ kind: PiboCoreWishKind, now: Date = .now) -> Bool {
+        day == growthDayKey(now) && slots.contains { $0.kind == kind && !$0.done }
     }
 
     /// Plans a new day when needed, refreshes progress and returns the wishes

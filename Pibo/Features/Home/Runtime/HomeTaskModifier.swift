@@ -84,6 +84,11 @@ struct HomeTaskModifier: ViewModifier {
                 soundscape.handleInterruption(notification)
             }
             .onReceive(NotificationCenter.default.publisher(
+                for: AVAudioSession.mediaServicesWereResetNotification
+            )) { _ in
+                soundscape.handleMediaServicesReset()
+            }
+            .onReceive(NotificationCenter.default.publisher(
                 for: AVAudioSession.silenceSecondaryAudioHintNotification
             )) { notification in
                 soundscape.handleSecondaryAudioHint(notification)

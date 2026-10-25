@@ -1,3 +1,4 @@
+import Foundation
 import PiboCore
 
 enum PiboCoreWorkoutAdapter {
@@ -39,10 +40,14 @@ enum PiboCoreWorkoutAdapter {
         )
     }
 
-    /// App lifecycle gate around Core's age policy. HealthKit anchor history is
-    /// intentionally absent: an anchor describes query provenance, not recency.
-    static func achievementShouldQueue(policy: EventPolicy, occurredToday: Bool) -> Bool {
-        policy.isFresh && occurredToday
+    /// Decision 055: use the released same-day response contract, not the old
+    /// five-minute ingestion policy. Platform code supplies observation facts.
+    static func responseEligible(endedAt: Date, observationStartedAt: Date?, now: Date = .now,
+                                 calendar: Calendar = .current) -> Bool {
+        PiboCoreWorkout.responseEligible(
+            endedSameLocalDay: calendar.isDate(endedAt, inSameDayAs: now),
+            endedAfterObservationStart: observationStartedAt.map { endedAt >= $0 && endedAt <= now } ?? false
+        )
     }
 
     static func pendingWorkoutIsRestorable(ageSeconds: Double, sameDay: Bool) -> Bool {

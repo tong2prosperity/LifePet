@@ -148,7 +148,13 @@ extension HealthDataService {
         }
 
         LPLog.healthKit.notice("History backfill: \(byDay.count, privacy: .public) day buckets over \(days, privacy: .public)d")
-        return byDay.values.sorted { $0.date < $1.date }
+        return byDay.values.map { value in
+            var value = value
+            if value.activeEnergyArrived || value.exerciseArrived || value.standArrived {
+                value.activityObservedAt = now
+            }
+            return value
+        }.sorted { $0.date < $1.date }
     }
 
     /// Read the last `days` of completed `HKWorkout`s as per-workout detail for

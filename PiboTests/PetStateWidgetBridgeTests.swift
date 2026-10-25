@@ -4,6 +4,64 @@ import Testing
 
 @MainActor
 struct PetStateWidgetBridgeTests {
+    @Test func oldHiddenMoodLabelCannotReplaceTheCurrentWidgetState() throws {
+        var snapshot = PiboWidgetSnapshot.fallback
+        snapshot.stateLabel = "平稳"
+        let data = try JSONEncoder().encode(snapshot)
+        var old = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        old["companionStatusLabel"] = "躲在草丛里"
+        old["companionStatusExpiresAt"] = Date().addingTimeInterval(3600).timeIntervalSinceReferenceDate
+        let decoded = try JSONDecoder().decode(PiboWidgetSnapshot.self,
+                                               from: JSONSerialization.data(withJSONObject: old))
+        #expect(decoded.displayStateLabel(at: .now) == "平稳")
+    }
+
+    @Test func healthRefreshPreservesPixelAppearance() {
+        var previous = PiboWidgetSnapshot.fallback
+        previous.pixel = PiboCompanionPixelState(
+            level: 8, bodyStage: 2, leafStage: 3, accessoryMask: 7, form: 0, formStuck: false,
+            balance: 4, wishes: [], finds: [], thought: false)
+        previous.activeEnergy = 100
+        let next = PetStateWidgetBridge.activitySnapshot(
+            petName: "Pibo", dayCount: 8, activityState: .stable,
+            record: nil, retaining: previous)
+        #expect(next.pixel == previous.pixel)
+        #expect(next.activeEnergy == 100, "a missing history row must not erase a live HealthKit snapshot")
+    }
+
+    @Test func recordedZeroAndHealthTimestampSurviveWidgetProjection() {
+        let at = Date(timeIntervalSince1970: 1_792_700_000)
+        let record = HealthDayRecord(date: at, activeEnergy: 0, exerciseMinutes: 0, standMinutes: 0,
+                                     updatedAt: at)
+        record.activeEnergyRecorded = true
+        record.exerciseRecorded = true
+        record.standRecorded = true
+        let snapshot = PetStateWidgetBridge.activitySnapshot(petName: "Pibo", dayCount: 1,
+                                                             activityState: .stable, record: record)
+        #expect(snapshot.activeEnergy == 0)
+        #expect(snapshot.exerciseMinutes == 0)
+        #expect(snapshot.standHours == 0)
+        #expect(snapshot.activityUpdatedAt == at)
+        #expect(snapshot.activityStatus(at: at).hasPrefix("更新 "))
+    }
+
+    @Test func widgetRolloverClearsOnlyDailyFactsAndKeepsTheTrueHealthTime() {
+        let at = Date(timeIntervalSince1970: 1_792_700_000)
+        var snapshot = PiboWidgetSnapshot.fallback
+        snapshot.activeEnergy = 240
+        snapshot.moveProgress = 0.4
+        snapshot.activityDayStart = Calendar.current.startOfDay(for: at)
+        snapshot.activityUpdatedAt = at
+        snapshot.updatedAt = at.addingTimeInterval(86400) // identity/chrome refresh
+        let display = snapshot.activitySnapshotForDisplay(at: at.addingTimeInterval(86400))
+        #expect(display.activeEnergy == nil)
+        #expect(display.moveProgress == nil)
+        #expect(display.activityUpdatedAt == at)
+        #expect(display.updatedAt == snapshot.updatedAt)
+        #expect(display.activityStatus(at: at.addingTimeInterval(86400)) == "等待今日同步")
+        #expect(PiboWidgetSnapshot.fallback.activityStatus(at: .now) == "等待首次同步")
+    }
+
     @Test func widgetSnapshotPreservesTheVersionOnePayloadMapping() throws {
         let updatedAt = Date(timeIntervalSince1970: 1_700_000_100)
 
@@ -68,8 +126,8 @@ struct PetStateWidgetBridgeTests {
         )
         #expect(missingGoals.activeEnergy == 240)
         #expect(missingGoals.moveProgress == nil)
-        #expect(missingGoals.exerciseProgress == nil)
-        #expect(missingGoals.standProgress == nil)
+        #expect(missingGoals.exerciseProgress != nil, "a missing Move goal must not hide the known Exercise goal")
+        #expect(missingGoals.standProgress != nil)
     }
 
     @Test func versionOneSnapshotWithoutActivityFieldsStillDecodes() throws {

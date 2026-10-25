@@ -7,14 +7,13 @@ import os
 /// Every eligibility, budget and selection rule is decided by pibo-core; this
 /// type only validates and indexes the authored content.
 struct PiboCompanionCatalog: Equatable {
-    enum HideSeekCondition: Equatable { case any, found, none }
-
     struct Conditions: Equatable {
         var stateMask: UInt32 = 0
         var patContextMask: UInt32 = 0
         var weatherMask: UInt32 = 0
         var phaseMask: UInt32 = 0
-        var hideSeek: HideSeekCondition = .any
+        var requiresAnswers: [String] = []
+        var excludesAnswers: [String] = []
     }
 
     struct Echo: Equatable {
@@ -28,7 +27,6 @@ struct PiboCompanionCatalog: Equatable {
         let id: String
         let label: String
         let reaction: [String]
-        let mood: PiboCoreCompanionMood
         let echoes: [Echo]
     }
 
@@ -52,6 +50,25 @@ struct PiboCompanionCatalog: Equatable {
         let lines: [String]
     }
 
+    struct BeatTelling: Equatable { var stateMask: UInt32; var lines: [String] }
+    struct ThreadBeat: Equatable {
+        var threadKey: String
+        var thread: Int
+        var beat: Int
+        var day: Int
+        var lines: [String]
+        var variants: [BeatTelling]
+        var awayLines: [String]
+    }
+    struct Remark: Equatable {
+        var id: String
+        var slotMask: UInt32
+        var conditions: Conditions
+        var cooldownDays: Double
+        var lines: [String]
+    }
+    struct FirstRecall: Equatable { var first: PiboCoreTimelineFirst; var lines: [String] }
+
     enum CatalogError: Error, Equatable {
         case invalid(String)
     }
@@ -65,6 +82,11 @@ struct PiboCompanionCatalog: Equatable {
     private(set) var sceneLines: [Line] = []
     private(set) var customReactions: [Line] = []
     private(set) var customEchoes: [Line] = []
+    private(set) var threadBeats: [ThreadBeat] = []
+    private(set) var remarks: [Remark] = []
+    private(set) var firstRecalls: [FirstRecall] = []
+    private(set) var recallOpeners: [String] = []
+    private(set) var phaseWords: [String] = []
 
     static func bundled(bundle: Bundle = .main) -> PiboCompanionCatalog? {
         guard let url = bundle.url(forResource: resourceName, withExtension: "jsonl"),
@@ -89,7 +111,8 @@ struct PiboCompanionCatalog: Equatable {
         var patContext: [String]?
         var weather: [String]?
         var phase: [String]?
-        var hideSeek: String?
+        var requiresAnswer: [String]?
+        var excludesAnswer: [String]?
     }
 
     private struct RawEcho: Decodable {
@@ -103,7 +126,6 @@ struct PiboCompanionCatalog: Equatable {
         let id: String
         let label: String
         let reaction: [String]
-        var mood: String?
         var echoes: [RawEcho]?
     }
 
@@ -120,7 +142,16 @@ struct PiboCompanionCatalog: Equatable {
         var weight: Int?
         let lines: [String]
         var options: [RawOption]?
+        var thread: String?
+        var beat: Int?
+        var day: Int?
+        var variants: [RawBeatVariant]?
+        var awayLines: [String]?
+        var first: String?
+        var phaseWords: [String: String]?
     }
+
+    private struct RawBeatVariant: Decodable { var state: [String]; var lines: [String] }
 
     static func parse(_ jsonl: String) throws -> PiboCompanionCatalog {
         var catalog = PiboCompanionCatalog()
@@ -135,6 +166,43 @@ struct PiboCompanionCatalog: Equatable {
                 throw CatalogError.invalid("duplicate id \(raw.id)")
             }
             switch raw.type {
+            case "threadBeat":
+                guard let thread = raw.thread, !thread.isEmpty,
+                      let beat = raw.beat, beat > 0, let day = raw.day, day > 0 else {
+                    throw CatalogError.invalid("invalid beat \(raw.id)")
+                }
+                var threads: [String] = []
+                for beat in catalog.threadBeats where !threads.contains(beat.threadKey) { threads.append(beat.threadKey) }
+                if !threads.contains(thread) { threads.append(thread) }
+                let variants = try (raw.variants ?? []).map { variant -> BeatTelling in
+                    var mask: UInt32 = 0
+                    for key in variant.state {
+                        guard let state = stateRaw(key) else { throw CatalogError.invalid("state \(key)") }
+                        mask |= 1 << UInt32(state)
+                    }
+                    guard mask != 0 else { throw CatalogError.invalid("empty beat variant \(raw.id)") }
+                    return BeatTelling(stateMask: mask, lines: try lines(variant.lines, id: raw.id))
+                }
+                catalog.threadBeats.append(ThreadBeat(threadKey: thread, thread: threads.firstIndex(of: thread)!,
+                                                       beat: beat, day: day, lines: try lines(raw.lines, id: raw.id),
+                                                       variants: variants, awayLines: raw.awayLines ?? []))
+            case "remark":
+                catalog.remarks.append(Remark(id: raw.id, slotMask: try slotMask(raw.slots, id: raw.id),
+                                               conditions: try conditions(raw.conditions), cooldownDays: max(1, raw.cooldownDays ?? 1),
+                                               lines: try lines(raw.lines, id: raw.id)))
+            case "firstRecall":
+                let firsts: [String: PiboCoreTimelineFirst] = ["pat": .pat, "boCollected": .boCollected, "hammockNight": .hammockNight, "meal": .meal]
+                guard let first = firsts[raw.first ?? ""], !catalog.firstRecalls.contains(where: { $0.first == first }) else {
+                    throw CatalogError.invalid("invalid first recall \(raw.id)")
+                }
+                catalog.firstRecalls.append(FirstRecall(first: first, lines: try lines(raw.lines, id: raw.id)))
+            case "recallOpener":
+                let words = ["morning", "day", "evening", "night"].map { raw.phaseWords?[$0] ?? "" }
+                guard catalog.recallOpeners.isEmpty, raw.lines.count >= 2, words.allSatisfy({ !$0.isEmpty }) else {
+                    throw CatalogError.invalid("invalid recall opener \(raw.id)")
+                }
+                catalog.recallOpeners = try lines(raw.lines, id: raw.id)
+                catalog.phaseWords = words
             case "prompt":
                 let options = try (raw.options ?? []).map { try option($0, promptID: raw.id) }
                 guard options.count == 2, options[0].id != options[1].id else {
@@ -181,7 +249,30 @@ struct PiboCompanionCatalog: Equatable {
         guard !catalog.customReactions.isEmpty, !catalog.customEchoes.isEmpty else {
             throw CatalogError.invalid("missing custom reply pools")
         }
+        try catalog.validateTimeline()
         return catalog
+    }
+
+    private func validateTimeline() throws {
+        for thread in Set(threadBeats.map(\.threadKey)) {
+            let beats = threadBeats.filter { $0.threadKey == thread }.sorted { $0.beat < $1.beat }
+            for (i, beat) in beats.enumerated() {
+                guard beat.beat == i + 1, i == 0 || beat.day > beats[i - 1].day else {
+                    throw CatalogError.invalid("out of order thread \(thread)")
+                }
+            }
+        }
+        for condition in prompts.map(\.conditions) + remarks.map(\.conditions) {
+            for key in condition.requiresAnswers + condition.excludesAnswers {
+                let parts = key.split(separator: ":", maxSplits: 1).map(String.init)
+                guard let id = parts.first, let prompt = prompt(id), parts.count == 1 || prompt.options.contains(where: { $0.id == parts[1] }) else {
+                    throw CatalogError.invalid("unknown answer condition \(key)")
+                }
+            }
+        }
+        if !firstRecalls.isEmpty && (firstRecalls.count != PiboCoreTimelineFirst.allCases.count || recallOpeners.count < 2) {
+            throw CatalogError.invalid("incomplete first recall catalog")
+        }
     }
 
     static func slot(key: String) -> PiboCoreCompanionSlot? {
@@ -196,7 +287,6 @@ struct PiboCompanionCatalog: Equatable {
         case "scene.grass": .sceneGrass
         case "scene.river": .sceneRiver
         case "scene.hammock": .sceneHammock
-        case "hideSeek.timeout": .hideSeekTimeout
         default: nil
         }
     }
@@ -213,7 +303,7 @@ struct PiboCompanionCatalog: Equatable {
         case .sceneGrass: "scene.grass"
         case .sceneRiver: "scene.river"
         case .sceneHammock: "scene.hammock"
-        case .hideSeekTimeout: "hideSeek.timeout"
+        default: preconditionFailure("Unsupported companion slot")
         }
     }
 
@@ -229,6 +319,8 @@ struct PiboCompanionCatalog: Equatable {
 
     private static func conditions(_ raw: RawConditions?) throws -> Conditions {
         var result = Conditions()
+        result.requiresAnswers = raw?.requiresAnswer ?? []
+        result.excludesAnswers = raw?.excludesAnswer ?? []
         for key in raw?.state ?? [] {
             guard let state = stateRaw(key) else { throw CatalogError.invalid("state \(key)") }
             result.stateMask |= 1 << UInt32(state)
@@ -241,12 +333,6 @@ struct PiboCompanionCatalog: Equatable {
         }
         result.weatherMask = try weatherMask(raw?.weather)
         result.phaseMask = try phaseMask(raw?.phase)
-        switch raw?.hideSeek ?? "" {
-        case "": result.hideSeek = .any
-        case "found": result.hideSeek = .found
-        case "none": result.hideSeek = .none
-        default: throw CatalogError.invalid("hideSeek")
-        }
         return result
     }
 
@@ -319,18 +405,10 @@ struct PiboCompanionCatalog: Equatable {
             )
         }
         guard !echoes.isEmpty else { throw CatalogError.invalid("option echo \(promptID)") }
-        let mood: PiboCoreCompanionMood
-        switch raw.mood ?? "" {
-        case "": mood = .none
-        case "coolhide": mood = .coolhide
-        case "dive": mood = .dive
-        default: throw CatalogError.invalid("mood \(promptID)")
-        }
         return Option(
             id: raw.id,
             label: label,
             reaction: try lines(raw.reaction, id: "\(promptID):\(raw.id)"),
-            mood: mood,
             echoes: echoes
         )
     }

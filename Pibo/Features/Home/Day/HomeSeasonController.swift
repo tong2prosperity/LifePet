@@ -69,8 +69,7 @@ struct HomeSeasonHost {
     var lifeFlags: () -> UInt32
     /// A story moment Pibo feels something about (decision 060).
     var feel: (PiboCoreEmoteTrigger) -> Void
-    /// The beat was told: the recap threads (`piboTimelineStore`) mark it here. A no-op
-    /// until the iOS timeline store lands.
+    /// The beat was told: the timeline records its thread progress here.
     var onBeatTold: (_ thread: String, _ beat: Int) -> Void = { _, _ in }
 }
 

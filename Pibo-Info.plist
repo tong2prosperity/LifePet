@@ -20,8 +20,10 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>PIBO_ANALYTICS_APP_KEY</key>
+	<string>dsk_w_IVOqY7bqVRZINYH20fcSAdEkYVLpz30A</string>
 	<key>PIBO_ANALYTICS_URL</key>
-	<string></string>
+	<string>https://analytics.navi-bot.com</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

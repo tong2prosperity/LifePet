@@ -15,6 +15,7 @@ final class WatchPiboStatusStore: ObservableObject {
         let activeEnergy: Double?
         let exerciseMinutes: Int?
         let standMinutes: Int?
+        var steps: Int? = nil
     }
 
     private let healthStore = HKHealthStore()
@@ -36,6 +37,16 @@ final class WatchPiboStatusStore: ObservableObject {
     var stateUpdatedAt: Date? { snapshot?.stateGeneratedAt ?? snapshot?.generatedAt }
     var scene: PiboFlatWorldScene { snapshot?.sceneID ?? .rainGorge }
     var growth: PiboCompanionGrowth? { snapshot?.growth }
+    var pixel: PiboCompanionPixelState? { snapshot?.pixel }
+    var todaySteps: Int? {
+        if let localActivity, Calendar.current.isDateInToday(localActivity.date), let steps = localActivity.steps { return steps }
+        return snapshot?.hasCurrentActivity() == true ? pixel?.steps : nil
+    }
+
+    func collectBo() async -> Bool {
+        guard let token = pixel?.collectionToken else { return false }
+        return await companion.collect(token: token)
+    }
     var capabilities: [PiboCompanionCapability] { snapshot?.capabilities ?? [] }
     var vectorState: PiboVectorState {
         Self.vectorState(animationID: snapshot?.animationStateID, publicStateID: snapshot?.publicStateID)
@@ -98,17 +109,18 @@ final class WatchPiboStatusStore: ObservableObject {
         let end = Date()
         do {
             let types: Set<HKObjectType> = [
-                HKQuantityType(.activeEnergyBurned), HKQuantityType(.appleExerciseTime), HKQuantityType(.appleStandTime),
+                HKQuantityType(.activeEnergyBurned), HKQuantityType(.appleExerciseTime), HKQuantityType(.appleStandTime), HKQuantityType(.stepCount),
             ]
             try await healthStore.requestAuthorization(toShare: [], read: types)
             async let energy = todaySum(.activeEnergyBurned, unit: .kilocalorie(), start: start, end: end)
             async let exercise = todaySum(.appleExerciseTime, unit: .minute(), start: start, end: end)
             async let stand = todaySum(.appleStandTime, unit: .minute(), start: start, end: end)
-            let values = await (energy, exercise, stand)
+            async let steps = todaySum(.stepCount, unit: .count(), start: start, end: end)
+            let values = await (energy, exercise, stand, steps)
             localActivity = Activity(
                 date: start, activeEnergy: values.0,
                 exerciseMinutes: values.1.map { Int($0.rounded()) },
-                standMinutes: values.2.map { Int($0.rounded()) }
+                standMinutes: values.2.map { Int($0.rounded()) }, steps: values.3.map { Int($0.rounded()) }
             )
             activityMessage = values.0 == nil && values.1 == nil && values.2 == nil
                 ? "还没有可读取的活动记录。可以稍后重试，或在健康设置中检查读取权限。"

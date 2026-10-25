@@ -15,8 +15,7 @@ struct HomeStageSurface: View {
         let environment: PiboStageEnvironment
         /// The forest's light for Pibo's state (2026-09-28).
         let forestMood: ForestMood
-        /// VoiceOver: the state caption as a sentence, or the companion scene
-        /// Pibo is in, plus what a pat does.
+        /// VoiceOver: the current state caption and what a pat does.
         let piboAccessibilityLabel: String?
         let piboAccessibilityHint: String?
         let presentedOrnaments: Set<PiboOrnament.ID>
@@ -42,7 +41,6 @@ struct HomeStageSurface: View {
             shadowPresentation: ShadowPiboStagePresentation = .hidden,
             harvestActive: Bool = false,
             balanceTarget: CGPoint? = nil,
-            moodStateID: String? = nil,
             companionHotspots: PiboStageScene.CompanionHotspots = .none,
             boOverride: BoOverride? = nil,
             stateCaption: PiboStateCaption? = nil
@@ -52,18 +50,9 @@ struct HomeStageSurface: View {
             // Decision 048: a ripe container (or a collection still playing out)
             // overrides the presentation with the one normal standing pose. The
             // health state itself is untouched.
-            // Decision 054 moods layer over the durable expression, except when
-            // the hammock owns a sleeping/waking pose.
-            let hammockPose = [
-                PiboAnimationResourceID.sleepingHammockA,
-                PiboAnimationResourceID.sleepingHammockB,
-                PiboAnimationResourceID.wakingHammock,
-            ].contains(animationPresentation.stateID)
-            let semantic = hammockPose ? animationPresentation.stateID
-                : (moodStateID ?? animationPresentation.stateID)
             self.companionHotspots = companionHotspots
             animationStateID = Self.presentedStateID(
-                semantic: semantic,
+                semantic: animationPresentation.stateID,
                 hasRipeBo: boOverride?.hasRipe ?? boLedger.hasRipeBo,
                 harvestActive: harvestActive
             )
@@ -79,7 +68,7 @@ struct HomeStageSurface: View {
             let presentedState = animationPresentation.patState
             forestMood = ForestMood(state: presentedState)
             if let stateCaption {
-                piboAccessibilityLabel = Self.companionSceneLabel(for: animationStateID) ?? stateCaption.sentence
+                piboAccessibilityLabel = stateCaption.sentence
                 piboAccessibilityHint = PiboCoreAnimationAdapter.accessibilityHint(for: presentedState)
             } else {
                 piboAccessibilityLabel = nil
@@ -175,17 +164,6 @@ struct BoOverride: Equatable {
 }
 
 extension HomeStageSurface.Input {
-    /// Companion scenes away from the log describe themselves instead of the
-    /// state (HarmonyOS `contextualActionStateDescription`).
-    static func companionSceneLabel(for stateID: String) -> String? {
-        switch stateID {
-        case "boring": AppLocalization.text("Pibo 在森林里转圈")
-        case "coolhide": AppLocalization.text("Pibo 在草丛里")
-        case "dive": AppLocalization.text("Pibo 泡在水里")
-        default: nil
-        }
-    }
-
     static func presentedStateID(semantic: String, hasRipeBo: Bool, harvestActive: Bool) -> String {
         #if DEBUG
         if HomeStageSurface.debugBypassesCollectionPose { return semantic }

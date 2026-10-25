@@ -17,19 +17,31 @@ struct HistoryCard<Background: View, Content: View>: View {
     /// house radius rather than polluting the token enum.
     static var radius: CGFloat { 24 }
 
-    var body: some View {
+    private var cardContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             HistoryCardHeader(title: title, dark: dark)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background { background() }
-        .clipShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 2)
-        )
-        .lpShadow(LP.Shadow.elevation1)
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if PiboReleaseScope.pixelHistory {
+            cardContent
+                .background {
+                    if dark { background() } else { PixelUIColor.paper }
+                }
+                .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                .background { Rectangle().fill(PixelUIColor.shadow).offset(x: 3, y: 3) }
+        } else {
+            cardContent
+                .background { background() }
+                .clipShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 2))
+                .lpShadow(LP.Shadow.elevation1)
+        }
     }
 }
 

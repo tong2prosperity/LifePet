@@ -19,9 +19,10 @@ struct HomePixelStageInput {
     var snow = false
     var reduceMotion = false
     var animationStateID = ""
-    var piboVisible = true
+    var achievementResponse: PiboAnimationAchievementKind?
     /// Pibo stays where it is while it talks, answers, or looks at a meal.
     var holdPibo = false
+    var wishPromptActive = false
 
     var growth: GrowthStore
     var cues: PiboCoreGrowthBodyCues?
@@ -39,6 +40,7 @@ struct HomePixelStageInput {
 
     var day: HomeDayController?
     var days: PiboDayStore
+    var timeline: PiboTimelineStore? = nil
     var ambient: UInt32 = 0
     var foodLook = 0
     var foodOnRight = false
@@ -52,8 +54,11 @@ struct HomePixelStageInput {
         look.snow = snow
         look.reduceMotion = reduceMotion
         look.animationStateID = animationStateID
-        look.piboVisible = piboVisible
+        look.achievementResponse = achievementResponse
+        // PixelDayDirector owns all hiding, indoor and offstage presentation.
+        // Do not project the retired companion clip's global body-hide flag here.
         look.holdPibo = holdPibo
+        look.wishPromptActive = wishPromptActive
 
         // Growth (decision 057). Before Core's first answer the appearance is nil; the
         // renderer's defaults are the honest "not known yet" picture.
@@ -79,7 +84,14 @@ struct HomePixelStageInput {
         look.footprints = cues?.footprintSegments ?? 0
         look.windmillSpeed = cues?.windmillSpeed ?? 0
         look.moonLamp = cues?.moonLamp ?? 0
-        look.stones = 1
+        let stoneBeats = timeline?.beatsToldIn("stones") ?? 0
+        look.stones = PiboCoreDecor.stoneCount(stoneBeatsTold: stoneBeats)
+        let beetleBeats = timeline?.beatsToldIn("beetle") ?? 0
+        let trace = PiboCoreDecor.beetleTrace(beetleBeatsTold: beetleBeats, localHour: max(0, hour))
+        look.beetles = trace.count
+        look.beetleSpot = trace.spotted
+        look.beetleOnLeaf = trace.onLeaf
+        look.firstMarkers = Int(PiboCoreDecor.firstMarkers(recordedMask: timeline?.recordedMask ?? 0))
         look.dayCount = dayCount
 
         // The story's things (decisions 059/062), as the day controller last read them.

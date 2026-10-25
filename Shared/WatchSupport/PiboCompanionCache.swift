@@ -12,6 +12,21 @@ nonisolated struct PiboCompanionCache {
 
         var next = incoming
         let samePet = incoming.petID != nil && incoming.petID == snapshot?.petID
+        if samePet, let previous = snapshot {
+            if next.growth == nil { next.growth = previous.growth }
+            if next.pixel == nil, var retained = previous.pixel {
+                // Retain identity/appearance, but never relabel yesterday's
+                // daily wishes or finds as today's when an older phone omits pixel.
+                if !Calendar.current.isDate(previous.dayStart, inSameDayAs: incoming.dayStart) {
+                    retained.wishes = []
+                    retained.steps = nil
+                    retained.finds = []
+                    retained.thought = false
+                    retained.stations = []
+                }
+                next.pixel = retained
+            }
+        }
         if samePet, let previous = snapshot, incoming.publicStateID == "dataUnknown",
            previous.publicStateID != "dataUnknown" {
             next.publicStateID = previous.publicStateID

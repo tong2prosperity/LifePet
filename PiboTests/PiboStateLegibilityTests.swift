@@ -80,10 +80,7 @@ struct PiboStateLegibilityTests {
         #expect(Set(tones.map { "\($0)" }).count == PiboActivityState.allCases.count)
     }
 
-    @Test func voiceOverReadsTheCaptionOrTheCompanionScene() {
-        #expect(HomeStageSurface.Input.companionSceneLabel(for: "coolhide") == "Pibo 在草丛里")
-        #expect(HomeStageSurface.Input.companionSceneLabel(for: "dive") == "Pibo 泡在水里")
-        #expect(HomeStageSurface.Input.companionSceneLabel(for: PiboAnimationResourceID.stable) == nil)
+    @Test func voiceOverDescribesTheCurrentStatePat() {
         #expect(PiboCoreAnimationAdapter.accessibilityHint(for: .tired) == "点按可让它休息")
         #expect(PiboCoreAnimationAdapter.accessibilityHint(for: .dataUnknown) == "点按可摸一摸",
                 "a pat no longer means a health prompt every time")

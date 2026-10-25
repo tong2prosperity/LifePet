@@ -158,6 +158,9 @@
     "·" : {
 
     },
+    "· %@" : {
+
+    },
     "· 今天 ·" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -174,6 +177,12 @@
           }
         }
       }
+    },
+    "‹" : {
+
+    },
+    "›" : {
+
     },
     "《纪念曲 · 圆满》" : {
       "extractionState" : "manual",
@@ -242,6 +251,9 @@
           }
         }
       }
+    },
+    "「%@」" : {
+
     },
     "/ %d 人" : {
       "extractionState" : "manual",
@@ -356,6 +368,16 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
+    "%@ %@ ▾" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@ ▾"
           }
         }
       }
@@ -859,7 +881,16 @@
         }
       }
     },
+    "+%lld" : {
+
+    },
     "+86" : {
+
+    },
+    "×" : {
+
+    },
+    "×%lld" : {
 
     },
     "● %d 人在场" : {
@@ -878,6 +909,9 @@
           }
         }
       }
+    },
+    "★ %@" : {
+
     },
     "☾ 静息星光" : {
       "extractionState" : "manual",
@@ -981,50 +1015,6 @@
         }
       }
     },
-    "只改变 Pibo 休息的地方，不影响睡眠回顾和提醒" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "It only changes where Pibo rests; sleep review and reminders are unaffected"
-          }
-        }
-      }
-    },
-    "放在林间空地，让 Pibo 有一处休息的地方" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Placed in the forest clearing, it gives Pibo somewhere to rest"
-          }
-        }
-      }
-    },
-    "森林里的休息落点" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A resting spot in the forest"
-          }
-        }
-      }
-    },
-    "睡眠回顾与提醒从一开始就可用，无需购买吊床。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sleep review and reminders work from the start; the hammock is never required."
-          }
-        }
-      }
-    },
     "🌹 分享到小红书" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1041,6 +1031,9 @@
           }
         }
       }
+    },
+    "🍽️" : {
+
     },
     "📍 %@ 已被 quit %d 次，偏好已更新" : {
       "extractionState" : "manual",
@@ -2408,6 +2401,9 @@
     "kcal · 估算" : {
 
     },
+    "Lv.%lld" : {
+
+    },
     "NN %d · 校正 %d（%d%%）· %d 秒" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2425,6 +2421,9 @@
         }
       }
     },
+    "No.%lld" : {
+
+    },
     "NOCT 只活了 14 天。它从没见过早晨的太阳——你总在凌晨才睡，醒来直接坐到电脑前。它等了很久，你始终没动。慢慢地，它懒得再动。被你熬死的第 3 只。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2441,6 +2440,12 @@
           }
         }
       }
+    },
+    "off" : {
+
+    },
+    "on" : {
+
     },
     "onboarding.close" : {
       "extractionState" : "manual",
@@ -4166,6 +4171,9 @@
     "今天的 Pibo" : {
 
     },
+    "今天的我" : {
+
+    },
     "今天的我  ·  %@" : {
 
     },
@@ -5541,6 +5549,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Uses only authorized raw health records. When data is insufficient it waits or calibrates, without generating a recovery score."
+          }
+        }
+      }
+    },
+    "只改变 Pibo 休息的地方，不影响睡眠回顾和提醒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It only changes where Pibo rests; sleep review and reminders are unaffected"
           }
         }
       }
@@ -7825,6 +7844,17 @@
     "改手机号" : {
 
     },
+    "放在林间空地，让 Pibo 有一处休息的地方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placed in the forest clearing, it gives Pibo somewhere to rest"
+          }
+        }
+      }
+    },
     "放弃" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8654,6 +8684,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Review clues left by body state"
+          }
+        }
+      }
+    },
+    "森林里的休息落点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A resting spot in the forest"
           }
         }
       }
@@ -9662,6 +9703,17 @@
         }
       }
     },
+    "睡眠回顾与提醒从一开始就可用，无需购买吊床。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep review and reminders work from the start; the hammock is never required."
+          }
+        }
+      }
+    },
     "睡眠回顾与睡醒通知" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9956,6 +10008,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Waiting for data"
+          }
+        }
+      }
+    },
+    "等级 %lld，本级经验 %lld/%lld，熟悉度 %lld 颗心。打开成长" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "等级 %1$lld，本级经验 %2$lld/%3$lld，熟悉度 %4$lld 颗心。打开成长"
           }
         }
       }
@@ -10330,6 +10392,9 @@
 
     },
     "请输入验证码" : {
+
+    },
+    "读数徽章：%@。打开读数" : {
 
     },
     "调整份量" : {
@@ -11672,6 +11737,127 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "鱼"
+          }
+        }
+      }
+    },
+    "HRV 变化提醒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HRV change reminders"
+          }
+        }
+      }
+    },
+    "这次 HRV 比你平时低一些，我先不下结论。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This HRV reading is a little below your usual range. I won’t draw conclusions yet."
+          }
+        }
+      }
+    },
+    "HRV 回到你平时的样子了。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your HRV is back to its usual range."
+          }
+        }
+      }
+    },
+    "比你平时低时提醒一次；当天回到平时再说一声" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One reminder when HRV is below your usual range, and one if it returns that day."
+          }
+        }
+      }
+    },
+    "后台同步运动时提醒；打开 Pibo 后在森林里回应" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A reminder for workouts synced in the background. Pibo responds in the forest when you open the app."
+          }
+        }
+      }
+    },
+    "▲ 上拉收取" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "▲ Pull up to collect"
+          }
+        }
+      }
+    },
+    "头顶有 1 枚已成熟的 bo，去森林往上一拉收取" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One bo is ready on Pibo’s head. Pull up in the forest to collect it."
+          }
+        }
+      }
+    },
+    "日常睡眠与活动会让头顶凝聚成 bo，成熟后上拉存入库存" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sleep and activity fill the bo on Pibo’s head. Pull up when it is ready to collect it."
+          }
+        }
+      }
+    },
+    "你的睡眠和活动让它长大。头顶的 bo 成熟后往上一拉收取，换森林里的装饰。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your sleep and activity help Pibo grow. When the bo on its head is ready, pull up to collect it and get forest decorations."
+          }
+        }
+      }
+    },
+    "横幅没开，提醒可能静默送达" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Banners are off. Reminders may arrive silently."
+          }
+        }
+      }
+    },
+    "你平时" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your usual range"
           }
         }
       }

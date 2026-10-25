@@ -36,7 +36,7 @@ final class PixelStageRenderer: PixelStageMomentTarget {
 
     /// Everything the picture depends on besides time. Change one and the next frame is a
     /// full redraw; the static forest is cached per mood and wind step.
-    struct Look {
+    struct Look: Equatable {
         /// −1 means "whatever the clock says".
         var hour: Int = -1
         var raining = false
@@ -47,8 +47,10 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         var reduceMotion = false
         /// Core's animation state id, for the pose Pibo stands in when nothing else happens.
         var animationStateID = ""
+        var achievementResponse: PiboAnimationAchievementKind?
         var piboVisible = true
         var holdPibo = false
+        var wishPromptActive = false
         // Growth look (Core appearance) and today's body cues.
         var bodyStage = 2
         var leafStage = 0
@@ -126,6 +128,9 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         }
     }
     private weak var directorBrain: PixelDayBrain?
+    private let actorVisibility = PixelActorVisibility()
+    private var originMs: Double?
+    private(set) var actorPresent = false
 
     /// Asked every few seconds at night; true when Core says a star may cross now.
     var shootingStarDue: ((Bool) -> Bool)?
@@ -170,11 +175,14 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     private var releaseFrom: Double = 1
     private var releaseStartMs: Double = -1
     private var collecting = false
+    /// SwiftUI keeps sending drag updates after release, including when reserved
+    /// energy has already filled the next container. Submit at most once per drag.
+    private var pullSubmitted = false
     /// The leaf was pulled while the bo is still growing (decision 048): it springs back.
     private var unripePulled = false
     /// Core's middle phase has been reached, so the leaf armed once for this pull.
     private var pullArmed = false
-    /// The one-line note above Pibo ("还在长 · 40%", "已收取 1 bo").
+    /// The one-line note above Pibo ("还在长 · 40%", "已存入库存 · +1 bo").
     private var boHint = ""
     private var hintUntil: Double = 0
     private var star: StarFlight?
@@ -212,14 +220,19 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     }
 
     /// Rebuilds the frame for a view of `size` in points at `scale`. `now` is milliseconds
-    /// since the stage started.
+    /// on the same Unix clock as HomeDayController. Artwork uses a local elapsed clock.
     func render(size: CGSize, scale: Int, now: Double, look: Look) -> CGImage? {
+        let scale = max(1, scale)
         self.scale = scale
         self.look = look
         self.now = now
-        elapsed = look.reduceMotion ? 0 : now
-        let pixelWidth = max(1, Int(size.width) / max(1, scale))
-        let pixelHeight = max(1, Int(size.height) / max(1, scale))
+        if originMs == nil { originMs = now }
+        elapsed = look.reduceMotion ? 0 : now - (originMs ?? now)
+        if look.reduceMotion { effects.removeAll() }
+        // Cover the viewport at the same integer pixel scale. Flooring leaves
+        // 1–2pt pale strips on screens whose dimensions are not divisible by it.
+        let pixelWidth = max(1, Int(ceil(size.width / CGFloat(scale))))
+        let pixelHeight = max(1, Int(ceil(size.height / CGFloat(scale))))
         if frame.width != pixelWidth || frame.height != pixelHeight {
             frame = PixelFrame(pixelWidth, pixelHeight)
             staticFrames = [PixelFrame(pixelWidth, pixelHeight), PixelFrame(pixelWidth, pixelHeight)]
@@ -262,7 +275,9 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         director.configure(layout, look.scene)
         let directed = director.isConfigured
         let panning = travelling(now)
-        let hold = panning || look.holdPibo || pullDistance > 0 || foodLookAge(now) >= 0
+        let springingBack = releaseStartMs >= 0 && now - releaseStartMs < 300
+        let hold = panning || look.holdPibo || pullDistance > 0 || !currentHint.isEmpty
+            || springingBack || foodLookAge(now) >= 0
         let actor = directed ? director.step(now, hold: hold) : centerActor()
         self.actor = actor
         let drawn = look.piboVisible && actor.visible && !actor.inside
@@ -304,6 +319,9 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         let x = Int(pixelDayRound(actor.x))
         let groundY = Int(pixelDayRound(actor.y)) - actor.lift
         if drawn {
+            let size = piboPixelBodySize(look.bodyStage)
+            actorVisibility.begin(frame, x: x - size[0] - 10, y: groundY - size[1] * 2 - 30,
+                                   width: size[0] * 2 + 20, height: size[1] * 2 + 38)
             let patAge = patStartMs >= 0 ? now - patStartMs : -1
             if patAge > PIBO_PIXEL_PAT_MS { patStartMs = -1 }
             let pose = piboPixelPose(activity, timeMs: elapsed, patAgeMs: patAge,
@@ -371,6 +389,11 @@ final class PixelStageRenderer: PixelStageMomentTarget {
             } else {
                 applyInteractionPose(pose, now)
                 applyFoodLook(pose, now)
+                if let response = look.achievementResponse {
+                    pose.lying = false
+                    pose.sitting = false
+                    if response == .muscle { pose.arms = .flex; pose.abs = true }
+                }
                 pose.badge = piboPixelBadgeFor(activity.rawValue)
                 pose.badgeCracked = !look.podFixed
                 pose.badgeLit = badgeLit(now)
@@ -398,6 +421,7 @@ final class PixelStageRenderer: PixelStageMomentTarget {
                 let body = piboPixelBodySize(pose.bodyStage)
                 drawPixelText(frame, "!", x + body[0] - 2, groundY - body[1] * 2 - 12, .sun)
             }
+            actorVisibility.mark(frame)
         } else if actor.inside && look.piboVisible {
             drawInsideTent(elapsed)
         }
@@ -410,6 +434,7 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         if directed { drawDecoys(actor, elapsed, now, true) }
         drawPixelKiteFlight(frame, scene)
         if directed { drawPixelAmbientFront(frame, layout, look.ambientMask, anchors, elapsed) }
+        actorPresent = drawn && !actor.hiding && !panning && actorVisibility.readable(frame)
         // The creek mirrors its far bank, then lamps and fire light whatever is near them.
         if creekHere { applyPixelReflection(frame, layout, elapsed) }
         if directed { applyPixelLight(frame, lights(mood, scene, story, storyTwo)) }
@@ -629,7 +654,7 @@ final class PixelStageRenderer: PixelStageMomentTarget {
 
     /// A finger went up on the leaf. `offsetY` is the drag, negative upwards.
     func leafPan(_ offsetY: Double, ripe: Bool) {
-        if collecting { return }
+        if collecting || pullSubmitted { return }
         if !ripe {
             // Decision 048: an unripe bo answers a pull without letting go — it stretches a
             // little against the grip and springs back on release.
@@ -649,6 +674,7 @@ final class PixelStageRenderer: PixelStageMomentTarget {
 
     func leafPanEnd() {
         if collecting { return }
+        pullSubmitted = false
         if pullDistance > 0 {
             releaseFrom = min(1, pullDistance / Self.pullFullVp)
             releaseStartMs = now
@@ -666,13 +692,17 @@ final class PixelStageRenderer: PixelStageMomentTarget {
 
     /// The pull reached Core's last phase: Home collects, then the leaf lets go.
     func collect() {
-        guard !collecting, look.leafRipe, let onCollectBo else { return }
+        guard !collecting, !pullSubmitted, look.leafRipe, let onCollectBo else { return }
+        pullSubmitted = true
         collecting = true
         let succeeded = onCollectBo()
+        let release = min(1, pullDistance / Self.pullFullVp)
         pullDistance = 0
         pullArmed = false
         collecting = false
         guard succeeded else {
+            releaseFrom = release
+            releaseStartMs = now
             showHint(AppLocalization.text("暂时没有收好，请再试一次"))
             return
         }
@@ -681,13 +711,18 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         onHaptic?(24)
         onHarvestCue?(.release)
         playMoment(.boCollected, value: 0, source: -1)
-        showHint(AppLocalization.text("已收取 1 bo"))
+        showHint(AppLocalization.text("已存入库存 · +1 bo"))
     }
 
     /// The note above Pibo, or `""` once its 2.2 s are up. The view redraws every frame, so
     /// reading it in `body` is enough to make it come and go.
     var currentHint: String {
         Date().timeIntervalSince1970 * 1000 < hintUntil ? boHint : ""
+    }
+
+    var showsRipePullHint: Bool {
+        look.leafRipe && actorPresent && !collecting && pullDistance == 0
+            && currentHint.isEmpty && !look.holdPibo
     }
 
     private func showHint(_ text: String) {
@@ -804,6 +839,7 @@ final class PixelStageRenderer: PixelStageMomentTarget {
     }
 
     private func currentActivity(_ now: Double) -> PiboPixelActivity {
+        if look.achievementResponse != nil { return .celebrate }
         if now < celebrateUntil { return .celebrate }
         return piboPixelActivity(look.animationStateID)
     }
@@ -889,8 +925,25 @@ final class PixelStageRenderer: PixelStageMomentTarget {
             drawPixelZzz(frame, cx + size[0] + 4, headY + 4, elapsed)
         } else if activity == .dataUnknown {
             drawPixelQuestion(frame, cx + size[0], headY - 4, elapsed)
+        } else if look.wishPromptActive {
+            drawWishThoughtBubble(cx + size[0] + 2, headY - 4, elapsed)
         }
         if pose.trick == PiboPixelTrick.hum.rawValue { drawPixelNotes(frame, cx + size[0] - 2, headY - 2, elapsed) }
+    }
+
+    private func drawWishThoughtBubble(_ x: Int, _ y: Int, _ elapsed: Double) {
+        let by = y - (look.reduceMotion ? 0 : Int(elapsed / 600) % 2)
+        frame.set(x - 2, by + 4, .bodyLight)
+        frame.set(x - 1, by + 2, .bodyLight)
+        frame.fillRect(x + 1, by - 4, x + 6, by - 3, .cloudLight)
+        frame.fillRect(x, by - 3, x + 7, by, .cloudLight)
+        frame.fillRect(x + 1, by, x + 6, by + 1, .cloudLight)
+        frame.fillRect(x + 1, by - 5, x + 6, by - 4, .cloudShade)
+        frame.fillRect(x + 1, by + 1, x + 6, by + 2, .cloudShade)
+        frame.fillRect(x - 1, by - 3, x, by, .cloudShade)
+        frame.fillRect(x + 7, by - 3, x + 8, by, .cloudShade)
+        let phase = look.reduceMotion ? 3 : Int(elapsed / 400) % 4
+        for dot in 0..<phase { frame.set(x + 1 + dot * 2, by - 2, .outline) }
     }
 
     private func headPoint() -> [Int] {
@@ -1108,6 +1161,7 @@ final class PixelStageRenderer: PixelStageMomentTarget {
 /// Hosts the pixel stage, ticking it at the approved rate and scaling by a whole number.
 struct PixelStageView: View {
     var look: PixelStageRenderer.Look
+    var active = true
     var debugHour: Int?
     /// Called once, when the stage exists: Home binds its day controller to this stage's
     /// director here. Without it the renderer owns a director nothing drives, and Pibo
@@ -1117,6 +1171,7 @@ struct PixelStageView: View {
     /// can fire before the view has its final size, so a single layout report would leave
     /// the director planning walks on a stage that no longer exists.
     var onLayoutChanged: ((PixelForestLayout) -> Void)?
+    var onActorChanged: ((CGPoint?, Bool) -> Void)?
     /// A double tap on Pibo (the pat itself has already played on the stage).
     var onPat: (() -> Void)?
     /// A single tap on Pibo: the badge blinked.
@@ -1139,8 +1194,10 @@ struct PixelStageView: View {
 
     @State private var image: CGImage?
     @State private var scale: Int = 3
-    @State private var start = Date()
     @State private var shake = PixelShakeSampler()
+    /// Decide ownership once at touch-down. The leaf moves while it stretches;
+    /// its changing hit box must not cancel the same finger's drag.
+    @State private var leafDragAccepted: Bool?
     #if DEBUG
     @State private var day: HomeDayController?
     #endif
@@ -1155,29 +1212,33 @@ struct PixelStageView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                Color(red: 0.95, green: 0.96, blue: 0.94)
+                stageBackground
                 if let image {
                     Image(decorative: image, scale: 1)
                         .interpolation(.none)
                         .resizable()
                         .frame(width: CGFloat(image.width * scale),
                                height: CGFloat(image.height * scale))
+                        // Raster frames already contain their animation; a surrounding
+                        // speech/sheet transaction must never crossfade the whole forest.
+                        .transaction { $0.animation = nil }
                 }
-                // Decision 062's note above the leaf ("还在长 · 40%", "已收取 1 bo"). ArkUI
+                // Decision 062's note above the leaf ("还在长 · 40%", "已存入库存 · +1 bo"). ArkUI
                 // lays a Text over the leaf's box at (leafX − 40, leafY − 28); here it is
                 // centred on that same point and kept inside the stage.
-                if !renderer.currentHint.isEmpty {
+                if !renderer.currentHint.isEmpty || renderer.showsRipePullHint {
+                    let isPullHint = renderer.currentHint.isEmpty
                     let leaf = renderer.actorHits.leaf
                     let anchor = stagePoint(CGPoint(x: Double(leaf.x + leaf.w / 2 + 10),
                                                     y: Double(leaf.y) - 18), proxy.size)
-                    Text(renderer.currentHint)
+                    Text(isPullHint ? AppLocalization.text("▲ 上拉收取") : renderer.currentHint)
                         .font(PixelFont.font(13))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(isPullHint ? PixelUIColor.ink : .white)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: true, vertical: false)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(Color(red: 0x28 / 255, green: 0x30 / 255, blue: 0x38 / 255)
+                        .background(isPullHint ? PixelUIColor.ripePaper : Color(red: 0x28 / 255, green: 0x30 / 255, blue: 0x38 / 255)
                             .opacity(0xB3 / 255))
                         .position(x: min(max(anchor.x, 60), proxy.size.width - 60),
                                   y: max(anchor.y, 24))
@@ -1185,6 +1246,8 @@ struct PixelStageView: View {
                         .accessibilityHidden(true)
                 }
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
             .onAppear {
                 redraw(size: proxy.size)
                 bindGestures()
@@ -1210,7 +1273,7 @@ struct PixelStageView: View {
                    let peak = Double(raw) {
                     Task {
                         try? await Task.sleep(for: .seconds(3))
-                        onShake?(peak)
+                        onShake?(PixelShakeSampler.peakMetersPerSecondSquared(x: peak, y: 0, z: 0))
                     }
                 }
                 // `-PiboStagePull=unripe|ripe` drags the leaf and lets go (the simulator
@@ -1242,18 +1305,38 @@ struct PixelStageView: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 4)
                     .onChanged { value in leafDragChanged(value, proxy.size) }
-                    .onEnded { _ in renderer.leafPanEnd() }
+                    .onEnded { _ in
+                        if leafDragAccepted == true { renderer.leafPanEnd() }
+                        leafDragAccepted = nil
+                    }
             )
         }
         .ignoresSafeArea()
         .onReceive(timer) { _ in
-            let now = Date().timeIntervalSince(start) * 1000
+            // Reduce Motion freezes decorative animation in the renderer; its
+            // functional director clock must still finish scripts and interactions.
+            guard active else { return }
+            let now = Date().timeIntervalSince1970 * 1000
             var current = look
             if let debugHour { current.hour = debugHour }
             image = renderer.render(size: lastSize, scale: scale, now: now, look: current)
             reportLayoutIfNeeded()
+            reportActor()
+        }
+        .onChange(of: look) { _, _ in if active { redraw(size: lastSize) } }
+        .onChange(of: look.reduceMotion) { _, reduced in
+            if reduced { shake.stop() } else { startShake() }
+        }
+        .onChange(of: active) { _, active in
+            if active { redraw(size: lastSize); startShake() } else {
+                renderer.leafPanEnd()
+                leafDragAccepted = nil
+                shake.stop()
+            }
         }
         .onDisappear {
+            renderer.leafPanEnd()
+            leafDragAccepted = nil
             shake.stop()
             #if DEBUG
             day?.stop()
@@ -1261,10 +1344,18 @@ struct PixelStageView: View {
         }
     }
 
+    private var stageBackground: Color {
+        let hour = debugHour ?? (look.hour >= 0 ? look.hour : Calendar.current.component(.hour, from: .now))
+        let rgb = PixelPalette.rgb(pixelMoodFor(hour, look.raining))
+        let offset = PixelInk.skyTop.index * 3
+        return Color(.sRGB, red: Double(rgb[offset]) / 255,
+                     green: Double(rgb[offset + 1]) / 255, blue: Double(rgb[offset + 2]) / 255, opacity: 1)
+    }
+
     /// Shake is sampled only while Home is on screen; Core decides what counts (decision
     /// 062). ArkUI reads the same sensor at 100 ms.
     private func startShake() {
-        guard let onShake else { return }
+        guard active, !look.reduceMotion, let onShake else { return }
         shake.start { peak in onShake(peak) }
     }
 
@@ -1278,6 +1369,19 @@ struct PixelStageView: View {
     }
 
     @State private var lastSize: CGSize = .zero
+    @State private var reportedAnchor: CGPoint?
+    @State private var reportedPresence: Bool?
+
+    private func reportActor() {
+        guard let onActorChanged else { return }
+        let present = renderer.actorPresent
+        let leaf = renderer.actorHits.leaf
+        let anchor = present ? stagePoint(CGPoint(x: Double(leaf.x + leaf.w / 2), y: Double(leaf.y)), lastSize) : nil
+        guard anchor != reportedAnchor || present != reportedPresence else { return }
+        reportedAnchor = anchor
+        reportedPresence = present
+        onActorChanged(anchor, present)
+    }
 
     private func redraw(size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
@@ -1285,14 +1389,12 @@ struct PixelStageView: View {
         scale = max(1, Int((size.width / CGFloat(PixelStageRenderer.targetWidth)).rounded()))
         var current = look
         if let debugHour { current.hour = debugHour }
-        image = renderer.render(size: size, scale: scale, now: 0, look: current)
+        image = renderer.render(size: size, scale: scale, now: Date().timeIntervalSince1970 * 1000, look: current)
+        reportActor()
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-PiboStageMetrics") {
             let layout = renderer.currentLayout
-            let leaf = renderer.actorHits.leaf
-            print("stage size=\(size) scale=\(scale) logical=\(renderer.pixelSize) " +
-                  "horizon=\(layout.horizonY) ground=\(layout.groundY) actor=\(renderer.actor.x),\(renderer.actor.y) " +
-                  "leaf=\(leaf.x),\(leaf.y),\(leaf.w)x\(leaf.h)")
+            LPLog.day.notice("stage width=\(layout.width) height=\(layout.height) actor=\(renderer.actor.x),\(renderer.actor.y) visible=\(renderer.actor.visible) inside=\(renderer.actor.inside) hiding=\(renderer.actor.hiding) enabled=\(current.piboVisible) hold=\(current.holdPibo)")
         }
         #endif
     }
@@ -1381,8 +1483,11 @@ struct PixelStageView: View {
 
     /// A pull only arms on the leaf's column, so a pat never turns into a harvest.
     private func leafDragChanged(_ value: DragGesture.Value, _ size: CGSize) {
-        let start = logicalPoint(value.startLocation, size)
-        guard renderer.leafHit(at: start.x, start.y) else { return }
+        if leafDragAccepted == nil {
+            let start = logicalPoint(value.startLocation, size)
+            leafDragAccepted = renderer.leafHit(at: start.x, start.y)
+        }
+        guard leafDragAccepted == true else { return }
         var current = look
         if let debugHour { current.hour = debugHour }
         renderer.leafPan(Double(value.translation.height), ripe: current.leafRipe)

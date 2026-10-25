@@ -133,7 +133,7 @@ extension PixelStageRenderer {
         }
 
         // Pibo last: it stands in front of everything it can stand in front of.
-        if look.piboVisible {
+        if look.piboVisible && (actorPresent || (actor.hiding && director.disguise > 0)) {
             let actorHits = actorHits
             hits.append(actorHits.body)
             hits.append(actorHits.leaf)
@@ -180,7 +180,7 @@ func pixelStageLabel(_ target: PixelStageTarget, _ look: PixelStageLabelLook) ->
         if place == PIXEL_SEASON_POD && look.oldPod >= 1 {
             return AppLocalization.text("Pibo 的小舱，打开旧笔记")
         }
-        if place >= PixelHotspot.mealSticker.rawValue && place < PixelHotspot.decoy.rawValue {
+        if place >= PixelHotspot.mealSticker.rawValue && place < PixelHotspot.mealSticker.rawValue + 3 {
             return AppLocalization.text("食物贴纸，打开这一餐")
         }
         if place >= PixelHotspot.decoy.rawValue && place < PixelHotspot.decoy.rawValue + 8 {

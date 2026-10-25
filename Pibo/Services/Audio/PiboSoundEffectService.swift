@@ -51,10 +51,9 @@ enum PiboSoundEffect: String, CaseIterable {
 /// information, so a cue is skipped — never queued — when effects are off, the
 /// app is not active, or Reduce Motion is on.
 ///
-/// The session is `.ambient` so the ring/silent switch silences cues and other
-/// apps' music keeps playing (HarmonyOS reads the ringer mode instead). While
-/// the ambient soundscape holds its `.playback` session the category is left
-/// alone — switching it underneath the loops would mute them in silent mode.
+/// The shared audio runtime uses `.ambient` for standalone cues and preserves
+/// `.playback` while environmental loops own it. Category selection happens on
+/// the audio queue after activation, never from a speculative MainActor flag.
 @MainActor
 final class PiboSoundEffectService {
     static let shared = PiboSoundEffectService()
@@ -64,25 +63,28 @@ final class PiboSoundEffectService {
     static let minRepeatInterval: TimeInterval = 0.08
 
     private let bundle: Bundle
-    private let session: AVAudioSession
+    private let playback: PiboCuePlayback
+    private let runtime: PiboAudioRuntime
     private let defaults: UserDefaults
-    private var players: [PiboSoundEffect: AVAudioPlayer] = [:]
+    private var appActive: Bool
     private var lastPlayedAt: [PiboSoundEffect: Date] = [:]
     private var missingAssets: Set<PiboSoundEffect> = []
     // Decision 063: the pixel stage's own cues live in their own folder and have their own
     // volume table; they are short enough to keep their players alongside the Home cues.
-    private var pixelPlayers: [PiboPixelSound: AVAudioPlayer] = [:]
     private var lastPixelPlayedAt: [PiboPixelSound: Date] = [:]
     private var missingPixelAssets: Set<PiboPixelSound> = []
 
     init(
         bundle: Bundle = .main,
-        session: AVAudioSession = .sharedInstance(),
+        runtime: PiboAudioRuntime = .shared,
         defaults: UserDefaults = .standard
     ) {
         self.bundle = bundle
-        self.session = session
+        self.playback = PiboCuePlayback(runtime: runtime)
+        self.runtime = runtime
         self.defaults = defaults
+        self.appActive = UIApplication.shared.applicationState == .active
+        playback.setEnabled(isEnabled && appActive)
     }
 
     var isEnabled: Bool {
@@ -103,21 +105,40 @@ final class PiboSoundEffectService {
 
     /// Decodes every cue up front so the first pat is not late.
     func preload() {
-        guard isEnabled else { return }
-        for effect in PiboSoundEffect.allCases { _ = player(for: effect) }
-        for sound in PiboPixelSound.allCases { _ = pixelPlayer(for: sound) }
+        guard isEnabled, appActive else { return }
+        let urls = PiboSoundEffect.allCases.compactMap { resourceURL(for: $0) }
+            + PiboPixelSound.allCases.compactMap { resourceURL(for: $0) }
+        playback.preload(urls)
     }
 
     /// Settings toggle: drop decoded buffers when off, warm them when back on.
     func setEnabled(_ enabled: Bool) {
-        if enabled {
+        playback.setEnabled(enabled && appActive)
+        if enabled { preload() }
+    }
+
+    func setAppActive(_ active: Bool) {
+        appActive = active
+        if active { runtime.invalidateAsync() }
+        playback.setEnabled(active && isEnabled)
+        if active { preload() }
+    }
+
+    func handleInterruption(_ notification: Notification) {
+        guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+        runtime.invalidateAsync()
+        if type == .began { playback.setEnabled(false) }
+        else {
+            playback.setEnabled(appActive && isEnabled)
             preload()
-        } else {
-            for player in players.values { player.stop() }
-            players.removeAll()
-            for player in pixelPlayers.values { player.stop() }
-            pixelPlayers.removeAll()
         }
+    }
+
+    func handleMediaServicesReset() {
+        runtime.invalidateAsync()
+        playback.stop()
+        preload()
     }
 
     func play(_ effect: PiboSoundEffect) {
@@ -127,11 +148,10 @@ final class PiboSoundEffectService {
         else { return }
         let now = Date()
         if let last = lastPlayedAt[effect], now.timeIntervalSince(last) < Self.minRepeatInterval { return }
-        guard prepareSession(), let player = player(for: effect) else { return }
+        guard let url = resourceURL(for: effect) else { return }
         lastPlayedAt[effect] = now
-        player.currentTime = 0
-        player.volume = effect.volume
-        player.play()
+        let volume = effect.volume
+        playback.play(url, volume: volume)
         // One line per discrete interaction — it is what makes the cue audible
         // in a log when the device audit cannot be done by ear.
         LPLog.audio.debug("cue \(effect.rawValue, privacy: .public) at \(effect.volume, privacy: .public)")
@@ -146,65 +166,26 @@ final class PiboSoundEffectService {
         else { return }
         let now = Date()
         if let last = lastPixelPlayedAt[sound], now.timeIntervalSince(last) < Self.minRepeatInterval { return }
-        guard prepareSession(), let player = pixelPlayer(for: sound) else { return }
+        guard let url = resourceURL(for: sound) else { return }
         lastPixelPlayedAt[sound] = now
-        player.currentTime = 0
-        player.volume = piboPixelSoundVolume(sound) * (hushed ? PIBO_PIXEL_SOUND_HUSH : 1)
-        player.play()
-        LPLog.audio.debug("pixel cue \(sound.rawValue, privacy: .public) at \(player.volume, privacy: .public)")
+        let volume = piboPixelSoundVolume(sound) * (hushed ? PIBO_PIXEL_SOUND_HUSH : 1)
+        playback.play(url, volume: volume)
+        LPLog.audio.debug("pixel cue \(sound.rawValue, privacy: .public) at \(volume, privacy: .public)")
     }
 
-    private func player(for effect: PiboSoundEffect) -> AVAudioPlayer? {
-        if let player = players[effect] { return player }
-        guard let url = Self.resourceURL(for: effect, in: bundle) else {
-            if missingAssets.insert(effect).inserted {
-                LPLog.audio.error("sound effect missing: \(effect.assetName, privacy: .public).m4a")
-            }
-            return nil
+    private func resourceURL(for effect: PiboSoundEffect) -> URL? {
+        let url = Self.resourceURL(for: effect, in: bundle)
+        if url == nil, missingAssets.insert(effect).inserted {
+            LPLog.audio.error("sound effect missing: \(effect.assetName, privacy: .public).m4a")
         }
-        do {
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.numberOfLoops = 0
-            player.prepareToPlay()
-            players[effect] = player
-            return player
-        } catch {
-            LPLog.audio.error("sound effect \(effect.rawValue, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
+        return url
     }
 
-    private func pixelPlayer(for sound: PiboPixelSound) -> AVAudioPlayer? {
-        if let player = pixelPlayers[sound] { return player }
-        guard let url = Self.resourceURL(for: sound, in: bundle) else {
-            if missingPixelAssets.insert(sound).inserted {
-                LPLog.audio.error("pixel cue missing: \(sound.assetName, privacy: .public).m4a")
-            }
-            return nil
+    private func resourceURL(for sound: PiboPixelSound) -> URL? {
+        let url = Self.resourceURL(for: sound, in: bundle)
+        if url == nil, missingPixelAssets.insert(sound).inserted {
+            LPLog.audio.error("pixel cue missing: \(sound.assetName, privacy: .public).m4a")
         }
-        do {
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.numberOfLoops = 0
-            player.prepareToPlay()
-            pixelPlayers[sound] = player
-            return player
-        } catch {
-            LPLog.audio.error("pixel cue \(sound.rawValue, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
-    }
-
-    private func prepareSession() -> Bool {
-        if AmbientSoundscapeService.holdsPlaybackSession { return true }
-        do {
-            if session.category != .ambient {
-                try session.setCategory(.ambient, mode: .default)
-            }
-            try session.setActive(true)
-            return true
-        } catch {
-            LPLog.audio.error("sound effect session failed: \(error.localizedDescription, privacy: .public)")
-            return false
-        }
+        return url
     }
 }

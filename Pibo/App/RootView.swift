@@ -1,3 +1,5 @@
+import AVFAudio
+import Foundation
 import os
 import SwiftData
 import SwiftUI
@@ -24,6 +26,7 @@ enum RootGate: Hashable {
 
 /// Pibo shell: daily-persona first run, then Home.
 struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(OnboardingStateStore.self) private var onboarding
     @Environment(BoLedgerStore.self) private var boLedger
     @Environment(AuthService.self) private var auth
@@ -131,7 +134,15 @@ struct RootView: View {
         // removed per product direction (2026-06-09).
         .environment(\.locale, language.locale)
         // Home cues decode once, off the first pat's critical path.
-        .task { PiboSoundEffectService.shared.preload() }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            PiboSoundEffectService.shared.setAppActive(phase == .active)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) {
+            PiboSoundEffectService.shared.handleInterruption($0)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.mediaServicesWereResetNotification)) { _ in
+            PiboSoundEffectService.shared.handleMediaServicesReset()
+        }
         .onChange(of: auth.accountDeletionRevision) { _, _ in
             resetLocalStateAfterAccountDeletion()
         }

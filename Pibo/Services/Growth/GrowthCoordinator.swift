@@ -21,6 +21,17 @@ struct GrowthRefreshContext {
     var lastWorkoutEndedAt: Date?
 }
 
+/// Acquisition mapping: another readable metric cannot fill an unobserved axis.
+struct GrowthActivityFacts {
+    var steps: Double?
+    var activeMinutes: Double?
+
+    init(record: HealthDayRecord?, reliable: Bool) {
+        steps = reliable ? record?.recordedSteps.map(Double.init) : nil
+        activeMinutes = reliable ? record?.recordedExerciseMinutes.map(Double.init) : nil
+    }
+}
+
 struct GrowthBaselines {
     var steps: Double?
     var activeMinutes: Double?
@@ -175,6 +186,10 @@ final class GrowthCoordinator {
         interaction(.companionAnswer)
     }
 
+    func hasUncompletedWish(_ kind: PiboCoreWishKind, now: Date = .now) -> Bool {
+        wishes?.hasUncompletedWish(kind, now: now) ?? false
+    }
+
     func onShootingStar() -> PiboCoreGrowthAward? {
         guard let growth else { return nil }
         // The moment is queued before the award so it plays ahead of any level-up it causes.
@@ -216,9 +231,7 @@ final class GrowthCoordinator {
         let event = GrowthFeedbackEvent(kind: .wish, wish: Int(kind.rawValue))
         growth.push(event)
         event.xp = growth.award(.wish).xp
-        // Analytics: `Analytics.Event` has no `wishCompleted` case yet; the caller
-        // adds it and tracks `wishAnalyticsKey(kind)` there. This layer must not
-        // invent an event name.
+        Analytics.track(.wishCompleted, screen: "home", ["wish": .string(Self.wishAnalyticsKey(kind))])
     }
 
     /// Stable analytics key per wish kind (decision 057 dashboard vocabulary).

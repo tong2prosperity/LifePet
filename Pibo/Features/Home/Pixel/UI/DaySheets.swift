@@ -43,21 +43,22 @@ struct DayMapSheet: View {
     var season = 1
     /// Core's `scene_min_level`: which level opens a scene.
     var minLevel: (Int) -> Int = { _ in 1 }
+    var isUnlocked: ((Int) -> Bool)? = nil
     var onClose: () -> Void = {}
     var onTravel: (Int) -> Void = { _ in }
 
     private var scenes: [Int] { PiboCoreDayScene.allCases.map { Int($0.rawValue) } }
 
     var body: some View {
-        VStack(spacing: 10) {
-            PixelSheetTitle(title: AppLocalization.text("森林地图"), onClose: onClose)
-            ForEach(scenes, id: \.self) { scene in row(scene) }
+        PixelReadingSheet(title: AppLocalization.text("森林地图"), onClose: onClose) {
+            VStack(spacing: 12) {
+                ForEach(scenes, id: \.self) { scene in row(scene) }
+            }
         }
-        .pixelSheetFrame()
     }
 
     private func row(_ scene: Int) -> some View {
-        let unlocked = level >= minLevel(scene)
+        let unlocked = isUnlocked?(scene) ?? (level >= minLevel(scene))
         return HStack(spacing: 12) {
             ZStack {
                 PixelCanvas(logicalWidth: dayThumbWidth, logicalHeight: dayThumbHeight,
@@ -76,17 +77,16 @@ struct DayMapSheet: View {
                     .font(PixelFont.font(15))
                     .foregroundStyle(PixelUIColor.ink)
                 Text(piboSceneNote(scene))
-                    .font(.system(size: 12))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.inkSoft)
-                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 if scene == current {
                     Text(AppLocalization.text("Pibo 在这里"))
-                        .font(PixelFont.font(12))
+                        .lpText(LP.Typography.b3Regular)
                         .foregroundStyle(PixelUIColor.leaf)
                 } else if !unlocked {
                     Text(AppLocalization.format("Lv.%@ 开放", "\(minLevel(scene))"))
-                        .font(PixelFont.font(12))
+                        .lpText(LP.Typography.b3Regular)
                         .foregroundStyle(PixelUIColor.inkSoft)
                 } else {
                     PixelButton(label: AppLocalization.text("一起去"),
@@ -99,6 +99,12 @@ struct DayMapSheet: View {
         .padding(8)
         .background(scene == current ? PixelUIColor.paperDim : PixelUIColor.paper)
         .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if unlocked && scene != current {
+                onTravel(scene)
+            }
+        }
         .accessibilityElement(children: .combine)
     }
 }
@@ -160,7 +166,7 @@ struct ShelfSheet: View {
                     if let entry = days.diary.first {
                         diaryRow(entry)
                         Text(AppLocalization.text("日记写在足迹里 ›"))
-                            .font(PixelFont.font(12))
+                            .lpText(LP.Typography.b3Regular)
                             .foregroundStyle(PixelUIColor.leaf)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             .contentShape(Rectangle())
@@ -169,14 +175,14 @@ struct ShelfSheet: View {
                             .accessibilityIdentifier("shelf-open-footprints")
                     } else {
                         Text(AppLocalization.text("你走路的时候，我也会出去走走。"))
-                            .font(.system(size: 12))
+                            .lpText(LP.Typography.b3Regular)
                             .foregroundStyle(PixelUIColor.inkSoft)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
             .scrollIndicators(.hidden)
-            .frame(height: 440)
+            .frame(maxHeight: 440)
         }
         .pixelSheetFrame()
         .onAppear {
@@ -241,7 +247,7 @@ struct ShelfSheet: View {
                 Text(shown.isEmpty
                     ? piboFindName(picked)
                     : AppLocalization.format("%@ · 摆在%@", piboFindName(picked), shown))
-                    .font(.system(size: 12))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.ink)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -250,17 +256,23 @@ struct ShelfSheet: View {
                 PixelButton(label: AppLocalization.text(out ? "收回来" : "摆出来"),
                             primary: !out,
                             buttonID: "shelf-display",
-                            onTap: { days.setDisplayed(scene, out ? -1 : picked) })
+                            onTap: {
+                                days.setDisplayed(scene, out ? -1 : picked)
+                                Analytics.track(.findDisplayToggle, screen: "home", [
+                                    "item": .string("find_\(picked)"), "action": .string(out ? "recall" : "display"),
+                                    "scene": .string(PiboAnalyticsKeys.scene(scene))
+                                ])
+                            })
             } else if days.displayedIn(scene) >= 0 {
                 Text(AppLocalization.format("%@摆着%@。点一样东西可以换。",
                                             piboSceneName(scene),
                                             piboFindName(days.displayedIn(scene))))
-                    .font(.system(size: 12))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.inkSoft)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text(AppLocalization.format("点一样找到的东西，可以摆到%@。", piboSceneName(scene)))
-                    .font(.system(size: 12))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.inkSoft)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -280,11 +292,11 @@ struct ShelfSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(AppLocalization.format("第 %@ 天 · %@", "\(entry.dayCount)",
                                             piboDestinationName(entry.destination)))
-                    .font(PixelFont.font(12))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.ink)
                 Text(AppLocalization.format("你走到 %@ 步时，我带回了%@", "\(entry.steps)",
                                             piboFindName(entry.item)))
-                    .font(.system(size: 12))
+                    .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.inkSoft)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

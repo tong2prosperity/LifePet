@@ -2,10 +2,10 @@ import Foundation
 import Testing
 @testable import Pibo
 
-@Suite
+@Suite(.serialized)
 @MainActor
 struct HomePresentationFlowTests {
-    @Test func blockedAchievementPresentationKeepsInputsLazy() {
+    @Test func achievementPresentationDelegatesToTheForestWithoutOpeningASheet() {
         let suiteName = "HomePresentationFlowTests.blocked"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -26,18 +26,14 @@ struct HomePresentationFlowTests {
                 events.append("policy")
                 return blockedPolicy
             },
-            currentAnimationStateID: {
-                events.append("animation")
-                return "pibo-state-stable-forest-idle"
-            },
-            applyDebugReward: { _ in events.append("debug-reward") },
+            presentForestResponse: { events.append("forest") },
             refreshAnimationState: { events.append("refresh") },
             announceFirstRipeBo: { events.append("announce") }
         )
 
         flow.presentAchievementIfPossible()
 
-        #expect(events == ["policy"])
+        #expect(events == ["forest"])
         #expect(presentation.activeSheet == nil)
     }
 

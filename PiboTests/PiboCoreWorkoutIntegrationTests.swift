@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Pibo
 
@@ -27,29 +28,15 @@ import Testing
     #expect(!long.isFresh)
 }
 
-@Test func workoutFreshnessDependsOnAgeRatherThanHealthKitAnchorHistory() {
-    // The acquisition layer can label the first anchored query historical,
-    // but a workout that ended seconds ago still belongs to direct-open UX.
-    let fresh = PiboCoreWorkoutAdapter.eventPolicy(
-        durationSeconds: 1_800,
-        ageSeconds: 30
-    )
-    let stale = PiboCoreWorkoutAdapter.eventPolicy(
-        durationSeconds: 1_800,
-        ageSeconds: 301
-    )
-    #expect(PiboCoreWorkoutAdapter.achievementShouldQueue(
-        policy: fresh,
-        occurredToday: true
-    ))
-    #expect(!PiboCoreWorkoutAdapter.achievementShouldQueue(
-        policy: stale,
-        occurredToday: true
-    ))
-    #expect(!PiboCoreWorkoutAdapter.achievementShouldQueue(
-        policy: fresh,
-        occurredToday: false
-    ))
+@Test func workoutResponseUsesTheObservationBoundaryAndWholeLocalDay() {
+    let now = Date()
+    let oldToday = Calendar.current.startOfDay(for: now).addingTimeInterval(1)
+    let start = oldToday.addingTimeInterval(-1)
+    #expect(PiboCoreWorkoutAdapter.responseEligible(endedAt: oldToday, observationStartedAt: start, now: now))
+    #expect(!PiboCoreWorkoutAdapter.responseEligible(endedAt: oldToday, observationStartedAt: now, now: now))
+    #expect(!PiboCoreWorkoutAdapter.responseEligible(endedAt: now, observationStartedAt: nil, now: now))
+    #expect(!PiboCoreWorkoutAdapter.responseEligible(endedAt: now.addingTimeInterval(10), observationStartedAt: start, now: now))
+    #expect(!PiboCoreWorkoutAdapter.responseEligible(endedAt: now.addingTimeInterval(-86400), observationStartedAt: start.addingTimeInterval(-86400), now: now))
 }
 
 @Test func rustPendingWorkoutPolicyDrivesRestorationAndLiveActivityExpiry() {

@@ -1,6 +1,7 @@
 import os
 import PiboCore
 import SwiftUI
+import UIKit
 
 /// Pibo home — a fixed portrait SpriteKit forest. The scene never pans or
 /// scrolls; SwiftUI owns the corner entries and the surrounding chrome.
@@ -22,6 +23,7 @@ struct HomeView: View {
     @Environment(PiboDayStore.self) private var days
     @Environment(PiboSeasonStore.self) private var seasons
     @Environment(PolaroidStore.self) private var polaroids
+    @Environment(PiboTimelineStore.self) private var timeline
     @Environment(WalkDoodleProgressStore.self) private var walkDoodleProgress
     @Environment(OrnamentUnlockStore.self) private var ornamentUnlocks
     @Environment(OrnamentLightStore.self) private var ornamentLights
@@ -62,6 +64,9 @@ struct HomeView: View {
     @State private var growthUI = HomeGrowthController()
     /// Decision 062: the badge's readout, open from the HUD without the ornament.
     @State private var readoutOpen = false
+    @State private var pendingMealPhotoId = ""
+    @State private var pendingMealTypeRaw = ""
+    @State private var pendingMealDismissTask: Task<Void, Never>?
     @State private var contextualActions = HomeContextualActionCoordinator()
     @State private var ornamentDiscovery = OrnamentDiscoveryStore()
     @State private var discoveryTask: Task<Void, Never>?
@@ -94,10 +99,12 @@ struct HomeView: View {
     @State private var pixelHarvestSound = OrnamentUnlockSoundService()
     /// Current pose's bo container top (global), for the speech bubble.
     @State private var speechAnchor: CGPoint?
+    @State private var pixelActorPresent = false
+    @State private var achievementResponse = HomeAchievementResponseController()
     /// Pibo's feet, reported by the stage, for the state caption.
     @State private var captionAnchor: CGPoint?
     @State private var stateCaptionPresenter = HomeStateCaptionPresenter()
-    /// Decision 054 companion prompts, echoes and moods (local-only memory).
+    /// Decision 054 companion prompts and echoes (local-only memory).
     @State private var companion = HomeCompanionController.shared
     @AccessibilityFocusState private var statusObserverHeadingFocused: Bool
     #if DEBUG
@@ -112,7 +119,7 @@ struct HomeView: View {
     @AppStorage(PiboPersistenceKeys.Defaults.ambientSoundEnabled) private var ambientSoundEnabled = true
 
     private var semanticAnimationStateID: String {
-        animationPresentation.stateID
+        achievementResponse.active?.stateID ?? animationPresentation.stateID
     }
 
     private var sproutPhase: SproutFlowPhase {
@@ -123,8 +130,18 @@ struct HomeView: View {
         HomePresentationPolicy(
             sceneIsActive: scenePhase == .active,
             presentation: presentation,
-            sproutFlowIsIdle: sproutPhase == .idle
+            sproutFlowIsIdle: sproutPhase == .idle,
+            foregroundOverlayPresented: transientPresentationBlocked
         )
+    }
+
+    /// Pixel windows live inside Home, so native sheet bindings cannot see them.
+    private var transientPresentationBlocked: Bool {
+        pixelSheet != nil || storyPaper != nil || readoutOpen || statusObserverShown
+            || growthUI.levelUpVisible || growthUI.polaroidVisible
+            || companion.replySheetOpen || companion.holdsSpeech
+            || presentation.foodProjection != nil || boHarvestActive
+            || achievementResponse.active != nil
     }
 
     private var stagePaused: Bool {
@@ -234,7 +251,7 @@ struct HomeView: View {
             input: speechInput,
             speech: piboSpeech,
             currentPolicy: { presentationPolicy },
-            currentStageIsPaused: { stagePaused || companion.holdsSpeech || companion.active != nil },
+            currentStageIsPaused: { stagePaused || achievementResponse.active != nil || !pixelActorPresent || companion.holdsSpeech || companion.active != nil },
             currentWeather: { weather.condition },
             currentHasRipeBo: { boLedger.hasRipeBo }
         )
@@ -277,7 +294,11 @@ struct HomeView: View {
             speechFacts: { speechInput.facts },
             healthAvailability: { health.dataAvailability },
             canPresentSheet: {
-                presentation.activeSheet == nil
+                scenePhase == .active
+                    && pixelSheet == nil && storyPaper == nil
+                    && !growthUI.levelUpVisible && !growthUI.polaroidVisible
+                    && !companion.replySheetOpen
+                    && presentation.activeSheet == nil
                     && !fullScreenFeaturePresented
                     && sproutPhase == .idle
                     && presentation.foodProjection == nil
@@ -288,6 +309,7 @@ struct HomeView: View {
             showResolvedSpeech: speechPresentation.show,
             presentSheet: { presentation.activeSheet = $0 },
             companion: companion,
+            growthTone: { growth.tone },
             debugPat: debugPatHooks
         )
     }
@@ -319,6 +341,24 @@ struct HomeView: View {
     }
     #endif
 
+    private func reconcileAchievementResponse() {
+        achievementResponse.environment = .init(
+            pending: { store.animationExperience.pendingAchievement },
+            appActive: { scenePhase == .active },
+            blocked: { stagePaused || pixelSheet != nil || storyPaper != nil
+                || statusObserverShown || presentation.foodProjection != nil
+                || growthUI.levelUpVisible || growthUI.polaroidVisible || companion.holdsSpeech },
+            actorPresent: { !PiboReleaseScope.pixelHome || pixelActorPresent },
+            animationStateID: { animationPresentation.stateID },
+            currentLine: { speechPresentation.line },
+            steps: { store.rawSteps },
+            show: speechPresentation.show,
+            dismiss: speechPresentation.dismiss,
+            complete: { presentationFlow.finishResponse($0) }
+        )
+        achievementResponse.reconcile()
+    }
+
     private var presentationFlow: HomePresentationFlow {
         HomePresentationFlow(
             presentation: presentation,
@@ -327,12 +367,7 @@ struct HomeView: View {
             morningSleep: morningSleep,
             stressNotifier: stressNotifier,
             currentPolicy: { presentationPolicy },
-            currentAnimationStateID: { semanticAnimationStateID },
-            applyDebugReward: { payload in
-                #if DEBUG
-                debugInteractions.applyWorkoutRewardIfMatching(payload)
-                #endif
-            },
+            presentForestResponse: reconcileAchievementResponse,
             refreshAnimationState: { refreshAnimationState() },
             announceFirstRipeBo: speechOpportunities.announceFirstRipeBoIfNeeded
         )
@@ -362,7 +397,7 @@ struct HomeView: View {
             decision: animationPresentation.decision,
             animationStateID: animationPresentation.stateID,
             occurredAt: animationPresentation.stateOccurredAt,
-            hasHammock: ornamentUnlocks.isUnlocked(.hammock)
+            hasHammock: ornamentUnlocks.isHammockPlaced()
         )
     }
 
@@ -457,7 +492,6 @@ struct HomeView: View {
             shadowPresentation: shadowStagePresentation,
             harvestActive: boHarvestActive,
             balanceTarget: boBalanceTarget,
-            moodStateID: companion.moodAnimationID,
             companionHotspots: companionHotspots,
             boOverride: debugBoOverride,
             stateCaption: stateCaption
@@ -486,12 +520,11 @@ struct HomeView: View {
     private func stateCaptionSuppressed(presentedStateID: String) -> Bool {
         stateCaptionBlocked
             || speechPresentation.line != nil
+            || achievementResponse.active != nil
             || onboarding.dailyHomeGuide != .none
             || presentation.foodProjection != nil
             || sproutPhase != .idle
-            || companion.mood.hidesBody
             || presentedStateID == "dive"
-            || presentedStateID == "coolhide"
     }
 
     // MARK: - Pixel stage (decision 069)
@@ -500,8 +533,6 @@ struct HomeView: View {
     /// reads. Before Core's first growth answer the renderer shows its own defaults.
     private var pixelLook: PixelStageRenderer.Look {
         let environment = stageEnvironment
-        let sleeping = animationPresentation.state == .sleeping
-            || animationPresentation.state == .waking
         return HomePixelStageInput(
             hour: Int(environment.localHour.rounded()),
             raining: environment.weather == .rain || environment.weather == .thunderstorm,
@@ -509,26 +540,28 @@ struct HomeView: View {
             season: Int((pixelDay?.season ?? .summer).rawValue),
             snow: pixelDay?.snow ?? false,
             reduceMotion: reduceMotion,
-            animationStateID: animationPresentation.stateID,
-            piboVisible: !companion.mood.hidesBody,
-            holdPibo: sleeping || speechPresentation.line != nil,
+            animationStateID: semanticAnimationStateID,
+            achievementResponse: achievementResponse.active?.kind,
+            holdPibo: speechPresentation.line != nil,
+            wishPromptActive: companion.wishPromptReady,
             growth: growth,
             cues: growthCoordinator.cues,
             mimic: 0,
             boProgress: boLedger.growthProgress,
             leafRipe: boLedger.hasRipeBo,
             decor: decor,
-            hammock: ornamentUnlocks.isUnlocked(.hammock),
+            hammock: ornamentUnlocks.isHammockPlaced(),
             observer: PiboReleaseScope.allowsOrnament(.statusObserver)
                 && ornamentUnlocks.isUnlocked(.statusObserver),
-            grass: companion.grassHotspotEnabled,
+            grass: companion.enabled,
             cake: growthCoordinator.anniversaryToday,
             dayCount: store.dayCount,
             day: pixelDay,
             days: days,
+            timeline: timeline,
             ambient: pixelDay?.ambient ?? 0,
             foodLook: 0,
-            foodOnRight: sleeping
+            foodOnRight: animationPresentation.state == .sleeping || animationPresentation.state == .waking
         ).look
     }
 
@@ -540,6 +573,8 @@ struct HomeView: View {
         let season = HomeSeasonController(store: seasons)
         season.loadCatalog()
 
+        // These closures outlive this View value. Read the live application state;
+        // capturing its initial scenePhase can strand a cold launch as inactive.
         let dependencies = HomeDayDependencies(
             stateID: { animationPresentation.stateID },
             hour: { stageEnvironment.localHour },
@@ -547,7 +582,7 @@ struct HomeView: View {
             ownedDecor: {
                 decor.ownedIn(Int((pixelDay?.scene ?? .clearing).rawValue)).map { Int($0.rawValue) }
             },
-            hammock: { ornamentUnlocks.isUnlocked(.hammock) },
+            hammock: { ornamentUnlocks.isHammockPlaced() },
             observer: {
                 PiboReleaseScope.allowsOrnament(.statusObserver)
                     && ornamentUnlocks.isUnlocked(.statusObserver)
@@ -555,10 +590,12 @@ struct HomeView: View {
             growth: { growth },
             days: { days },
             dayCount: { store.dayCount },
-            stepsToday: { history.record(on: .now)?.steps ?? 0 },
-            hasStepsData: { health.dataAvailability.hasReliableData },
+            stepsToday: { history.record(on: .now)?.recordedSteps ?? 0 },
+            hasStepsData: {
+                health.dataAvailability.hasReliableData && history.record(on: .now)?.recordedSteps != nil
+            },
             sleepHours: { (history.record(on: .now)?.sleepTotal ?? 0) / 3600 },
-            mindfulMinutes: { 0 },
+            mindfulMinutes: { Double(store.rawMindfulMinutes) },
             lastWorkout: {
                 guard let workout = history.workouts(on: .now).max(by: { $0.end < $1.end }) else {
                     return nil
@@ -574,23 +611,43 @@ struct HomeView: View {
                     showShelf: { open in pixelSheet = open ? .shelf : nil }
                 )
             },
-            appActive: { scenePhase == .active },
+            appActive: { UIApplication.shared.applicationState == .active },
             voiceBusy: { speechPresentation.line != nil || companion.holdsSpeech },
-            decorLine: { _ in },
+            decorLine: { growthUI.onDecorTapped($0) },
             speak: { line in
-                speechPresentation.show(PiboSpeechLine(text: line.text,
-                                                      lingerDuration: line.lingerMs / 1000))
+                var speech = PiboSpeechLine(text: line.text, lingerDuration: line.lingerMs / 1000)
+                speech.fact = line.fact.isEmpty ? nil : line.fact
+                speechPresentation.show(speech)
             },
             boCollected: { boLedger.lifetimeCollected },
             bodyBands: {
                 guard let cues = growthCoordinator.cues else { return [-1, -1] }
                 return [cues.stepsBand, cues.sleepBand]
             },
-            claimStoryLine: { true },
-            setStoryWaiting: { _ in },
-            lastMealAt: { -1 },
-            mealsToday: { [] },
-            openMeal: { _, _ in }
+            claimStoryLine: { companion.claimStoryLine() },
+            setStoryWaiting: { companion.storyWaiting = $0 },
+            lastMealAt: {
+                history.foodPhotos(on: .now).filter { $0.analysis?.isFood == true }
+                    .map { $0.capturedAt.timeIntervalSince1970 * 1000 }.max() ?? -1
+            },
+            mealsToday: {
+                history.foodPhotos(on: .now)
+                    .filter { $0.analysis?.isFood == true }
+                    .map { food in
+                        PiboMealSource(
+                            id: food.id.uuidString,
+                            capturedAt: food.capturedAt.timeIntervalSince1970 * 1000,
+                            pngPath: "",
+                            pngData: food.pngData,
+                            mealTypeRaw: food.mealTypeRaw ?? ""
+                        )
+                    }
+            },
+            openMeal: { photoId, mealTypeRaw in
+                let meal = MealType(rawValue: mealTypeRaw) ?? .lunch
+                presentation.activeSheet = .meal(meal, photoId: photoId)
+            },
+            dismissSpeech: { speechPresentation.dismiss() }
         )
         controller.bind(dependencies)
 
@@ -607,9 +664,11 @@ struct HomeView: View {
                 guard let cues = growthCoordinator.cues else { return [-1, -1] }
                 return [cues.stepsBand, cues.sleepBand]
             },
-            canStage: { scenePhase == .active && presentation.activeSheet == nil },
-            claim: { true },
-            setWaiting: { _ in },
+            canStage: { UIApplication.shared.applicationState == .active && presentation.activeSheet == nil
+                && !fullScreenFeaturePresented && pixelSheet == nil && storyPaper == nil
+                && !growthUI.levelUpVisible && !growthUI.polaroidVisible },
+            claim: { companion.claimStoryLine() },
+            setWaiting: { companion.storyWaiting = $0 },
             speak: { text in
                 speechPresentation.show(PiboSpeechLine(text: text))
             },
@@ -620,7 +679,10 @@ struct HomeView: View {
             },
             changed: { controller.revision += 1 },
             lifeFlags: { controller.lifeFlags(Date().timeIntervalSince1970 * 1000) },
-            feel: { _ in }
+            feel: { controller.feel($0, count: 0) },
+            onBeatTold: { thread, beat in
+                timeline.markBeatTold(timelineBeatKey(thread, beat), storyDay: timeline.storyDay())
+            }
         )
         season.bind(host)
 
@@ -643,17 +705,20 @@ struct HomeView: View {
             companionBusy: { companion.replySheetOpen || companion.holdsSpeech },
             dayCount: { store.dayCount },
             polaroids: { polaroids },
-            appActive: { scenePhase == .active },
+            appActive: { UIApplication.shared.applicationState == .active },
             overlayOpen: {
                 presentation.activeSheet != nil || fullScreenFeaturePresented
-                    || pixelSheet != nil || storyPaper != nil
-                    || growthUI.levelUpVisible || growthUI.polaroidVisible
+                    || transientPresentationBlocked || !pixelActorPresent
+                    || presentation.sheetDismissalInProgress
             },
-            // Decision 058's untold trip would turn the away summary into a diary line;
-            // the diary's wording is not ported yet, so the generic summary plays.
-            awayDiary: { nil },
+            awayDiary: {
+                guard let line = pixelDay?.awayDiary() else { return nil }
+                var speech = PiboSpeechLine(text: line.text, lingerDuration: line.lingerMs / 1000)
+                speech.fact = line.fact.isEmpty ? nil : line.fact
+                return speech
+            },
             lastWorkoutEndedAt: { store.lastWorkoutEndedAt },
-            lastWorkoutKind: { nil }
+            lastWorkoutKind: { history.workouts(on: .now).max(by: { $0.end < $1.end })?.kindRaw }
         ))
         growthUI.start()
 
@@ -709,28 +774,49 @@ struct HomeView: View {
                 // controller below drives Pibo through Core's `day_choose`, and the season
                 // controller stages the story's beats on the same director.
                 PixelStageView(look: pixelLook,
+                               active: scenePhase == .active && !stagePaused,
                                onStageReady: startPixelDay,
                                onLayoutChanged: { pixelDay?.onStageLayout($0) },
+                               onActorChanged: { anchor, present in
+                                   speechAnchor = anchor
+                                   pixelActorPresent = present
+                               },
                                onPat: {
                                    // Decision 061: a double tap on a shape it has taken
                                    // helps it back; it is not a pat.
+                                   if achievementResponse.active != nil { achievementResponse.finish(); return }
                                    if pixelDay?.onPat() == true { return }
                                    stageHandlers.pat()
                                    growthUI.afterPat()
+                                   timeline.recordFirst(.pat, at: Date().timeIntervalSince1970, day: store.dayCount)
                                },
                                onGlance: {
                                    // A glance acknowledges whatever Pibo was saying.
+                                   achievementResponse.finish()
                                    speechPresentation.dismiss()
                                },
                                onPlaceTapped: { pixelDay?.onPlaceTapped($0) ?? false },
                                onDecorTapped: { id in
-                                   growthUI.onDecorTapped(id)
+                                   if (14...17).contains(id) {
+                                       let kind = id - 14
+                                       let day = timeline.first(PiboCoreTimelineFirst(rawValue: Int32(kind)) ?? .pat)?.day ?? 0
+                                       growthUI.onFirstMarkerTapped(kind: kind, day: day)
+                                   } else {
+                                       growthUI.onDecorTapped(id)
+                                   }
                                },
                                onGrassTapped: { companion.onGrassTapped() },
                                onPokeSound: {
                                    PiboSoundEffectService.shared.play(.boSproutTouch)
                                },
-                               onCollectBo: { stageHandlers.collectBo() },
+                               onCollectBo: {
+                                   let before = boLedger.lifetimeCollected
+                                   let collected = stageHandlers.collectBo()
+                                   if boLedger.lifetimeCollected > before {
+                                       _ = timeline.recordFirst(.boCollected, at: Date().timeIntervalSince1970, day: store.dayCount)
+                                   }
+                                   return collected
+                               },
                                onHarvestCue: { pixelHarvestSound.playHarvest($0) },
                                onShake: { growthUI.onShake(peakAcceleration: $0) },
                                onPixelCue: { cue, hushed in
@@ -773,11 +859,16 @@ struct HomeView: View {
                     days: days,
                     day: pixelDay,
                     season: Int((pixelDay?.season ?? .summer).rawValue),
+                    polaroids: polaroids,
                     onClose: { self.pixelSheet = nil },
-                    onOpenFootprints: { _ in
-                        // Decision 063: the walk diary lives in the footprints. The page
-                        // has no day focus yet, so this lands on its newest day.
+                    onOpenPolaroid: { shot in
                         self.pixelSheet = nil
+                        growthUI.openPolaroid(shot)
+                    },
+                    onOpenFootprints: { seconds in
+                        self.pixelSheet = nil
+                        presentation.historyInitialDate = Date(timeIntervalSince1970: seconds)
+                        presentation.historyFocus = nil
                         presentation.showHistory = true
                     }
                 )
@@ -874,6 +965,33 @@ struct HomeView: View {
                 presentation: presentation
             )
 
+            // Decision 063: pixel meal specimen entry popup
+            if PiboReleaseScope.pixelHome,
+               !pendingMealPhotoId.isEmpty,
+               presentation.activeSheet == nil,
+               presentation.foodProjection == nil {
+                VStack {
+                    Spacer()
+                    MealEstimateEntry(
+                        history: history,
+                        mealTypeRaw: pendingMealTypeRaw,
+                        photoId: pendingMealPhotoId,
+                        onOpen: {
+                            let meal = MealType(rawValue: pendingMealTypeRaw) ?? .lunch
+                            presentation.activeSheet = .meal(meal, photoId: pendingMealPhotoId)
+                            dismissPendingMeal()
+                        },
+                        onDismiss: {
+                            dismissPendingMeal()
+                        }
+                    )
+                    .padding(.horizontal, LP.Spacing.m)
+                    .padding(.bottom, 24)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(36)
+            }
+
             // Decision 049 one-time Home guide (pat → tools + optional notifications).
             DailyHomeGuideOverlay(
                 isBlocked: speechPresentation.line != nil
@@ -911,6 +1029,9 @@ struct HomeView: View {
                         presentation.foodProjection = nil
                         presentBoProgressFeedbackIfPossible()
                         companion.onMealObserved()
+                        if !pendingMealPhotoId.isEmpty {
+                            schedulePendingMealDismiss()
+                        }
                     }
                 )
                 .zIndex(30)
@@ -1022,6 +1143,7 @@ struct HomeView: View {
             morningSleepPresentationID: morningSleep.pendingPresentation?.id,
             scenePhase: scenePhase,
             pendingStressCardOpen: stressNotifier.pendingCardOpen,
+            foregroundOverlayPresented: transientPresentationBlocked,
             hasRipeBo: boLedger.hasRipeBo,
             animationStateID: semanticAnimationStateID,
             sproutPhase: sproutPhase,
@@ -1068,7 +1190,7 @@ struct HomeView: View {
                     state,
                     episodeKey: animationPresentation.patEpisodeKey
                 )
-                speechPresentation.dismiss()
+                if achievementResponse.active == nil { speechPresentation.dismiss() }
             }
             .onChange(of: shadowSnapshotDraft?.signature) { _, _ in
                 shadowSync.setSnapshotDraft(shadowSnapshotDraft)
@@ -1080,6 +1202,14 @@ struct HomeView: View {
                 // Decision 047: backgrounding ends the transient observer view,
                 // and so does any sheet or full-screen feature taking over Home.
                 if phase != .active { statusObserverPresentation.close() }
+                if phase == .active {
+                    soundscape.resume()
+                    if !fullScreenFeaturePresented { pixelDay?.start(); growthUI.start() }
+                } else {
+                    pixelDay?.stop()
+                    growthUI.stop()
+                    achievementResponse.leaveHome()
+                }
                 bindCompanion()
                 if phase == .active { companion.enterHome() } else { companion.leaveHome() }
             }
@@ -1121,6 +1251,7 @@ struct HomeView: View {
                 stateCaptionPresenter.hide()
                 boBalanceHintTask?.cancel()
                 boBalanceHint = nil
+                achievementResponse.leaveHome()
                 companion.leaveHome()
                 piboSpeech.leaveHome()
                 speechPresentation.dismiss()
@@ -1145,15 +1276,26 @@ struct HomeView: View {
                     guard !Task.isCancelled else { return }
                     bindCompanion()
                     companion.tick()
+                    reconcileAchievementResponse()
                 }
             }
             .onChange(of: boProgressReconcileToken) { _, _ in
                 presentBoProgressFeedbackIfPossible()
             }
             .onAppear {
+                // A full-screen cover stops this view's queue; returning must restart it
+                // even though the existing pixel stage needs no second binding.
+                pixelDay?.start()
+                growthUI.start()
                 #if DEBUG
                 if HomeDebugLaunchOptions.current.showsStatusObserver {
                     statusObserverPresentation.open(sample: true)
+                }
+                if ProcessInfo.processInfo.arguments.contains("-PiboSimulateWorkout") {
+                    debugInteractions.simulateWorkout()
+                }
+                if ProcessInfo.processInfo.arguments.contains("-PiboOpenHealthStatus") {
+                    presentation.activeSheet = .healthDataStatus
                 }
                 // Screenshot hook: the corner camera tap, through the real
                 // account guard (the Simulator cannot synthesize taps).
@@ -1179,6 +1321,19 @@ struct HomeView: View {
                     .first(where: { $0.hasPrefix("-PiboCompanion=") })?
                     .dropFirst("-PiboCompanion=".count) {
                     _ = companion.debugRun(String(command))
+                }
+                // Visual QA only: no prompt answer, health fact or growth is persisted.
+                if ProcessInfo.processInfo.arguments.contains("-PiboSpeechPreview") {
+                    Task {
+                        try? await Task.sleep(for: .seconds(3))
+                        speechPresentation.show(PiboSpeechLine(
+                            text: "是在打招呼，还是手滑？", lingerDuration: 30,
+                            interaction: .init(choices: [
+                                .init(id: "preview-hello", label: "打招呼"),
+                                .init(id: "preview-slip", label: "手滑")
+                            ], allowsCustom: true)
+                        ))
+                    }
                 }
                 // `-PiboForestHour=10` pins the forest's light for screenshots, the same
                 // override the 时间覆盖 chip writes.
@@ -1233,7 +1388,9 @@ struct HomeView: View {
                 resumeOrnamentDiscoveryIfNeeded()
             }
             .onDisappear {
-                // The growth queue belongs to this screen; Home is the only place it plays.
+                // Home owns both clocks; covered or absent forests must not
+                // consume greetings or update the last-seen time behind a feature.
+                pixelDay?.stop()
                 growthUI.stop()
             }
             .onChange(of: ornamentUnlocks.owned) { oldValue, newValue in
@@ -1258,10 +1415,25 @@ struct HomeView: View {
                     walkDoodleRouteEchoEnabled: featureAccess.walkDoodleRouteEchoEnabled,
                     store: store,
                     history: history,
+                    recognizer: recognizer,
                     cameraDismissed: contentCapture.cameraDismissed,
                     resumePendingFlows: presentationFlow.resumePendingFlows,
                     historyDismissed: historyDismissed,
-                    photoSaved: contentCapture.savePhoto,
+                    photoSaved: { image, label, meal in
+                        let outcome = await contentCapture.savePhoto(image, label, meal: meal)
+                        if outcome == .saved {
+                            _ = timeline.recordFirst(.meal, at: Date().timeIntervalSince1970, day: store.dayCount)
+                            _ = growthCoordinator.onMealRecognized()
+                            if let lastPhoto = history.foodPhotos(on: .now).last {
+                                pendingMealPhotoId = lastPhoto.id.uuidString
+                                pendingMealTypeRaw = meal?.rawValue ?? ""
+                                if presentation.foodProjection == nil {
+                                    schedulePendingMealDismiss()
+                                }
+                            }
+                        }
+                        return outcome
+                    },
                     doodleSaved: contentCapture.handleSavedDoodle
                 )
             )
@@ -1315,8 +1487,7 @@ struct HomeView: View {
                             ["meal": .string(meal.rawValue)]
                         )
                         presentation.queueCameraAfterSheet(meal)
-                    },
-                    confirmAchievement: presentationFlow.confirm
+                    }
                 )
             )
     }
@@ -1395,10 +1566,11 @@ struct HomeView: View {
     private var chromeContent: some View {
         ZStack {
             // Speech bubble floats just above Pibo's head (~30% down).
-            if let speech = speechPresentation.line {
+            if let speech = speechPresentation.line, pixelActorPresent {
                 HomeSpeechOverlay.make(
                     line: speech,
                     anchorY: speechAnchor?.y,
+                    anchorX: speechAnchor?.x,
                     onDetail: {
                         speechPresentation.dismiss()
                         Analytics.track(.historyOpen, screen: "home_speech")
@@ -1406,7 +1578,8 @@ struct HomeView: View {
                         presentation.showHistory = true
                     },
                     onChoice: speech.interaction == nil ? nil : { companion.choose($0) },
-                    onCustomReply: speech.interaction == nil ? nil : { companion.openReply() }
+                    onCustomReply: speech.interaction == nil ? nil : { companion.openReply() },
+                    onDismiss: achievementResponse.active == nil ? nil : { achievementResponse.finish() }
                 )
             }
 
@@ -1526,6 +1699,7 @@ struct HomeView: View {
                 WellnessReadout.conclusion(snapshot, availability: health.dataAvailability)
             ),
             boBalance: boLedger.availableBo,
+            hasRipeBo: boLedger.hasRipeBo,
             wishesDone: visibleWishes.filter(\.done).count,
             wishesTotal: visibleWishes.count,
             decorAvailable: decor.hasPurchasable(
@@ -1828,12 +2002,6 @@ struct HomeView: View {
         speechPresentation.dismiss()
     }
 
-    /// The badge's readout closes both ways it can be open.
-    private func closeReadout() {
-        readoutOpen = false
-        closeStatusObserver()
-    }
-
     private func handleDebugRequest(_ request: HomeDebugRequest) {
         switch request {
         case .statusObserverSample:
@@ -1851,6 +2019,12 @@ struct HomeView: View {
         }
     }
     #endif
+
+    /// The badge's readout closes both ways it can be open.
+    private func closeReadout() {
+        readoutOpen = false
+        closeStatusObserver()
+    }
 
     private func closeStatusObserver() {
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
@@ -1994,11 +2168,37 @@ struct HomeView: View {
         animationPresentation.refresh(
             store: store,
             history: history,
-            hasHammock: ornamentUnlocks.isUnlocked(.hammock),
+            hasHammock: ornamentUnlocks.isHammockPlaced(),
             hasReliableHealthData: health.dataAvailability.hasReliableData,
             now: now
         )
         refreshExpressionBehavior()
+        noteHammockNightIfNeeded()
+    }
+
+    private func noteHammockNightIfNeeded() {
+        guard !timeline.hasFirst(.hammockNight) else { return }
+        guard ornamentUnlocks.isHammockPlaced() else { return }
+        guard animationPresentation.state == .sleeping else { return }
+        _ = timeline.recordFirst(.hammockNight, at: Date().timeIntervalSince1970, day: store.dayCount)
+    }
+
+    private func schedulePendingMealDismiss() {
+        pendingMealDismissTask?.cancel()
+        pendingMealDismissTask = Task {
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard !Task.isCancelled else { return }
+            dismissPendingMeal()
+        }
+    }
+
+    private func dismissPendingMeal() {
+        pendingMealDismissTask?.cancel()
+        pendingMealDismissTask = nil
+        withAnimation(.easeOut(duration: 0.2)) {
+            pendingMealPhotoId = ""
+            pendingMealTypeRaw = ""
+        }
     }
 
     private var thinkingEligible: Bool {
@@ -2093,23 +2293,16 @@ struct HomeView: View {
         companion.environment = HomeCompanionController.Environment(
             appActive: { scenePhase == .active },
             state: { animationPresentation.state },
-            patBehavior: {
-                let input = HomePatInputProvider(
-                    store: store, history: history, animationPresentation: animationPresentation,
-                    healthAvailability: health.dataAvailability, storyStage: speechInput.storyStage
-                ).input()
-                return piboSpeech.patBehavior(for: input)
-            },
-            isThinking: { animationPresentation.stableThinking },
             patEpisodeKey: { animationPresentation.patEpisodeKey },
             overlayOpen: {
                 presentation.activeSheet != nil || fullScreenFeaturePresented
                     || statusObserverPresentation.isOpen || presentation.showSettings
+                    || pixelSheet != nil || storyPaper != nil
             },
+            actorPresent: { !PiboReleaseScope.pixelHome || pixelActorPresent },
             foodProjectionVisible: { presentation.foodProjection != nil },
             achievementVisible: { store.animationExperience.pendingAchievement != nil },
             sproutBusy: { sproutPhase != .idle || boHarvestActive },
-            hasRipeBo: { boLedger.hasRipeBo },
             dailyGuideActive: { onboarding.dailyHomeGuide != .none },
             speechVisible: { speechPresentation.line != nil },
             currentLine: { speechPresentation.line },
@@ -2117,16 +2310,19 @@ struct HomeView: View {
             weather: { weather.condition },
             speechValues: { speechInput.values },
             show: { speechPresentation.show($0) },
-            dismiss: { speechPresentation.dismiss() }
+            dismiss: { speechPresentation.dismiss() },
+            hasAnswerWish: { growthCoordinator.hasUncompletedWish(.answerPrompt) },
+            onAnswer: { _ = growthCoordinator.onCompanionAnswer() },
+            timeline: { timeline },
+            relationshipDay: { store.dayCount }
         )
     }
 
     private var companionHotspots: PiboStageScene.CompanionHotspots {
         guard companion.enabled, !stagePaused else { return .none }
         return PiboStageScene.CompanionHotspots(
-            grass: companion.grassHotspotEnabled,
-            river: companion.riverHotspotEnabled,
-            findsHiddenPibo: companion.mood.hidesBody
+            grass: companion.enabled,
+            river: companion.enabled
         )
     }
 

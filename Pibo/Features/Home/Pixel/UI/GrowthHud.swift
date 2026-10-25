@@ -32,6 +32,7 @@ struct GrowthHud: View {
     var badgeCracked = false
     var readout = ""
     var boBalance = 0
+    var hasRipeBo = false
     var wishesDone = 0
     var wishesTotal = 0
     var decorAvailable = false
@@ -96,11 +97,15 @@ struct GrowthHud: View {
 
             HStack(spacing: 5) {
                 ZStack(alignment: .topTrailing) {
-                    chip(PixelIcons.leaf, "\(boBalance)", PixelUIColor.leaf,
-                         "已收取 \(boBalance) 枚 bo。打开装饰", "home-decor-entry", onOpenDecor)
-                    if decorAvailable {
+                    chip(hasRipeBo ? PixelIcons.boRipe : PixelIcons.leaf, "bo \(boBalance)",
+                         hasRipeBo ? PixelUIColor.gold : PixelUIColor.leaf,
+                         hasRipeBo ? "头顶有成熟 bo 待收取；已有 \(boBalance) 枚 bo。打开装饰" : "已收取 \(boBalance) 枚 bo。打开装饰",
+                         "home-decor-entry", onOpenDecor,
+                         fill: hasRipeBo ? PixelUIColor.ripePaper : PixelUIColor.paper,
+                         border: hasRipeBo ? PixelUIColor.ripeBorder : PixelUIColor.border)
+                    if hasRipeBo || decorAvailable {
                         Rectangle()
-                            .fill(PixelUIColor.heart)
+                            .fill(hasRipeBo ? PixelUIColor.gold : PixelUIColor.heart)
                             .frame(width: 7, height: 7)
                             .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 1))
                             .offset(x: 3, y: -3)
@@ -140,7 +145,8 @@ struct GrowthHud: View {
     }
 
     private func chip(_ icon: [String], _ value: String, _ color: Color, _ label: String,
-                      _ chipID: String, _ action: @escaping () -> Void) -> some View {
+                      _ chipID: String, _ action: @escaping () -> Void,
+                      fill: Color = PixelUIColor.paper, border: Color = PixelUIColor.border) -> some View {
         HStack(spacing: 3) {
             PixelIcon(rows: icon, iconSize: 14)
             Text(value)
@@ -150,8 +156,8 @@ struct GrowthHud: View {
         .frame(height: 26)
         .padding(.leading, 6)
         .padding(.trailing, 7)
-        .background(PixelUIColor.paper)
-        .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+        .background(fill)
+        .overlay(Rectangle().strokeBorder(border, lineWidth: 2))
         .background(alignment: .bottomTrailing) {
             Rectangle().fill(PixelUIColor.shadow).offset(x: 2, y: 2)
         }

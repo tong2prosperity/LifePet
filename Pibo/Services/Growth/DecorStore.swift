@@ -18,7 +18,12 @@ struct DecorOwnership: Equatable {
 @MainActor
 @Observable
 final class DecorStore {
-    static let defaultsKey = "pibo_growth_decor/owned.v1"
+    private struct PendingPurchase: Codable {
+        var decor: Int32
+        var eventID: String
+        var placedAt: Date
+    }
+    nonisolated static let defaultsKey = "pibo_growth_decor/owned.v1"
 
     private(set) var owned: [DecorOwnership] = []
     private(set) var revision = 0
@@ -67,6 +72,7 @@ final class DecorStore {
         owned = []
         revision += 1
         defaults.removeObject(forKey: persistenceKey)
+        defaults.removeObject(forKey: pendingKey)
     }
 
     func catalog() -> [PiboCoreDecorDefinition] {
@@ -106,18 +112,49 @@ final class DecorStore {
     /// spend is durable, so a failed write never hands out a free decoration.
     func purchase(_ id: PiboCoreDecorID, level: Int, ledger: BoLedgerStore) -> Bool {
         if buying { return false }
+        recoverPendingPurchase(using: ledger)
         guard let item = definition(id),
               state(id, level: level, balance: ledger.availableBo) == .purchasable else {
             return false
         }
         buying = true
         defer { buying = false }
-        guard ledger.spend(item.cost) else { return false }
-        owned.append(DecorOwnership(id: id, placedAt: .now))
+        let pending = PendingPurchase(decor: id.rawValue, eventID: "decor:\(UUID().uuidString)", placedAt: .now)
+        guard let encoded = try? JSONEncoder().encode(pending) else { return false }
+        defaults.set(encoded, forKey: pendingKey)
+        guard ledger.spend(item.cost, eventID: pending.eventID) else {
+            defaults.removeObject(forKey: pendingKey)
+            return false
+        }
+        owned.append(DecorOwnership(id: id, placedAt: pending.placedAt))
         revision += 1
         persist()
+        defaults.removeObject(forKey: pendingKey)
         GrowthLog.growth.info("decor placed id=\(id.rawValue, privacy: .public)")
+        Analytics.track(.decorPurchased, screen: "home", [
+            "decor": .string("decor_\(id.rawValue)"), "cost": .int(item.cost),
+            "scene": .string(PiboAnalyticsKeys.scene(PiboCoreDecor.scene(id)))
+        ])
+        Analytics.track(.decorPlaced, screen: "home", ["decor": .string("decor_\(id.rawValue)")])
         return true
+    }
+
+    private var pendingKey: String {
+        persistenceKey == Self.defaultsKey ? "pibo.decor.purchase.v1" : persistenceKey + "/pending.v1"
+    }
+
+    /// A crash between spend and ownership must not charge again or lose the
+    /// decoration. A journal without a durable spend grants nothing.
+    func recoverPendingPurchase(using ledger: BoLedgerStore) {
+        guard let data = defaults.data(forKey: pendingKey),
+              let pending = try? JSONDecoder().decode(PendingPurchase.self, from: data),
+              let id = PiboCoreDecorID(rawValue: pending.decor) else { return }
+        if ledger.hasProcessedSpend(eventID: pending.eventID), !isOwned(id) {
+            owned.append(DecorOwnership(id: id, placedAt: pending.placedAt))
+            persist()
+            revision += 1
+        }
+        defaults.removeObject(forKey: pendingKey)
     }
 
     private func persist() {

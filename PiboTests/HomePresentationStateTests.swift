@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import Testing
 @testable import Pibo
@@ -154,6 +155,26 @@ struct HomePresentationStateTests {
 
         #expect(!state.showCamera)
         #expect(state.cameraResumeAfterLogin == nil)
+    }
+
+    @Test func sessionEndCancelsOpenAndQueuedCaptureWithoutClosingLocalSettings() {
+        let state = HomePresentationState()
+        state.showSettings = true
+        state.showCamera = true
+        state.cameraInitialMeal = .lunch
+        state.queuedCameraMeal = .dinner
+        state.activeSheet = .mealCaptureSelection
+        state.pendingFoodProjection = HomeFoodProjection(
+            id: UUID(), pngData: Data([1]), meal: .lunch,
+            dishName: "午餐", observation: "先记下来。", isCutout: false)
+        state.closeAccountSurfacesForSessionEnd()
+        #expect(!state.showCamera)
+        #expect(state.showSettings)
+        #expect(state.cameraInitialMeal == nil)
+        #expect(state.queuedCameraMeal == nil)
+        #expect(state.pendingFoodProjection == nil)
+        #expect(state.activeSheet == nil)
+        #expect(!state.presentQueuedCameraIfNeeded(isLoggedIn: false))
     }
 
     @Test func sessionEndClosesOnlyAccountSurfaces() {

@@ -1,12 +1,51 @@
 # iOS 像素主线补差（决定 057–069）
 
 > 建立：2026-10-21
-> 状态：进行中。渲染、角色、场景、日导演、成长／心愿／装饰／日程／季节、HUD 与主要弹层、
-> 足迹与分享、舞台交互与音效都已在 iOS 上跑通；相机页、读数报告、餐食详情与设置页还只有
-> 部分像素外壳（取景框、舱内面板已接，页面版式仍是旧 SwiftUI）。
+> 最新检查点：2026-10-23，按用户全量对齐要求及决定 071 完成工程补差。以下历史章节保留实施背景，
+> 其中「待移植」「暂无日期焦点」「相机／餐食／设置仍为旧外壳」不再代表当前状态。
 > 规则源：产品决定见 `docs/narrative-rebuild/decisions/057`–`069`；跨端实施证据见
 > HarmonyPibo `docs/harmony-first/2026-10-19-像素化重构.md` 起的像素系列记录。
 > 本文只是 iOS 侧的移植进度与顺序，不是新的产品规则源。
+
+## 2026-10-26 App Store 加密声明
+
+核对系统 HTTPS／Keychain 与固定依赖后，补齐三端所有配置的非豁免加密声明 `false`。最新验证归档为 **1.5 (9)**，声明的实际 Boolean 类型、版本、签名与符号全部通过。旧构建问卷选择第四项；记录见 [加密声明修复](pixel-verification/2026-10-26/export-compliance/README.md)。
+
+## 2026-10-26 App Store 符号归档修复
+
+Core 升级到正式 `0.34.6`：使用显式静态库 XCFramework，移除 Xcode 生成的空 framework 归档壳，保留真实 Rust 调试信息进入 App dSYM。主 App／Watch／Widget 统一构建号为 8，验证记录见 [归档符号修复](pixel-verification/2026-10-26/archive-symbols/README.md)。
+
+## 2026-10-26 Widget 数据同步修复
+
+后台 HealthKit 事实直接合并 App Group 快照；逐指标采集时间阻止旧查询回写；午夜清理、未知与 0、身份隔离、独立目标与锁屏外观投影已补齐。实现与验证边界见 [排查记录](pixel-verification/2026-10-26/widget-sync/README.md)。
+
+## 2026-10-23 全量补差
+
+用户本轮要求覆盖当前鸿蒙像素功能，并授权修正不合理之处。规则与取舍见
+[决定 071](narrative-rebuild/decisions/071-iOS全量像素对齐与腕上账本边界.md)。原有未提交修改保留并继续集成，未清除账号、历史或已有资产。
+
+| 范围 | 本轮完成 |
+| --- | --- |
+| 共享规则 | iOS 精确固定 Core `0.34.4`，与鸿蒙当前 pin 一致，同步 `Package.resolved`；不在 Swift 复制领域阈值 |
+| 心愿与作答 | Core 预算防空、未完成提问的思考气泡、双击直达选项、点击心愿行返回森林、预设／自定义回答立即计入成长并盖章、重复回调无重复奖励 |
+| 陪伴与故事 | 同步完整 100 条陪伴目录及 551 条拍一拍目录；小事连载、共同第一次回忆、记住答案的情境回响；熟悉度 minTone；季节等待和注意力预算；离家日记、事实行与对应日期接线 |
+| 生活回声 | 修正餐食时间的秒／毫秒混用、接入真实正念时长、运动类型与装饰互动；非食物仍不进入任何成功链 |
+| 装饰购买 | 反馈队列接回购买成功；幂等扣款与待完成购买日志支持中断恢复，不授予未支付物件 |
+| 像素外壳 | 首页入口、对白与选项、相机面板、餐食样本、设置、首启、读数、足迹、分享全部走像素主线；正文与健康图表保留系统字体可读性 |
+| 舞台呈现 | 导演与舞台统一 Unix 时钟，临时布局到最终布局时约束纵向位置（修复动作挂起／角色停在画面外）、遮挡可读性检测、气泡跟随实际头叶位置，离场／被遮挡时不让气泡悬空；暂停或后台停止绘制与摇动采样；Reduce Motion 静态重绘；CoreMotion 的 g 正确换算为 Core 的 m/s² |
+| 桌面与 Live Activity | 同源程序像素森林与角色，真实成长头叶、分格活动条；跨日撤下昨日活动；日／昏／夜时间线；保留原 widget kind 与载荷兼容 |
+| Apple Watch | 同源 88×88 像素岛，10fps 前台绘制、六状态／外观／配饰／变形／卡住解救、单击无文本、双击反馈、成熟 bo 上拉／点击收取、真实心愿和 Core 四个探索站点、原生表冠滚动与轻触觉／减弱动态设置 |
+| 同步与资产 | 可选 pixel v2 扩展兼容旧包；同宠物跨日保留成长，清除过期每日事实；新宠物不继承旧投影；收取使用手机容器 token 与真实账本确认，离线不造币 |
+| 匿名统计 | 9 个新增交互事件与原有成长漏斗，鸿蒙同源事件／属性白名单、退役事件拦截、设置开关、无账号别名；正式地址／应用写入 key 配置，Debug 默认不发生产统计 |
+| 退役 | 像素成为唯一可达表现；旧表现与小游戏启动参数不再旁路恢复；兼容数据与不可达工程库存保留 |
+
+纯绘制代码移入 `Shared/PixelWorld/`，iOS、watchOS 与 WidgetKit 复用同一角色／调色板／形态实现。
+`PixelWorldLook+Core.swift` 留在 App 做 Core 类型映射，小组件与手表不链接手机专用 Core 二进制。
+
+验证：24 张六状态／四调色板森林角色帧、10 张变形帧直接从鸿蒙生产 ArkTS 计算 SHA-256，
+iOS 金值一致；另有心愿直达、预算、重复作答、时间线、语气、购买恢复、快照跨日与统计过滤回归。
+完整测试、构建与截图记录见 [验收记录](pixel-verification/2026-10-23/README.md)。真实相机／HealthKit、
+配对 WatchConnectivity 时延与触觉、长时能耗仍须真机确认；没有用模拟器冒充这些证据。
 
 ## 为什么现在做
 
@@ -157,19 +196,17 @@ SIMCTL_CHILD_PIBO_PIXEL_STAGE=1 xcrun simctl launch booted com.piboworld.app.iPi
   `WellnessReadout`、`PolaroidStore`、`HomeGrowthController`、`DaySheets`、`StorySheets`、
   `ReadoutReport`（含 `HomeStatusObserver` 的纸条外壳）、`RecordWindows`、`FootprintsDiary`、
   `PixelMonthCalendar`、`PixelPortrait`、`PixelViewfinder`、`PixelOnboardingArt`、
-  `PodPanelArt`。
+  `PodPanelArt`、`PiboTimelineStore`（决定 056 / 063 时间线记忆与共同的第一次）。
 - 这四件纯画法的落点：`PixelPortrait` 进了分享卡与分享页的场景小图；`PixelViewfinder`
   进了取景框（四角标记 + 探头 Pibo）、识别时的扫描线与「相机不可用」面板；`PixelOnboardingArt`
   进了首启三页（黄昏森林、纸卡、三张小图）；`PodPanelArt` 进了设置页顶部（舱内控制面板）。
-- 足迹页本身（`HistoryFloorView`）在 iOS 落在健康记录页上（标题、日期翻页、日记、记录卡、
-  月历、读数报告都通了）；**还差两处数据源**：
-  - 决定 056 的时间线记忆（`services/PiboTimelineStore.ets`，256 行）iOS 没有，
-    所以日记里的「共同的第一次」与「我说过的小事」两类暂时为空 —— 不猜、不补，
-    等这个 store 移植过来再接（`FootprintsDayFacts.firsts/beats` 已经是它的形状）。
-  - 月历的「相识那天」红框要 `store.identity.birthDate`，已接；星星要时间线的 firsts。
-- 成长页的拍立得一段还没接上（`PolaroidStore` 已有 `latest`，等足迹页一起做）。
-- 设置页仍是旧的 LP 版式：像素模式下只接了顶部的舱内面板，开关、账号、关于各段还是
-  SwiftUI 卡片；鸿蒙那套 `PixelSwitch`／`PixelIcon`／`pixelCard` 面板还没搬。
+- 足迹页（`HistoryFloorView` / `PiboHistoryView`）：
+  - 标题、日期翻页、日记、记录卡、月历、读数报告均已打通。
+  - 决定 056 的时间线记忆（`PiboTimelineStore.swift`）：日记里的「共同的第一次」（.first）与「我说过的小事」（.toldBeat）已接入，首次抚摸、首次收取 bo 等事件与月历星星全部打通。
+  - 月历的「相识那天」红框与星星接入 `PiboTimelineStore`。
+  - 成长页的拍立得已接入 `PolaroidStore`。
+  - 像素开关（`PiboReleaseScope`）：`pixelHome`、`pixelHistory`、`pixelShare`、`pixelCamera`、`pixelOnboarding` 默认全开（`base: true`），可通过 `-PiboLegacyHome` 等参数回退。
+- 设置页：像素模式下顶部有舱内面板（`PodPanelArt`），睡眠总结提醒与压力通知日期跳转已打通。
 
 ### 2. 舞台交互
 
@@ -252,3 +289,35 @@ xcodebuild ... OTHER_SWIFT_FLAGS='$(inherited) -disable-sandbox'
 | 2026-10-22 | 四件纯画法落地：`PixelPortrait`（分享卡／场景小图）、`PixelViewfinder`（取景框、扫描线、相机不可用面板）、`PixelOnboardingArt`（首启三页转像素）、`PodPanelArt`（设置页顶部的舱内面板）；新增 `pixelCamera`／`pixelOnboarding` 开关 |
 | 2026-10-22 | 决定 068 对齐：`grants` 先看 Core 的基础能力，睡眠回顾与睡醒提醒不再被吊床权属挡住；`OrnamentUnlockStoreTests` 那条长期红的用例按 068 改写 |
 | 2026-10-22 | 068 收尾：吊床解锁文案改成「休息落点／不影响回顾」，手表快照的 `hasHammock` 回到权属，足迹页可用同一天的晨间摘要顶替未落盘的日记录；`-PiboMorningSleep`／`-PiboNoLocation` 截图入口 |
+| 2026-10-22 | 决定 056 / 063 时间线存储：`PiboTimelineStore` 实现、初次记录防篡改（`predatingBlockedMask`）、线程对话节拍跟踪（`markBeatTold` / `beatsToldIn`）、故事日（`storyDay`）、与 `FootprintsDiarySource` 接通，单元测试全绿 |
+| 2026-10-22 | 决定 057 / 063 森林舞台地面痕迹与初次标记：`HomePixelStageLook` 接入 Core 的初次标记（14...17）、讲故事石头堆与甲虫痕迹，点击标记打开生长与足迹日记 |
+| 2026-10-22 | 决定 063 / 065 餐食标本详情与像素小窗：`MealStickerPixels` 内存解码 `Data`、`MealEstimateEntry` 像素小条气泡、`MealDetailView` 标本详情面板与 SwiftData `foodPhoto(_:)` 回溯 |
+| 2026-10-22 | 决定 068 吊床放置偏好闭环：`OrnamentUnlockStore` 增加 `hammockPlaced.v1` 本地持久化、收起时森林舞台与角色休息落点移除吊床（不影响睡眠回顾与提醒基础能力）、装饰页支持购买放置及随愿收起／恢复放置，测试覆盖 |
+| 2026-10-22 | 通知与设置链路补齐（2026-10-21 走查）：HRV 通知带发送日期（`stressDay`），隔天点击落在那天足迹并聚焦身体信号；舱内控制面板单列「睡眠总结提醒」开关；通知权限关闭时显示「通知没开，提醒发不出去 · 去开启」跳转系统设置 |
+
+## 2026-10-23 遗漏复核
+
+运动回应、HRV 变化提醒、bo 通知、首日授权、相识日、成熟提示、桌面组件与残留页面已补齐；
+详见[修复清单与验证证据](pixel-verification/2026-10-23/fixes/omission-audit.md)。
+最终全量 485 项测试通过，双端目标设备后台通知验收仍待完成。
+
+2026-10-23 继续复核：补上冷启动长期回调的实时前台状态、成长队列返回恢复、升级揭晓持久化、
+通知／睡眠卡与像素小窗互斥、缺失指标与组件元数据映射。
+见[恢复场景验证](pixel-verification/2026-10-23/fixes/lifecycle-audit.md)，最终全量 492 项测试通过。
+
+2026-10-23 仅 iOS 深入复核：修复减弱动态冻结剧情时钟、相机取消重试的旧任务收尾、
+日常时钟启停与剧情延续、账号失效关闭拍摄，以及通知投递途中开关／前台变化。
+见[深入复核记录](pixel-verification/2026-10-23/fixes/ios-deep-audit.md)，全量 504 项测试通过。
+
+2026-10-24 仅 iOS：修复森林整数放大留下的屏幕白边，放大成长及同类面板说明文字，
+补上系统大字体与超长内容滚动。见[截图与验证记录](pixel-verification/2026-10-24/README.md)，全量 506 项测试及 Release 构建通过。
+
+2026-10-25 仅 iOS：修复上拉收取同一手势重复提交与叶子命中丢失，明确入库反馈并在提示期间暂停普通移动。
+见[收取回归与截图](pixel-verification/2026-10-25/bo-collection/README.md)，全量 510 项测试及 Release 构建通过。
+
+2026-10-25 澄清后补修：复现「收取后整个 Pibo 消失」，根因为成熟 bo 阻挡解除后旧版捉迷藏误隐藏像素角色。
+像素日程接管显隐，断开旧 mood 的全局隐藏输入；见[实际根因与对照截图](pixel-verification/2026-10-25/actor-disappearance/README.md)，全量 512 项测试及 Release 构建通过。
+
+2026-10-25 后续完整删除：按用户要求，iOS／鸿蒙移除旧 mood 引擎、隐藏／找回／超时链路、专用文案、旧字段与组件覆盖；
+iOS 删除旧矢量躲藏资源，鸿蒙删除应用 Native 桥接，保留正式像素日程。
+见[删除清单与验证](pixel-verification/2026-10-25/legacy-hide-retirement/README.md)：iOS 514 项测试及 Release、鸿蒙 125 项检查及手机／手表 HAP 构建通过。

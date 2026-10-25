@@ -4,6 +4,7 @@ import Foundation
 /// `HealthHistoryFetcher` off the main actor, ingested into SwiftData here.
 struct HealthDayValues: Sendable {
     var date: Date
+    var activityObservedAt: Date? = nil
     var steps = 0
     var hourlySteps: [Int] = []
     var activeEnergy = 0.0

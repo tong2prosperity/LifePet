@@ -857,7 +857,6 @@ final class PiboCharacterRenderer {
         PiboAnimationResourceID.sleepingHammockB,
         PiboAnimationResourceID.wakingHammock,
         "dive",
-        "coolhide",
     ]
 
     /// Places the contact shadow and reports the caption anchor from the

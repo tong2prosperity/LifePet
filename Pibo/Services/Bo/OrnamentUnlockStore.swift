@@ -25,6 +25,7 @@ private struct OrnamentInventoryPersistence {
     let ownershipKey: String
     let eligibilityKey: String
     let pendingPurchaseKey: String
+    let hammockPlacedKey: String
 
     func loadOwned() -> Set<PiboOrnament.ID> {
         loadIDs(forKey: ownershipKey)
@@ -32,6 +33,17 @@ private struct OrnamentInventoryPersistence {
 
     func loadEligibility() -> Set<PiboOrnament.ID> {
         loadIDs(forKey: eligibilityKey)
+    }
+
+    func loadHammockPlaced() -> Bool {
+        if defaults.object(forKey: hammockPlacedKey) == nil {
+            return true
+        }
+        return defaults.bool(forKey: hammockPlacedKey)
+    }
+
+    func saveHammockPlaced(_ placed: Bool) {
+        defaults.set(placed, forKey: hammockPlacedKey)
     }
 
     func hasSeenUnlockGuide() -> Bool {
@@ -78,6 +90,7 @@ final class OrnamentUnlockStore {
     private(set) var owned: Set<PiboOrnament.ID>
     private(set) var eligible: Set<PiboOrnament.ID>
     private(set) var hasSeenUnlockGuide: Bool
+    private(set) var hammockPlaced: Bool
 
     @ObservationIgnored private let persistence: OrnamentInventoryPersistence
     @ObservationIgnored private let debugUnlockOverride: Bool
@@ -87,19 +100,22 @@ final class OrnamentUnlockStore {
         ownershipKey: String = PiboPersistenceKeys.Defaults.boOwnedOrnaments,
         eligibilityKey: String = PiboPersistenceKeys.Defaults.boEligibleOrnaments,
         pendingPurchaseKey: String = PiboPersistenceKeys.Defaults.boPendingOrnamentPurchase,
+        hammockPlacedKey: String = PiboPersistenceKeys.Defaults.hammockPlaced,
         debugUnlockOverride: Bool? = nil
     ) {
         let persistence = OrnamentInventoryPersistence(
             defaults: defaults,
             ownershipKey: ownershipKey,
             eligibilityKey: eligibilityKey,
-            pendingPurchaseKey: pendingPurchaseKey
+            pendingPurchaseKey: pendingPurchaseKey,
+            hammockPlacedKey: hammockPlacedKey
         )
         self.persistence = persistence
         self.debugUnlockOverride = debugUnlockOverride ?? Self.launchArgumentUnlockOverride
         self.hasSeenUnlockGuide = persistence.hasSeenUnlockGuide()
         self.owned = persistence.loadOwned()
         self.eligible = persistence.loadEligibility().union(Self.initialEligibility)
+        self.hammockPlaced = persistence.loadHammockPlaced()
         persistInventory()
     }
 
@@ -109,6 +125,17 @@ final class OrnamentUnlockStore {
     }
 
     func isUnlocked(_ id: PiboOrnament.ID) -> Bool { unlocked.contains(id) }
+
+    /// 吊床是否放置在森林里（决定 068）。未拥有或主动收起时不放置。
+    func isHammockPlaced() -> Bool {
+        isUnlocked(.hammock) && hammockPlaced
+    }
+
+    func setHammockPlaced(_ placed: Bool) {
+        guard isUnlocked(.hammock) else { return }
+        hammockPlaced = placed
+        persistence.saveHammockPlaced(placed)
+    }
 
     /// Capabilities come from Core, never from a second platform flag. Decision 068 made
     /// sleep review and its reminder base capabilities — available from the first use,
@@ -129,9 +156,11 @@ final class OrnamentUnlockStore {
         return next
     }
 
-    /// 本版森林里实际展示的已拥有物件。旧用户拥有的风铃／灯权属保留，只是收起表现。
+    /// 本版森林里实际展示的已拥有物件。吊床收起时不在此列。
     var presentableUnlocked: Set<PiboOrnament.ID> {
-        unlocked.filter(PiboReleaseScope.allowsOrnament)
+        unlocked
+            .filter(PiboReleaseScope.allowsOrnament)
+            .filter { $0 != .hammock || hammockPlaced }
     }
 
     var unlockedBitmask: UInt32 {
@@ -241,7 +270,9 @@ final class OrnamentUnlockStore {
     func reset() {
         owned = []
         eligible = Self.initialEligibility
+        hammockPlaced = true
         persistInventory()
+        persistence.saveHammockPlaced(true)
         persistence.clearPendingPurchase()
     }
 

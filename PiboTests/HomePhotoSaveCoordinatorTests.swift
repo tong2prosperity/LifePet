@@ -158,6 +158,25 @@ struct HomePhotoSaveCoordinatorTests {
         #expect(events == ["recognize", "fail"])
     }
 
+    @Test func cancelledRecognitionCannotStartImageProcessingOrPersistAResult() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
+        let task = Task {
+            await HomePhotoSaveCoordinator.process(
+                image: UIImage(), subjectLabel: nil, meal: .lunch, history: fixture.history,
+                presentProjection: { _ in Issue.record("Cancelled capture must not project") },
+                presentFailure: { _ in Issue.record("Cancelled capture must not show a late error") },
+                analyze: { _, _, _, _ in
+                    withUnsafeCurrentTask { $0?.cancel() }
+                    return .food(Self.analysis())
+                },
+                makeSticker: { _ in Issue.record("Cancelled capture must skip Vision"); return nil },
+                makeSourceJPEG: { _ in Issue.record("Cancelled capture must skip encoding"); return nil })
+        }
+        #expect(await task.value == .failed)
+        #expect(fixture.history.foodPhotos(on: .now).isEmpty)
+    }
+
     private static func analysis() -> FoodAnalysis {
         FoodAnalysis(
             isFood: true,

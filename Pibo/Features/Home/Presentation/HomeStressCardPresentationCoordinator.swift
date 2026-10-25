@@ -1,3 +1,5 @@
+import Foundation
+
 /// Consumes a pending stress-notification route only after Home is free to open
 /// History, then preserves the focus-before-presentation mutation order.
 @MainActor
@@ -17,8 +19,16 @@ enum HomeStressCardPresentationCoordinator {
             policy: policy,
             pendingCardOpen: notifier.pendingCardOpen,
             handlers: Handlers(
-                clearPendingRequest: { notifier.pendingCardOpen = false },
-                focusStressCard: { presentation.historyFocus = .stress },
+                clearPendingRequest: {
+                    notifier.pendingCardOpen = false
+                },
+                focusStressCard: {
+                    presentation.historyFocus = .stress
+                    if let ts = notifier.pendingStressDay {
+                        presentation.historyInitialDate = Date(timeIntervalSince1970: ts)
+                    }
+                    notifier.pendingStressDay = nil
+                },
                 presentHistory: { presentation.showHistory = true }
             )
         )
