@@ -48,15 +48,15 @@ enum HomeDebugLaunchAutomation {
             handlers.setForestHour(hour)
         }
         if options.simulatesMeal {
-            scheduler.schedule(.seconds(1), false, handlers.simulateLunch)
+            scheduler.schedule(.seconds(1), false) { handlers.simulateLunch() }
         }
         if miniGamesEnabled(), !gamesAlreadyOpened, options.opensGames {
             gamesAlreadyOpened = true
-            scheduler.schedule(.milliseconds(350), false, handlers.openGames)
+            scheduler.schedule(.milliseconds(350), false) { handlers.openGames() }
         }
         if !historyAlreadyOpened, options.opensHistory {
             historyAlreadyOpened = true
-            scheduler.schedule(.milliseconds(350), false, handlers.openHistory)
+            scheduler.schedule(.milliseconds(350), false) { handlers.openHistory() }
         }
         if options.showsMorningSleep {
             handlers.showMorningSleep()
@@ -87,13 +87,13 @@ enum HomeDebugLaunchAutomation {
             handlers.enqueueBoProgress(milestone)
         }
         if options.opensBoPanel {
-            scheduler.schedule(.milliseconds(500), false, handlers.openBoPanel)
+            scheduler.schedule(.milliseconds(500), false) { handlers.openBoPanel() }
         }
         if options.opensStressCard {
             handlers.openStressCard()
         }
         if options.opensSettings {
-            scheduler.schedule(.milliseconds(350), false, handlers.openSettings)
+            scheduler.schedule(.milliseconds(350), false) { handlers.openSettings() }
         }
     }
 }
