@@ -5,7 +5,7 @@ import Foundation
 
 /// POST /api/v1/membership/verify — carries a StoreKit 2
 /// `Transaction.jwsRepresentation` for server-side verification + persistence.
-struct MembershipVerifyRequest: Encodable, Sendable {
+nonisolated struct MembershipVerifyRequest: Encodable, Sendable {
     let provider: String
     let signedTransaction: String
 
@@ -15,7 +15,7 @@ struct MembershipVerifyRequest: Encodable, Sendable {
     }
 }
 
-struct MembershipAppAccountTokenRequest: Encodable, Sendable {}
+nonisolated struct MembershipAppAccountTokenRequest: Encodable, Sendable {}
 
 struct MembershipAppAccountTokenResponse: Decodable, Sendable {
     let appAccountToken: String
@@ -24,7 +24,7 @@ struct MembershipAppAccountTokenResponse: Decodable, Sendable {
 
 /// Response of both POST /verify and GET /status — the server's authoritative
 /// view of the user's membership.
-struct MembershipStatusDTO: Decodable, Sendable {
+nonisolated struct MembershipStatusDTO: Decodable, Sendable {
     let isActive: Bool
     let provider: String?
     let plan: String?          // monthly / yearly

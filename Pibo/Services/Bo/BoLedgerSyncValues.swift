@@ -44,7 +44,7 @@ struct BoLedgerSyncEntryDTO: Codable, Equatable, Sendable {
     let createdAt: Date
 }
 
-struct BoLedgerSyncRequest: Codable, Equatable, Sendable {
+nonisolated struct BoLedgerSyncRequest: Codable, Equatable, Sendable {
     let requestID: String
     let deviceID: String
     let cursor: UInt64

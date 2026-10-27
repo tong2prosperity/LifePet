@@ -16,7 +16,7 @@ struct FoodItem: Codable, Hashable, Identifiable {
 /// The backend Kimi VLM result for a meal photo — 菜名 / 热量 / 营养 / 点评.
 /// Decoded from the server via `JSONCoding` (snake_case → camelCase), and also
 /// round-tripped through a plain coder when cached on `FoodPhoto.analysisJSON`.
-struct FoodAnalysis: Codable, Hashable {
+nonisolated struct FoodAnalysis: Codable, Hashable {
     /// Optional only so historical rows written before the food gate keep
     /// decoding. A new server response without this decision is rejected.
     var isFood: Bool?
@@ -38,7 +38,7 @@ struct FoodAnalysis: Codable, Hashable {
 /// `upload_session_id` / `mime_type` / `idempotency_key` / `meal_type` / `hint`).
 /// There is intentionally no `image_base64` path any more: every recognition
 /// goes through the bounded COS derivative.
-struct FoodRecognizeRequest: Encodable, Equatable {
+nonisolated struct FoodRecognizeRequest: Encodable, Equatable {
     var objectKey: String
     var uploadSessionId: String
     var mimeType: String
@@ -48,13 +48,13 @@ struct FoodRecognizeRequest: Encodable, Equatable {
 }
 
 /// `POST /api/v1/food/uploads` body.
-struct FoodUploadCreateRequest: Encodable, Equatable {
+nonisolated struct FoodUploadCreateRequest: Encodable, Equatable {
     var contentType: String
     var contentLength: Int
 }
 
 /// `POST /api/v1/food/uploads/{session_id}/complete` body.
-struct FoodUploadCompleteRequest: Encodable, Equatable {
+nonisolated struct FoodUploadCompleteRequest: Encodable, Equatable {
     var objectKey: String
 }
 

@@ -22,7 +22,7 @@ struct DailyWellnessScoreSnapshot: Codable, Equatable, Sendable {
     }
 }
 
-struct DailyWellnessSnapshot: Codable, Equatable, Sendable {
+nonisolated struct DailyWellnessSnapshot: Codable, Equatable, Sendable {
     let algorithmVersion: UInt32
     let generatedAt: Date
 

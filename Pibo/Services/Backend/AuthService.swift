@@ -173,4 +173,4 @@ final class AuthService {
 }
 
 /// Empty JSON body for endpoints that take none.
-private struct EmptyBody: Encodable {}
+private nonisolated struct EmptyBody: Encodable {}

@@ -27,7 +27,7 @@ struct ShadowInvitationDTO: Codable, Equatable, Sendable, Identifiable {
     let expiresAt: Date
 }
 
-struct ShadowInvitationPreviewDTO: Codable, Equatable, Sendable {
+nonisolated struct ShadowInvitationPreviewDTO: Codable, Equatable, Sendable {
     let invitationId: String
     let inviterDisplayName: String
     let expiresAt: Date
@@ -62,7 +62,7 @@ struct ShadowEndedEventDTO: Codable, Equatable, Sendable, Identifiable {
     let createdAt: Date
 }
 
-struct ShadowStateDTO: Codable, Equatable, Sendable {
+nonisolated struct ShadowStateDTO: Codable, Equatable, Sendable {
     let state: ShadowRelationshipState
     let cursor: Int64
     let serverTime: Date
@@ -77,7 +77,7 @@ struct ShadowStateDTO: Codable, Equatable, Sendable {
     let blockedCount: Int
 }
 
-struct ShadowSyncDTO: Codable, Equatable, Sendable {
+nonisolated struct ShadowSyncDTO: Codable, Equatable, Sendable {
     let changed: Bool
     let view: ShadowStateDTO
 }
@@ -88,7 +88,7 @@ struct ShadowBlockDTO: Codable, Equatable, Sendable, Identifiable {
     let createdAt: Date
 }
 
-struct ShadowBlocksDTO: Codable, Equatable, Sendable {
+nonisolated struct ShadowBlocksDTO: Codable, Equatable, Sendable {
     let blocks: [ShadowBlockDTO]
 }
 
@@ -105,7 +105,7 @@ struct ShadowSnapshotDraft: Equatable, Sendable {
     }
 }
 
-struct ShadowSnapshotRequest: Codable, Equatable, Sendable {
+nonisolated struct ShadowSnapshotRequest: Codable, Equatable, Sendable {
     let displayName: String
     let publicStateId: String
     let publicBehaviorSubstateId: String
@@ -114,8 +114,8 @@ struct ShadowSnapshotRequest: Codable, Equatable, Sendable {
     let snapshotRevision: Int64
 }
 
-struct ShadowInvitationCreateRequest: Encodable { let displayName: String }
-struct ShadowInvitationCredentialRequest: Encodable { let credential: String }
-struct ShadowInvitationAcceptRequest: Encodable { let credential: String; let displayName: String }
-struct ShadowSharingRequest: Encodable { let paused: Bool }
-struct ShadowEmptyRequest: Encodable {}
+nonisolated struct ShadowInvitationCreateRequest: Encodable { let displayName: String }
+nonisolated struct ShadowInvitationCredentialRequest: Encodable { let credential: String }
+nonisolated struct ShadowInvitationAcceptRequest: Encodable { let credential: String; let displayName: String }
+nonisolated struct ShadowSharingRequest: Encodable { let paused: Bool }
+nonisolated struct ShadowEmptyRequest: Encodable {}

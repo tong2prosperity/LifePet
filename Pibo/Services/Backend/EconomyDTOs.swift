@@ -45,7 +45,7 @@ struct EconomyActionDTO: Encodable, Sendable {
     }
 }
 
-struct SyncRequest: Encodable, Sendable {
+nonisolated struct SyncRequest: Encodable, Sendable {
     /// Per-call UUID; reuse the SAME value on retry so the server replays the
     /// cached response instead of double-minting.
     let idempotencyKey: String
@@ -85,7 +85,7 @@ struct SyncResponse: Decodable, Sendable {
 }
 
 /// Response to `/state` — sync-shaped, minus per-call minted/animations.
-struct EconomyState: Decodable, Sendable {
+nonisolated struct EconomyState: Decodable, Sendable {
     let boPending: Int
     let boBalance: Int
     let energyPool: Double
@@ -94,7 +94,7 @@ struct EconomyState: Decodable, Sendable {
 }
 
 /// Response to `/config` — the energy curve, for client cost previews.
-struct EconomyConfigDTO: Decodable, Sendable {
+nonisolated struct EconomyConfigDTO: Decodable, Sendable {
     struct MetricRule: Decodable, Sendable {
         let energyPerUnit: Double
         let perEventCap: Double

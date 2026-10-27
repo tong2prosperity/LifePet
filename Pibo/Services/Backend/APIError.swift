@@ -40,7 +40,7 @@ extension APIError {
 }
 
 /// Wire shape of a server error body.
-struct ServerErrorBody: Decodable {
+nonisolated struct ServerErrorBody: Decodable {
     struct Inner: Decodable {
         let code: String
         let message: String
