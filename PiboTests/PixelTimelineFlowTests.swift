@@ -7,7 +7,7 @@ import Testing
 @MainActor
 struct PixelTimelineFlowTests {
     @Test func fullCatalogContainsOrderedThreadsAndValidatedMemoryConditions() throws {
-        let catalog = try #require(PiboCompanionCatalog.bundled())
+        let catalog = try #require(PiboCompanionCatalog.bundled() as PiboCompanionCatalog?)
         #expect(catalog.threadBeats.count == 14)
         #expect(!catalog.remarks.isEmpty)
         #expect(catalog.firstRecalls.count == 4)
@@ -27,7 +27,7 @@ struct PixelTimelineFlowTests {
         let store = PiboCompanionStore(defaults: defaults, clock: { now })
         let timeline = PiboTimelineStore(defaults: defaults, key: "timeline")
         timeline.start(raw: "", now: now)
-        let controller = HomeCompanionController(store: store, catalog: try #require(PiboCompanionCatalog.bundled()), clock: { now })
+        let controller = HomeCompanionController(store: store, catalog: try #require(PiboCompanionCatalog.bundled() as PiboCompanionCatalog?), clock: { now })
         controller.environment = .init(appActive: { true }, state: { .stable }, timeline: { timeline })
         controller.storyWaiting = true
         #expect(!controller.offer(.returnShort))

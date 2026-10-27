@@ -13,7 +13,7 @@ struct PixelWishFlowTests {
         defer { defaults.removePersistentDomain(forName: key) }
         let now = Date().timeIntervalSince1970
         let store = PiboCompanionStore(defaults: defaults, clock: { now })
-        let controller = HomeCompanionController(store: store, catalog: try #require(PiboCompanionCatalog.bundled()), clock: { now })
+        let controller = HomeCompanionController(store: store, catalog: try #require(PiboCompanionCatalog.bundled() as PiboCompanionCatalog?), clock: { now })
         var answers = 0
         var wishing = true
         controller.environment = .init(appActive: { true }, state: { .stable },
@@ -42,7 +42,7 @@ struct PixelWishFlowTests {
         defer { defaults.removePersistentDomain(forName: key) }
         let now = Date().timeIntervalSince1970
         let store = PiboCompanionStore(defaults: defaults, clock: { now })
-        let controller = HomeCompanionController(store: store, catalog: try #require(PiboCompanionCatalog.bundled()), clock: { now })
+        let controller = HomeCompanionController(store: store, catalog: try #require(PiboCompanionCatalog.bundled() as PiboCompanionCatalog?), clock: { now })
         var state = PiboActivityState.sleeping
         var overlay = false
         controller.environment = .init(appActive: { true }, state: { state }, overlayOpen: { overlay }, hasAnswerWish: { true })

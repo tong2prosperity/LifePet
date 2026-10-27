@@ -20,13 +20,15 @@ enum HomeDebugLaunchAutomation {
         var openSettings: () -> Void = {}
     }
 
-    struct Scheduler: Sendable {
-        let schedule: @Sendable (
+    struct Scheduler {
+        let schedule: (
             _ delay: Duration,
             _ skipsWhenCancelled: Bool,
             _ action: @escaping @MainActor () -> Void
         ) -> Void
 
+        /// Read from `run`'s default argument, which is evaluated outside the
+        /// main actor; the scheduler itself holds no isolated state.
         nonisolated static let live = Scheduler { delay, skipsWhenCancelled, action in
             Task { @MainActor in
                 try? await Task.sleep(for: delay)

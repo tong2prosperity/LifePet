@@ -209,7 +209,7 @@ struct FoodUploadRecognitionTests {
     }
 }
 
-final class DerivativeCounter: @unchecked Sendable {
+nonisolated final class DerivativeCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
     var value: Int { lock.withLock { count } }

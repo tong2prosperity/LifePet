@@ -9,7 +9,7 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct PiboPatChapterResumeTests {
-    private static let start = Date(timeIntervalSince1970: 1_800_000_000)
+    nonisolated private static let start = Date(timeIntervalSince1970: 1_800_000_000)
 
     private static func chapter(_ lines: [String]) -> PiboPatUnit {
         PiboPatUnit(
@@ -33,10 +33,10 @@ struct PiboPatChapterResumeTests {
     /// Touch discovery would otherwise take the first stable pats.
     private static func store(
         _ defaults: UserDefaults,
-        catalog: PiboPatCatalog = catalog,
+        catalog: PiboPatCatalog? = nil,
         now: Date = start
     ) -> PiboPatConversationStore {
-        let store = PiboPatConversationStore(catalog: catalog, defaults: defaults, now: now)
+        let store = PiboPatConversationStore(catalog: catalog ?? Self.catalog, defaults: defaults, now: now)
         store.debugSetTouchDiscoveryCompleted(3)
         return store
     }
