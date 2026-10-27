@@ -8,7 +8,7 @@ import Security
 /// access(15m) / refresh(7d): on every economy request the client attaches the
 /// access token; a 401 triggers a refresh using the refresh token (which the
 /// server rotates — always persist the new pair).
-struct TokenStore: Sendable {
+nonisolated struct TokenStore: Sendable {
     nonisolated static let shared = TokenStore()
 
     private let service: String

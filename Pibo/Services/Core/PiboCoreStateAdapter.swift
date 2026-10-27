@@ -141,7 +141,7 @@ enum PiboCoreStateAdapter {
             decision: Decision(
                 state: PiboActivityState(core: snapshot.state),
                 cause: snapshot.cause,
-                pendingState: snapshot.pendingState.map(PiboActivityState.init(core:)),
+                pendingState: snapshot.pendingState.map { PiboActivityState(core: $0) },
                 pendingCause: snapshot.pendingCause,
                 sleepStartMinute: routine.sleepStartMinute,
                 wakeMinute: routine.wakeMinute,

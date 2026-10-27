@@ -33,7 +33,7 @@ struct TimelineRemarkUsage: Codable, Equatable, Sendable {
 /// What the app already knows the first time the timeline starts. A relationship
 /// that predates the timeline never gets a first recorded that may already have
 /// happened without a record (决定 056: no guessing).
-struct TimelineSeedFacts {
+nonisolated struct TimelineSeedFacts {
     var relationshipStarted: Bool = false
     var boCollectedBefore: Bool = false
     var hammockUnlocked: Bool = false

@@ -75,7 +75,7 @@ private struct WishSnapshot {
         }
         var snapshot = WishSnapshot()
         snapshot.day = dictionary["day"] as? String ?? ""
-        snapshot.slots = (dictionary["slots"] as? [Any] ?? []).compactMap(WishSlot.init(json:))
+        snapshot.slots = (dictionary["slots"] as? [Any] ?? []).compactMap { WishSlot(json: $0) }
         if let carried = dictionary["carried"] as? [String: Any] {
             snapshot.carried = WishSlot(json: carried)
         }

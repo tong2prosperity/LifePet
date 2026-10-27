@@ -6,7 +6,9 @@ import Foundation
 ///   - RFC3339 timestamps, lenient on fractional seconds (Go marshals time.Time
 ///     as RFC3339Nano, which includes fractional seconds when present).
 enum JSONCoding {
-    static let decoder: JSONDecoder = {
+    /// Shared with `APIClient`'s actor, so the coders have to be reachable from
+    /// any isolation domain rather than only from the main actor.
+    nonisolated static let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
         d.dateDecodingStrategy = .custom { decoder in
@@ -21,7 +23,7 @@ enum JSONCoding {
         return d
     }()
 
-    static let encoder: JSONEncoder = {
+    nonisolated static let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.keyEncodingStrategy = .convertToSnakeCase
         e.dateEncodingStrategy = .custom { date, encoder in
@@ -31,13 +33,13 @@ enum JSONCoding {
         return e
     }()
 
-    private static let isoFractional: ISO8601DateFormatter = {
+    nonisolated(unsafe) private static let isoFractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
 
-    private static let isoPlain: ISO8601DateFormatter = {
+    nonisolated(unsafe) private static let isoPlain: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         return f

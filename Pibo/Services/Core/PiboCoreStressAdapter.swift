@@ -49,7 +49,7 @@ enum PiboCoreStressAdapter {
             rmssd: rmssd,
             baseline: baseline?.coreBaseline,
             restingHR: restingHR
-        ).map(appLevel)
+        ).map { appLevel($0) }
     }
 
     static func confirmedLevel(

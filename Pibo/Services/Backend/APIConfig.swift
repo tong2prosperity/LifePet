@@ -7,7 +7,7 @@ import Foundation
 /// 2. the shared deployment `https://api.navi-bot.com/pibo/v1` — the
 ///    same base HarmonyOS packages. Nginx strips the `/pibo/v1` prefix, so request
 ///    paths keep the server's own `/auth/...` and `/api/v1/...` contract.
-struct APIConfig: Sendable {
+nonisolated struct APIConfig: Sendable {
     let baseURL: URL
 
     /// 服务端 economy 同步暂不开放：bo 账本在本机计算（2026-09-15 用户决定，与

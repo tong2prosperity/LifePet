@@ -253,7 +253,7 @@ extension GrowthSnapshot {
         snapshot.seenSplitDay = growthText(json["seenSplitDay"])
         snapshot.seenSplit = growthSplit(json["seenSplit"])
         snapshot.pending = (json["pending"] as? [Any] ?? [])
-            .compactMap(GrowthFeedbackEvent.init(json:))
+            .compactMap { GrowthFeedbackEvent(json: $0) }
             .suffix(GrowthValues.pendingLimit)
             .map { $0 }
         snapshot.copyCursors = (json["copyCursors"] as? [Any] ?? []).compactMap { item in
