@@ -316,7 +316,7 @@ func drawPixelSeason(_ frame: PixelFrame, _ layout: PixelForestLayout, _ look: P
     }
 }
 
-nonisolated(unsafe) private let memo = PixelMemo(capacity: 16)
+private let memo = PixelMemo(capacity: 16)
 
 /// Everything one story thing's picture depends on besides where it stands.
 private func seasonLook(_ id: Int, _ look: PixelSeasonLook) -> String {

@@ -243,7 +243,6 @@ final class GrowthCoordinator {
         case .mealPhoto: return "meal"
         case .answerPrompt: return "answer"
         case .sleepEnough: return "sleep"
-        default: return "none"
         }
     }
 }

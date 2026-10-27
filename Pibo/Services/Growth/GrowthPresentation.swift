@@ -130,7 +130,6 @@ enum GrowthPresentation {
             return slot.night == .lastNight
                 ? "昨晚睡够 \(hours(slot.target)) 小时"
                 : "今晚睡够 \(hours(slot.target)) 小时"
-        default: return ""
         }
     }
 

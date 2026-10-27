@@ -121,8 +121,9 @@ final class OrnamentUnlockFlowCoordinator {
         withAnimation(.linear(duration: 0.65)) {
             holdProgress = 1
         }
+        let duration = holdDuration
         holdTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: holdDuration)
+            try? await Task.sleep(for: duration)
             guard !Task.isCancelled, let self, self.phase == .holding(id) else { return }
             completion()
         }

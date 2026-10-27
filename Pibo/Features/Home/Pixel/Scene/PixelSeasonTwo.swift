@@ -220,7 +220,7 @@ func drawPixelSeasonTwo(_ frame: PixelFrame, _ layout: PixelForestLayout, _ look
     }
 }
 
-nonisolated(unsafe) private let memo = PixelMemo(capacity: 16)
+private let memo = PixelMemo(capacity: 16)
 
 /// From the clearing: the light far off in the trees, blinking with the antenna. Only
 /// readable at night; by day it is a faint glint.

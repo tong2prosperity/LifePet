@@ -683,7 +683,7 @@ private func paintOne(_ frame: PixelFrame, _ scene: PixelDecorScene, _ id: Pixel
 private let SHADOWS: [Int] = [5, 4, 7, 10, 6, 3, 0, 9, 7, 12, 0, 4, 0, 4, 2, 2, 2, 2, 0, 3, 5]
 
 // Caches are main-thread only, like ArkTS's single UI thread.
-nonisolated(unsafe) private let memo = PixelMemo(capacity: 48)
+private let memo = PixelMemo(capacity: 48)
 
 /// Everything a piece's picture depends on besides where it stands.
 private func decorLook(_ scene: PixelDecorScene, _ id: PixelDecorID) -> String {

@@ -887,7 +887,7 @@ private func drawBasket(_ frame: PixelFrame, _ box: PixelPlaceBox, _ full: Bool)
     }
 }
 
-nonisolated(unsafe) private let memo = PixelMemo(capacity: 64)
+private let memo = PixelMemo(capacity: 64)
 
 private func layoutKey(_ layout: PixelForestLayout) -> String {
     "\(layout.width)x\(layout.height)@\(layout.groundY)"

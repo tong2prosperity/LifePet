@@ -299,7 +299,7 @@ final class PixelStageRenderer: PixelStageMomentTarget {
         scene.kiteHand = [Int(pixelDayRound(actor.x)) - 9, Int(pixelDayRound(actor.y)) - actor.lift - 22]
         let clearingHere = directed && look.scene == .clearing
         let matBehind = pixelMealMatBottom(layout) <= feetY
-        var placeLook = self.placeLook(now, elapsed)
+        let placeLook = self.placeLook(now, elapsed)
         if directed { drawPixelPlaces(frame, layout, look.scene, placeLook, feetY, false) }
         let story = seasonLook(now, elapsed, mood == .night)
         let storyHere = directed && look.scene == .clearing
