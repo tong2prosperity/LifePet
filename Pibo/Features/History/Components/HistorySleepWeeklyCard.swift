@@ -37,7 +37,7 @@ struct HistorySleepWeeklyCard: View {
 
     private var statsRow: some View {
         HStack(spacing: LP.Spacing.s) {
-            stat("平均时长", value: report.averageDuration.map(Self.durationText))
+            stat("平均时长", value: report.averageDuration.map { Self.durationText($0) })
             stat("平均就寝", value: report.averageBedtimeMinutes.map(SleepWeeklyReport.timeText))
             stat("平均起床", value: report.averageWakeMinutes.map(SleepWeeklyReport.timeText))
         }

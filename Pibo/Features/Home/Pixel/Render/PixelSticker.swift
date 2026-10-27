@@ -7,7 +7,7 @@ import Foundation
 // Ported from HarmonyPibo `pixel/render/PixelSticker.ets`.
 
 // Inks a plate of food can land on: warm browns, reds, greens, creams, a few greys.
-private let FOOD_INKS: [PixelInk] = [
+nonisolated private let FOOD_INKS: [PixelInk] = [
     .scarf, .scarfShade, .berry, .blush, .flowerB, .fire, .fireCore, .flowerA, .boMid, .acorn, .acornCap,
     .woodLight, .woodMid, .woodDark, .autumnLeaf, .autumnDeep, .autumnLight, .leafLight, .leafMid, .leafDark,
     .grassTip, .moss, .cloth, .clothShade, .signFace, .bodyLight, .stoneLight, .stone, .stoneDark, .line,
@@ -16,7 +16,7 @@ private let FOOD_INKS: [PixelInk] = [
 
 /// `rgba` is `size`×`size` pixels, straight alpha. Returns `PIXEL_STICKER_CELLS²` inks as a
 /// string, one char per cell (ink + 48), row by row.
-func pixelStickerFromRGBA(_ rgba: [UInt8], _ size: Int) -> String {
+nonisolated func pixelStickerFromRGBA(_ rgba: [UInt8], _ size: Int) -> String {
     let day = PixelPalette.rgb(.day)
     let cells = PIXEL_STICKER_CELLS
     let block = Double(size) / Double(cells)
@@ -55,7 +55,7 @@ func pixelStickerFromRGBA(_ rgba: [UInt8], _ size: Int) -> String {
     return out
 }
 
-private func nearestInk(_ rgb: [UInt8], _ r: Double, _ g: Double, _ b: Double) -> UInt8 {
+nonisolated private func nearestInk(_ rgb: [UInt8], _ r: Double, _ g: Double, _ b: Double) -> UInt8 {
     var best = PixelInk.cloth.rawValue
     var bestD = Double.greatestFiniteMagnitude
     for ink in FOOD_INKS {

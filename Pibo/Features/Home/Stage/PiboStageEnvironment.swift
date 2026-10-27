@@ -91,7 +91,7 @@ struct StageWind: Equatable, Sendable {
 
 /// Runtime controls shared by every stage. Theme-specific tuning belongs to a
 /// capability protocol instead of accumulating in this type.
-struct StageRenderTuning: Equatable, Sendable {
+nonisolated struct StageRenderTuning: Equatable, Sendable {
     var piboVisible: Bool
     var ambientMotionScale: Double
     var headSproutFlexibility: Double

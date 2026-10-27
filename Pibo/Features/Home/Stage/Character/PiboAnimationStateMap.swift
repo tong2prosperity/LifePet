@@ -3,7 +3,7 @@ import PiboCore
 
 /// Stable runtime IDs shared by the generated character data and both Apps.
 /// Product state names stay separate from concrete art clips.
-enum PiboAnimationResourceID {
+nonisolated enum PiboAnimationResourceID {
     static let dataUnknown = "pibo-state-data-unknown-forest-idle"
     static let stableThinking = "pibo-state-stable-forest-behavior-thinking"
     static let tiredResting = "pibo-state-tired-ground-behavior-resting"
@@ -49,10 +49,10 @@ enum PiboAnimationResourceID {
 /// whose artwork has actually shipped, so a Core decision that runs ahead of the
 /// port degrades to `default` instead of rendering nothing.
 enum PiboAnimationStateMap {
-    static let fallback = PiboAnimationResourceID.stable
+    nonisolated static let fallback = PiboAnimationResourceID.stable
 
     /// Stable semantic IDs and reviewed key poses shipped by pibo-media 0.5.0.
-    static let available: Set<String> = [
+    nonisolated static let available: Set<String> = [
         PiboAnimationResourceID.dataUnknown,
         PiboAnimationResourceID.wakingGround,
         PiboAnimationResourceID.stableThinking,

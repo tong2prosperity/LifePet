@@ -1,7 +1,7 @@
 import Foundation
 
 #if DEBUG
-struct HomeDebugLaunchOptions {
+nonisolated struct HomeDebugLaunchOptions {
     enum ForestHourOverride: Equatable {
         case value(Double?)
     }

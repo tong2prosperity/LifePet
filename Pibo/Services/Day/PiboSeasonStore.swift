@@ -39,7 +39,7 @@ func piboLocalDay(_ now: Double, timeZone: TimeZone = .current) -> Int {
 @MainActor
 @Observable
 final class PiboSeasonStore {
-    static let defaultsKey = "pibo_season/state.v1"
+    nonisolated static let defaultsKey = "pibo_season/state.v1"
 
     // Season one, "种子".
     var completedBeats = 0

@@ -22,7 +22,7 @@ struct APIConfig: Sendable {
         return URL(string: base + (path.hasPrefix("/") ? path : "/" + path))
     }
 
-    static let shared = APIConfig()
+    nonisolated static let shared = APIConfig()
 
     init(baseURL: URL) {
         self.baseURL = baseURL

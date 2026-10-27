@@ -10,7 +10,7 @@ import os
 // Ported from HarmonyPibo `services/day/MealStickerPixels.ets`.
 
 /// Decoded side before averaging down to the sticker's cells.
-private let decodeSize = 24
+nonisolated private let decodeSize = 24
 
 @MainActor
 final class MealStickerPixels {

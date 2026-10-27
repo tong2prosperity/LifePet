@@ -80,7 +80,7 @@ func renderGrowthTemplate(_ text: String, values: [String: String]) -> String? {
 /// Ported from HarmonyOS `entry/src/main/ets/services/growth/GrowthCopyCatalog.ets`.
 @MainActor
 final class GrowthCopyCatalog {
-    static let resourceName = "pibo-growth.zh-Hans"
+    nonisolated static let resourceName = "pibo-growth.zh-Hans"
     static let placeholderPattern = try? NSRegularExpression(pattern: "\\{([a-zA-Z]+)\\}")
 
     /// Parsed once per process, like the other bundled catalogs.

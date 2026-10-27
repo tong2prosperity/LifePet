@@ -142,7 +142,7 @@ struct SleepWeeklyReport {
             averageWakeMinutes: core.averageWakeMinutes,
             averageScore: core.averageScore,
             regularity: core.regularity,
-            suggestions: core.guidance.map(guidanceText),
+            suggestions: core.guidance.map { guidanceText($0) },
             trend: trend
         )
     }

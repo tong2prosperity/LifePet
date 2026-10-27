@@ -11,7 +11,7 @@ import PiboCore
 @Observable
 final class PiboCompanionStore {
     static let customOptionID = "custom"
-    static let persistenceKey = "pibo.companion.state.v1"
+    nonisolated static let persistenceKey = "pibo.companion.state.v1"
     private static let maxAskHistory = 60
     private static let recentAnswerRateWindow = 10
 

@@ -75,7 +75,7 @@ struct PiboCompanionCatalog: Equatable {
 
     static let resourceName = "pibo-companion.zh-Hans"
     /// Parsed once per process.
-    static let shared: PiboCompanionCatalog? = bundled()
+    nonisolated static let shared: PiboCompanionCatalog? = bundled()
     private static let optionLabelMax = 6
 
     private(set) var prompts: [Prompt] = []

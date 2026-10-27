@@ -109,7 +109,7 @@ enum HomeDebugToolCatalog {
                     || $0.id.localizedCaseInsensitiveContains(trimmed)
             }
         }
-        if group == recentGroup { return recents.compactMap(tool) }
+        if group == recentGroup { return recents.compactMap { tool($0) } }
         return tools.filter { $0.group == group }
     }
 }

@@ -10,7 +10,7 @@ import os
 /// map server errors, and transparently refresh+retry once on a 401. It does
 /// NOT own auth UI state — `AuthService` does.
 actor APIClient {
-    static let shared = APIClient()
+    nonisolated static let shared = APIClient()
 
     private let config: APIConfig
     private let tokens: TokenStore

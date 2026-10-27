@@ -11,7 +11,7 @@ import PiboCore
 // the only reader here, so they are kept beside it until that file is ported.
 
 /// Cells a side; the mat draws a white rim and an outline round it.
-let PIXEL_STICKER_CELLS: Int = 6
+nonisolated let PIXEL_STICKER_CELLS: Int = 6
 
 /// The ink in cell (x, y) of an encoded sticker, Clear outside it. Cells are one character
 /// each: the ink's raw value plus 48, row by row.

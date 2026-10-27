@@ -7,7 +7,7 @@ import Foundation
 // are byte-identical so both platforms draw the same picture; the goldens live in
 // HarmonyPibo `tools/fixtures/pixel-visual-baseline.json`.
 
-enum PixelInk: UInt8, CaseIterable {
+nonisolated enum PixelInk: UInt8, CaseIterable {
     case clear = 0
     case outline = 1
     case bodyLight = 2
@@ -103,7 +103,7 @@ enum PixelInk: UInt8, CaseIterable {
     var index: Int { Int(rawValue) }
 }
 
-enum PixelMood: Int, CaseIterable {
+nonisolated enum PixelMood: Int, CaseIterable {
     case day = 0
     case dusk = 1
     case night = 2
@@ -112,13 +112,13 @@ enum PixelMood: Int, CaseIterable {
 
 /// The three rings that step on their own clocks; a pixel's family says which one
 /// recolours it.
-enum PixelCycleFamily: Int, CaseIterable {
+nonisolated enum PixelCycleFamily: Int, CaseIterable {
     case water = 0
     case fire = 1
     case star = 2
 }
 
-enum PixelPalette {
+nonisolated enum PixelPalette {
     static let cycleFamilies: Int = 3
 
     /// One row per mood, indexed by `PixelInk`. Clear is never drawn; its slot is a

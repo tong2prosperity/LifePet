@@ -45,7 +45,7 @@ private let sceneCount = 3
 @MainActor
 @Observable
 final class PiboDayStore {
-    static let defaultsKey = "pibo_day/state.v1"
+    nonisolated static let defaultsKey = "pibo_day/state.v1"
 
     var scene = 0
     private(set) var finds: [PiboFindRecord] = []

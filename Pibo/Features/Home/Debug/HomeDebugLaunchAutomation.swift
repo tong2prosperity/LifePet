@@ -20,14 +20,14 @@ enum HomeDebugLaunchAutomation {
         var openSettings: () -> Void = {}
     }
 
-    struct Scheduler {
-        let schedule: (
+    struct Scheduler: Sendable {
+        let schedule: @Sendable (
             _ delay: Duration,
             _ skipsWhenCancelled: Bool,
             _ action: @escaping @MainActor () -> Void
         ) -> Void
 
-        static let live = Scheduler { delay, skipsWhenCancelled, action in
+        nonisolated static let live = Scheduler { delay, skipsWhenCancelled, action in
             Task { @MainActor in
                 try? await Task.sleep(for: delay)
                 guard !skipsWhenCancelled || !Task.isCancelled else { return }

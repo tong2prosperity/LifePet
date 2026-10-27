@@ -9,7 +9,7 @@ import Security
 /// access token; a 401 triggers a refresh using the refresh token (which the
 /// server rotates — always persist the new pair).
 struct TokenStore: Sendable {
-    static let shared = TokenStore()
+    nonisolated static let shared = TokenStore()
 
     private let service: String
     private let accessKey = "access_token"

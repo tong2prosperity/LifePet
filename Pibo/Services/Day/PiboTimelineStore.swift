@@ -99,7 +99,7 @@ private func predatingBlockedMask(_ facts: TimelineSeedFacts) -> UInt32 {
 @MainActor
 @Observable
 final class PiboTimelineStore {
-    static let defaultsKey = "pibo_timeline/state.v1"
+    nonisolated static let defaultsKey = "pibo_timeline/state.v1"
 
     /// Bumped on every mutation so observing controllers can refresh.
     private(set) var revision: Int = 0
