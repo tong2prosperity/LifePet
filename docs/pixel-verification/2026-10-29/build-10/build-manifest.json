@@ -1,0 +1,33 @@
+{
+  "version": "1.5",
+  "build": "10",
+  "bundleIdentifier": "com.piboworld.app.iPibo",
+  "teamIdentifier": "XD36G5SYYU",
+  "sourceCommit": "27130da6bbf2c9f83d24a6b8defeb4de7d27b9fb",
+  "coreVersion": "0.35.0",
+  "fullTests": {
+    "passed": 686,
+    "failed": 0
+  },
+  "focusedTests": {
+    "passed": 16,
+    "failed": 0
+  },
+  "verification": {
+    "archive": "passed",
+    "bundleVersions": "passed",
+    "exportCompliance": "passed",
+    "codeSignature": "passed",
+    "dSYM": "passed"
+  },
+  "upload": {
+    "method": "Xcode Organizer",
+    "status": "uploaded",
+    "appStoreConnectStatus": "Processing",
+    "confirmedVersion": "1.5",
+    "confirmedBuild": "10",
+    "appStoreConnectURL": "https://appstoreconnect.apple.com/teams/4ef64852-7895-4181-bc61-f363635052a7/apps/6796563663/testflight/ios",
+    "organizerReceipt": "Pibo 1.5 (10) uploaded"
+  },
+  "archivePath": "/Users/trevorlink/Library/Developer/Xcode/Archives/2026-10-29/Pibo 1.5 (10).xcarchive"
+}
