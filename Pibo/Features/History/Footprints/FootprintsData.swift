@@ -11,7 +11,7 @@ struct FootprintsDaySnapshot {
     let hourlySteps: [Int]
     let activeEnergy: Double
     let exerciseMinutes: Int
-    let standMinutes: Int
+    let standHours: Int?
 
     let sleepTotal: TimeInterval
     let sleepDeep: TimeInterval
@@ -71,7 +71,7 @@ struct FootprintsDaySnapshot {
             hourlySteps: record?.hourlySteps ?? [],
             activeEnergy: usesLiveToday ? store.rawActiveEnergy : record?.activeEnergy ?? 0,
             exerciseMinutes: usesLiveToday ? store.rawExerciseMinutes : record?.exerciseMinutes ?? 0,
-            standMinutes: usesLiveToday ? store.rawStandMinutes : record?.standMinutes ?? 0,
+            standHours: record?.standHours,
             sleepTotal: usesLiveToday ? liveSleepTotal : record?.sleepTotal ?? 0,
             sleepDeep: usesLiveToday ? store.rawSleepDeepHours * 3_600 : record?.sleepDeep ?? 0,
             sleepREM: usesLiveToday ? store.rawSleepREMHours * 3_600 : record?.sleepREM ?? 0,

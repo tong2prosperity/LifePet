@@ -68,6 +68,39 @@ struct HealthHistoryTruthfulnessTests {
         #expect(record.sleepTotal == 7 * 3_600)
     }
 
+    @Test func standRingCountPersistsIndependentlyOfStandingMinutes() throws {
+        let observed = yesterday.addingTimeInterval(12 * 3_600)
+        store.ingest([HealthDayValues(date: yesterday, activityObservedAt: observed,
+                                      standMinutes: 90, standHours: 11, standGoal: 12)])
+        let record = try #require(store.record(on: yesterday))
+        #expect(record.standMinutes == 90)
+        #expect(record.standHours == 11)
+        #expect(HistoryDayDisplay.make(date: yesterday, record: record).standHours == 11)
+
+        store.ingest([HealthDayValues(date: yesterday, activityObservedAt: observed.addingTimeInterval(-60),
+                                      standHours: 10)])
+        #expect(record.standHours == 11)
+        store.ingest([HealthDayValues(date: yesterday, standMinutes: 120)])
+        #expect(record.standHours == 11)
+        #expect(record.standHoursObservedAt == observed)
+        // A real provider correction, including zero, remains authoritative.
+        store.ingest([HealthDayValues(date: yesterday, activityObservedAt: observed.addingTimeInterval(60),
+                                      standHours: 0)])
+        #expect(record.standHours == 0)
+        #expect(HistoryDayDisplay.make(date: yesterday, record: record).standHours == 0)
+    }
+
+    @Test func standCountAloneCanPersistIncludingZeroAndLegacyMinutesStayUnknown() throws {
+        store.ingest([HealthDayValues(date: yesterday, standHours: 0)])
+        let record = try #require(store.record(on: yesterday))
+        #expect(record.standHours == 0)
+        #expect(record.recordedStandMinutes == nil)
+        let legacy = HealthDayRecord(date: yesterday, standMinutes: 90)
+        #expect(HistoryDayDisplay.make(date: yesterday, record: legacy).standHours == nil)
+        #expect(PetStateWidgetBridge.activitySnapshot(petName: "Pibo", dayCount: 1,
+            activityState: .stable, record: legacy).standHours == nil)
+    }
+
     @Test func todayStepsOnlyMoveForward() throws {
         store.ingest([HealthDayValues(date: today, steps: 4_200, stepsRecorded: true)])
         store.ingest([HealthDayValues(date: today, steps: 3_900, stepsRecorded: true)])

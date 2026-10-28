@@ -41,7 +41,7 @@ enum PiboCoreWellnessAdapter {
             skinTemperatureCelsius: measured(record.sleepingWristTemperature),
             steps: measured(record.steps).map(Double.init),
             activeMinutes: measured(record.exerciseMinutes).map(Double.init),
-            activeHours: measured(record.standMinutes).map { Double($0) / 60 },
+            activeHours: record.standHours.map(Double.init),
             trainingLoad: record.trainingLoad
         )
     }

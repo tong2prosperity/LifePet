@@ -51,6 +51,7 @@ final class GrowthStore: GrowthCopyCursorStore {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let persistenceKey: String
     @ObservationIgnored private var sequence = 0
+    @ObservationIgnored private var persistenceBatchDepth = 0
 
     init(defaults: UserDefaults = .standard, persistenceKey: String = GrowthStore.defaultsKey) {
         self.defaults = defaults
@@ -143,6 +144,23 @@ final class GrowthStore: GrowthCopyCursorStore {
         persist()
         publish()
         return award
+    }
+
+    /// A single persisted snapshot contains the receipt, XP, counters and complete feedback.
+    /// If the wish store has not acknowledged this receipt yet, replay returns the same XP.
+    func settleWish(_ slot: WishSlot, now: Date) -> (xp: Int, isNew: Bool) {
+        rollDay(now)
+        let key = "\(slot.kind.rawValue):\(slot.night.rawValue)"
+        if let xp = snapshot.wishReceipts[key] { return (xp, false) }
+        persistenceBatchDepth += 1
+        let xp = PiboCoreGrowth.award(.wish, countedToday: snapshot.counter(at: Int(PiboCoreGrowthSource.wish.rawValue))).xp
+        push(GrowthFeedbackEvent(kind: .wish, wish: Int(slot.kind.rawValue), xp: xp))
+        _ = award(.wish, now: now)
+        snapshot.wishReceipts[key] = xp
+        persistenceBatchDepth -= 1
+        persist()
+        publish()
+        return (xp, true)
     }
 
     func countToday(_ source: PiboCoreGrowthSource, now: Date = .now) -> Int {
@@ -283,15 +301,18 @@ final class GrowthStore: GrowthCopyCursorStore {
         let today = growthDayKey(now)
         if snapshot.counterDay == today { return }
         snapshot.counterDay = today
+        snapshot.wishReceipts = [:]
         snapshot.counters = [Int](repeating: 0, count: GrowthValues.sourceCount)
     }
 
     private func publish() {
+        guard persistenceBatchDepth == 0 else { return }
         pendingCount = snapshot.pending.count
         revision += 1
     }
 
     private func persist() {
+        guard persistenceBatchDepth == 0 else { return }
         guard let raw = snapshot.jsonString else {
             GrowthLog.growth.error("growth snapshot encode failed; keeping previous value")
             return

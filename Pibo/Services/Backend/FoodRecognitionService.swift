@@ -277,16 +277,7 @@ final class FoodRecognitionService {
             hint: hint,
             meal: meal
         ) else { return false }
-        let cached = try? JSONEncoder().encode(response)
-        history.updateFoodPhoto(id: photoID) { photo in
-            photo.dishName = response.dishName
-            photo.totalCalories = response.totalCalories
-            photo.analysisJSON = cached
-            if (photo.subjectLabel ?? "").isEmpty {
-                photo.subjectLabel = response.dishName
-            }
-        }
-        return true
+        return history.applyFoodRecognition(id: photoID, analysis: response)
     }
 
     /// Retry an existing record with its original frame. Older rows that predate

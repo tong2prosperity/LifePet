@@ -58,6 +58,7 @@ struct GrowthHud: View {
                 }
             }
             .padding(6)
+            .frame(minHeight: 48)
             .background(PixelUIColor.paper)
             .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
             .background(alignment: .bottomTrailing) {
@@ -80,7 +81,7 @@ struct GrowthHud: View {
                     .truncationMode(.tail)
                     .frame(maxWidth: 200, alignment: .leading)
             }
-            .frame(height: 26)
+            .frame(minHeight: 48)
             .padding(.horizontal, 8)
             .padding(.leading, -2)
             .background(PixelUIColor.paper)
@@ -95,7 +96,7 @@ struct GrowthHud: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityIdentifier("home-badge-readout")
 
-            HStack(spacing: 5) {
+            HStack(spacing: 10) {
                 ZStack(alignment: .topTrailing) {
                     chip(hasRipeBo ? PixelIcons.boRipe : PixelIcons.leaf, "bo \(boBalance)",
                          hasRipeBo ? PixelUIColor.gold : PixelUIColor.leaf,
@@ -148,14 +149,14 @@ struct GrowthHud: View {
                       _ chipID: String, _ action: @escaping () -> Void,
                       fill: Color = PixelUIColor.paper, border: Color = PixelUIColor.border) -> some View {
         HStack(spacing: 3) {
-            PixelIcon(rows: icon, iconSize: 14)
+            PixelIcon(rows: icon, iconSize: 18)
             Text(value)
-                .font(PixelFont.font(12))
+                .font(PixelFont.font(15))
                 .foregroundStyle(color)
         }
-        .frame(height: 26)
-        .padding(.leading, 6)
-        .padding(.trailing, 7)
+        .frame(minHeight: 48)
+        .padding(.horizontal, 12)
+        .frame(minWidth: 72)
         .background(fill)
         .overlay(Rectangle().strokeBorder(border, lineWidth: 2))
         .background(alignment: .bottomTrailing) {

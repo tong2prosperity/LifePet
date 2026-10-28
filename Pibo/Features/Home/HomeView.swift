@@ -64,9 +64,8 @@ struct HomeView: View {
     @State private var growthUI = HomeGrowthController()
     /// Decision 062: the badge's readout, open from the HUD without the ornament.
     @State private var readoutOpen = false
-    @State private var pendingMealPhotoId = ""
-    @State private var pendingMealTypeRaw = ""
-    @State private var pendingMealDismissTask: Task<Void, Never>?
+    @AppStorage("pibo.account.invitation.dismissed.v1") private var accountInvitationDismissed = false
+    @State private var focusedPatWish = false
     @State private var contextualActions = HomeContextualActionCoordinator()
     @State private var ornamentDiscovery = OrnamentDiscoveryStore()
     @State private var discoveryTask: Task<Void, Never>?
@@ -542,7 +541,7 @@ struct HomeView: View {
             reduceMotion: reduceMotion,
             animationStateID: semanticAnimationStateID,
             achievementResponse: achievementResponse.active?.kind,
-            holdPibo: speechPresentation.line != nil,
+            holdPibo: speechPresentation.line != nil && !(pixelDay?.director.playingPatWish ?? false),
             wishPromptActive: companion.wishPromptReady,
             growth: growth,
             cues: growthCoordinator.cues,
@@ -786,7 +785,11 @@ struct HomeView: View {
                                    // helps it back; it is not a pat.
                                    if achievementResponse.active != nil { achievementResponse.finish(); return }
                                    if pixelDay?.onPat() == true { return }
-                                   stageHandlers.pat()
+                                   let patWish = wishes.hasUncompletedWish(.pats)
+                                       ? wishes.slots.first { $0.kind == .pats && !$0.done } : nil
+                                   _ = growthCoordinator.onPat()
+                                   if !presentPatWishResponse(patWish) { stageHandlers.pat() }
+                                   if !wishes.hasUncompletedWish(.pats) { focusedPatWish = false }
                                    growthUI.afterPat()
                                    timeline.recordFirst(.pat, at: Date().timeIntervalSince1970, day: store.dayCount)
                                },
@@ -861,6 +864,7 @@ struct HomeView: View {
                     season: Int((pixelDay?.season ?? .summer).rawValue),
                     polaroids: polaroids,
                     onClose: { self.pixelSheet = nil },
+                    onWishAction: performWish,
                     onOpenPolaroid: { shot in
                         self.pixelSheet = nil
                         growthUI.openPolaroid(shot)
@@ -966,30 +970,42 @@ struct HomeView: View {
             )
 
             // Decision 063: pixel meal specimen entry popup
-            if PiboReleaseScope.pixelHome,
-               !pendingMealPhotoId.isEmpty,
-               presentation.activeSheet == nil,
-               presentation.foodProjection == nil {
+            if focusedPatWish, !transientPresentationBlocked, !fullScreenFeaturePresented {
                 VStack {
                     Spacer()
-                    MealEstimateEntry(
-                        history: history,
-                        mealTypeRaw: pendingMealTypeRaw,
-                        photoId: pendingMealPhotoId,
-                        onOpen: {
-                            let meal = MealType(rawValue: pendingMealTypeRaw) ?? .lunch
-                            presentation.activeSheet = .meal(meal, photoId: pendingMealPhotoId)
-                            dismissPendingMeal()
-                        },
-                        onDismiss: {
-                            dismissPendingMeal()
+                    HStack {
+                        let slot = wishes.slots.first { $0.kind == .pats }
+                        Text(AppLocalization.format("双击 Pibo 身体算一次 · %@", slot.map(GrowthPresentation.wishProgressText) ?? ""))
+                            .font(PixelFont.font(14))
+                        Button { focusedPatWish = false } label: {
+                            Text("×").font(PixelFont.font(18)).frame(width: 44, height: 44)
                         }
-                    )
-                    .padding(.horizontal, LP.Spacing.m)
-                    .padding(.bottom, 24)
+                        .accessibilityLabel(AppLocalization.text("结束拍拍提示"))
+                    }
+                    .foregroundStyle(PixelUIColor.ink)
+                    .padding(.leading, 12)
+                    .background(PixelUIColor.paper)
+                    .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 100)
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(36)
+                .zIndex(34)
+            }
+
+            if accountInvitationVisible {
+                VStack {
+                    Spacer()
+                    AccountInvitationCard(
+                        onLogin: {
+                            accountInvitationDismissed = true
+                            presentation.openAccountLogin()
+                        },
+                        onSkip: { accountInvitationDismissed = true }
+                    )
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 96)
+                }
+                .zIndex(34)
             }
 
             // Decision 049 one-time Home guide (pat → tools + optional notifications).
@@ -1027,11 +1043,9 @@ struct HomeView: View {
                         guard presentation.foodProjection?.id == projection.id else { return }
                         stageCommands.cancelFoodObservation()
                         presentation.foodProjection = nil
+                        _ = presentation.presentPendingMealResultIfPossible(canPresent: canPresentMealResult)
                         presentBoProgressFeedbackIfPossible()
                         companion.onMealObserved()
-                        if !pendingMealPhotoId.isEmpty {
-                            schedulePendingMealDismiss()
-                        }
                     }
                 )
                 .zIndex(30)
@@ -1257,7 +1271,7 @@ struct HomeView: View {
                 speechPresentation.dismiss()
                 stageCommands.cancelFoodObservation()
                 presentation.foodProjection = nil
-                presentation.pendingFoodProjection = nil
+                // Preserve a verified capture queued behind the camera until its onDismiss.
                 shadowManifestTask?.cancel()
                 shadowManifestTask = nil
                 shadowLightBannerTask?.cancel()
@@ -1274,6 +1288,7 @@ struct HomeView: View {
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(1))
                     guard !Task.isCancelled else { return }
+                    _ = presentation.presentPendingMealResultIfPossible(canPresent: canPresentMealResult)
                     bindCompanion()
                     companion.tick()
                     reconcileAchievementResponse()
@@ -1424,13 +1439,7 @@ struct HomeView: View {
                         if outcome == .saved {
                             _ = timeline.recordFirst(.meal, at: Date().timeIntervalSince1970, day: store.dayCount)
                             _ = growthCoordinator.onMealRecognized()
-                            if let lastPhoto = history.foodPhotos(on: .now).last {
-                                pendingMealPhotoId = lastPhoto.id.uuidString
-                                pendingMealTypeRaw = meal?.rawValue ?? ""
-                                if presentation.foodProjection == nil {
-                                    schedulePendingMealDismiss()
-                                }
-                            }
+
                         }
                         return outcome
                     },
@@ -1553,12 +1562,7 @@ struct HomeView: View {
     }
 
     private func sleepDurationText(_ duration: TimeInterval) -> String {
-        let totalMinutes = max(0, Int((duration / 60).rounded()))
-        let hours = totalMinutes / 60
-        let minutes = totalMinutes % 60
-        if hours == 0 { return AppLocalization.format("%d 分钟", minutes) }
-        if minutes == 0 { return AppLocalization.format("%d 小时", hours) }
-        return AppLocalization.format("%d 小时 %d 分", hours, minutes)
+        SleepDurationText.duration(duration)
     }
 
     // MARK: Chrome
@@ -2183,22 +2187,82 @@ struct HomeView: View {
         _ = timeline.recordFirst(.hammockNight, at: Date().timeIntervalSince1970, day: store.dayCount)
     }
 
-    private func schedulePendingMealDismiss() {
-        pendingMealDismissTask?.cancel()
-        pendingMealDismissTask = Task {
-            try? await Task.sleep(nanoseconds: 8_000_000_000)
-            guard !Task.isCancelled else { return }
-            dismissPendingMeal()
+    private func performWish(_ slot: WishSlot) {
+        guard !slot.done else { return }
+        pixelSheet = nil
+        speechPresentation.dismiss()
+        switch slot.kind {
+        case .pats:
+            focusedPatWish = true
+            presentation.showNotice(AppLocalization.text("双击 Pibo 的身体，一次双击算一次拍拍。"))
+        case .mealPhoto:
+            presentation.openMealCapture(isLoggedIn: auth.phase == .loggedIn)
+        case .answerPrompt:
+            if !companion.offerWishPrompt() {
+                presentation.showNotice(AppLocalization.text("Pibo 现在还没准备好提问，醒着并有提问额度时再来看看。"))
+            }
+        case .steps, .activeMinutes:
+            if health.dataAvailability.requiresAttention {
+                presentation.activeSheet = .healthDataStatus
+            } else {
+                readoutOpen = true
+                presentation.showNotice(GrowthPresentation.wishTitle(slot) + " · " + GrowthPresentation.wishProgressText(slot))
+            }
+        case .sleepEnough:
+            if health.dataAvailability.requiresAttention {
+                presentation.activeSheet = .healthDataStatus
+            } else {
+                readoutOpen = true
+                presentation.showNotice(GrowthPresentation.wishTitle(slot) + " · " + GrowthPresentation.wishProgressText(slot))
+            }
         }
     }
 
-    private func dismissPendingMeal() {
-        pendingMealDismissTask?.cancel()
-        pendingMealDismissTask = nil
-        withAnimation(.easeOut(duration: 0.2)) {
-            pendingMealPhotoId = ""
-            pendingMealTypeRaw = ""
+    private func presentPatWishResponse(_ slot: WishSlot?) -> Bool {
+        guard let slot, onboarding.dailyHomeGuide == .none,
+              companion.active == nil, !companion.holdsSpeech else { return false }
+        let response = PiboCoreWishes.patResponse(
+            state: Int32(clamping: piboCoreStateRaw(animationPresentation.stateID)),
+            pats: growth.countToday(.pat), target: slot.target, alreadyDone: slot.done)
+        let text: String
+        switch response {
+        case .none: return false
+        case .notice: text = "你是不是带着任务来的？"
+        case .dodge:
+            if !reduceMotion { pixelDay?.director.playPatWishDodge(Date().timeIntervalSince1970 * 1000) }
+            text = reduceMotion ? "还差最后一下，我准备好了。" : "最后一下，你追得上吗？"
+        case .complete:
+            focusedPatWish = false
+            text = "好吧，被你拍到了。今天的摸摸收好了！"
+        case .gentle: text = "收到啦。轻轻拍，我就待在这里。"
         }
+        LPHaptics.tap()
+        PiboSoundEffectService.shared.play(.pat(for: animationPresentation.state))
+        let now = Date()
+        let input = HomePatInputProvider(store: store, history: history,
+            animationPresentation: animationPresentation, healthAvailability: health.dataAvailability,
+            storyStage: speechInput.storyStage).input()
+        animationPresentation.noteAttention()
+        guard PiboCorePat.speechCooldownAllows(
+            elapsedSinceLastSpeechSeconds: speechPresentation.lastShownAt.map { now.timeIntervalSince1970 - $0 } ?? 0,
+            hasPreviousSpeech: speechPresentation.lastShownAt != nil
+        ), piboSpeech.claimPatWishSpeech(input, at: now) else { return true }
+        speechPresentation.show(PiboSpeechLine(text: AppLocalization.text(text), lingerDuration: PiboCorePatAdapter.speechCooldownDurationSeconds))
+        return true
+    }
+
+    private var accountInvitationVisible: Bool {
+        scenePhase == .active && !accountInvitationDismissed && auth.phase == .loggedOut
+            && !onboarding.shouldPresentFirstRun && onboarding.dailyHomeGuide == .none
+            && speechPresentation.line == nil && !transientPresentationBlocked
+            && !fullScreenFeaturePresented && presentation.activeSheet == nil
+            && !presentation.sheetDismissalInProgress && presentation.pendingMealResult == nil
+            && !focusedPatWish && sproutPhase == .idle
+    }
+
+    private var canPresentMealResult: Bool {
+        scenePhase == .active && !transientPresentationBlocked && sproutPhase == .idle
+            && !accountInvitationVisible
     }
 
     private var thinkingEligible: Bool {

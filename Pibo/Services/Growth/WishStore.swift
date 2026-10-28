@@ -19,6 +19,7 @@ struct WishSlot: Equatable {
     var fraction: Double
     var done: Bool
     var rewarded: Bool
+    var awardedXP: Int? = nil
     var night: WishNight
 
     init(
@@ -113,10 +114,11 @@ private extension WishSlot {
             rewarded: dictionary["rewarded"] as? Bool ?? false,
             night: WishNight(rawValue: (dictionary["night"] as? NSNumber)?.intValue ?? 0) ?? .none
         )
+        awardedXP = (dictionary["awardedXP"] as? NSNumber).map { max(0, $0.intValue) }
     }
 
     var jsonObject: [String: Any] {
-        [
+        var result: [String: Any] = [
             "kind": Int(kind.rawValue),
             "target": target,
             "value": value,
@@ -125,6 +127,8 @@ private extension WishSlot {
             "rewarded": rewarded,
             "night": night.rawValue
         ]
+        if let awardedXP { result["awardedXP"] = awardedXP }
+        return result
     }
 }
 
@@ -195,20 +199,23 @@ final class WishStore {
     }
 
     /// Plans a new day when needed, refreshes progress and returns the wishes
-    /// that completed on this update, each exactly once.
-    func update(_ facts: WishFacts) -> [WishSlot] {
+    /// still awaiting a ledger receipt. Retrying before settlement is safe.
+    func update(_ facts: WishFacts, allowPlanning: Bool = true) -> [WishSlot] {
         let today = growthDayKey(facts.now)
-        if day != today { planDay(today, facts: facts) }
+        if day != today {
+            guard allowPlanning else { return [] }
+            planDay(today, facts: facts)
+        }
 
         var completed: [WishSlot] = []
         for index in slots.indices {
-            guard let value = valueFor(slots[index], facts: facts) else { continue }
-            slots[index].value = value
-            let progress = PiboCoreWishes.progress(slots[index].kind, target: slots[index].target, value: value)
-            slots[index].fraction = progress.fraction
-            if progress.done && !slots[index].done { slots[index].done = true }
+            if let value = valueFor(slots[index], facts: facts) {
+                slots[index].value = value
+                let progress = PiboCoreWishes.progress(slots[index].kind, target: slots[index].target, value: value)
+                slots[index].fraction = progress.fraction
+                if progress.done { slots[index].done = true }
+            }
             if slots[index].done && !slots[index].rewarded {
-                slots[index].rewarded = true
                 completed.append(slots[index])
             }
         }
@@ -218,6 +225,14 @@ final class WishStore {
             GrowthLog.growth.info("wishes completed=\(completed.count, privacy: .public)")
         }
         return completed
+    }
+
+    func recordReward(for slot: WishSlot, xp: Int) {
+        guard let index = slots.firstIndex(where: { $0.kind == slot.kind && $0.night == slot.night && $0.done }) else { return }
+        slots[index].rewarded = true
+        slots[index].awardedXP = xp
+        persist()
+        revision += 1
     }
 
     func markEveningSeen(localHour: Int) {

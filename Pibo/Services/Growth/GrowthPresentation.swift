@@ -128,8 +128,8 @@ enum GrowthPresentation {
         case .answerPrompt: return "回答我一个问题"
         case .sleepEnough:
             return slot.night == .lastNight
-                ? "昨晚睡够 \(hours(slot.target)) 小时"
-                : "今晚睡够 \(hours(slot.target)) 小时"
+                ? "昨晚睡够 \(SleepDurationText.duration(slot.target * 60))"
+                : "今晚睡够 \(SleepDurationText.duration(slot.target * 60))"
         }
     }
 
@@ -141,7 +141,7 @@ enum GrowthPresentation {
         case .pats: return "\(Int(slot.value.rounded())) / \(Int(slot.target.rounded()))"
         case .answerPrompt: return "Pibo 正在琢磨一件事，去拍拍它"
         case .sleepEnough:
-            return slot.night == .tonight ? "明早看结果" : "\(hours(slot.value)) 小时"
+            return slot.night == .tonight ? "明早看结果" : "\(SleepDurationText.duration(slot.value * 60))"
         default: return "还没有"
         }
     }
@@ -150,10 +150,4 @@ enum GrowthPresentation {
         source == 0 ? "睡眠" : (source == 1 ? "步数" : "活动")
     }
 
-    /// Whole or half hours, as the wish titles spell them.
-    private static func hours(_ minutes: Double) -> String {
-        let value = (minutes / 30).rounded() / 2
-        if value == value.rounded() { return String(Int(value)) }
-        return String(format: "%.1f", value)
-    }
 }

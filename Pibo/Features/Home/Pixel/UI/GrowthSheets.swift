@@ -207,8 +207,10 @@ struct GrowthSheet: View {
 /// Up to three small wishes, stamped when done. No streaks, no penalties.
 struct WishSheet: View {
     var wishes: WishStore
+    var growth: GrowthStore
     var localHour = 12
     var onClose: () -> Void = {}
+    var onAction: (WishSlot) -> Void = { _ in }
 
     var body: some View {
         PixelReadingSheet(title: AppLocalization.text("今日小心愿"), onClose: onClose) {
@@ -216,56 +218,86 @@ struct WishSheet: View {
                 Text(AppLocalization.text("Pibo 每天会想要几件小事。做到了它会很开心，没做到也没关系。"))
                     .lpText(LP.Typography.b3Regular)
                     .foregroundStyle(PixelUIColor.inkSoft)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 10)
-
-                VStack(spacing: 10) {
-                    ForEach(Array(wishes.visible(localHour: localHour).enumerated()), id: \.offset) { _, slot in
-                        row(slot)
-                    }
+                ForEach(Array(wishes.visible(localHour: localHour).enumerated()), id: \.offset) { _, slot in
+                    Button { onAction(slot) } label: { row(slot) }
+                        .buttonStyle(.plain)
+                        .disabled(slot.done)
+                        .accessibilityIdentifier("wish-action-\(slot.kind.rawValue)")
                 }
-                .frame(maxWidth: .infinity)
             }
         }
     }
 
-    @ViewBuilder
     private func row(_ slot: WishSlot) -> some View {
-        if slot.kind == .answerPrompt && !slot.done {
-            Button(action: onClose) { rowContent(slot) }.buttonStyle(.plain)
-        } else {
-            rowContent(slot)
-        }
-    }
-
-    private func rowContent(_ slot: WishSlot) -> some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 5) {
+        let preview = PiboCoreGrowth.award(.wish, countedToday: growth.countToday(.wish)).xp
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top) {
                 Text(GrowthPresentation.wishTitle(slot))
                     .font(PixelFont.font(16))
-                    .foregroundStyle(PixelUIColor.ink)
-                PixelBar(fraction: slot.done ? 1 : slot.fraction, segments: 10,
-                         color: slot.done ? PixelUIColor.leaf : PixelUIColor.gold, barHeight: 8)
-                Text(GrowthPresentation.wishProgressText(slot))
-                    .lpText(LP.Typography.b3Regular)
-                    .foregroundStyle(PixelUIColor.inkSoft)
+                Spacer(minLength: 4)
+                Text(slot.done ? AppLocalization.text("已完成") : "›")
+                    .font(PixelFont.font(14))
+                    .foregroundStyle(PixelUIColor.leaf)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if slot.done {
-                Text(AppLocalization.text("已完成"))
-                    .font(PixelFont.font(13))
-                    .foregroundStyle(Color(pixelHex: 0xC8463A))
-                    .padding(5)
-                    .overlay(Rectangle().strokeBorder(Color(pixelHex: 0xC8463A), lineWidth: 2))
-                    .rotationEffect(.degrees(-12))
+            PixelBar(fraction: slot.done ? 1 : slot.fraction, segments: 10,
+                     color: slot.done ? PixelUIColor.leaf : PixelUIColor.gold, barHeight: 8)
+            HStack(alignment: .firstTextBaseline) {
+                Text(GrowthPresentation.wishProgressText(slot))
+                    .font(.system(size: 14))
+                    .foregroundStyle(PixelUIColor.inkSoft)
+                Spacer(minLength: 4)
+                if !slot.done {
+                    Text(actionTitle(slot.kind)).font(PixelFont.font(12))
+                }
+            }
+            Text(rewardText(slot, preview: preview))
+                .font(PixelFont.font(12))
+                .foregroundStyle(PixelUIColor.leaf)
+            if !slot.done {
+                if let source = interactionSource(slot.kind) {
+                    let xp = PiboCoreGrowth.award(source, countedToday: growth.countToday(source)).xp
+                    Text(xp > 0 ? AppLocalization.format("互动另计 +%d 经验／次", xp)
+                        : AppLocalization.text("今日互动经验已达上限，心愿进度仍计入"))
+                        .font(.system(size: 12))
+                        .foregroundStyle(PixelUIColor.inkSoft)
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .foregroundStyle(PixelUIColor.ink)
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
+        .padding(12)
         .background(slot.done ? Color(pixelHex: 0xEAF6EE) : PixelUIColor.paper)
         .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
         .accessibilityElement(children: .combine)
+    }
+
+    private func rewardText(_ slot: WishSlot, preview: Int) -> String {
+        if slot.done {
+            guard slot.rewarded else { return AppLocalization.text("心愿已完成 · 奖励结算中") }
+            guard let xp = slot.awardedXP else { return AppLocalization.text("奖励已结算") }
+            return xp > 0 ? AppLocalization.format("心愿奖励已到账 +%d 经验", xp)
+                : AppLocalization.text("已完成 · 今日心愿经验已达上限")
+        }
+        return preview > 0 ? AppLocalization.format("完成额外 +%d 经验 · 自动到账", preview)
+            : AppLocalization.text("今日心愿经验已达上限，仍可完成")
+    }
+
+    private func interactionSource(_ kind: PiboCoreWishKind) -> PiboCoreGrowthSource? {
+        switch kind {
+        case .pats: .pat
+        case .mealPhoto: .meal
+        case .answerPrompt: .companionAnswer
+        default: nil
+        }
+    }
+
+    private func actionTitle(_ kind: PiboCoreWishKind) -> String {
+        switch kind {
+        case .pats: AppLocalization.text("去拍拍 ›")
+        case .mealPhoto: AppLocalization.text("去拍餐食 ›")
+        case .answerPrompt: AppLocalization.text("去回答 ›")
+        default: AppLocalization.text("查看进度与条件 ›")
+        }
     }
 }
 
@@ -585,6 +617,7 @@ struct PixelSheetHost: View {
     var season = 1
     var polaroids: PolaroidStore? = nil
     var onClose: () -> Void = {}
+    var onWishAction: (WishSlot) -> Void = { _ in }
     var onOpenPolaroid: (PolaroidShot) -> Void = { _ in }
     /// The diary row hands the footprints the day it was written.
     var onOpenFootprints: (Double) -> Void = { _ in }
@@ -615,7 +648,7 @@ struct PixelSheetHost: View {
             GrowthSheet(growth: growth, polaroids: polaroids, onClose: onClose,
                         onOpenPolaroid: onOpenPolaroid, onOpenFootprints: onOpenFootprints)
         case .wishes:
-            WishSheet(wishes: wishes, localHour: localHour, onClose: onClose)
+            WishSheet(wishes: wishes, growth: growth, localHour: localHour, onClose: onClose, onAction: onWishAction)
         case .dayMap:
             DayMapSheet(current: days.scene,
                         level: growth.level,

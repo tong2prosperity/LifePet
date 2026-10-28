@@ -26,7 +26,7 @@ struct MealEstimateEntry: View {
 
     private func detail(_ photo: FoodPhoto) -> String {
         let dish = photo.analysis?.dishName ?? photo.subjectLabel ?? ""
-        let meal = AppLocalization.text(MealType(rawValue: mealTypeRaw)?.title ?? "这一餐")
+        let meal = AppLocalization.text(photo.meal?.title ?? "这一餐")
         return !dish.isEmpty ? "\(meal) · \(dish)" : meal
     }
 

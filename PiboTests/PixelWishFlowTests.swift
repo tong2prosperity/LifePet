@@ -74,7 +74,9 @@ struct PixelWishFlowTests {
         #expect(!store.hasUncompletedWish(.answerPrompt, now: tomorrow))
         let facts = WishFacts(now: now, localHour: 12, cameraEnabled: true, companionEnabled: true,
                               pats: 0, meals: 0, answers: 1)
-        #expect(store.update(facts).map(\.kind) == [.answerPrompt])
+        let completion = try #require(store.update(facts).first)
+        #expect(completion.kind == .answerPrompt)
+        store.recordReward(for: completion, xp: 15)
         #expect(store.update(facts).isEmpty)
         #expect(!store.hasUncompletedWish(.answerPrompt, now: now))
     }

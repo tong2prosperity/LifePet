@@ -47,6 +47,7 @@ final class HealthDayRecord {
     var activeEnergyObservedAt: Date?
     var exerciseObservedAt: Date?
     var standObservedAt: Date?
+    var standHoursObservedAt: Date?
     /// `Calendar.current.startOfDay(for:)` — the unique key for the day.
     @Attribute(.unique) var date: Date
 
@@ -59,6 +60,9 @@ final class HealthDayRecord {
     var activeEnergy: Double          // kcal
     var exerciseMinutes: Int
     var standMinutes: Int
+    /// Apple Stand ring count (`HKActivitySummary.appleStandHours`, count unit).
+    /// Legacy standing minutes cannot recover this fact; nil awaits a backfill.
+    var standHours: Int? = nil
     var distanceMeters: Double        // walking + running
     var flightsClimbed: Int
     /// Apple Activity ring goals for the day (`HKActivitySummary`). 0 = unknown /
@@ -233,7 +237,7 @@ extension HealthDayRecord {
     /// Has any signal worth showing (filters all-zero placeholder days).
     var hasData: Bool {
         steps > 0 || sleepTotal > 0 || activeEnergy > 0 || exerciseMinutes > 0
-            || standMinutes > 0 || workoutCount > 0 || mindfulMinutes > 0
+            || standMinutes > 0 || (standHours ?? 0) > 0 || workoutCount > 0 || mindfulMinutes > 0
             || restingHR > 0 || heartRateAvg > 0 || hrv > 0 || oxygenSaturation > 0
     }
 

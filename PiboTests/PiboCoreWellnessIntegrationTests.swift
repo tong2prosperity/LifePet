@@ -63,6 +63,16 @@ struct PiboCoreWellnessIntegrationTests {
         #expect(readiness.primaryReason == .buildingPersonalBaseline)
     }
 
+    @Test func activityHoursUseTheAppleStandRingCount() {
+        let day = Calendar.current.startOfDay(for: .now)
+        let record = HealthDayRecord(date: day, standMinutes: 90)
+        #expect(PiboCoreWellnessAdapter.observation(for: record, relativeTo: day).activeHours == nil)
+        record.standHours = 11
+        #expect(PiboCoreWellnessAdapter.observation(for: record, relativeTo: day).activeHours == 11)
+        record.standHours = 0
+        #expect(PiboCoreWellnessAdapter.observation(for: record, relativeTo: day).activeHours == 0)
+    }
+
     @Test func wellnessSnapshotPersistsObservationCountsForUnobservedTrainingLoads() throws {
         let day = Calendar.current.startOfDay(for: .now)
         let record = HealthDayRecord(date: day)

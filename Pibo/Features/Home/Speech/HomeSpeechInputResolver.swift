@@ -22,19 +22,14 @@ enum HomeSpeechInputResolver {
     static func values(
         hasStepsData: @autoclosure () -> Bool,
         rawSteps: @autoclosure () -> Int,
-        rawSleepHours: @autoclosure () -> Double,
-        sleepDurationUnit: @autoclosure () -> String
+        rawSleepHours: @autoclosure () -> Double
     ) -> [String: String] {
         var values: [String: String] = [:]
         if hasStepsData(), rawSteps() > 0 {
             values["steps"] = rawSteps().formatted()
         }
         if rawSleepHours() > 0 {
-            values["sleepDuration"] = String(
-                format: "%.1f %@",
-                rawSleepHours(),
-                sleepDurationUnit()
-            )
+            values["sleepDuration"] = SleepDurationText.duration(rawSleepHours() * 3600)
         }
         return values
     }

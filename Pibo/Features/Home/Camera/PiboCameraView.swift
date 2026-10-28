@@ -5,8 +5,8 @@ import PhotosUI
 import UIKit
 import os
 
-/// Full-screen meal camera. Meal selection happens in a forest-backed
-/// Half-sheet before this view is presented. The view stays in its capture
+/// Full-screen meal camera. Meal and dish name are editable in the result
+/// after capture, with no meal-selection interruption before the camera. The view stays in its capture
 /// context until the backend confirms that food is present; only then does it
 /// dismiss to the forest observation and write formal history.
 struct PiboCameraView: View {
@@ -144,7 +144,7 @@ struct PiboCameraView: View {
 
     private var cameraHeader: some View {
         ZStack {
-            Text(AppLocalization.format("记录%@", AppLocalization.text(meal.title)))
+            Text(AppLocalization.text("给 Pibo 看看你吃了什么"))
                 .font(PixelFont.font(18))
                 .foregroundStyle(PiboMoss.Color.onDarkPrimary)
                 .accessibilityAddTraits(.isHeader)

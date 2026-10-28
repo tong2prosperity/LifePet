@@ -143,14 +143,23 @@ extension HealthDataService {
             }
         }
 
-        for (day, g) in await collectGoals(start: start, end: now) {
-            mutate(day) { $0.moveGoal = g.move; $0.exerciseGoal = g.exercise; $0.standGoal = g.stand }
+        do {
+            for (day, summary) in try await fetchActivitySummaries(start: start, end: now, calendar: cal) {
+                mutate(day) {
+                    $0.moveGoal = summary.moveGoal
+                    $0.exerciseGoal = summary.exerciseGoal
+                    $0.standGoal = summary.standGoal
+                    $0.standHours = summary.standHours
+                }
+            }
+        } catch {
+            LPLog.healthKit.error("History activity summaries: \(error.localizedDescription, privacy: .public)")
         }
 
         LPLog.healthKit.notice("History backfill: \(byDay.count, privacy: .public) day buckets over \(days, privacy: .public)d")
         return byDay.values.map { value in
             var value = value
-            if value.activeEnergyArrived || value.exerciseArrived || value.standArrived {
+            if value.activeEnergyArrived || value.exerciseArrived || value.standArrived || value.standHours != nil {
                 value.activityObservedAt = now
             }
             return value
@@ -217,37 +226,40 @@ extension HealthDataService {
         return result
     }
 
-    /// One day's Apple Activity ring goals (read from `HKActivitySummary`).
-    struct DayGoals: Sendable { var move = 0.0; var exercise = 0; var stand = 0 }
+    /// Stand ring hours count qualifying hours, rather than elapsed standing time.
+    /// Keep the provider's count separate from `appleStandTime` minutes.
+    struct DayActivitySummary: Sendable {
+        let moveGoal: Double
+        let exerciseGoal: Int
+        let standGoal: Int
+        let standHours: Int?
 
-    /// Per-day ring goals: Move (kcal) / Exercise (min) / Stand (hours). 0 = goal
-    /// unset → the 活动 card uses a default. Needs the `activitySummaryType` read
-    /// auth added in `requestAuthorization`. iOS 16+ optional goals; nil → 0.
-    private func collectGoals(start: Date, end: Date) async -> [Date: DayGoals] {
-        let cal = Calendar.current
+        init(_ summary: HKActivitySummary) {
+            moveGoal = summary.activeEnergyBurnedGoal.doubleValue(for: .kilocalorie())
+            exerciseGoal = Int((summary.exerciseTimeGoal?.doubleValue(for: .minute()) ?? 0).rounded())
+            standGoal = Int((summary.standHoursGoal?.doubleValue(for: .count()) ?? 0).rounded())
+            let hours = summary.appleStandHours.doubleValue(for: .count())
+            standHours = hours.isFinite && hours >= 0 ? Int(exactly: hours) : nil
+        }
+    }
+
+    /// Already covered by the existing activity-summary read authorization.
+    /// An absent summary stays unknown; an explicit zero is a real zero.
+    func fetchActivitySummaries(start: Date, end: Date,
+                               calendar cal: Calendar) async throws -> [Date: DayActivitySummary] {
         var startC = cal.dateComponents([.year, .month, .day], from: start)
         startC.calendar = cal
         var endC = cal.dateComponents([.year, .month, .day], from: end)
         endC.calendar = cal
         let predicate = HKQuery.predicate(forActivitySummariesBetweenStart: startC, end: endC)
         let descriptor = HKActivitySummaryQueryDescriptor(predicate: predicate)
-        do {
-            let summaries = try await descriptor.result(for: store)
-            var out: [Date: DayGoals] = [:]
-            for s in summaries {
-                guard let day = cal.date(from: s.dateComponents(for: cal)) else { continue }
-                let move = s.activeEnergyBurnedGoal.doubleValue(for: .kilocalorie())
-                let ex = s.exerciseTimeGoal?.doubleValue(for: .minute()) ?? 0
-                let st = s.standHoursGoal?.doubleValue(for: .count()) ?? 0
-                out[cal.startOfDay(for: day)] = DayGoals(
-                    move: move, exercise: Int(ex.rounded()), stand: Int(st.rounded()))
-            }
-            LPLog.healthKit.notice("Goals: \(out.count, privacy: .public) day summaries")
-            return out
-        } catch {
-            LPLog.healthKit.error("collectGoals: \(error.localizedDescription, privacy: .public)")
-            return [:]
+        let summaries = try await descriptor.result(for: store)
+        var out: [Date: DayActivitySummary] = [:]
+        for summary in summaries {
+            guard let day = cal.date(from: summary.dateComponents(for: cal)) else { continue }
+            out[cal.startOfDay(for: day)] = DayActivitySummary(summary)
         }
+        return out
     }
 
     // MARK: - Collection helpers

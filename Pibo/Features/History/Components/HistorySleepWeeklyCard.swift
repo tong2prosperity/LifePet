@@ -105,7 +105,7 @@ struct HistorySleepWeeklyCard: View {
     }
 
     private static func durationText(_ seconds: TimeInterval) -> String {
-        let totalMinutes = max(0, Int((seconds / 60).rounded()))
+        let totalMinutes = SleepDurationText.minutes(seconds)
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
         if hours == 0 { return AppLocalization.format("%d 分钟", minutes) }

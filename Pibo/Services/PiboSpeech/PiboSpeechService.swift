@@ -127,6 +127,10 @@ final class PiboSpeechService: PiboSpeechProviding {
         patConversation.resolve(input, at: date)
     }
 
+    func claimPatWishSpeech(_ input: PiboPatConversationInput, at date: Date = .now) -> Bool {
+        patConversation.claimExternalSpeech(input, at: date)
+    }
+
     func patBehavior(for input: PiboPatConversationInput) -> PiboCorePatBehavior {
         patConversation.behavior(for: input)
     }

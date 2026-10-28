@@ -229,7 +229,7 @@ struct FootprintsMetricDetailView: View {
                 HStack(spacing: LP.Spacing.s) {
                     detailTile("脚步", value: "\(day.steps)", tint: LP.Colorful.green500)
                     detailTile("运动", value: "\(day.exerciseMinutes) min", tint: LP.Colorful.teal500)
-                    detailTile("站立", value: "\(Int((Double(day.standMinutes) / 60).rounded())) h", tint: LP.Colorful.cyan500)
+                    detailTile("站立", value: day.standHours.map { "\($0) h" } ?? "—", tint: LP.Colorful.cyan500)
                 }
             }
         case .activeEnergy:

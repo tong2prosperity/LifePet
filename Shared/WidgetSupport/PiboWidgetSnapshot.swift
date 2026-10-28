@@ -37,6 +37,8 @@ nonisolated struct PiboWidgetSnapshot: Codable, Hashable, Sendable {
     var activeEnergyUpdatedAt: Date? = nil
     var exerciseMinutesUpdatedAt: Date? = nil
     var standMinutesUpdatedAt: Date? = nil
+    /// Present only for a genuine Apple Stand ring count, never minutes / 60.
+    var standHoursUpdatedAt: Date? = nil
 
     /// All widget families render the same persisted character projection.
     @MainActor var pixelLook: PiboPixelCompanionArt.Look {
@@ -70,6 +72,13 @@ nonisolated struct PiboWidgetSnapshot: Codable, Hashable, Sendable {
         activeEnergyUpdatedAt = nil
         exerciseMinutesUpdatedAt = nil
         standMinutesUpdatedAt = nil
+        standHoursUpdatedAt = nil
+    }
+
+    mutating func discardLegacyStandHours() {
+        guard standHoursUpdatedAt == nil else { return }
+        standHours = nil
+        standProgress = nil
     }
 
     var activeEnergyText: String { Self.number(activeEnergy) }
@@ -90,6 +99,7 @@ nonisolated struct PiboWidgetSnapshot: Codable, Hashable, Sendable {
             result.activeEnergyUpdatedAt = nil
             result.exerciseMinutesUpdatedAt = nil
             result.standMinutesUpdatedAt = nil
+            result.standHoursUpdatedAt = nil
             result.activityUpdatedAt = snapshot.activityUpdatedAt.flatMap {
                 calendar.dateInterval(of: .minute, for: $0)?.start
             }
@@ -146,7 +156,9 @@ nonisolated enum PiboWidgetSnapshotStore {
         }
 
         do {
-            return try JSONDecoder().decode(PiboWidgetSnapshot.self, from: data)
+            var snapshot = try JSONDecoder().decode(PiboWidgetSnapshot.self, from: data)
+            snapshot.discardLegacyStandHours()
+            return snapshot
         } catch {
             return .fallback
         }

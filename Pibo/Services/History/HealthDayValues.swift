@@ -10,6 +10,8 @@ struct HealthDayValues: Sendable {
     var activeEnergy = 0.0
     var exerciseMinutes = 0
     var standMinutes = 0
+    /// Apple Stand ring count, independent of cumulative standing duration.
+    var standHours: Int? = nil
     var distanceMeters = 0.0
     var flightsClimbed = 0
     var moveGoal = 0.0          // Apple Move ring goal, kcal (0 = unknown)
@@ -61,7 +63,7 @@ struct HealthDayValues: Sendable {
     /// An empty HealthKit response must never create an all-zero day. A first
     /// real 0 (flagged) is still evidence and does persist.
     var hasPersistableData: Bool {
-        stepsArrived || activeEnergyArrived || exerciseArrived || standArrived
+        stepsArrived || activeEnergyArrived || exerciseArrived || standArrived || standHours != nil
             || hourlySteps.count == 24
             || steps > 0 || activeEnergy > 0 || exerciseMinutes > 0 || standMinutes > 0
             || distanceMeters > 0 || flightsClimbed > 0 || moveGoal > 0

@@ -136,7 +136,7 @@ struct SettingsView: View {
                     LPHaptics.tap()
                     showLogin = true
                 } label: {
-                    settingsRow(title: "手机号", detail: accountDetail, showsChevron: true)
+                    settingsRow(title: "登录 Pibo", detail: "餐食识别使用账号", showsChevron: true)
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint(AppLocalization.text("登录后可以使用餐食识别"))

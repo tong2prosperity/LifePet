@@ -53,6 +53,7 @@ enum PetStateWidgetBridge {
             value.activityUpdatedAt = value.updatedAt
         }
         value.petName = petName
+        value.discardLegacyStandHours()
         value.dayCount = dayCount
         value.stateTag = activityState.rawValue
         value.stateLabel = activityState.displayName
@@ -94,6 +95,8 @@ enum PetStateWidgetBridge {
             ?? (value.exerciseMinutesUpdatedAt == nil ? record.updatedAt : .distantPast)
         let standObserved = record.standObservedAt
             ?? (value.standMinutesUpdatedAt == nil ? record.updatedAt : .distantPast)
+        let standHoursObserved = record.standHoursObservedAt
+            ?? (value.standHoursUpdatedAt == nil ? record.updatedAt : .distantPast)
         if let amount = record.recordedActiveEnergy, amount.isFinite, amount >= 0,
            energyObserved >= (value.activeEnergyUpdatedAt ?? (value.activeEnergy != nil ? value.activityUpdatedAt : nil) ?? .distantPast) {
             value.activeEnergy = amount
@@ -105,10 +108,14 @@ enum PetStateWidgetBridge {
             value.exerciseMinutesUpdatedAt = exerciseObserved
         }
         if let minutes = record.recordedStandMinutes, minutes >= 0,
-           standObserved >= (value.standMinutesUpdatedAt ?? (value.standHours != nil ? value.activityUpdatedAt : nil) ?? .distantPast) {
+           standObserved >= (value.standMinutesUpdatedAt ?? .distantPast) {
             value.standMinutes = minutes
-            value.standHours = minutes / 60
             value.standMinutesUpdatedAt = standObserved
+        }
+        if let hours = record.standHours, hours >= 0,
+           standHoursObserved >= (value.standHoursUpdatedAt ?? .distantPast) {
+            value.standHours = hours
+            value.standHoursUpdatedAt = standHoursObserved
         }
         if record.moveGoal.isFinite, record.moveGoal > 0 { value.moveGoal = record.moveGoal }
         if record.exerciseGoal > 0 { value.exerciseGoal = Double(record.exerciseGoal) }
@@ -155,10 +162,15 @@ enum PetStateWidgetBridge {
             value.exerciseMinutesUpdatedAt = update.asOf
         case .standMinutes:
             guard update.value.map({ $0 < Double(Int.max) }) ?? true,
-                  update.asOf >= (value.standMinutesUpdatedAt ?? (value.standHours != nil ? value.activityUpdatedAt : nil) ?? .distantPast) else { return nil }
+                  update.asOf >= (value.standMinutesUpdatedAt ?? .distantPast) else { return nil }
             value.standMinutes = update.value.map { Int($0) }
-            value.standHours = value.standMinutes.map { $0 / 60 }
             value.standMinutesUpdatedAt = update.asOf
+        case .standHours:
+            guard update.value.map({ Int(exactly: $0) != nil }) ?? true,
+                  update.asOf >= (value.standHoursUpdatedAt ?? .distantPast) else { return nil }
+            value.standHours = update.value.flatMap { Int(exactly: $0) }
+            value.standHoursUpdatedAt = update.asOf
+            if let goal = update.goal, goal.isFinite, goal > 0 { value.standGoal = goal }
         }
         updateActivityTimeAndProgress(&value)
         return value
@@ -180,10 +192,11 @@ enum PetStateWidgetBridge {
 
     private static func updateActivityTimeAndProgress(_ value: inout PiboWidgetSnapshot) {
         value.activityUpdatedAt = [value.activityUpdatedAt, value.activeEnergyUpdatedAt,
-                                  value.exerciseMinutesUpdatedAt, value.standMinutesUpdatedAt].compactMap { $0 }.max()
+                                  value.exerciseMinutesUpdatedAt, value.standMinutesUpdatedAt,
+                                  value.standHoursUpdatedAt].compactMap { $0 }.max()
         let normalized = PiboCoreActivityWater.intensities(
             activeCalories: value.activeEnergy ?? 0, exerciseMinutes: Double(value.exerciseMinutes ?? 0),
-            standHours: value.standMinutes.map { Double($0) / 60 } ?? Double(value.standHours ?? 0),
+            standHours: Double(value.standHours ?? 0),
             moveGoal: value.moveGoal ?? 0, exerciseGoal: value.exerciseGoal ?? 0, standGoal: value.standGoal ?? 0)
         value.moveProgress = value.activeEnergy != nil && (value.moveGoal ?? 0) > 0 ? normalized.move : nil
         value.exerciseProgress = value.exerciseMinutes != nil && (value.exerciseGoal ?? 0) > 0 ? normalized.exercise : nil

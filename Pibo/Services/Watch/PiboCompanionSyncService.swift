@@ -34,14 +34,14 @@ final class PiboCompanionSyncService: NSObject, WCSessionDelegate {
             let value = PiboCoreActivityWater.intensities(
                 activeCalories: record.activeEnergy,
                 exerciseMinutes: Double(record.exerciseMinutes),
-                standHours: Double(record.standMinutes) / 60,
+                standHours: Double(record.standHours ?? 0),
                 moveGoal: record.moveGoal,
                 exerciseGoal: Double(record.exerciseGoal),
                 standGoal: Double(record.standGoal)
             )
             moveProgress = value.move
             exerciseProgress = value.exercise
-            standProgress = value.stand
+            standProgress = record.standHours != nil ? value.stand : nil
         }
         let state = store.activityState
         // 决定 068：睡眠回顾是基础能力，吊床只是它原来的入口。睡在吊床上仍然需要
@@ -62,7 +62,7 @@ final class PiboCompanionSyncService: NSObject, WCSessionDelegate {
             stateLabel: state.displayName,
             activeEnergy: record.flatMap { $0.activeEnergy > 0 ? $0.activeEnergy : nil },
             exerciseMinutes: record.flatMap { $0.exerciseMinutes > 0 ? $0.exerciseMinutes : nil },
-            standHours: record.flatMap { $0.standMinutes > 0 ? $0.standMinutes / 60 : nil },
+            standHours: record?.standHours,
             moveProgress: moveProgress,
             exerciseProgress: exerciseProgress,
             standProgress: standProgress,

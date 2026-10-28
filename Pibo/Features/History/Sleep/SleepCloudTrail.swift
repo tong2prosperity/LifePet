@@ -321,7 +321,7 @@ enum SleepTrailFormat {
     }
 
     static func minutes(_ segment: SleepSegmentValue) -> Int {
-        max(1, Int((segment.duration / 60).rounded()))
+        SleepDurationText.minutes(segment.duration)
     }
 
     static func selectionDetail(_ segment: SleepSegmentValue) -> String {

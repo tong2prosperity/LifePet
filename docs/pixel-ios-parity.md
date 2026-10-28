@@ -7,6 +7,14 @@
 > HarmonyPibo `docs/harmony-first/2026-10-19-像素化重构.md` 起的像素系列记录。
 > 本文只是 iOS 侧的移植进度与顺序，不是新的产品规则源。
 
+## 2026-10-29 体验修复复审
+
+补齐心愿结算中断恢复、餐食草稿／同 ID 保存／重试、结果页排队、追拍共用冷却与首次健康刷新前的互动边界；完整 686 项测试通过，详见[复审记录](pixel-verification/2026-10-29/companion-review/README.md)。
+
+## 2026-10-28 用户反馈修复
+
+睡眠精确到分钟、可跳过登录邀请与明确账号入口、心愿奖励／直接行动、48pt 入口、拍拍计数接线、Core 趣味追拍、拍后名称和餐次编辑已实现。共享规则精确固定 Core `0.35.0`；验证和截图见 [修复记录](pixel-verification/2026-10-28/companion-feedback/README.md)。
+
 ## 2026-10-26 App Store 加密声明
 
 核对系统 HTTPS／Keychain 与固定依赖后，补齐三端所有配置的非豁免加密声明 `false`。最新验证归档为 **1.5 (9)**，声明的实际 Boolean 类型、版本、签名与符号全部通过。旧构建问卷选择第四项；记录见 [加密声明修复](pixel-verification/2026-10-26/export-compliance/README.md)。

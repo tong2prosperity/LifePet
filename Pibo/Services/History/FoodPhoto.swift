@@ -32,6 +32,8 @@ final class FoodPhoto {
     var mealTypeRaw: String? = nil
     /// Backend VLM result — 菜名 (quick-access, also drives the caption).
     var dishName: String? = nil
+    /// A recognition retry must preserve a name confirmed by the person.
+    var userEditedDishName: Bool = false
     /// Backend VLM result — 整份估算热量 (kcal). Nil while analysis is pending
     /// or if recognition failed.
     var totalCalories: Int? = nil
@@ -57,6 +59,13 @@ final class FoodPhoto {
 }
 
 extension FoodPhoto {
+    var displayName: String {
+        for value in [dishName, subjectLabel] {
+            if let value, !value.isEmpty { return value }
+        }
+        return AppLocalization.text("已保存的餐食")
+    }
+
     /// The meal slot this photo belongs to, if any.
     var meal: MealType? {
         mealTypeRaw.flatMap(MealType.init(rawValue:))

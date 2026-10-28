@@ -45,29 +45,25 @@ final class HomeSpeechInputResolverTests: XCTestCase {
         let values = HomeSpeechInputResolver.values(
             hasStepsData: true,
             rawSteps: 42,
-            rawSleepHours: 7.25,
-            sleepDurationUnit: "unit"
+            rawSleepHours: 7.25
         )
 
         XCTAssertEqual(values["steps"], 42.formatted())
-        XCTAssertEqual(values["sleepDuration"], String(format: "%.1f %@", 7.25, "unit"))
+        XCTAssertEqual(values["sleepDuration"], SleepDurationText.duration(7.25 * 3600))
         XCTAssertEqual(values.count, 2)
     }
 
     func testValuesOmitUnavailableAndNonpositiveMeasurementsLazily() {
         var stepsRead = false
-        var unitRead = false
 
         let values = HomeSpeechInputResolver.values(
             hasStepsData: false,
             rawSteps: read(&stepsRead, value: 42),
-            rawSleepHours: 0,
-            sleepDurationUnit: read(&unitRead, value: "unit")
+            rawSleepHours: 0
         )
 
         XCTAssertTrue(values.isEmpty)
         XCTAssertFalse(stepsRead)
-        XCTAssertFalse(unitRead)
     }
 
     private func facts(

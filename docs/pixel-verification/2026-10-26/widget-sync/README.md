@@ -48,3 +48,28 @@ xcodebuild build -project Pibo.xcodeproj -scheme Pibo -configuration Release \
 这次验证覆盖接线、存储、合并和时间线逻辑。模拟器不能证明真实设备在锁屏／后台唤醒时的 HealthKit 数据交付和 WidgetKit 实际刷新时延；这些仍需真机验收。`reloadTimelines` 是更新请求，实际显示由系统调度与预算决定，不能承诺即时刷新。参见 [Apple WidgetKit 更新说明](https://developer.apple.com/documentation/widgetkit/keeping-a-widget-up-to-date/) 和 [HealthKit 观察查询说明](https://developer.apple.com/documentation/healthkit/executing-observer-queries)。
 
 先前归档的 1.5 (6) 生成于本次修复之前，不含这些代码；上传仍受 Xcode 的 App Store Connect 账号认证阻塞。本次没有上传旧归档。恢复发布时需要先生成含本次修复的新归档。
+
+## 追加：站立环小时数口径修复
+
+用户反馈 Apple Watch 为 11 小时、Pibo Widget 为 1 小时。代码确认 Widget 将
+`appleStandTime` 累计分钟数除以 60 并截断，混用了站立时长和站立环计数。
+Apple 的 [`HKActivitySummary.appleStandHours`](https://developer.apple.com/documentation/healthkit/hkactivitysummary/applestandhours)
+使用 `count()`，表示当天达到每小时至少站立并活动一分钟要求的小时数，无法从累计站立时长换算。
+
+- 实时站立观察回调／前台 reconcile 额外查询当天 Activity Summary，直接发布站立环计数及真实目标；继续使用已有健康权限。
+- 历史回填持久化独立的 `standHours` 和采集时间。Widget、历史页、分享卡、手表投影与 Core 活动评分输入均使用真实计数；Core 算法和依赖 pin 未变。
+- `standMinutes` 保留为原始时长，手表不再把站立环小时数反向乘以 60 冒充分钟数。
+- 旧 Widget 载荷缺少新计数时间戳时丢弃旧换算值及进度，保留其他健康事实和外观。旧历史行的新可选字段保持未知，等待 HealthKit 回填。
+- 回归覆盖站立 90 分钟同时站立环为 11 小时、分钟更新不覆盖环进度、真实零值、缺失、历史乱序、跨天、缓存迁移和活动评分输入。
+
+最终完整回归：**538 项／103 套全部通过**，包含 iOS、内嵌 Watch 和 Widget 的 Debug 编译。
+本轮未新增布局或权限；仍需用含修复的新构建对照真机 Apple Watch／iPhone 健康数据。
+
+```sh
+xcodebuild test -project Pibo.xcodeproj -scheme Pibo \
+  -destination 'platform=iOS Simulator,id=1A6A5ABC-10E7-4269-BC40-6392A449DF58' \
+  -parallel-testing-enabled NO \
+  -resultBundlePath /tmp/Pibo-StandHours-Full.xcresult
+```
+
+日志：`/tmp/Pibo-StandHours-Full.log`。

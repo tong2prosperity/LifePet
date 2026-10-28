@@ -272,6 +272,16 @@ final class PiboPatConversationStore {
         lastEpisodeKey = episodeKey
     }
 
+    func claimExternalSpeech(_ input: PiboPatConversationInput, at date: Date) -> Bool {
+        stateChanged(input.state, episodeKey: input.episodeKey)
+        guard PiboCorePat.speechCooldownAllows(
+            elapsedSinceLastSpeechSeconds: lastSpeechAt.map { date.timeIntervalSince($0) } ?? 0,
+            hasPreviousSpeech: lastSpeechAt != nil
+        ) else { return false }
+        lastSpeechAt = date
+        return true
+    }
+
     func resolve(_ input: PiboPatConversationInput, at date: Date = .now) -> PiboPatResolution {
         stateChanged(input.state, episodeKey: input.episodeKey)
         if let lastSpeechAt,

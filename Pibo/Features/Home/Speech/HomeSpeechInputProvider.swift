@@ -33,8 +33,7 @@ struct HomeSpeechInputProvider {
         HomeSpeechInputResolver.values(
             hasStepsData: store.hasStepsData,
             rawSteps: store.rawSteps,
-            rawSleepHours: store.rawSleepHours,
-            sleepDurationUnit: AppLocalization.text("小时")
+            rawSleepHours: store.rawSleepHours
         )
     }
 

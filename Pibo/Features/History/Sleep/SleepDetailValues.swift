@@ -195,7 +195,7 @@ enum SleepDetailFormat {
     /// "12 分钟" under an hour, else "7 小时 56 分". `nil`/invalid → "—".
     static func duration(_ seconds: TimeInterval?) -> String {
         guard let seconds, seconds.isFinite, seconds >= 0 else { return "—" }
-        let minutes = Int((seconds / 60).rounded())
+        let minutes = SleepDurationText.minutes(seconds)
         if minutes < 60 { return AppLocalization.format("%d 分钟", minutes) }
         return AppLocalization.format("%d 小时 %d 分", minutes / 60, minutes % 60)
     }

@@ -205,6 +205,11 @@ final class HealthHistoryStore {
             record.standRecorded = true
             record.standObservedAt = activityObservedAt
         }
+        if let hours = v.standHours, hours >= 0,
+           activityObservedAt >= (record.standHoursObservedAt ?? .distantPast) {
+            record.standHours = hours
+            record.standHoursObservedAt = activityObservedAt
+        }
         if v.distanceMeters > 0 { record.distanceMeters = v.distanceMeters }
         if v.flightsClimbed > 0 { record.flightsClimbed = v.flightsClimbed }
         if v.moveGoal > 0 { record.moveGoal = v.moveGoal }
@@ -422,6 +427,7 @@ final class HealthHistoryStore {
         record.activeEnergy = 0
         record.exerciseMinutes = 0
         record.standMinutes = 0
+        record.standHours = nil
         record.distanceMeters = 0
         record.flightsClimbed = 0
         record.moveGoal = 0
@@ -434,6 +440,7 @@ final class HealthHistoryStore {
         record.activeEnergyObservedAt = nil
         record.exerciseObservedAt = nil
         record.standObservedAt = nil
+        record.standHoursObservedAt = nil
         record.restingHR = 0
         record.heartRateAvg = 0
         record.heartRateMin = 0
@@ -597,16 +604,57 @@ final class HealthHistoryStore {
         return photo
     }
 
-    /// Mutate an existing food photo (e.g. attach the backend calorie analysis).
-    /// Bumps `revision` so the meal modal re-renders. No-op if the id is gone.
-    func updateFoodPhoto(id: UUID, apply: (FoodPhoto) -> Void) {
-        var d = FetchDescriptor<FoodPhoto>(predicate: #Predicate { $0.id == id })
-        d.fetchLimit = 1
-        guard let photo = try? context.fetch(d).first else { return }
-        apply(photo)
+    /// Commit metadata and an optional portion edit together. A failed save restores the row.
+    @discardableResult
+    func updateMealMetadata(id: UUID, name: String, meal: MealType,
+                            portionAnalysis: FoodAnalysis? = nil) -> Bool {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let photo = foodPhoto(id),
+              let original = photo.analysis, original.isFood != false else { return false }
+        var analysis = portionAnalysis ?? original
+        guard analysis.isFood != false else { return false }
+        analysis.dishName = name
+        guard let encoded = try? JSONEncoder().encode(analysis) else { return false }
+        let previous = (photo.dishName, photo.mealTypeRaw, photo.analysisJSON,
+                        photo.userEditedDishName, photo.updatedAt, photo.totalCalories)
+        photo.userEditedDishName = photo.userEditedDishName || name != photo.displayName
+        photo.dishName = name
+        photo.mealTypeRaw = meal.rawValue
+        photo.analysisJSON = encoded
+        if portionAnalysis != nil { photo.totalCalories = analysis.totalCalories }
         photo.updatedAt = .now
-        try? context.save()
-        revision += 1
+        do {
+            try context.save()
+            revision += 1
+            return true
+        } catch {
+            (photo.dishName, photo.mealTypeRaw, photo.analysisJSON,
+             photo.userEditedDishName, photo.updatedAt, photo.totalCalories) = previous
+            return false
+        }
+    }
+
+    /// A retry may replace the estimate, but never a user-confirmed name or meal slot.
+    @discardableResult
+    func applyFoodRecognition(id: UUID, analysis: FoodAnalysis) -> Bool {
+        guard analysis.isFood == true, let photo = foodPhoto(id) else { return false }
+        var updated = analysis
+        if photo.userEditedDishName, let name = photo.dishName { updated.dishName = name }
+        guard let encoded = try? JSONEncoder().encode(updated) else { return false }
+        let previous = (photo.dishName, photo.totalCalories, photo.analysisJSON, photo.subjectLabel, photo.updatedAt)
+        photo.dishName = updated.dishName
+        photo.totalCalories = updated.totalCalories
+        photo.analysisJSON = encoded
+        if (photo.subjectLabel ?? "").isEmpty { photo.subjectLabel = updated.dishName }
+        photo.updatedAt = .now
+        do {
+            try context.save()
+            revision += 1
+            return true
+        } catch {
+            (photo.dishName, photo.totalCalories, photo.analysisJSON, photo.subjectLabel, photo.updatedAt) = previous
+            return false
+        }
     }
 
     // MARK: - Walk doodles (足迹涂鸦 card)
@@ -681,7 +729,7 @@ final class HealthHistoryStore {
                 hourlySteps: Self.seedHourlySteps(total: steps, seed: doy),
                 activeEnergy: Double(180 + (doy * 13) % 420),
                 exerciseMinutes: (doy * 5) % 65,
-                standMinutes: 120 + (doy % 8) * 30,   // ~2–5 stand-hours when /60
+                standMinutes: 120 + (doy % 8) * 30,   // cumulative duration, not Stand ring hours
                 distanceMeters: Double(steps) * 0.72,
                 moveGoal: 500, exerciseGoal: 30, standGoal: 12,   // 标准三环目标（占位演示）
                 restingHR: 56 + Double(doy % 12),

@@ -90,16 +90,17 @@ struct HomePresentationStateTests {
 
     // MARK: On-demand login (2026-09-28)
 
-    @Test func cornerCameraOpensThePickerWithAnAccount() {
+    @Test func cornerCameraOpensCameraWithoutMealQuestion() {
         let state = HomePresentationState()
 
         state.openMealCapture(isLoggedIn: true)
 
-        #expect(state.activeSheet == .mealCaptureSelection)
+        #expect(state.activeSheet == nil)
+        #expect(state.showCamera)
         #expect(!state.showLogin)
     }
 
-    @Test func cornerCameraAsksForAnAccountThenResumesThePicker() {
+    @Test func cornerCameraAsksForAccountThenResumesCamera() {
         let state = HomePresentationState()
 
         state.openMealCapture(isLoggedIn: false)
@@ -107,12 +108,13 @@ struct HomePresentationStateTests {
         #expect(state.activeSheet == nil)
         #expect(state.showLogin)
         #expect(state.loginPurpose == .mealCamera)
-        #expect(state.cameraResumeAfterLogin == .mealSelection)
+        #expect(state.cameraResumeAfterLogin == .camera(nil))
 
         state.showLogin = false
         state.resumeAfterLogin(isLoggedIn: true)
 
-        #expect(state.activeSheet == .mealCaptureSelection)
+        #expect(state.activeSheet == nil)
+        #expect(state.showCamera)
         #expect(state.cameraResumeAfterLogin == nil)
     }
 
@@ -130,6 +132,18 @@ struct HomePresentationStateTests {
 
         #expect(state.showCamera)
         #expect(state.cameraInitialMeal == .dinner)
+    }
+
+    @Test func voluntaryAccountLoginDoesNotOpenCameraAfterSuccess() {
+        let state = HomePresentationState()
+        state.cameraResumeAfterLogin = .camera(.lunch)
+        state.openAccountLogin()
+        #expect(state.loginPurpose == .account)
+        #expect(state.cameraResumeAfterLogin == nil)
+        state.showLogin = false
+        state.resumeAfterLogin(isLoggedIn: true)
+        #expect(!state.showCamera)
+        #expect(state.activeSheet == nil)
     }
 
     @Test func closingLoginForgetsTheCamera() {

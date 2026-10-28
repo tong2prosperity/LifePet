@@ -50,11 +50,7 @@ struct HomePatInputProvider {
         var values: [String: String] = [:]
         if store.hasStepsData { values["steps"] = String(store.rawSteps) }
         if store.rawSleepHours > 0 {
-            values["sleepDuration"] = String(
-                format: "%.1f %@",
-                store.rawSleepHours,
-                AppLocalization.text("小时")
-            )
+            values["sleepDuration"] = SleepDurationText.duration(store.rawSleepHours * 3600)
         }
         return values
     }

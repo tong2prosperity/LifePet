@@ -17,20 +17,25 @@ struct MealDetailView: View {
     @State private var retryFailed = false
     @State private var isEditing = false
     @State private var draftAnalysis: FoodAnalysis?
+    @State private var metadata: MealMetadataDraft?
+    @State private var metadataSaveFailed = false
 
-    private var effectiveMeal: MealType {
+    private var requestedMeal: MealType {
         if !mealTypeRaw.isEmpty, let matched = MealType(rawValue: mealTypeRaw) {
             return matched
         }
         return meal
     }
 
+    private var effectiveMeal: MealType { photo?.meal ?? requestedMeal }
+
     private var photo: FoodPhoto? {
         _ = history.revision
+        if let id = metadata?.photoID { return history.foodPhoto(id) }
         if !photoId.isEmpty, let uuid = UUID(uuidString: photoId) {
             return history.foodPhoto(uuid)
         }
-        return history.foodPhoto(on: .now, mealType: effectiveMeal)
+        return history.foodPhoto(on: .now, mealType: requestedMeal)
     }
 
     private func sampleNumber(_ photo: FoodPhoto) -> Int {
@@ -45,6 +50,7 @@ struct MealDetailView: View {
     }
 
     private func handleClose() {
+        // The close control discards local drafts. Only the explicit save action commits.
         if let onClose {
             onClose()
         } else {
@@ -70,9 +76,14 @@ struct MealDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         pixelSpecimenHeader(photo)
+                        if let analysis = photo.analysis, analysis.isFood != false { metadataEditor }
                         pixelStates(photo)
                     }
                     .padding(.bottom, 24)
+                }
+                if let analysis = photo.analysis, analysis.isFood != false {
+                    pixelActions(photo: photo, analysis: analysis)
+                        .padding(.vertical, 8)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 12) {
@@ -88,6 +99,81 @@ struct MealDetailView: View {
         .padding(.top, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(PixelUIColor.paper.ignoresSafeArea())
+        .onAppear { loadMetadata() }
+        .onChange(of: photo?.updatedAt) { _, _ in
+            if !metadataChanged && !isEditing { loadMetadata(refresh: true) }
+        }
+        .interactiveDismissDisabled(metadataChanged || isEditing)
+    }
+
+    private func loadMetadata(refresh: Bool = false) {
+        guard (metadata == nil || refresh), let photo else { return }
+        metadata = MealMetadataDraft(photo: photo, fallbackMeal: requestedMeal)
+    }
+
+    private var metadataChanged: Bool { metadata?.changed ?? false }
+    private var metadataName: Binding<String> {
+        Binding(get: { metadata?.name ?? "" }, set: { metadata?.name = $0 })
+    }
+    private var metadataMeal: MealType { metadata?.meal ?? requestedMeal }
+
+    @discardableResult
+    private func saveMetadataIfNeeded(portions: FoodAnalysis? = nil) -> Bool {
+        guard metadataChanged || portions != nil else { return true }
+        guard let metadata else { return false }
+        let saved = history.updateMealMetadata(id: metadata.photoID, name: metadata.name,
+                                               meal: metadata.meal, portionAnalysis: portions)
+        metadataSaveFailed = !saved
+        if saved { loadMetadata(refresh: true) }
+        return saved
+    }
+
+    private func saveAndClose() {
+        guard saveMetadataIfNeeded() else { return }
+        handleClose()
+    }
+
+    private var metadataEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(AppLocalization.text("食物名称"))
+                .font(PixelFont.font(13))
+            TextField(AppLocalization.text("给这一餐起个名字"), text: metadataName)
+                .font(.system(size: 17))
+                .padding(.horizontal, 12)
+                .frame(minHeight: 48)
+                .background(PixelUIColor.paper)
+                .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 1))
+                .submitLabel(.done)
+                .accessibilityIdentifier("meal-name-field")
+            Text(AppLocalization.text("这张照片属于哪一餐？"))
+                .font(PixelFont.font(13))
+            HStack(spacing: 8) {
+                ForEach(MealType.allCases) { choice in
+                    Button {
+                        metadata?.meal = choice
+                        LPHaptics.tap()
+                    } label: {
+                        Text(AppLocalization.text(choice.title))
+                            .font(PixelFont.font(14))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .foregroundStyle(metadataMeal == choice ? .white : PixelUIColor.ink)
+                            .background(metadataMeal == choice ? PixelUIColor.leaf : PixelUIColor.paper)
+                            .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(metadataMeal == choice ? .isSelected : [])
+                    .accessibilityIdentifier("meal-type-\(choice.rawValue)")
+                }
+            }
+            Text(AppLocalization.text(metadataSaveFailed
+                ? "名称不能为空；如果仍无法保存，请重试。"
+                : "名称和餐次可修改，点完成保存。"))
+                .font(.system(size: 12))
+                .foregroundStyle(metadataSaveFailed ? PixelUIColor.warn : PixelUIColor.inkSoft)
+        }
+        .padding(12)
+        .background(PixelUIColor.paperDim)
+        .overlay(Rectangle().strokeBorder(PixelUIColor.border, lineWidth: 2))
     }
 
     private func pixelSpecimenHeader(_ photo: FoodPhoto) -> some View {
@@ -270,33 +356,36 @@ struct MealDetailView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(PixelUIColor.inkSoft)
                 .lineSpacing(3)
+        }
+    }
 
-            HStack(spacing: 10) {
-                PixelButton(
-                    label: AppLocalization.text(isEditing ? "取消调整" : "调整份量"),
-                    primary: false,
-                    active: !displayed.items.isEmpty,
-                    onTap: {
-                        if isEditing {
-                            draftAnalysis = nil
-                            isEditing = false
-                        } else {
-                            draftAnalysis = analysis
-                            isEditing = true
-                        }
+    private func pixelActions(photo: FoodPhoto, analysis: FoodAnalysis) -> some View {
+        let displayed = isEditing ? (draftAnalysis ?? analysis) : analysis
+        return HStack(spacing: 10) {
+            PixelButton(
+                label: AppLocalization.text(isEditing ? "取消调整" : "调整份量"),
+                primary: false,
+                active: !displayed.items.isEmpty,
+                onTap: {
+                    if isEditing {
+                        draftAnalysis = nil
+                        isEditing = false
+                    } else {
+                        draftAnalysis = analysis
+                        isEditing = true
                     }
-                )
-                PixelButton(
-                    label: AppLocalization.text(isEditing ? "保存调整" : "完成"),
-                    onTap: {
-                        if isEditing {
-                            saveDraft(photo: photo)
-                        } else {
-                            handleClose()
-                        }
+                }
+            )
+            PixelButton(
+                label: AppLocalization.text(isEditing ? "保存调整" : "完成"),
+                onTap: {
+                    if isEditing {
+                        saveDraft(photo: photo)
+                    } else {
+                        saveAndClose()
                     }
-                )
-            }
+                }
+            )
         }
     }
 
@@ -528,7 +617,7 @@ struct MealDetailView: View {
             VStack(spacing: LP.Spacing.s) {
                 PiboMossPrimaryButton(
                     title: AppLocalization.text(isEditing ? "保存调整" : "完成"),
-                    action: { isEditing ? saveDraft(photo: photo) : handleClose() }
+                    action: { isEditing ? saveDraft(photo: photo) : saveAndClose() }
                 )
                 PiboMossSecondaryButton(
                     title: AppLocalization.text(isEditing ? "取消" : "调整份量"),
@@ -767,19 +856,16 @@ struct MealDetailView: View {
 
     private func saveDraft(photo: FoodPhoto) {
         guard var draftAnalysis else { return }
-        if !draftAnalysis.items.isEmpty {
-            draftAnalysis.totalCalories = draftAnalysis.items.reduce(0) { $0 + $1.calories }
+        // Merely opening the editor must not alter a valid nutrition estimate.
+        if draftAnalysis.items != photo.analysis?.items {
+            if !draftAnalysis.items.isEmpty {
+                draftAnalysis.totalCalories = draftAnalysis.items.reduce(0) { $0 + $1.calories }
+            }
+            draftAnalysis.proteinG = nil
+            draftAnalysis.carbG = nil
+            draftAnalysis.fatG = nil
         }
-        // Manual calorie edits clear macros so stale data is not presented.
-        draftAnalysis.proteinG = nil
-        draftAnalysis.carbG = nil
-        draftAnalysis.fatG = nil
-        guard let data = try? JSONEncoder().encode(draftAnalysis) else { return }
-        history.updateFoodPhoto(id: photo.id) { record in
-            record.totalCalories = draftAnalysis.totalCalories
-            record.dishName = draftAnalysis.dishName
-            record.analysisJSON = data
-        }
+        guard saveMetadataIfNeeded(portions: draftAnalysis) else { return }
         self.draftAnalysis = nil
         isEditing = false
         LPHaptics.success()
@@ -815,9 +901,7 @@ struct MealDetailView: View {
     }
 
     private func mealIdentity(_ photo: FoodPhoto) -> String {
-        if let dishName = photo.dishName, !dishName.isEmpty { return dishName }
-        if let subjectLabel = photo.subjectLabel, !subjectLabel.isEmpty { return subjectLabel }
-        return AppLocalization.text("已保存的餐食")
+        photo.displayName
     }
 
     private func captureTime(_ photo: FoodPhoto) -> String {

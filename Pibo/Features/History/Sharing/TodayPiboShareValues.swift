@@ -31,7 +31,7 @@ struct TodayPiboShareSnapshot: Equatable {
         let sleepSeconds = max(0, store.rawSleepHours * 3_600)
         let active = store.rawActiveEnergy > 0 ? store.rawActiveEnergy : nil
         let exercise = store.rawExerciseMinutes > 0 ? store.rawExerciseMinutes : nil
-        let stand = store.rawStandMinutes > 0 ? store.rawStandMinutes / 60 : nil
+        let stand = record.flatMap { calendar.isDate($0.date, inSameDayAs: now) ? $0.standHours : nil }
         var moveProgress: Double?
         var exerciseProgress: Double?
         var standProgress: Double?
@@ -39,20 +39,20 @@ struct TodayPiboShareSnapshot: Equatable {
             let values = PiboCoreActivityWater.intensities(
                 activeCalories: store.rawActiveEnergy,
                 exerciseMinutes: Double(store.rawExerciseMinutes),
-                standHours: Double(store.rawStandMinutes) / 60,
+                standHours: Double(stand ?? 0),
                 moveGoal: record.moveGoal,
                 exerciseGoal: Double(record.exerciseGoal),
                 standGoal: Double(record.standGoal)
             )
             moveProgress = values.move
             exerciseProgress = values.exercise
-            standProgress = values.stand
+            standProgress = stand != nil ? values.stand : nil
         }
 
         let primaryValue: String
         let primaryCaption: String
         if sleepSeconds > 0 {
-            let minutes = Int((sleepSeconds / 60).rounded())
+            let minutes = SleepDurationText.minutes(sleepSeconds)
             primaryValue = "\(minutes / 60) h \(minutes % 60) min"
             primaryCaption = "昨夜睡眠"
         } else if let active {

@@ -34,11 +34,12 @@ struct PiboWidgetSyncTests {
     @Test func independentBackgroundMetricsMergeWithoutErasingAppearance() throws {
         let energy = try #require(update(.activeEnergy, 120, at: noon.addingTimeInterval(-10), retaining: base()))
         let exercise = try #require(update(.exerciseMinutes, 18, at: noon.addingTimeInterval(-20), retaining: energy))
-        let stand = try #require(update(.standMinutes, 390, at: noon, retaining: exercise))
+        let duration = try #require(update(.standMinutes, 90, at: noon, retaining: exercise))
+        let stand = try #require(update(.standHours, 11, at: noon, retaining: duration))
         #expect(stand.activeEnergy == 120)
         #expect(stand.exerciseMinutes == 18)
-        #expect(stand.standMinutes == 390)
-        #expect(stand.standHours == 6)
+        #expect(stand.standMinutes == 90)
+        #expect(stand.standHours == 11)
         #expect(stand.activityUpdatedAt == noon)
         #expect(stand.pixel == pixel)
         #expect(stand.petID == petID)
@@ -84,7 +85,9 @@ struct PiboWidgetSyncTests {
         yesterday.activeEnergy = 300
         yesterday.exerciseMinutes = 20
         yesterday.moveGoal = 600
-        let today = try #require(update(.standMinutes, 0, at: noon, retaining: yesterday))
+        yesterday.standHours = 11
+        yesterday.standHoursUpdatedAt = yesterday.activityUpdatedAt
+        let today = try #require(update(.standHours, 0, at: noon, retaining: yesterday))
         #expect(today.activeEnergy == nil)
         #expect(today.exerciseMinutes == nil)
         #expect(today.moveGoal == nil)
@@ -152,6 +155,8 @@ struct PiboWidgetSyncTests {
         #expect(update(.activeEnergy, -1, at: noon, retaining: base()) == nil)
         #expect(update(.exerciseMinutes, Double(Int.max), at: noon, retaining: base()) == nil)
         #expect(update(.standMinutes, .infinity, at: noon, retaining: base()) == nil)
+        #expect(update(.standHours, .infinity, at: noon, retaining: base()) == nil)
+        #expect(update(.standHours, 1.5, at: noon, retaining: base()) == nil)
         #expect(update(.activeEnergy, 5, at: noon.addingTimeInterval(60), retaining: base()) == nil)
     }
 
@@ -224,6 +229,75 @@ struct PiboWidgetSyncTests {
         #expect(HealthActivityUpdate.metric(for: .appleExerciseTime) == .exerciseMinutes)
         #expect(HealthActivityUpdate.metric(for: .appleStandTime) == .standMinutes)
         #expect(HealthActivityUpdate.metric(for: .stepCount) == nil)
+    }
+
+    @Test func appleStandSummaryUsesCountUnitsIncludingZero() {
+        let summary = HKActivitySummary()
+        summary.appleStandHours = HKQuantity(unit: .count(), doubleValue: 11)
+        summary.standHoursGoal = HKQuantity(unit: .count(), doubleValue: 12)
+        let value = HealthDataService.DayActivitySummary(summary)
+        #expect(value.standHours == 11)
+        #expect(value.standGoal == 12)
+        summary.appleStandHours = HKQuantity(unit: .count(), doubleValue: 0)
+        #expect(HealthDataService.DayActivitySummary(summary).standHours == 0)
+    }
+
+    @Test func standingDurationCannotReplaceTheRingCountOrItsProgress() throws {
+        var previous = base()
+        previous.activityDayStart = day
+        previous.standGoal = 12
+        let ring = try #require(update(.standHours, 11, at: noon, retaining: previous))
+        let progress = try #require(ring.standProgress)
+        let duration = try #require(update(.standMinutes, 90, at: noon.addingTimeInterval(10), retaining: ring,
+                                          now: noon.addingTimeInterval(10)))
+        #expect(duration.standHoursText == "11")
+        #expect(duration.standHoursUpdatedAt == noon)
+        #expect(duration.standProgress == progress)
+
+        let missing = try #require(update(.standHours, nil, at: noon.addingTimeInterval(20), retaining: duration,
+                                         now: noon.addingTimeInterval(20)))
+        #expect(missing.standMinutes == 90)
+        #expect(missing.standHoursText == "--")
+        #expect(missing.standProgress == nil)
+        #expect(update(.standHours, 10, at: noon.addingTimeInterval(-1), retaining: missing) == nil)
+
+        let row = HealthDayRecord(date: day, standMinutes: 90, updatedAt: noon.addingTimeInterval(60))
+        row.standHours = 11
+        row.standHoursObservedAt = noon
+        let merged = PetStateWidgetBridge.activitySnapshot(petName: "Pibo", dayCount: 8,
+            activityState: .stable, record: row, retaining: missing, petID: petID)
+        #expect(merged.standHours == nil, "an older history summary must not resurrect an unavailable live count")
+    }
+
+    @Test func liveStandSummaryCarriesItsActualGoal() throws {
+        let value = try #require(PetStateWidgetBridge.activityUpdateSnapshot(
+            .init(metric: .standHours, value: 11, dayStart: day, asOf: noon, goal: 12),
+            petName: "Pibo", dayCount: 8, activityState: .stable, petID: petID,
+            retaining: base(), now: noon))
+        #expect(value.standHours == 11)
+        #expect(value.standGoal == 12)
+        #expect(value.standProgress != nil)
+    }
+
+    @Test func legacyWidgetCacheDiscardsConvertedHoursButKeepsRealFacts() throws {
+        let suite = "pibo.tests.widget-stand-migration.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var legacy = base()
+        legacy.activeEnergy = 120
+        legacy.standMinutes = 90
+        legacy.standHours = 1
+        legacy.standProgress = 1.5 / 12
+        #expect(PiboWidgetSnapshotStore.save(legacy, to: defaults))
+        let migrated = PiboWidgetSnapshotStore.load(from: defaults)
+        #expect(migrated.standHours == nil)
+        #expect(migrated.standProgress == nil)
+        #expect(migrated.standMinutes == 90)
+        #expect(migrated.activeEnergy == 120)
+        #expect(migrated.pixel == pixel)
+        let corrected = try #require(update(.standHours, 11, at: noon, retaining: migrated))
+        #expect(PiboWidgetSnapshotStore.save(corrected, to: defaults))
+        #expect(PiboWidgetSnapshotStore.load(from: defaults).standHours == 11)
     }
 
     @Test func widgetRendersPersistedGrowthAndFormRatherThanDefaultCharacter() throws {

@@ -157,7 +157,7 @@ final class GrowthCoordinator {
         )
         lastFacts = facts
         for slot in wishes.update(facts) {
-            rewardWish(slot.kind)
+            rewardWish(slot, now: now)
         }
 
         if context.entering, let cues, cues.sleepBand >= 0, growth.claimMorning(now: now) {
@@ -174,8 +174,8 @@ final class GrowthCoordinator {
     // MARK: - Interaction awards
 
     /// Each returns Core's answer so the stage can show "+n".
-    func onPat() -> PiboCoreGrowthAward? {
-        interaction(.pat)
+    func onPat(now: Date = .now) -> PiboCoreGrowthAward? {
+        interaction(.pat, now: now)
     }
 
     func onMealRecognized() -> PiboCoreGrowthAward? {
@@ -207,31 +207,38 @@ final class GrowthCoordinator {
     private func interaction(_ source: PiboCoreGrowthSource, now: Date = .now) -> PiboCoreGrowthAward? {
         guard let growth, let wishes else { return nil }
         let award = growth.award(source, now: now)
-        if award.xp > 0 {
-            lastAwardXP = award.xp
-            lastAwardAt = now
+        lastAwardXP = award.xp
+        lastAwardAt = award.xp > 0 ? now : nil
+        // Interaction facts work even before HealthKit's first refresh or after midnight.
+        // Never reuse yesterday's health values to complete today's wishes.
+        let hasContext = lastFacts != nil
+        var facts = lastFacts ?? WishFacts(
+            now: now, localHour: Calendar.current.component(.hour, from: now),
+            cameraEnabled: false, companionEnabled: false, pats: 0, meals: 0, answers: 0)
+        if growthDayKey(facts.now) != growthDayKey(now) {
+            // Baselines and feature availability remain useful; yesterday's facts do not.
+            facts.steps = nil
+            facts.activeMinutes = nil
+            facts.lastNightSleepMinutes = nil
         }
-        // Health facts from another day must never fill today's wishes.
-        if var facts = lastFacts, growthDayKey(facts.now) == growthDayKey(now) {
-            facts.localHour = Calendar.current.component(.hour, from: now)
-            facts.pats = growth.countToday(.pat, now: now)
-            facts.meals = growth.countToday(.meal, now: now)
-            facts.answers = growth.countToday(.companionAnswer, now: now)
-            lastFacts = facts
-            for slot in wishes.update(facts) {
-                rewardWish(slot.kind)
-            }
-        }
+        facts.now = now
+        facts.localHour = Calendar.current.component(.hour, from: now)
+        facts.pats = growth.countToday(.pat, now: now)
+        facts.meals = growth.countToday(.meal, now: now)
+        facts.answers = growth.countToday(.companionAnswer, now: now)
+        if hasContext { lastFacts = facts }
+        for slot in wishes.update(facts, allowPlanning: hasContext) { rewardWish(slot, now: now) }
         revision += 1
         return award
     }
 
-    private func rewardWish(_ kind: PiboCoreWishKind) {
+    private func rewardWish(_ slot: WishSlot, now: Date) {
         guard let growth else { return }
-        let event = GrowthFeedbackEvent(kind: .wish, wish: Int(kind.rawValue))
-        growth.push(event)
-        event.xp = growth.award(.wish).xp
-        Analytics.track(.wishCompleted, screen: "home", ["wish": .string(Self.wishAnalyticsKey(kind))])
+        let receipt = growth.settleWish(slot, now: now)
+        wishes?.recordReward(for: slot, xp: receipt.xp)
+        if receipt.isNew {
+            Analytics.track(.wishCompleted, screen: "home", ["wish": .string(Self.wishAnalyticsKey(slot.kind))])
+        }
     }
 
     /// Stable analytics key per wish kind (decision 057 dashboard vocabulary).

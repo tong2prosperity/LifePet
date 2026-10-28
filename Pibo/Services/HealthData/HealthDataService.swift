@@ -24,6 +24,7 @@ import os
 /// | Metric           | Window          | Read strategy                |
 /// |------------------|-----------------|------------------------------|
 /// | steps / exercise / kcal / stand | 00:00 → now | `HKStatisticsQuery cumulativeSum` |
+/// | Stand ring hours | today's civil date | `HKActivitySummaryQueryDescriptor` |
 /// | HRV / RHR / HR   | latest sample   | `HKSampleQueryDescriptor limit:1` |
 /// | sleep            | last 18h        | sum durations per category   |
 /// | mindful          | 00:00 → now     | sum durations of category samples |
@@ -428,7 +429,9 @@ final class HealthDataService {
         case .steps:           await postSum(.stepCount,           unit: .count(),                    as: HealthEvent.steps,           cast: { Int($0) })
         case .exerciseMinutes: await postSum(.appleExerciseTime,   unit: .minute(),                   as: HealthEvent.exerciseMinutes, cast: { Int($0) })
         case .activeEnergy:    await postSum(.activeEnergyBurned,  unit: .kilocalorie(),              as: HealthEvent.activeEnergy,    cast: { $0 })
-        case .standMinutes:    await postSum(.appleStandTime,      unit: .minute(),                   as: HealthEvent.standMinutes,    cast: { Int($0) })
+        case .standMinutes:
+            await postSum(.appleStandTime, unit: .minute(), as: HealthEvent.standMinutes, cast: { Int($0) })
+            await postStandHours()
         case .heartRate:       await postLatest(.heartRate,        unit: .count().unitDivided(by: .minute()), as: { v, at in .heartRate(value: v, measuredAt: at) })
         case .hrv:             await postLatest(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), as: { v, _ in .hrv(v) })
         case .heartbeatSeries: await postStress()
@@ -441,6 +444,21 @@ final class HealthDataService {
     }
 
     // MARK: - Cumulative sum (today)
+
+    /// Re-read the actual Stand ring on stand-data observer wakes and foreground
+    /// reconciliation. Never derive a ring count from standing duration.
+    private func postStandHours() async {
+        let calendar = Calendar.current
+        let now = Date()
+        let start = calendar.startOfDay(for: now)
+        do {
+            let summary = try await fetchActivitySummaries(start: start, end: now, calendar: calendar)[start]
+            onActivityUpdate?(.init(metric: .standHours, value: summary?.standHours.map(Double.init),
+                                    dayStart: start, asOf: now, goal: summary.map { Double($0.standGoal) }))
+        } catch {
+            LPLog.healthKit.error("postStandHours: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 
     /// Sum a quantity type over today (00:00 → now).
     private func postSum<Out>(

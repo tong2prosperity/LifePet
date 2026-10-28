@@ -52,4 +52,20 @@ struct TodayPiboShareTests {
         #expect(image.height == 1440)
         #expect(url.pathExtension == "png")
     }
+
+    @Test func shareUsesTodaysStandRingCountRatherThanDuration() {
+        let store = PetStateStore(demoMode: false)
+        store.ingest(.standMinutes(90))
+        let record = HealthDayRecord(date: Calendar.current.startOfDay(for: .now),
+                                     standMinutes: 90, moveGoal: 600, exerciseGoal: 30, standGoal: 12)
+        record.standHours = 11
+        let snapshot = TodayPiboShareSnapshot.make(store: store, record: record)
+        #expect(snapshot.standHours == 11)
+        #expect(snapshot.standProgress != nil)
+        #expect(TodayPiboShareSnapshot.make(store: store, record: nil).standHours == nil)
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: record.date)!
+        let next = TodayPiboShareSnapshot.make(store: store, record: record, now: tomorrow)
+        #expect(next.standHours == nil)
+        #expect(next.standProgress == nil)
+    }
 }

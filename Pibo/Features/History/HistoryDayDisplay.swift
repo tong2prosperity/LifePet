@@ -55,7 +55,7 @@ struct HistoryDayDisplay: Equatable {
             isToday: calendar.isDate(day, inSameDayAs: now),
             activeEnergy: record?.recordedActiveEnergy,
             exerciseMinutes: record?.recordedExerciseMinutes,
-            standHours: record?.recordedStandMinutes.map { Int((Double($0) / 60).rounded()) },
+            standHours: record?.standHours,
             moveGoal: record?.moveGoal ?? 0,
             exerciseGoal: record?.exerciseGoal ?? 0,
             standGoal: record?.standGoal ?? 0,

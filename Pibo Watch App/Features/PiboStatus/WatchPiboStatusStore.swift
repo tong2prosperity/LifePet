@@ -88,7 +88,7 @@ final class WatchPiboStatusStore: ObservableObject {
                 date: snapshot.dayStart,
                 activeEnergy: snapshot.activeEnergy,
                 exerciseMinutes: snapshot.exerciseMinutes,
-                standMinutes: snapshot.standMinutes ?? snapshot.standHours.map { $0 * 60 }
+                standMinutes: snapshot.standMinutes
             )
         }
         guard let localActivity, Calendar.current.isDate(localActivity.date, inSameDayAs: now) else { return nil }

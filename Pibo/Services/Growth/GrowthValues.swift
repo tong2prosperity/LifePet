@@ -110,6 +110,8 @@ struct GrowthSnapshot {
     var eventFamiliarity = 0
     var counterDay = ""
     var counters = [Int](repeating: 0, count: GrowthValues.sourceCount)
+    /// Receipts for this counterDay, committed atomically with XP and queued feedback.
+    var wishReceipts: [String: Int] = [:]
     /// -1 until the first sync, so an existing ledger never replays as level-ups.
     var seenLevel = -1
     var seenHearts = -1
@@ -244,6 +246,9 @@ extension GrowthSnapshot {
         for index in 0..<GrowthValues.sourceCount {
             snapshot.counters[index] = growthNonnegative(counters.indices.contains(index) ? counters[index] : nil)
         }
+        if let receipts = json["wishReceipts"] as? [String: Any] {
+            snapshot.wishReceipts = receipts.mapValues { growthNonnegative($0) }
+        }
         snapshot.eventXP = growthNonnegative(json["eventXP"])
         snapshot.eventFamiliarity = growthNonnegative(json["eventFamiliarity"])
         snapshot.counterDay = growthText(json["counterDay"])
@@ -277,6 +282,7 @@ extension GrowthSnapshot {
             "eventFamiliarity": eventFamiliarity,
             "counterDay": counterDay,
             "counters": counters,
+            "wishReceipts": wishReceipts,
             "seenLevel": seenLevel,
             "seenHearts": seenHearts,
             "seenHealthXP": seenHealthXP,

@@ -425,8 +425,30 @@ final class PixelDayDirector {
         holdUntil = max(holdUntil, now + TOUCH_HOLD_MS)
     }
 
-    /// A double tap: stop and enjoy it for a moment.
+    /// While a Core-selected playful dodge owns the actor, speech may follow it.
+    private(set) var playingPatWish = false
+
+    /// A short, interruptible performance; Core has already selected the dodge.
+    func playPatWishDodge(_ now: Double) {
+        let bounds = pixelWalkBounds(layout, scene)
+        let destination = min(Double(bounds.maxX), max(Double(bounds.minX),
+            x + (x < Double(layout.width) / 2 ? 28 : -28)))
+        guard perform([
+            pixelStoryAct(.none, 180),
+            pixelStoryWalk(destination, y, gait: .run),
+            pixelStoryAct(.none, 1800, facing: destination > x ? -1 : 1),
+            pixelStoryCall { [weak self] in self?.playingPatWish = false }
+        ]) else { return }
+        holdUntil = now + 180
+        playingPatWish = true
+    }
+
+    /// A double tap stops the current dodge before counting the next accepted pat.
     func patted(_ now: Double) {
+        if playingPatWish {
+            playingPatWish = false
+            dropBeats()
+        }
         holdUntil = max(holdUntil, now + 1200)
     }
 
@@ -859,6 +881,7 @@ final class PixelDayDirector {
     /// Forgets the plan. Whatever Pibo carried is already on the shelf (the store records a
     /// find when the trip is due), so an interrupted put-away never leaves it in its hands.
     private func dropBeats() {
+        playingPatWish = false
         beats = []
         carrying = -1
     }

@@ -36,6 +36,7 @@ struct PetStateWidgetBridgeTests {
         record.activeEnergyRecorded = true
         record.exerciseRecorded = true
         record.standRecorded = true
+        record.standHours = 0
         let snapshot = PetStateWidgetBridge.activitySnapshot(petName: "Pibo", dayCount: 1,
                                                              activityState: .stable, record: record)
         #expect(snapshot.activeEnergy == 0)
@@ -100,6 +101,7 @@ struct PetStateWidgetBridgeTests {
             standGoal: 12,
             updatedAt: .now
         )
+        record.standHours = 11
         let value = PetStateWidgetBridge.activitySnapshot(
             petName: "Pibo",
             dayCount: 8,
@@ -109,7 +111,7 @@ struct PetStateWidgetBridgeTests {
 
         #expect(value.activeEnergy == 240)
         #expect(value.exerciseMinutes == 18)
-        #expect(value.standHours == 6)
+        #expect(value.standHours == 11)
         #expect(value.moveGoal == 600)
         #expect(value.exerciseGoal == 30)
         #expect(value.standGoal == 12)

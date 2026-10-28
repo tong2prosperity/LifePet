@@ -44,6 +44,8 @@ final class HomePresentationState {
     /// never elapses invisibly behind the cover.
     var pendingFoodProjection: HomeFoodProjection?
     var foodProjection: HomeFoodProjection?
+    /// Verified capture result waits here through competing sheets/covers, consumed only on presentation.
+    private(set) var pendingMealResult: HomeSheetDestination?
     var transientNotice: String?
     /// `activeSheet` becomes nil at the start of dismissal, while its pixels are
     /// still covering Home. Pending feedback waits for `onDismiss` before it can
@@ -119,13 +121,14 @@ final class HomePresentationState {
         activeSheet = nil
     }
 
-    /// The corner camera: the meal picker, or the account first.
+    /// The corner camera opens directly; meal metadata belongs to the captured result.
     func openMealCapture(isLoggedIn: Bool) {
         guard isLoggedIn else {
-            requestCameraLogin(resume: .mealSelection)
+            requestCameraLogin(resume: .camera(nil))
             return
         }
-        activeSheet = .mealCaptureSelection
+        cameraInitialMeal = nil
+        showCamera = true
     }
 
     /// Consumes a camera request queued behind a closing sheet. Without an
@@ -157,7 +160,8 @@ final class HomePresentationState {
         guard isLoggedIn, let resume else { return }
         switch resume {
         case .mealSelection:
-            activeSheet = .mealCaptureSelection
+            cameraInitialMeal = nil
+            showCamera = true
         case .camera(let meal):
             cameraInitialMeal = meal
             showCamera = true
@@ -173,10 +177,18 @@ final class HomePresentationState {
         cameraInitialMeal = nil
         queuedCameraMeal = nil
         pendingFoodProjection = nil
+        foodProjection = nil
+        pendingMealResult = nil
         switch activeSheet {
         case .shadow, .mealCaptureSelection: activeSheet = nil
         default: break
         }
+    }
+
+    func openAccountLogin() {
+        cameraResumeAfterLogin = nil
+        loginPurpose = .account
+        showLogin = true
     }
 
     private func requestCameraLogin(resume: CameraLoginResume) {
@@ -186,11 +198,24 @@ final class HomePresentationState {
     }
 
     func prepareFoodProjection(_ projection: HomeFoodProjection) {
+        pendingMealResult = .meal(projection.meal, photoId: projection.id.uuidString)
         if showCamera {
             pendingFoodProjection = projection
         } else {
             foodProjection = projection
         }
+    }
+
+    @discardableResult
+    func presentPendingMealResultIfPossible(canPresent: Bool) -> Bool {
+        guard canPresent, !showCamera, !showLogin, !showHistory, !showSettings,
+              !showGames, !showWalkDoodle, !showStoryRecovery,
+              !sheetDismissalInProgress, activeSheet == nil,
+              pendingFoodProjection == nil, foodProjection == nil,
+              let result = pendingMealResult else { return false }
+        activeSheet = result
+        pendingMealResult = nil
+        return true
     }
 
     func presentPreparedFoodProjection() {
